@@ -14,7 +14,7 @@ jobs:
   cpp:
     runs-on: ubuntu-22.04
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - name: Pin toolchain
         run: |
           g++ --version
@@ -39,7 +39,7 @@ jobs:
   format:
     runs-on: ubuntu-22.04
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - name: clang-format check
         run: |
           files=$(git ls-files '*.cpp' '*.hpp' '*.h' '*.cc' 2>/dev/null || true)
@@ -50,8 +50,8 @@ jobs:
   python:
     runs-on: ubuntu-22.04
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
         with:
           python-version: "3.11"
           cache: "pip"
@@ -68,6 +68,6 @@ jobs:
   docs:
     runs-on: ubuntu-22.04
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - name: Internal link check
         run: python3 scripts/check_docs_links.py
