@@ -10,7 +10,7 @@ ctest --test-dir build --output-on-failure
 
 ## Checklist
 
-- [ ] CI green (CI + dependency review)
+- [ ] Local build/tests run, or the reason they could not be run is documented
 - [ ] Map invariants hold — see `docs/map-correctness.md` (or N/A)
 - [ ] Baseline noted for adaptive changes (`DistanceLOD vs UtilityLOD`) or N/A
 - [ ] No data/weights/maps committed (see `.gitignore`)

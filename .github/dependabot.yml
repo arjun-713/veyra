@@ -1,38 +1,13 @@
-# Veyra dependency updates — 3-person team, weekly, grouped to cut PR noise.
+# Veyra dependency updates — grouped monthly to keep maintenance low-noise.
 version: 2
 updates:
-  - package-ecosystem: "github-actions"
-    directory: "/"
-    schedule:
-      interval: "weekly"
-      day: "monday"
-      time: "04:00"
-    groups:
-      actions:
-        patterns: ["*"]
-    labels: ["dependencies", "ci"]
-    commit-message:
-      prefix: "chore(deps)"
-
   - package-ecosystem: "pip"
     directory: "/"
     schedule:
-      interval: "weekly"
-      day: "monday"
-      time: "04:00"
+      interval: "monthly"
     groups:
       python:
         patterns: ["*"]
-    labels: ["dependencies", "perception"]
-    commit-message:
-      prefix: "chore(deps)"
-
-  - package-ecosystem: "devcontainers"
-    directory: "/"
-    schedule:
-      interval: "weekly"
-      day: "monday"
-      time: "04:00"
-    labels: ["dependencies", "dx"]
+    labels: ["dependencies"]
     commit-message:
       prefix: "chore(deps)"
