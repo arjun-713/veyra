@@ -1,0 +1,7 @@
+# Named-hardware profiles for reporting measured (not analytical) numbers.
+profiles:
+  - name: dev-laptop
+    os: ubuntu-22.04
+    cpu: TODO
+    gpu: TODO
+    ram_gb: TODO

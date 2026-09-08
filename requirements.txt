@@ -1,0 +1,3 @@
+# Runtime deps — pin exact versions as perception modules land.
+# Keep mapping-only builds dependency-free (see AGENTS.md).
+numpy==1.26.4

@@ -1,0 +1,4 @@
+# DistanceLOD baseline. Distance sets resolution; no utility promotion.
+levels: [0.05, 0.10, 0.20, 0.40]
+ranges_m: [[0, 10], [10, 30], [30, 60], [60, 100]]
+frame: odom

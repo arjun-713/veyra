@@ -1,0 +1,25 @@
+name: Feature request
+description: Propose a map/policy/perception improvement with a baseline
+title: "[feat] "
+labels: ["needs-triage"]
+body:
+  - type: input
+    id: area
+    attributes:
+      label: Area
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposal
+      description: What changes, which invariant is affected, how it will be benchmarked.
+    validations:
+      required: true
+  - type: input
+    id: baseline
+    attributes:
+      label: Baseline that will show the gain
+      placeholder: "DistanceLOD vs UtilityLOD"
+    validations:
+      required: true

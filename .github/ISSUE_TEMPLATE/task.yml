@@ -1,0 +1,12 @@
+name: Task
+description: Small scoped task (good for good first issue)
+title: "[task] "
+labels: ["needs-triage"]
+body:
+  - type: textarea
+    id: scope
+    attributes:
+      label: Scope + Definition of Done
+      description: Files, tests, docs to update. Link the invariant if map code changes.
+    validations:
+      required: true

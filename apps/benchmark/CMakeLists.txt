@@ -1,0 +1,2 @@
+add_executable(veyra_benchmark main.cpp)
+target_compile_features(veyra_benchmark PRIVATE cxx_std_20)

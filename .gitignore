@@ -1,0 +1,130 @@
+# Veyra .gitignore — C++20 / CMake core + Python perception + ROS2 + datasets
+# Data policy (AGENTS.md §20): scripts/metadata in Git, data outside Git.
+
+# --- CMake / C++ build ---
+build/
+cmake-build-*/
+CMakeCache.txt
+CMakeFiles/
+cmake_install.cmake
+Makefile
+*.o
+*.a
+*.so
+*.so.*
+*.dylib
+*.dll
+*.exe
+*.out
+*.d
+*.gcda
+*.gcno
+*.gcov
+compile_commands.json
+.cache/
+CTestTestfile.cmake
+Testing/
+CPack*.cmake
+_CPack_Packages/
+*.cmake.user
+
+# --- Python (perception, datasets, scripts, benchmarks) ---
+__pycache__/
+*.py[cod]
+*$py.class
+.venv/
+venv/
+.env/
+*.egg-info/
+dist/
+*.egg
+pip-log.txt
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.hypothesis/
+*.ipynb_checkpoints
+
+# --- PyTorch / ONNX / weights (never commit) ---
+*.pt
+*.pth
+*.ckpt
+*.safetensors
+*.onnx
+*.ort
+*.engine
+*.trt
+*.plan
+*.onnx.data
+checkpoints/
+weights/
+models/*.pt
+models/*.pth
+models/*.onnx
+
+# --- Datasets (SemanticKITTI / RELLIS-3D / Great Outdoors) ---
+# Keep download/setup scripts (*.sh, *.py, *.yaml, *.md); ignore data.
+*.bin
+*.label
+*.pcd
+*.ply
+*.las
+*.laz
+*.bag
+*.db3
+*.mcap
+*.rosbag
+datasets/*/*.bin
+datasets/*/*.label
+datasets/*/sequences/
+datasets/*/velodyne/
+datasets/*/labels/
+datasets/*/calib/
+datasets/*/poses/
+data/
+data_raw/
+downloads/
+
+# --- Generated maps / benchmarks / viewer output (never commit) ---
+maps/
+*.pcd.gz
+benchmarks/results/
+benchmarks/dumps/
+benchmarks/*.json.bak
+benchmarks/*.csv.bak
+viewer/dist/
+viewer/build/
+viewer/node_modules/
+viewer/.next/
+viewer/coverage/
+
+# --- ROS2 ---
+ros2/build/
+ros2/install/
+ros2/log/
+*.repos.bak
+
+# --- CUDA / TensorRT ---
+*.fatbin
+*.cubin
+*.ptx
+*.nvprof
+*.nvvp
+
+# --- IDE / OS ---
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.clangd/
+.clang-tidy-cache
+.DS_Store
+Thumbs.db
+*.orig
+*.rej
+
+# --- Misc generated ---
+*.log
+*.tmp
+*.bak

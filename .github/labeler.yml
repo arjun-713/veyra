@@ -1,0 +1,36 @@
+# Path-based PR auto-labels. Used by .github/workflows/triage.yml
+perception:
+  - perception/**/*
+  - datasets/**/*
+  - scripts/perception/**/*
+mapping:
+  - src/map/**/*
+  - include/veyra/map/**/*
+  - tests/**/test_*alignment*
+  - tests/**/test_*merge*
+  - tests/**/test_*ownership*
+adaptive:
+  - src/policy/**/*
+  - include/veyra/policy/**/*
+  - configs/*.yaml
+  - benchmarks/**/*
+terrain-temporal:
+  - src/terrain/**/*
+  - src/temporal/**/*
+  - include/veyra/terrain/**/*
+  - include/veyra/temporal/**/*
+docs:
+  - "*.md"
+  - docs/**/*
+ci:
+  - .github/**/*
+  - CMakeLists.txt
+  - CMakePresets.json
+  - vcpkg.json
+  - requirements*.txt
+  - .pre-commit-config.yaml
+  - .clang-format
+dx:
+  - .devcontainer/**/*
+  - .editorconfig
+  - .gitattributes

@@ -1,0 +1,6 @@
+# UtilityLOD: distance baseline + promotion gated by observation quality.
+# See docs/resolution-policies.md
+baseline: distance_lod
+promote_on: [geometry, semantics, motion, traversability_risk]
+gate_uncertainty_by: observation_quality
+protect_near_field_m: 10.0
