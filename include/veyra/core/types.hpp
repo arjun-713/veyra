@@ -25,4 +25,11 @@ constexpr bool operator==(CellId a, CellId b) {
 
 constexpr bool operator!=(CellId a, CellId b) { return !(a == b); }
 
+// Parent at level+1. Arithmetic right shift floors toward negative infinity;
+// integer division truncates toward zero, which on the negative side groups
+// the wrong cells together (-3 / 2 == -1 but -3 >> 1 == -2).
+constexpr CellId parentOf(CellId c) {
+  return CellId{c.level + 1, static_cast<int32_t>(c.ix >> 1), static_cast<int32_t>(c.iy >> 1)};
+}
+
 }  // namespace veyra::core
