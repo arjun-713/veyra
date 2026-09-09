@@ -1,5 +1,6 @@
 #pragma once
 #include <array>
+#include <cmath>
 #include <cstdint>
 
 namespace veyra::core {
@@ -59,6 +60,15 @@ struct CellExtent {
 constexpr CellExtent extentOf(CellId c) {
   const double n = cells_per_m(c.level);
   return CellExtent{c.ix / n, c.iy / n, (c.ix + 1) / n, (c.iy + 1) / n};
+}
+
+// XY -> cell id on the lattice, which is world-aligned and fixed in `odom`.
+// Indexed once at L0 and shifted right to reach coarser levels, so a cell and
+// its ancestors agree by construction instead of by per-level rounding.
+inline CellId worldToKey(double x, double y, int level) {
+  const auto ix0 = static_cast<int32_t>(std::floor(x * cells_per_m(0)));
+  const auto iy0 = static_cast<int32_t>(std::floor(y * cells_per_m(0)));
+  return CellId{level, static_cast<int32_t>(ix0 >> level), static_cast<int32_t>(iy0 >> level)};
 }
 
 }  // namespace veyra::core
