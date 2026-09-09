@@ -28,6 +28,8 @@ bool interiorsDisjoint(const CellExtent& a, const CellExtent& b) {
          b.max_y - a.min_y < kEps;
 }
 
+double areaOf(const CellExtent& e) { return (e.max_x - e.min_x) * (e.max_y - e.min_y); }
+
 // 1. Resolution ladder: resolution_m(l) == 0.05 * 2^l, and each level is
 //    exactly twice the one below it.
 void checkResolutionLadder() {
