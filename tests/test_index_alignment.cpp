@@ -15,12 +15,16 @@
 namespace {
 
 using veyra::core::CellExtent;
+using veyra::core::cellFromTile;
 using veyra::core::CellId;
 using veyra::core::cells_per_m;
 using veyra::core::childrenOf;
 using veyra::core::extentOf;
+using veyra::core::localIndex;
 using veyra::core::parentOf;
 using veyra::core::resolution_m;
+using veyra::core::TileId;
+using veyra::core::tileOf;
 using veyra::core::worldToKey;
 
 constexpr double kEps = 1e-9;
@@ -242,6 +246,43 @@ void checkBoundaryOwnership() {
   }
 }
 
+// 7. A world coordinate, the cell it lands in, that cell's centre, and the
+//    cell the centre indexes back to are all the same cell. Driven from both
+//    ends: from arbitrary coordinates, and from a sweep of indices spanning
+//    the origin.
+void checkCenterRoundTrip() {
+  std::mt19937 rng(20260910u);  // fixed seed: the case set must be reproducible
+  std::uniform_real_distribution<double> dist(-100.0, 100.0);
+  for (int n = 0; n < 200; ++n) {
+    const double x = dist(rng);
+    const double y = dist(rng);
+    for (int l = 0; l <= 3; ++l) {
+      const CellId k = worldToKey(x, y, l);
+      const CellExtent e = extentOf(k);
+      const double cx = 0.5 * (e.min_x + e.max_x);
+      const double cy = 0.5 * (e.min_y + e.max_y);
+      // The centre lies strictly inside the cell it came from ...
+      CHECK(e.min_x < cx && cx < e.max_x);
+      CHECK(e.min_y < cy && cy < e.max_y);
+      // ... and indexes back to that same cell.
+      CHECK(worldToKey(cx, cy, l) == k);
+    }
+  }
+
+  // Same round trip from the index side, negative indices included.
+  for (int l = 0; l <= 3; ++l) {
+    for (int32_t i = -40; i <= 40; ++i) {
+      const CellId c{l, i, static_cast<int32_t>(-i)};
+      const CellExtent e = extentOf(c);
+      const double cx = 0.5 * (e.min_x + e.max_x);
+      const double cy = 0.5 * (e.min_y + e.max_y);
+      CHECK(worldToKey(cx, cy, l) == c);
+      // Both anchors of the cell agree: centre and lower corner.
+      CHECK(worldToKey(e.min_x, e.min_y, l) == c);
+    }
+  }
+}
+
 }  // namespace
 
 int main() {
@@ -251,5 +292,6 @@ int main() {
   checkChildrenCoverParent();
   checkDirectVsShiftAgreement();
   checkBoundaryOwnership();
+  checkCenterRoundTrip();
   return 0;
 }
