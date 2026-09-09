@@ -71,4 +71,17 @@ inline CellId worldToKey(double x, double y, int level) {
   return CellId{level, static_cast<int32_t>(ix0 >> level), static_cast<int32_t>(iy0 >> level)};
 }
 
+// A tile is a square block of 2^tile_log2 cells at one level, world-aligned
+// like the cells themselves. These helpers are index arithmetic only; no tile
+// storage exists yet.
+struct TileId {
+  int level = 0;
+  int32_t tx = 0;
+  int32_t ty = 0;
+};
+
+constexpr bool operator==(TileId a, TileId b) {
+  return a.level == b.level && a.tx == b.tx && a.ty == b.ty;
+}
+
 }  // namespace veyra::core
