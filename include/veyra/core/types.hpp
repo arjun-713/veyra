@@ -86,4 +86,11 @@ constexpr bool operator==(TileId a, TileId b) {
 
 constexpr bool operator!=(TileId a, TileId b) { return !(a == b); }
 
+// Tile containing `c`. Right shift for the same reason parentOf uses it:
+// truncating division would put cells left of the origin in the wrong tile.
+constexpr TileId tileOf(CellId c, int tile_log2) {
+  return TileId{c.level, static_cast<int32_t>(c.ix >> tile_log2),
+                static_cast<int32_t>(c.iy >> tile_log2)};
+}
+
 }  // namespace veyra::core
