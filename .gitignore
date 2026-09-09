@@ -62,8 +62,26 @@ models/*.pt
 models/*.pth
 models/*.onnx
 
-# --- Datasets (SemanticKITTI / RELLIS-3D / Great Outdoors) ---
-# Keep download/setup scripts (*.sh, *.py, *.yaml, *.md); ignore data.
+# --- Local dataset data (never commit) ---
+# datasets/ holds adapters/loaders/code (TRACKED). data/ holds large files (IGNORED).
+# .gitkeep placeholders keep the empty skeleton checkout-friendly.
+/data/raw/*
+!/data/raw/.gitkeep
+/data/processed/*
+!/data/processed/.gitkeep
+/data/cache/*
+!/data/cache/.gitkeep
+data_raw/
+downloads/
+
+# --- Dataset archives ---
+*.zip
+*.tar
+*.tar.gz
+*.tgz
+*.7z
+
+# --- Point cloud / label / bag data (never commit anywhere) ---
 *.bin
 *.label
 *.pcd
@@ -74,16 +92,6 @@ models/*.onnx
 *.db3
 *.mcap
 *.rosbag
-datasets/*/*.bin
-datasets/*/*.label
-datasets/*/sequences/
-datasets/*/velodyne/
-datasets/*/labels/
-datasets/*/calib/
-datasets/*/poses/
-data/
-data_raw/
-downloads/
 
 # --- Generated maps / benchmarks / viewer output (never commit) ---
 maps/

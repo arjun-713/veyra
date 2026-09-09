@@ -1,0 +1,12 @@
+# Dataset roots — repository-relative. No absolute paths in source code.
+# data/ is local-only and git-ignored; datasets/ holds code and IS tracked.
+rellis3d:
+  root: data/raw/rellis3d/Rellis-3D
+  sequences: [00000, 00001, 00002, 00003, 00004]
+  scan_dir: vel_cloud_node_kitti_bin
+  label_dir: vel_cloud_node_semantickitti_label_id
+semanticposs:
+  root: data/raw/semanticposs/dataset
+  sequences: ["00", "01", "02", "03", "04", "05"]
+  scan_dir: velodyne
+  label_dir: labels
