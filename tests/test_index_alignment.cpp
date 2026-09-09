@@ -1,7 +1,9 @@
 // Invariant test for the world-aligned dyadic lattice. Checks the resolution
 // ladder, parent/child round-trips, the negative-index case where >> and /
 // disagree, four children exactly covering one parent, agreement between
-// per-level indexing and shifting from L0, and [min, max) boundary ownership.
+// per-level indexing and shifting from L0, [min, max) boundary ownership,
+// coordinate -> cell -> centre -> cell stability, and tile-local plus tile
+// origin resolving to the same global cell.
 #include <array>
 #include <cmath>
 #include <cstddef>
