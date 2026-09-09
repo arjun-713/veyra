@@ -1,3 +1,4 @@
 # Runtime deps — pin exact versions as perception modules land.
 # Keep mapping-only builds dependency-free (see AGENTS.md).
 numpy==1.26.4
+pyyaml==6.0.2  # viewer server config (falls back to built-in parser if absent)

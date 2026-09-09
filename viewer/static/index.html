@@ -1,0 +1,123 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>VEYRA SCOPE — Dataset Visualizer</title>
+<link rel="stylesheet" href="/static/styles.css">
+<script src="/static/vendor/three.min.js" defer></script>
+<script src="/static/vendor/OrbitControls.js" defer></script>
+<script src="/static/app.js" defer></script>
+</head>
+<body>
+<!--
+THESIS: A bench instrument for LiDAR truth, not a dashboard: scrub is a sweep, every number a readout.
+OWN-WORLD: charcoal powder-coat, bone silkscreen caps, LED-red active states, amber sweep, steel hairlines, tabular mono numerals.
+STORY: Dev sees dataset, sequence, frame; believes scan-label pairing from counts and histogram; steps or plays frames to catch bad data fast.
+FIRST VIEWPORT: 3D scope left, readout stack right, step-row sweep rail full-width below; RUN and tempo live at the rail.
+FORM: assigned Rack Signal Bench, grounded roll 6, key 5b9b32b4.
+FINISH: unreviewed and undocumented is unfinished; this build ends with the finish review, the verdict, and DESIGN.md.
+-->
+<header class="topstrip">
+  <div class="brand">
+    <span class="brand-mark" aria-hidden="true"></span>
+    <h1>VEYRA SCOPE</h1>
+    <span class="brand-sub">DATASET VISUALIZER</span>
+  </div>
+  <nav class="datasets" aria-label="Dataset">
+    <button type="button" class="dsbtn" data-dataset="rellis3d" aria-pressed="true">
+      <span class="led" aria-hidden="true"></span>RELLIS-3D
+    </button>
+    <button type="button" class="dsbtn" data-dataset="semanticposs" aria-pressed="false">
+      <span class="led" aria-hidden="true"></span>SEMANTICPOSS
+    </button>
+  </nav>
+  <div class="pairwrap" role="status" aria-label="Scan label pairing">
+    <span class="cap">PAIR</span>
+    <span class="pairled" id="pairLed" data-state="ok" aria-hidden="true"></span>
+    <span class="pairtxt mono" id="pairTxt">—/—</span>
+  </div>
+</header>
+
+<main class="bench">
+  <section class="scope" aria-label="Point cloud viewport">
+    <div class="scope-chrome">
+      <span class="cap">SCOPE</span>
+      <span class="mono scope-read" id="scopeRead">NO FRAME</span>
+      <span class="chrome-right">
+        <span class="seg" role="group" aria-label="Color mode">
+          <button type="button" data-color="sem" class="on" aria-pressed="true">SEM</button><button type="button" data-color="elev" aria-pressed="false">ELEV</button><button type="button" data-color="int" aria-pressed="false">INT</button>
+        </span>
+        <span class="seg" role="group" aria-label="Camera view">
+          <button type="button" data-view="orbit" class="on" aria-pressed="true">ORBIT</button><button type="button" data-view="top" aria-pressed="false">TOP</button><button type="button" data-view="driver" aria-pressed="false">DRIVER</button>
+        </span>
+      </span>
+    </div>
+    <div class="glwrap" id="glwrap">
+      <canvas id="gl" aria-label="3D LiDAR point cloud"></canvas>
+      <div class="skeleton" id="skeleton" hidden></div>
+      <div class="scope-msg" id="scopeMsg" hidden></div>
+    </div>
+    <div class="keymap mono" aria-label="Keyboard shortcuts">
+      <span><b>&larr;/&rarr;</b> step</span><span><b>shift</b> &times;10</span><span><b>space</b> run</span><span><b>1/2/3</b> color</span><span><b>O/T/D</b> view</span>
+    </div>
+  </section>
+
+  <aside class="readouts" aria-label="Frame readouts">
+    <div class="panel">
+      <h2>FRAME</h2>
+      <div class="ledread mono" id="frameRead">—</div>
+      <dl class="kv">
+        <div><dt>SEQ</dt><dd class="mono" id="seqRead">—</dd></div>
+        <div><dt>POINTS</dt><dd class="mono" id="ptsRead">—</dd></div>
+        <div><dt>SHOWN</dt><dd class="mono" id="shownRead">—</dd></div>
+        <div><dt>CLASSES</dt><dd class="mono" id="clsRead">—</dd></div>
+      </dl>
+    </div>
+    <div class="panel">
+      <h2>SEQUENCE</h2>
+      <div class="bankrow" id="bankRow" role="group" aria-label="Sequence"></div>
+    </div>
+    <div class="panel grow">
+      <h2>CLASS HISTOGRAM</h2>
+      <ol class="hist" id="hist"></ol>
+    </div>
+  </aside>
+</main>
+
+<section class="sweep" aria-label="Frame transport">
+  <div class="transport">
+    <button type="button" class="tbtn" id="prevBtn" aria-label="Previous frame">
+      <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M11 3 6 8l5 5" fill="none" stroke="currentColor" stroke-width="1.5"/></svg>
+    </button>
+    <button type="button" class="runbtn" id="runBtn" aria-pressed="false" aria-label="Play sequence">
+      <svg id="runIcon" viewBox="0 0 16 16" aria-hidden="true"><path d="M5 3l7 5-7 5z" fill="currentColor"/></svg>
+      <span id="runLabel">RUN</span>
+    </button>
+    <button type="button" class="tbtn" id="nextBtn" aria-label="Next frame">
+      <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M5 3l5 5-5 5" fill="none" stroke="currentColor" stroke-width="1.5"/></svg>
+    </button>
+    <label class="tempo">TEMPO <input class="mono" id="fps" type="number" min="1" max="30" step="1" value="6" aria-label="Playback frames per second"> FPS</label>
+    <label class="budget">BUDGET
+      <select id="budget" aria-label="Point budget per frame">
+        <option value="10000">10K</option>
+        <option value="25000" selected>25K</option>
+        <option value="50000">50K</option>
+        <option value="100000">100K</option>
+      </select>
+    </label>
+  </div>
+  <div class="stepwrap">
+    <div class="steprow" id="stepRow" role="group" aria-label="Frames around current"></div>
+  </div>
+  <input class="scrub" id="scrub" type="range" min="0" max="0" step="1" value="0" aria-label="Frame scrubber">
+</section>
+
+<footer class="statusbar mono" aria-label="Status">
+  <span id="statusRoot">ROOT —</span>
+  <span id="statusData">DATA —</span>
+  <span class="flex"></span>
+  <span>VEYRA SCOPE · REAL FILES ONLY</span>
+</footer>
+</body>
+</html>
