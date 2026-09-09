@@ -1,6 +1,7 @@
-// Invariant test for the world-aligned dyadic lattice. Checks the resolution ladder, parent/child
-// round-trips, the negative-index case where >> and / disagree, four children exactly covering one
-// parent, and agreement between per-level indexing and shifting from L0.
+// Invariant test for the world-aligned dyadic lattice. Checks the resolution
+// ladder, parent/child round-trips, the negative-index case where >> and /
+// disagree, four children exactly covering one parent, agreement between
+// per-level indexing and shifting from L0, and [min, max) boundary ownership.
 #include <array>
 #include <cmath>
 #include <cstddef>
@@ -206,6 +207,44 @@ void checkDirectVsShiftAgreement() {
   }
 }
 
+// 6. Boundary ownership. A cell owns [min, max) on each axis: a point on the
+//    lower edge is inside, a point on the upper edge belongs to the next cell.
+//    Checked either side of the origin, where floor's behaviour on negatives
+//    makes the answer non-obvious.
+void checkBoundaryOwnership() {
+  for (int l = 0; l <= 3; ++l) {
+    for (int32_t i = -8; i <= 8; ++i) {
+      const CellId c{l, i, i};
+      const CellExtent e = extentOf(c);
+      const double quarter_x = 0.25 * (e.max_x - e.min_x);
+      const double quarter_y = 0.25 * (e.max_y - e.min_y);
+
+      // Lower edge inclusive, upper edge exclusive.
+      CHECK(worldToKey(e.min_x, e.min_y, l) == c);
+      CHECK(worldToKey(e.max_x, e.max_y, l) == (CellId{l, i + 1, i + 1}));
+      // Interior stays put; a step below the lower edge falls to the neighbour.
+      CHECK(worldToKey(e.min_x + quarter_x, e.min_y + quarter_y, l) == c);
+      CHECK(worldToKey(e.min_x - quarter_x, e.min_y - quarter_y, l) == (CellId{l, i - 1, i - 1}));
+
+      // Exactly one cell claims the lower edge: the previous cell's extent
+      // ends at it and, being half-open, does not contain it.
+      const CellExtent prev = extentOf(CellId{l, i - 1, i - 1});
+      CHECK(approxEq(prev.max_x, e.min_x));
+      CHECK(approxEq(prev.max_y, e.min_y));
+      CHECK(!(prev.min_x <= e.min_x && e.min_x < prev.max_x));
+
+      // The cell returned for a boundary point contains that point.
+      const CellId hit = worldToKey(e.min_x, e.min_y, l);
+      const CellExtent he = extentOf(hit);
+      CHECK(he.min_x <= e.min_x && e.min_x < he.max_x);
+      CHECK(he.min_y <= e.min_y && e.min_y < he.max_y);
+
+      // Deterministic: the same coordinate always yields the same cell.
+      CHECK(worldToKey(e.min_x, e.min_y, l) == worldToKey(e.min_x, e.min_y, l));
+    }
+  }
+}
+
 }  // namespace
 
 int main() {
@@ -214,5 +253,6 @@ int main() {
   checkNegativeIndices();
   checkChildrenCoverParent();
   checkDirectVsShiftAgreement();
+  checkBoundaryOwnership();
   return 0;
 }
