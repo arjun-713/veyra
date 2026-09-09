@@ -283,6 +283,51 @@ void checkCenterRoundTrip() {
   }
 }
 
+// 8. Tile-local index plus tile origin resolves to the same global cell, on
+//    both sides of a tile boundary and either side of the origin. Index
+//    arithmetic only -- no tile storage exists yet.
+void checkTileLocalGlobal() {
+  for (int tile_log2 = 1; tile_log2 <= 5; ++tile_log2) {
+    const auto span = static_cast<int32_t>(1 << tile_log2);
+    for (int l = 0; l <= 3; ++l) {
+      for (int32_t i = -3 * span; i <= 3 * span; ++i) {
+        const CellId c{l, i, static_cast<int32_t>(-i - 1)};
+        const TileId t = tileOf(c, tile_log2);
+        const int32_t lx = localIndex(c.ix, tile_log2);
+        const int32_t ly = localIndex(c.iy, tile_log2);
+
+        // Local indices stay inside the tile, negative cells included.
+        CHECK(lx >= 0 && lx < span);
+        CHECK(ly >= 0 && ly < span);
+        // Tile origin + local offset recovers the global cell exactly.
+        CHECK(cellFromTile(t, lx, ly, tile_log2) == c);
+        CHECK(t.level == c.level);
+
+        // The neighbour one cell east resolves to the same global cell
+        // whichever tile it is reached from, and the tile index steps exactly
+        // once, at the span boundary.
+        const CellId east{l, static_cast<int32_t>(c.ix + 1), c.iy};
+        const TileId te = tileOf(east, tile_log2);
+        CHECK(cellFromTile(te, localIndex(east.ix, tile_log2), localIndex(east.iy, tile_log2),
+                           tile_log2) == east);
+        if (lx == span - 1) {
+          CHECK(te != t);
+          CHECK(te.tx == t.tx + 1);
+        } else {
+          CHECK(te == t);
+        }
+      }
+    }
+  }
+
+  // The trap, stated explicitly. Truncating division puts cell -1 in tile 0
+  // with local index -1 -- outside its own tile, and colliding with cell 0.
+  CHECK(tileOf(CellId{0, -1, -1}, 4) == (TileId{0, -1, -1}));
+  CHECK(tileOf(CellId{0, -1, -1}, 4) != (TileId{0, 0, 0}));
+  CHECK(localIndex(-1, 4) == 15);
+  CHECK(cellFromTile(TileId{0, -1, -1}, 15, 15, 4) == (CellId{0, -1, -1}));
+}
+
 }  // namespace
 
 int main() {
@@ -293,5 +338,6 @@ int main() {
   checkDirectVsShiftAgreement();
   checkBoundaryOwnership();
   checkCenterRoundTrip();
+  checkTileLocalGlobal();
   return 0;
 }
