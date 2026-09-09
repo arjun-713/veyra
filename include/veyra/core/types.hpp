@@ -99,4 +99,11 @@ constexpr int32_t localIndex(int32_t i, int tile_log2) {
   return static_cast<int32_t>(i & ((int32_t{1} << tile_log2) - 1));
 }
 
+// Tile origin plus local offset back to the global cell.
+constexpr CellId cellFromTile(TileId t, int32_t lx, int32_t ly, int tile_log2) {
+  const auto span = static_cast<int32_t>(int32_t{1} << tile_log2);
+  return CellId{t.level, static_cast<int32_t>(t.tx * span + lx),
+                static_cast<int32_t>(t.ty * span + ly)};
+}
+
 }  // namespace veyra::core
