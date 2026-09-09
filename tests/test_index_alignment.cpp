@@ -1,5 +1,6 @@
 // Invariant test for the world-aligned dyadic lattice. Checks the resolution ladder, parent/child
-// round-trips, and the negative-index case where >> and / disagree.
+// round-trips, the negative-index case where >> and / disagree, and four children exactly covering
+// one parent.
 #include <array>
 #include <cmath>
 #include <cstddef>
@@ -14,6 +15,7 @@ using veyra::core::CellExtent;
 using veyra::core::CellId;
 using veyra::core::cells_per_m;
 using veyra::core::childrenOf;
+using veyra::core::extentOf;
 using veyra::core::parentOf;
 using veyra::core::resolution_m;
 
@@ -101,11 +103,62 @@ void checkNegativeIndices() {
   }
 }
 
+// 4. Four children exactly cover one parent: they stay inside it, their
+//    interiors are disjoint, their edges meet at the parent's midlines, and
+//    their areas sum to the parent's area. Together that is cover with no gap
+//    and no overlap.
+void checkChildrenCoverParent() {
+  static constexpr std::array<CellId, 4> kParents = {CellId{1, 3, 5}, CellId{1, -3, -5},
+                                                     CellId{2, -1, 2}, CellId{3, -7, -8}};
+
+  for (const CellId parent : kParents) {
+    const CellExtent pe = extentOf(parent);
+    const std::array<CellId, 4> kids = childrenOf(parent);
+    const double mid_x = 0.5 * (pe.min_x + pe.max_x);
+    const double mid_y = 0.5 * (pe.min_y + pe.max_y);
+
+    double area_sum = 0.0;
+    for (std::size_t i = 0; i < kids.size(); ++i) {
+      const CellExtent ke = extentOf(kids[i]);
+      area_sum += areaOf(ke);
+      // Contained in the parent.
+      CHECK(ke.min_x >= pe.min_x - kEps);
+      CHECK(ke.min_y >= pe.min_y - kEps);
+      CHECK(ke.max_x <= pe.max_x + kEps);
+      CHECK(ke.max_y <= pe.max_y + kEps);
+      // Half the parent's side on each axis.
+      CHECK(approxEq(ke.max_x - ke.min_x, 0.5 * (pe.max_x - pe.min_x)));
+      CHECK(approxEq(ke.max_y - ke.min_y, 0.5 * (pe.max_y - pe.min_y)));
+      // No overlap: interiors are pairwise disjoint.
+      for (std::size_t j = i + 1; j < kids.size(); ++j) {
+        CHECK(interiorsDisjoint(ke, extentOf(kids[j])));
+      }
+    }
+
+    // No gap: the four children's outer edges are the parent's edges and their
+    // inner edges meet on the parent's midlines.
+    const CellExtent sw = extentOf(kids[0]);
+    const CellExtent se = extentOf(kids[1]);
+    const CellExtent nw = extentOf(kids[2]);
+    const CellExtent ne = extentOf(kids[3]);
+    CHECK(approxEq(sw.min_x, pe.min_x));
+    CHECK(approxEq(sw.min_y, pe.min_y));
+    CHECK(approxEq(ne.max_x, pe.max_x));
+    CHECK(approxEq(ne.max_y, pe.max_y));
+    CHECK(approxEq(sw.max_x, mid_x));
+    CHECK(approxEq(se.min_x, mid_x));
+    CHECK(approxEq(sw.max_y, mid_y));
+    CHECK(approxEq(nw.min_y, mid_y));
+    CHECK(approxEq(area_sum, areaOf(pe)));
+  }
+}
+
 }  // namespace
 
 int main() {
   checkResolutionLadder();
   checkParentChildRoundTrip();
   checkNegativeIndices();
+  checkChildrenCoverParent();
   return 0;
 }
