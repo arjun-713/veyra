@@ -1,8 +1,9 @@
-// Invariant test for the world-aligned dyadic lattice. Checks the resolution ladder, and
-// parent/child round-trips.
+// Invariant test for the world-aligned dyadic lattice. Checks the resolution ladder, parent/child
+// round-trips, and the negative-index case where >> and / disagree.
 #include <array>
 #include <cmath>
 #include <cstddef>
+#include <cstdint>
 
 #include "check.hpp"
 #include "veyra/core/types.hpp"
@@ -57,10 +58,44 @@ void checkParentChildRoundTrip() {
   }
 }
 
+// 3. Negative indices, the case the whole scheme turns on. parentOf must floor
+//    toward negative infinity; truncating division would put ix=-3 under parent
+//    -1 and leave three cells sharing parent 0.
+void checkNegativeIndices() {
+  CHECK(parentOf(CellId{0, -3, -3}) == (CellId{1, -2, -2}));
+  CHECK(parentOf(CellId{0, -3, -3}) != (CellId{1, -1, -1}));
+
+  static constexpr std::array<int32_t, 8> kIx = {-4, -3, -2, -1, 0, 1, 2, 3};
+  static constexpr std::array<int32_t, 8> kParentIx = {-2, -2, -1, -1, 0, 0, 1, 1};
+  for (std::size_t i = 0; i < kIx.size(); ++i) {
+    CHECK(parentOf(CellId{0, kIx[i], kIx[i]}) == (CellId{1, kParentIx[i], kParentIx[i]}));
+  }
+
+  // The cells sharing a parent are the pairs {-4,-3}, {-2,-1}, {0,1}, {2,3};
+  // cells on opposite sides of a parent edge must not share one.
+  for (std::size_t i = 0; i + 1 < kIx.size(); i += 2) {
+    CHECK(parentOf(CellId{0, kIx[i], 0}) == parentOf(CellId{0, kIx[i + 1], 0}));
+    if (i + 2 < kIx.size()) {
+      CHECK(parentOf(CellId{0, kIx[i + 1], 0}) != parentOf(CellId{0, kIx[i + 2], 0}));
+    }
+  }
+
+  // The round trip of group 2 also holds with negative ids on both axes.
+  for (const int32_t ix : kIx) {
+    for (const int32_t iy : kIx) {
+      const CellId k{1, ix, iy};
+      for (const CellId child : childrenOf(k)) {
+        CHECK(parentOf(child) == k);
+      }
+    }
+  }
+}
+
 }  // namespace
 
 int main() {
   checkResolutionLadder();
   checkParentChildRoundTrip();
+  checkNegativeIndices();
   return 0;
 }
