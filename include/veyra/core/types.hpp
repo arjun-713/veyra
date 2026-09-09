@@ -84,4 +84,6 @@ constexpr bool operator==(TileId a, TileId b) {
   return a.level == b.level && a.tx == b.tx && a.ty == b.ty;
 }
 
+constexpr bool operator!=(TileId a, TileId b) { return !(a == b); }
+
 }  // namespace veyra::core
