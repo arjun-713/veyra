@@ -19,4 +19,8 @@ constexpr double resolution_m(int level) { return 0.05 * (1 << level); }
 // rounds identically.
 constexpr double cells_per_m(int level) { return 20.0 / (1 << level); }
 
+constexpr bool operator==(CellId a, CellId b) {
+  return a.level == b.level && a.ix == b.ix && a.iy == b.iy;
+}
+
 }  // namespace veyra::core
