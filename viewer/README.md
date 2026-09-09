@@ -22,7 +22,9 @@ Requires `numpy` (`requirements.txt`). `pyyaml` used when present.
 - Dataset switch (RELLIS-3D / SemanticPOSS) from `configs/datasets.yaml`
 - Sequence banks, frame scrubber + step strip, RUN playback with tempo
 - Color modes: semantic / elevation / intensity; views: orbit / top / driver
-- Readouts: frame id, point counts, class histogram, scan↔label pairing LED,
+  (top view adds 10/30/50 m survey rings plus an ego mark at the sensor origin)
+- Readouts: frame id, point counts, class histogram, scan↔label pairing LED
+- RUN plays a clip capped at 15 s (tempo 1X/2X/4X, base 10 fps), then auto-stops,
   timestamp, world-pose availability, and range-crop provenance
 - Keyboard: `←/→` step (`shift` ×10), `space` run, `1/2/3` color, `O/T/D` view
 - Deep links: `#d=rellis3d&s=00000&i=42`

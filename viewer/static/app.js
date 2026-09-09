@@ -27,22 +27,40 @@
     [147, 170, 0], [89, 51, 21], [241, 58, 19], [35, 44, 22]
   ];
 
+  var BASE_FPS = 10;   // frames per second at 1X tempo
+  var CLIP_S = 15;     // playback clips never exceed 15 s wall-clock
+  var TEMPOS = [1, 2, 4]; // max 4X
+
   var state = {
     dataset: "rellis3d", seq: null, index: 0, frames: 0,
     meta: null, color: "sem", view: "orbit",
-    budget: 25000, fps: 6, playing: false, timer: null, frame: null
+    budget: 50000, tempo: 1, playing: false, timer: null, frame: null,
+    clipTotal: 0, clipDone: 0
   };
 
   var $ = function (id) { return document.getElementById(id); };
   var els = {};
   ["pairLed", "pairTxt", "scopeRead", "glwrap", "gl", "skeleton", "scopeMsg",
    "frameRead", "seqRead", "ptsRead", "shownRead", "clsRead", "bankRow",
-   "timeRead", "poseRead", "rangeRead", "hist", "prevBtn", "runBtn", "runLabel", "runIcon", "nextBtn", "fps",
+   "timeRead", "poseRead", "rangeRead", "clipRead", "hist", "prevBtn", "runBtn", "runLabel", "runIcon", "nextBtn",
    "budget", "stepRow", "scrub", "statusRoot", "statusData"
   ].forEach(function (id) { els[id] = $(id); });
 
   /* ---------- three.js scope ---------- */
-  var renderer, scene, camera, controls, points = null, grid;
+  var renderer, scene, camera, controls, points = null, grid, survey = null;
+  function textSprite(text) {
+    var c = document.createElement("canvas");
+    c.width = 256; c.height = 64;
+    var x = c.getContext("2d");
+    x.font = "600 34px ui-monospace, Menlo, monospace";
+    x.fillStyle = "#8a8f98";
+    x.textBaseline = "middle";
+    x.fillText(text, 12, 34);
+    var t = new THREE.CanvasTexture(c);
+    var s = new THREE.Sprite(new THREE.SpriteMaterial({ map: t, depthTest: false, transparent: true }));
+    s.scale.set(12, 3, 1);
+    return s;
+  }
   function initGL() {
     var canvas = els.gl;
     renderer = new THREE.WebGLRenderer({ canvas: canvas, antialias: true });
@@ -59,6 +77,29 @@
     grid = new THREE.GridHelper(120, 24, 0x3a3d42, 0x232320);
     scene.add(grid);
     scene.add(new THREE.AxesHelper(5));
+    // Survey furniture: honest geometry only (ranges from coordinates,
+    // ego mark at the sensor origin). Shown in TOP view alone.
+    survey = new THREE.Group();
+    [10, 30, 50].forEach(function (r) {
+      var ring = new THREE.Mesh(
+        new THREE.RingGeometry(r - 0.18, r + 0.18, 128),
+        new THREE.MeshBasicMaterial({ color: 0x8a8f98, transparent: true, opacity: 0.55, side: THREE.DoubleSide })
+      );
+      ring.rotation.x = -Math.PI / 2;
+      ring.position.y = 0.1;
+      survey.add(ring);
+      var tag = textSprite(r + " M");
+      tag.position.set(r + 3.5, 0.6, 0);
+      survey.add(tag);
+    });
+    var ego = new THREE.Mesh(
+      new THREE.OctahedronGeometry(1.4),
+      new THREE.MeshBasicMaterial({ color: 0xffb000 })
+    );
+    ego.position.set(0, 0.8, 0);
+    survey.add(ego);
+    survey.visible = false;
+    scene.add(survey);
     var size = canvas.parentElement.getBoundingClientRect();
     renderer.setSize(size.width, size.height, false);
     camera.aspect = size.width / Math.max(1, size.height);
@@ -143,6 +184,7 @@
       b.setAttribute("aria-pressed", on ? "true" : "false");
     });
     controls.enableRotate = v === "orbit";
+    if (survey) survey.visible = (v === "top");
     if (v === "top") {
       camera.position.set(0, 130, -11.9);
       camera.up.set(0, 0, -1);
@@ -301,18 +343,27 @@
     els.runBtn.setAttribute("aria-pressed", "false");
     els.runLabel.textContent = "RUN";
     els.runIcon.innerHTML = "<path d=\"M5 3l7 5-7 5z\" fill=\"currentColor\"/>";
+    els.clipRead.textContent = "15S MAX";
   }
   function play() {
     if (!state.frames) return;
+    // A run is a clip: at most CLIP_S seconds per dataset, then auto-stop.
+    state.clipTotal = Math.min(state.frames - 1 - state.index, CLIP_S * BASE_FPS * state.tempo);
+    if (state.clipTotal <= 0) return;
+    state.clipDone = 0;
     state.playing = true;
     els.runBtn.setAttribute("aria-pressed", "true");
     els.runLabel.textContent = "STOP";
     els.runIcon.innerHTML = "<path d=\"M4 3h3v10H4zM9 3h3v10H9z\" fill=\"currentColor\"/>";
     var step = function () {
-      state.index = (state.index + 1) % state.frames;
+      state.index = Math.min(state.frames - 1, state.index + 1);
+      state.clipDone += 1;
+      var left = Math.max(0, Math.ceil((state.clipTotal - state.clipDone) / (BASE_FPS * state.tempo)));
+      els.clipRead.textContent = left + "S LEFT";
       loadFrame();
+      if (state.clipDone >= state.clipTotal || state.index >= state.frames - 1) stop();
     };
-    state.timer = setInterval(step, Math.round(1000 / state.fps));
+    state.timer = setInterval(step, Math.round(1000 / (BASE_FPS * state.tempo)));
   }
   function toggle() { state.playing ? stop() : play(); }
 
@@ -403,10 +454,16 @@
       loadFrame();
     });
     els.runBtn.addEventListener("click", toggle);
-    els.fps.addEventListener("change", function () {
-      state.fps = Math.max(1, Math.min(30, parseInt(els.fps.value, 10) || 6));
-      els.fps.value = String(state.fps);
-      if (state.playing) { stop(); play(); }
+    document.querySelectorAll("[data-tempo]").forEach(function (b) {
+      b.addEventListener("click", function () {
+        state.tempo = parseInt(b.getAttribute("data-tempo"), 10) || 1;
+        document.querySelectorAll("[data-tempo]").forEach(function (x) {
+          var on = x === b;
+          x.classList.toggle("on", on);
+          x.setAttribute("aria-pressed", on ? "true" : "false");
+        });
+        if (state.playing) { stop(); play(); } // restart clip at new tempo
+      });
     });
     els.budget.addEventListener("change", function () {
       state.budget = parseInt(els.budget.value, 10);

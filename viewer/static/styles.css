@@ -229,7 +229,7 @@ body[data-dataset="semanticposs"] .dsbtn[data-dataset="semanticposs"] .led { bac
   display: inline-flex; align-items: center; gap: 8px;
   margin-left: 6px;
 }
-.tempo input, .budget select {
+.budget select {
   background: #0b0b0b;
   border: 1px solid var(--steel);
   color: var(--amber);

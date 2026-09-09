@@ -72,6 +72,7 @@ FINISH: unreviewed and undocumented is unfinished; this build ends with the fini
         <div><dt>POINTS</dt><dd class="mono" id="ptsRead">—</dd></div>
         <div><dt>SHOWN</dt><dd class="mono" id="shownRead">—</dd></div>
         <div><dt>CLASSES</dt><dd class="mono" id="clsRead">—</dd></div>
+        <div><dt>CLIP</dt><dd class="mono" id="clipRead">15S MAX</dd></div>
         <div><dt>TIME</dt><dd class="mono" id="timeRead">—</dd></div>
         <div><dt>POSE</dt><dd class="mono" id="poseRead">—</dd></div>
         <div><dt>RANGE</dt><dd class="mono" id="rangeRead">—</dd></div>
@@ -100,12 +101,17 @@ FINISH: unreviewed and undocumented is unfinished; this build ends with the fini
     <button type="button" class="tbtn" id="nextBtn" aria-label="Next frame">
       <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M5 3l5 5-5 5" fill="none" stroke="currentColor" stroke-width="1.5"/></svg>
     </button>
-    <label class="tempo">TEMPO <input class="mono" id="fps" type="number" min="1" max="30" step="1" value="6" aria-label="Playback frames per second"> FPS</label>
+    <label class="tempo">TEMPO
+      <span class="seg" role="group" aria-label="Playback tempo, max 4x">
+        <button type="button" data-tempo="1" class="on" aria-pressed="true">1X</button><button type="button" data-tempo="2" aria-pressed="false">2X</button><button type="button" data-tempo="4" aria-pressed="false">4X</button>
+      </span>
+    </label>
+    <span class="cap">CLIPS ≤ 15S</span>
     <label class="budget">BUDGET
       <select id="budget" aria-label="Point budget per frame">
         <option value="10000">10K</option>
-        <option value="25000" selected>25K</option>
-        <option value="50000">50K</option>
+        <option value="25000">25K</option>
+        <option value="50000" selected>50K</option>
         <option value="100000">100K</option>
       </select>
     </label>
