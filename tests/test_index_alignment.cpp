@@ -1,10 +1,12 @@
 // Invariant test for the world-aligned dyadic lattice. Checks the resolution ladder, parent/child
-// round-trips, the negative-index case where >> and / disagree, and four children exactly covering
-// one parent.
+// round-trips, the negative-index case where >> and / disagree, four children exactly covering one
+// parent, and agreement between per-level indexing and shifting from L0.
 #include <array>
 #include <cmath>
 #include <cstddef>
 #include <cstdint>
+#include <random>
+#include <vector>
 
 #include "check.hpp"
 #include "veyra/core/types.hpp"
@@ -18,6 +20,7 @@ using veyra::core::childrenOf;
 using veyra::core::extentOf;
 using veyra::core::parentOf;
 using veyra::core::resolution_m;
+using veyra::core::worldToKey;
 
 constexpr double kEps = 1e-9;
 
@@ -153,6 +156,56 @@ void checkChildrenCoverParent() {
   }
 }
 
+// 5. Indexing at level l directly agrees with indexing at L0 and shifting
+//    right l times. This locks in the design decision to derive coarse indices
+//    by shifting; a future rewrite that divides per level would break here.
+//    Fixed values plus a fixed-seed PRNG, so the case set is reproducible.
+void checkDirectVsShiftAgreement() {
+  std::vector<double> xs;
+  std::vector<double> ys;
+
+  // Exact L0 cell corners either side of the origin, plus their midpoints.
+  for (int32_t i = -12; i <= 12; ++i) {
+    const CellExtent e = extentOf(CellId{0, i, i});
+    xs.push_back(e.min_x);
+    ys.push_back(e.min_y);
+    xs.push_back(0.5 * (e.min_x + e.max_x));
+    ys.push_back(0.5 * (e.min_y + e.max_y));
+  }
+  // Coarse-level corners, where several L0 cells share an edge.
+  for (int32_t i = -6; i <= 6; ++i) {
+    for (int l = 1; l <= 3; ++l) {
+      const CellExtent e = extentOf(CellId{l, i, -i});
+      xs.push_back(e.min_x);
+      ys.push_back(e.min_y);
+    }
+  }
+  xs.push_back(0.0);
+  ys.push_back(-0.0);
+
+  std::mt19937 rng(20260909u);  // fixed seed: the case set must be reproducible
+  std::uniform_real_distribution<double> dist(-100.0, 100.0);
+  for (int i = 0; i < 200; ++i) {
+    xs.push_back(dist(rng));
+    ys.push_back(dist(rng));
+  }
+
+  CHECK(xs.size() == ys.size());
+  for (std::size_t i = 0; i < xs.size(); ++i) {
+    const double x = xs[i];
+    const double y = ys[i];
+    const CellId k0 = worldToKey(x, y, 0);
+    CHECK(k0.level == 0);
+
+    CellId shifted = k0;
+    for (int l = 1; l <= 3; ++l) {
+      shifted =
+          CellId{l, static_cast<int32_t>(shifted.ix >> 1), static_cast<int32_t>(shifted.iy >> 1)};
+      CHECK(worldToKey(x, y, l) == shifted);
+    }
+  }
+}
+
 }  // namespace
 
 int main() {
@@ -160,5 +213,6 @@ int main() {
   checkParentChildRoundTrip();
   checkNegativeIndices();
   checkChildrenCoverParent();
+  checkDirectVsShiftAgreement();
   return 0;
 }
