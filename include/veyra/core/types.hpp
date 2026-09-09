@@ -93,4 +93,10 @@ constexpr TileId tileOf(CellId c, int tile_log2) {
                 static_cast<int32_t>(c.iy >> tile_log2)};
 }
 
+// Index of `i` within its tile, always in [0, 2^tile_log2). Masking, not %:
+// % is sign-preserving, so -1 % 16 == -1 would place a cell outside its tile.
+constexpr int32_t localIndex(int32_t i, int tile_log2) {
+  return static_cast<int32_t>(i & ((int32_t{1} << tile_log2) - 1));
+}
+
 }  // namespace veyra::core
