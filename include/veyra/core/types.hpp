@@ -1,4 +1,5 @@
 #pragma once
+#include <array>
 #include <cstdint>
 
 namespace veyra::core {
@@ -30,6 +31,17 @@ constexpr bool operator!=(CellId a, CellId b) { return !(a == b); }
 // the wrong cells together (-3 / 2 == -1 but -3 >> 1 == -2).
 constexpr CellId parentOf(CellId c) {
   return CellId{c.level + 1, static_cast<int32_t>(c.ix >> 1), static_cast<int32_t>(c.iy >> 1)};
+}
+
+// The four cells at level-1 that tile `c`, ordered
+// (x, y), (x+1, y), (x, y+1), (x+1, y+1).
+constexpr std::array<CellId, 4> childrenOf(CellId c) {
+  const int lvl = c.level - 1;
+  const auto x0 = static_cast<int32_t>(c.ix * 2);
+  const auto y0 = static_cast<int32_t>(c.iy * 2);
+  const auto x1 = static_cast<int32_t>(x0 + 1);
+  const auto y1 = static_cast<int32_t>(y0 + 1);
+  return {CellId{lvl, x0, y0}, CellId{lvl, x1, y0}, CellId{lvl, x0, y1}, CellId{lvl, x1, y1}};
 }
 
 }  // namespace veyra::core
