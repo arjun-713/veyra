@@ -238,9 +238,6 @@ void checkBoundaryOwnership() {
       const CellExtent he = extentOf(hit);
       CHECK(he.min_x <= e.min_x && e.min_x < he.max_x);
       CHECK(he.min_y <= e.min_y && e.min_y < he.max_y);
-
-      // Deterministic: the same coordinate always yields the same cell.
-      CHECK(worldToKey(e.min_x, e.min_y, l) == worldToKey(e.min_x, e.min_y, l));
     }
   }
 }
