@@ -1,4 +1,3 @@
-#!/usr/bin/env python3
 """Veyra dataset visualizer server — real files only, no mock data.
 
 Reads KITTI-format .bin scans + uint32 .label files from the repo's own
@@ -8,15 +7,22 @@ as JSON to the static Three.js front-end in viewer/static/.
 Run from the repo root:  python3 viewer/server.py [--port 8765]
 Requires: numpy (pyyaml optional; a fallback parser covers datasets.yaml).
 """
+
 from __future__ import annotations
 
 import argparse
 import functools
 import http.server
 import json
-import os
+import sys
 import urllib.parse
 from pathlib import Path
+from typing import TYPE_CHECKING
+
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+
+if TYPE_CHECKING:
+    from datasets.semanticposs import SemanticPOSSDataset
 
 try:
     import numpy as np
@@ -29,6 +35,7 @@ try:
     def _load_yaml(path: Path) -> dict:
         return yaml.safe_load(path.read_text())
 except ImportError:  # minimal fallback for the known datasets.yaml shape
+
     def _load_yaml(path: Path) -> dict:
         cfg: dict = {}
         cur: dict | None = None
@@ -76,25 +83,56 @@ def _label_for(dataset: str, seq: str, stem: str) -> Path | None:
     return p if p.is_file() else None
 
 
+def _semanticposs_adapter() -> SemanticPOSSDataset:
+    from datasets.semanticposs import SemanticPOSSDataset
+
+    spec = CFG["semanticposs"]
+    return SemanticPOSSDataset(
+        REPO / spec["root"],
+        sequences=[str(value) for value in spec["sequences"]],
+        scan_dir=spec.get("scan_dir", "velodyne"),
+        label_dir=spec.get("label_dir", "labels"),
+    )
+
+
 @functools.lru_cache(maxsize=1)
 def datasets_payload() -> dict:
     out: dict = {}
     for name, spec in CFG.items():
         seqs = []
+        adapter = None
+        if name == "semanticposs":
+            try:
+                adapter = _semanticposs_adapter()
+            except FileNotFoundError:
+                adapter = None
         for seq in spec["sequences"]:
-            scans = _scan_files(name, str(seq))
-            stems = {p.stem for p in scans}
-            paired = sum(
-                1 for s in stems if _label_for(name, str(seq), s) is not None
-            )
-            seqs.append(
-                {"id": str(seq), "scans": len(scans), "paired": paired}
-            )
-        out[name] = {"root": spec["root"], "sequences": seqs}
+            if adapter is not None:
+                try:
+                    refs = adapter.list_frames(str(seq))
+                except FileNotFoundError:
+                    refs = []
+                scans_count = len(refs)
+                paired = sum(ref.label_path is not None for ref in refs)
+            else:
+                scans = _scan_files(name, str(seq))
+                stems = {p.stem for p in scans}
+                scans_count = len(scans)
+                paired = sum(
+                    1 for s in stems if _label_for(name, str(seq), s) is not None
+                )
+            seqs.append({"id": str(seq), "scans": scans_count, "paired": paired})
+        out[name] = {
+            "root": spec["root"],
+            "sequences": seqs,
+            "source": "SemanticPOSSDataset" if adapter is not None else "raw files",
+        }
     return out
 
 
 def frame_payload(dataset: str, seq: str, index: int, budget: int) -> dict:
+    if dataset == "semanticposs":
+        return _semanticposs_frame_payload(seq, index, budget)
     scans = _scan_files(dataset, seq)
     if not scans:
         raise KeyError("sequence not found")
@@ -130,6 +168,71 @@ def frame_payload(dataset: str, seq: str, index: int, budget: int) -> dict:
         "paired": paired,
         "hist": hist,
         "frames": len(scans),
+        "source": "raw files",
+        "timestamp": None,
+        "pose": {"available": False, "matrix": None},
+        "cropped": False,
+    }
+
+
+def _semanticposs_frame_payload(seq: str, index: int, budget: int) -> dict:
+    try:
+        adapter = _semanticposs_adapter()
+        refs = adapter.list_frames(seq)
+    except FileNotFoundError as exc:
+        raise KeyError("sequence not found") from exc
+    if not refs:
+        raise KeyError("sequence not found")
+    index = max(0, min(index, len(refs) - 1))
+    ref = refs[index]
+    spec = CFG["semanticposs"]
+    observation = adapter.load_frame(
+        seq,
+        ref.frame_id,
+        min_range_m=float(spec.get("min_range_m", 0.0)),
+        max_range_m=float(spec.get("max_range_m", 100.0)),
+    )
+    n = int(observation.points.shape[0])
+    stride = max(1, -(-n // max(1, budget)))
+    sub = observation.points[::stride]
+    raw_labels = np.fromfile(ref.label_path, dtype=np.uint32) & 0xFFFF
+    raw_points = np.fromfile(ref.scan_path, dtype=np.float32).reshape((-1, 4))
+    world_points = adapter._transform_points(raw_points, observation.pose.matrix)
+    raw_labels = raw_labels[
+        adapter._range_mask(
+            world_points,
+            float(spec.get("min_range_m", 0.0)),
+            float(spec.get("max_range_m", 100.0)),
+        )
+    ]
+    # Keep raw dataset IDs for the visual legend while exposing the mapped
+    # common-taxonomy IDs alongside them for downstream consumers.
+    classes = raw_labels[: observation.points.shape[0]][::stride].tolist()
+    hist: dict[str, int] = {}
+    for key, count in zip(*np.unique(raw_labels[:n], return_counts=True)):
+        hist[str(int(key))] = int(count)
+    matrix = observation.pose.matrix.tolist()
+    return {
+        "dataset": "semanticposs",
+        "seq": seq,
+        "index": index,
+        "id": ref.frame_id,
+        "n_points": n,
+        "raw_points": int(raw_points.shape[0]),
+        "shown": int(sub.shape[0]),
+        "stride": stride,
+        "points": [[round(float(x), 3) for x in row[:3]] for row in sub.tolist()],
+        "intensity": [round(float(v), 3) for v in sub[:, 3].tolist()],
+        "labels": classes,
+        "semantic_labels": observation.semantic_class[::stride].tolist(),
+        "paired": True,
+        "hist": hist,
+        "frames": len(refs),
+        "source": "SemanticPOSSDataset",
+        "timestamp": observation.timestamp,
+        "pose": {"available": True, "matrix": matrix},
+        "cropped": n != int(raw_points.shape[0]),
+        "range_m": float(spec.get("max_range_m", 100.0)),
     }
 
 
@@ -150,7 +253,7 @@ class Handler(http.server.SimpleHTTPRequestHandler):
         self.end_headers()
         self.wfile.write(body)
 
-    def do_GET(self) -> None:  # noqa: N802
+    def do_GET(self) -> None:
         parsed = urllib.parse.urlparse(self.path)
         if parsed.path == "/":
             self.path = "/index.html"
@@ -160,7 +263,7 @@ class Handler(http.server.SimpleHTTPRequestHandler):
         if parsed.path.startswith("/static/"):
             # Static assets live in viewer/static/; strip the mount prefix so
             # /static/app.js resolves to viewer/static/app.js.
-            self.path = parsed.path[len("/static"):] or "/"
+            self.path = parsed.path[len("/static") :] or "/"
             if parsed.query:
                 self.path += "?" + parsed.query
             return super().do_GET()
@@ -181,6 +284,10 @@ class Handler(http.server.SimpleHTTPRequestHandler):
                 return self._send_json(frame_payload(ds, seq, idx, budget))
             except KeyError:
                 return self._send_json({"error": "sequence has no scans"}, 404)
+            except FileNotFoundError as exc:
+                return self._send_json({"error": str(exc)}, 422)
+            except ValueError as exc:
+                return self._send_json({"error": str(exc)}, 422)
         if parsed.path.startswith("/api/"):
             return self._send_json({"error": "unknown endpoint"}, 404)
         return super().do_GET()
@@ -191,8 +298,11 @@ def main() -> None:
     ap.add_argument("--port", type=int, default=8765)
     ap.add_argument("--host", default="127.0.0.1")
     args = ap.parse_args()
-    missing = [d for d in ("data/raw/rellis3d", "data/raw/semanticposs")
-               if not (REPO / d).exists()]
+    missing = [
+        d
+        for d in ("data/raw/rellis3d", "data/raw/semanticposs")
+        if not (REPO / d).exists()
+    ]
     srv = http.server.ThreadingHTTPServer((args.host, args.port), Handler)
     print(f"Veyra viewer  repo={REPO}  ->  http://{args.host}:{args.port}/")
     if missing:

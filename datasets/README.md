@@ -15,8 +15,17 @@ data/cache/      -> temporary local cache (LOCAL-ONLY, never committed)
 - **SemanticPOSS** — structured validation. Root:
   `data/raw/semanticposs/dataset/`, sequences `00`–`05` with
   `velodyne/` + `labels/` (+ `calib.txt`, `poses.txt`). Adapter
-  placeholder: `semanticposs/`.
+  implementation: `semanticposs/`.
 
 Paths configured in `configs/datasets.yaml` (repository-relative).
 `data/` is local-only and must never be committed.
 See `docs/datasets-benchmarks.md`.
+
+## Common adapter contract
+
+Dataset readers expose `list_sequences()`, `list_frames(sequence)`, and
+`replay(sequence, ...)`. Replay yields the NumPy-backed `ObservationFrame`
+defined in `datasets/common/`; downstream code does not depend on a dataset's
+directory structure. SemanticPOSS currently supports ground-truth labels,
+numeric frame ordering, optional timestamps/calibration/poses, world-frame
+transforms, taxonomy mapping, and configurable XY range cropping.

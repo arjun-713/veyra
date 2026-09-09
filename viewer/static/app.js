@@ -37,7 +37,7 @@
   var els = {};
   ["pairLed", "pairTxt", "scopeRead", "glwrap", "gl", "skeleton", "scopeMsg",
    "frameRead", "seqRead", "ptsRead", "shownRead", "clsRead", "bankRow",
-   "hist", "prevBtn", "runBtn", "runLabel", "runIcon", "nextBtn", "fps",
+   "timeRead", "poseRead", "rangeRead", "hist", "prevBtn", "runBtn", "runLabel", "runIcon", "nextBtn", "fps",
    "budget", "stepRow", "scrub", "statusRoot", "statusData"
   ].forEach(function (id) { els[id] = $(id); });
 
@@ -220,6 +220,12 @@
     var hist = f.hist || {};
     var ids = Object.keys(hist).map(Number).sort(function (a, b) { return hist[b] - hist[a]; });
     els.clsRead.textContent = f.paired ? String(ids.length) : "NO LABELS";
+    els.timeRead.textContent = f.timestamp === null || f.timestamp === undefined
+      ? "UNAVAILABLE" : Number(f.timestamp).toFixed(3) + " S";
+    els.poseRead.textContent = f.pose && f.pose.available ? "WORLD / ODOM" : "IDENTITY";
+    els.rangeRead.textContent = f.cropped
+      ? "CROPPED ≤ " + Number(f.range_m || 100).toFixed(0) + " M"
+      : "FULL FRAME";
     els.scopeRead.textContent = state.dataset.toUpperCase() + " " + f.seq + " #" + f.id;
     els.pairLed.setAttribute("data-state", f.paired ? "ok" : "bad");
     els.pairTxt.textContent = f.paired ? "SCAN+LABEL" : "SCAN ONLY";
