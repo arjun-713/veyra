@@ -23,4 +23,6 @@ constexpr bool operator==(CellId a, CellId b) {
   return a.level == b.level && a.ix == b.ix && a.iy == b.iy;
 }
 
+constexpr bool operator!=(CellId a, CellId b) { return !(a == b); }
+
 }  // namespace veyra::core
