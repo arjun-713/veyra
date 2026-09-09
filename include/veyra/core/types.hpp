@@ -44,4 +44,21 @@ constexpr std::array<CellId, 4> childrenOf(CellId c) {
   return {CellId{lvl, x0, y0}, CellId{lvl, x1, y0}, CellId{lvl, x0, y1}, CellId{lvl, x1, y1}};
 }
 
+// Axis-aligned world extent of a cell, in meters. A cell owns [min, max) on
+// each axis: the lower edge belongs to this cell, the upper edge to the next.
+struct CellExtent {
+  double min_x = 0.0;
+  double min_y = 0.0;
+  double max_x = 0.0;
+  double max_y = 0.0;
+};
+
+// Corners are divided by cells_per_m rather than multiplied by resolution_m so
+// that they invert worldToKey exactly; the two forms are not bit-identical
+// because 0.05 is not representable in binary.
+constexpr CellExtent extentOf(CellId c) {
+  const double n = cells_per_m(c.level);
+  return CellExtent{c.ix / n, c.iy / n, (c.ix + 1) / n, (c.iy + 1) / n};
+}
+
 }  // namespace veyra::core
