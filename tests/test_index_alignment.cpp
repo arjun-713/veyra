@@ -10,6 +10,7 @@
 
 namespace {
 
+using veyra::core::CellExtent;
 using veyra::core::CellId;
 using veyra::core::cells_per_m;
 using veyra::core::childrenOf;
@@ -19,6 +20,13 @@ using veyra::core::resolution_m;
 constexpr double kEps = 1e-9;
 
 bool approxEq(double a, double b) { return std::fabs(a - b) < kEps; }
+
+// True when two boxes overlap in at most their edges: one lies entirely on the
+// low side of the other along at least one axis.
+bool interiorsDisjoint(const CellExtent& a, const CellExtent& b) {
+  return a.max_x - b.min_x < kEps || b.max_x - a.min_x < kEps || a.max_y - b.min_y < kEps ||
+         b.max_y - a.min_y < kEps;
+}
 
 // 1. Resolution ladder: resolution_m(l) == 0.05 * 2^l, and each level is
 //    exactly twice the one below it.
