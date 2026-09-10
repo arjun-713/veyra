@@ -178,6 +178,19 @@ void checkEvictionCountIsExact() {
   CHECK(e.centre_moved);
   CHECK(grid.statistics().occupied_cells == expected_survivors);
   CHECK(e.cells_evicted == before - expected_survivors);
+
+  // The boundary is inclusive: a cell whose centre lies exactly on the radius
+  // stays inside. Built so both sides of the comparison are bit-identical
+  // rather than merely close -- the window is centred on the cell's own row
+  // and its radius is that cell's own distance, so no rounding separates them.
+  const veyra::core::CellId on_edge{0, 9, 0};
+  const veyra::core::CellExtent ee = veyra::core::extentOf(on_edge);
+  const double ecx = 0.5 * (ee.min_x + ee.max_x);
+  const double ecy = 0.5 * (ee.min_y + ee.max_y);
+  const MapWindow exact{0.0, ecy, ecx};
+  CHECK(veyra::map::inWindow(exact, on_edge));
+  // ... and the next cell out is not, so this is a partition, not a constant.
+  CHECK(!veyra::map::inWindow(exact, veyra::core::CellId{0, 10, 0}));
 }
 
 // 6. Tiles emptied by eviction are released, and the byte count follows.
