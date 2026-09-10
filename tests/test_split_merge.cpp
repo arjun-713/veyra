@@ -9,7 +9,12 @@
 #include <vector>
 
 #include "check.hpp"
+#include "veyra/core/types.hpp"
 #include "veyra/map/cell.hpp"
+#include "veyra/map/fusion.hpp"
+#include "veyra/map/observation.hpp"
+#include "veyra/map/split_merge.hpp"
+#include "veyra/map/tile_grid.hpp"
 
 namespace {
 
@@ -201,6 +206,164 @@ void checkHighCount() {
   CHECK(late.max_z == 31.0F);
 }
 
+// --- split/merge statistics: invariant 4 across a level change ------------
+
+veyra::map::Cell& seedGrid(veyra::map::TileGrid& grid, veyra::core::CellId id, int points) {
+  veyra::map::Cell& c = grid.findOrCreate(id);
+  for (int i = 0; i < points; ++i) {
+    updateCell(c, 3.0 + 0.05 * static_cast<double>(i));
+  }
+  return c;
+}
+
+// 5. Splitting distributes evidence rather than multiplying it: each child
+//    takes roughly a quarter of the count, keeps the parent's mean and
+//    extremes, and carries a reduced confidence to mark it as an estimate.
+//    Catches: m2 or count copied undivided, which would let four children each
+//    claim the parent's full observation weight -- inventing evidence that was
+//    never gathered.
+void checkSplitDistributesStatistics() {
+  veyra::map::TileGrid grid;
+  const veyra::core::CellId parent{2, 1, 1};
+  Cell& p = seedGrid(grid, parent, 8);
+  p.confidence = 8;
+  const Cell before = p;
+
+  CHECK(veyra::map::split(grid, parent));
+
+  std::uint32_t total = 0;
+  std::uint32_t conf_total = 0;
+  double m2_total = 0.0;
+  std::size_t kids = 0;
+  grid.forEachActiveLeaf([&](veyra::core::CellId, const Cell& c) {
+    ++kids;
+    total += c.count;
+    conf_total += c.confidence;
+    m2_total += static_cast<double>(c.m2);
+    CHECK(c.count == 2);  // 8 / 4, no remainder
+    // The parent's mean is the best available estimate for every part of its
+    // square, and its extremes genuinely bound the children's.
+    CHECK(c.mean_z == before.mean_z);
+    CHECK(c.min_z == before.min_z);
+    CHECK(c.max_z == before.max_z);
+    // Each child keeps the parent's variance: m2 scales with count.
+    CHECK(relClose(varianceOf(c), varianceOf(before), kVarTol));
+    // Provenance: a split child holds an estimate, not a measurement.
+    CHECK(c.confidence < before.confidence);
+  });
+  CHECK(kids == 4);
+  CHECK(total == before.count);
+  CHECK(conf_total == before.confidence);
+  CHECK(relClose(m2_total, static_cast<double>(before.m2), kVarTol));
+}
+
+// 6. The integer remainder is distributed, not dropped. n / 4 loses up to
+//    three counts; at n = 101 that is a silent conservation failure that
+//    n = 100 would never reveal.
+//    Catches: count divided by four with the remainder discarded.
+void checkRemainderIsDistributed() {
+  for (const int n : {1, 2, 3, 5, 7, 101}) {
+    veyra::map::TileGrid grid;
+    const veyra::core::CellId parent{2, 0, 0};
+    seedGrid(grid, parent, n);
+    const std::uint32_t before = grid.find(parent)->count;
+    CHECK(before == static_cast<std::uint32_t>(n));
+
+    CHECK(veyra::map::split(grid, parent));
+
+    std::uint32_t total = 0;
+    std::size_t kids = 0;
+    grid.forEachActiveLeaf([&](veyra::core::CellId, const Cell& c) {
+      total += c.count;
+      ++kids;
+    });
+    CHECK(kids == 4);
+    CHECK(total == before);
+  }
+}
+
+// 7. Invariant 4 across a level change: merge(split(x)) reproduces x. The
+//    equal-mean construction makes Chan's correction term vanish, so this
+//    should hold exactly on count and to within the locked tolerances on mean
+//    and variance.
+//    Catches: evidence lost or invented in either direction -- the failure
+//    that silently corrupts every number the benchmark later reports.
+void checkSplitMergeRoundTrip() {
+  for (const int n : {1, 2, 3, 4, 5, 7, 8, 101}) {
+    veyra::map::TileGrid grid;
+    const veyra::core::CellId parent{2, 2, -3};
+    Cell& p = seedGrid(grid, parent, n);
+    p.confidence = static_cast<std::uint8_t>(n % 256);
+    const Cell before = p;
+
+    CHECK(veyra::map::split(grid, parent));
+    CHECK(grid.statistics().occupied_cells == 4);
+    CHECK(veyra::map::merge(grid, parent));
+
+    const Cell* after = grid.find(parent);
+    CHECK(after != nullptr);
+    CHECK(grid.statistics().occupied_cells == 1);
+
+    CHECK(after->count == before.count);  // exact, not within a tolerance
+    CHECK(after->min_z == before.min_z);  // exact
+    CHECK(after->max_z == before.max_z);  // exact
+    CHECK(after->confidence == before.confidence);
+    CHECK(relClose(after->mean_z, before.mean_z, kMeanTol));
+    CHECK(relClose(varianceOf(*after), varianceOf(before), kVarTol));
+  }
+}
+
+// 12. A split child is an estimate until a real observation reaches it. After
+//     integrating, that child's count grows and its confidence rises, while
+//     its siblings are untouched.
+//     Chosen behaviour: the count grows and confidence recovers -- there is no
+//     separate flag to clear, because provenance is carried as the reduced
+//     confidence itself.
+//     Catches: an observation landing in the wrong child, and a split that
+//     leaves children unreachable to fusion.
+void checkSplitThenIntegrate() {
+  veyra::map::TileGrid grid;
+  const veyra::core::CellId parent{1, 2, 2};  // splits into level-0 children
+  Cell& p = seedGrid(grid, parent, 12);
+  p.confidence = 12;
+  CHECK(veyra::map::split(grid, parent));
+
+  const std::array<veyra::core::CellId, 4> kids = veyra::core::childrenOf(parent);
+  const veyra::core::CellId target = kids[2];
+  const Cell before = *grid.find(target);
+  CHECK(before.count == 3);
+
+  // Aim at the middle of that child so the point cannot land on a boundary.
+  const veyra::core::CellExtent e = veyra::core::extentOf(target);
+  veyra::map::Observation o;
+  o.x = 0.5 * (e.min_x + e.max_x);
+  o.y = 0.5 * (e.min_y + e.max_y);
+  o.z = 9.0F;
+  o.cls = before.cls;
+  o.confidence = 1.0F;
+  const veyra::map::FusionStats fs =
+      veyra::map::integrate(grid, std::vector<veyra::map::Observation>{o}, 77);
+  CHECK(fs.accepted == 1);
+  CHECK(fs.cells_created == 0);  // the child already existed
+
+  const Cell* after = grid.find(target);
+  CHECK(after != nullptr);
+  CHECK(after->count == before.count + 1);
+  CHECK(after->confidence > before.confidence);  // evidence recovered
+  CHECK(after->last_seen == 77);
+  CHECK(after->max_z == 9.0F);
+
+  // Siblings untouched, and no fifth cell created.
+  CHECK(grid.statistics().occupied_cells == 4);
+  for (std::size_t i = 0; i < 4; ++i) {
+    if (kids[i] == target) {
+      continue;
+    }
+    CHECK(grid.find(kids[i])->count == 3);
+    CHECK(grid.find(kids[i])->last_seen != 77);
+  }
+}
+
 }  // namespace
 
 int main() {
@@ -212,5 +375,9 @@ int main() {
   checkFourChildMerge();
   checkNegativeAndMixedHeights();
   checkHighCount();
+  checkSplitDistributesStatistics();
+  checkRemainderIsDistributed();
+  checkSplitMergeRoundTrip();
+  checkSplitThenIntegrate();
   return 0;
 }
