@@ -10,6 +10,8 @@
 #include "check.hpp"
 #include "veyra/core/types.hpp"
 #include "veyra/map/cell.hpp"
+#include "veyra/map/fusion.hpp"
+#include "veyra/map/observation.hpp"
 #include "veyra/map/rolling_window.hpp"
 #include "veyra/map/tile_grid.hpp"
 
@@ -217,6 +219,46 @@ void checkNegativeMotion() {
   CHECK(seen > 0);
 }
 
+veyra::map::Observation obs(double x, double y) {
+  veyra::map::Observation o;
+  o.x = x;
+  o.y = y;
+  o.z = 1.0F;
+  o.cls = 1;
+  o.confidence = 1.0F;
+  return o;
+}
+
+// 8. integrate consults the window, not a fixed box around the odom origin.
+//    After a recentre a point that used to be in range is rejected and one
+//    that used to be out of range is accepted.
+//    Catches: the bug this PR exists to remove -- a range test anchored to the
+//    world origin, which silently rejects everything once the vehicle drives
+//    past it while statistics still look healthy.
+void checkIntegrateHonoursWindow() {
+  TileGrid grid{MapWindow{0.0, 0.0, 1.0}};
+  const veyra::map::Observation near_origin = obs(0.1, 0.0);
+  const veyra::map::Observation far_out = obs(3.0, 0.0);
+
+  const veyra::map::FusionStats before =
+      veyra::map::integrate(grid, std::vector<veyra::map::Observation>{near_origin, far_out}, 0);
+  CHECK(before.accepted == 1);
+  CHECK(before.rejected_out_of_range == 1);
+  CHECK(grid.find(veyra::core::worldToKey(0.1, 0.0, 0)) != nullptr);
+  CHECK(grid.find(veyra::core::worldToKey(3.0, 0.0, 0)) == nullptr);
+
+  grid.recenter(3.0, 0.0);
+
+  const veyra::map::FusionStats after =
+      veyra::map::integrate(grid, std::vector<veyra::map::Observation>{near_origin, far_out}, 1);
+  CHECK(after.accepted == 1);
+  CHECK(after.rejected_out_of_range == 1);
+  // The roles have swapped, which is only possible if both sides share a
+  // predicate anchored to the window.
+  CHECK(grid.find(veyra::core::worldToKey(3.0, 0.0, 0)) != nullptr);
+  CHECK(grid.find(veyra::core::worldToKey(0.1, 0.0, 0)) == nullptr);
+}
+
 }  // namespace
 
 int main() {
@@ -227,5 +269,6 @@ int main() {
   checkEvictionCountIsExact();
   checkTilesAreReleased();
   checkNegativeMotion();
+  checkIntegrateHonoursWindow();
   return 0;
 }
