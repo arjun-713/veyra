@@ -70,4 +70,49 @@ inline void updateCell(Cell& c, double z) {
   c.max_z = std::max(c.max_z, static_cast<float>(z));
 }
 
+// Chan's parallel merge: combine two cells' statistics.
+//
+// Computed in double throughout even though m2 is stored as float -- cast on
+// the way in, truncate on the way out. There are no points to re-accumulate,
+// by design: cells hold sufficient statistics only.
+//
+// Merging with an empty cell returns the other operand unchanged, and two
+// empties give an empty, so neither path divides by zero.
+//
+// This combines the five statistical fields. The remaining fields --
+// last_seen, cls, confidence, traversability, motion -- are carried from `a`
+// rather than fused, because fusing them is not defined here.
+inline Cell mergeCells(const Cell& a, const Cell& b) {
+  if (b.count == 0) {
+    return a;
+  }
+  if (a.count == 0) {
+    return b;
+  }
+
+  const auto na = static_cast<double>(a.count);
+  const auto nb = static_cast<double>(b.count);
+  const double n = na + nb;
+  const double delta = b.mean_z - a.mean_z;
+
+  Cell out = a;
+  out.count = a.count + b.count;
+  out.mean_z = a.mean_z + delta * nb / n;
+  out.m2 = static_cast<float>(static_cast<double>(a.m2) + static_cast<double>(b.m2) +
+                              delta * delta * na * nb / n);
+  out.min_z = std::min(a.min_z, b.min_z);
+  out.max_z = std::max(a.max_z, b.max_z);
+  return out;
+}
+
+// Population variance (m2 / count), not sample variance: a cell's points are
+// the whole population observed in that cell, not a sample drawn from a larger
+// one. Returns 0 for count < 2 rather than dividing by zero or returning NaN.
+inline double varianceOf(const Cell& c) {
+  if (c.count < 2) {
+    return 0.0;
+  }
+  return static_cast<double>(c.m2) / static_cast<double>(c.count);
+}
+
 }  // namespace veyra::map
