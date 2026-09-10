@@ -57,9 +57,47 @@ void checkSplitReplacesParentWithFourChildren() {
   }
 }
 
+// 2. Splitting a cell that is not active refuses and changes nothing.
+//    Catches: a split that fabricates children out of an absent parent, which
+//    would put four cells where the map has no evidence at all.
+void checkSplitRefusesInactiveCell() {
+  TileGrid grid;
+  seed(grid, CellId{2, 0, 0}, 4, 1.0);
+  const veyra::map::GridStats before = grid.statistics();
+
+  CHECK(!veyra::map::split(grid, CellId{2, 99, 99}));
+
+  const veyra::map::GridStats after = grid.statistics();
+  CHECK(after.occupied_cells == before.occupied_cells);
+  CHECK(after.tiles == before.tiles);
+  CHECK(after.allocated_bytes == before.allocated_bytes);
+  for (const CellId k : veyra::core::childrenOf(CellId{2, 99, 99})) {
+    CHECK(grid.find(k) == nullptr);
+  }
+}
+
+// 3. Level 0 is the floor. There is nothing finer than 5 cm, so a split there
+//    must refuse rather than create cells at level -1.
+//    Catches: an unguarded level - 1, which would produce a negative level --
+//    a key that hashes and compares fine but names a resolution that does not
+//    exist, corrupting every later lookup at that square.
+void checkSplitRefusesAtLevelZero() {
+  TileGrid grid;
+  const CellId leaf{0, 4, 4};
+  seed(grid, leaf, 3, 2.0);
+
+  CHECK(!veyra::map::split(grid, leaf));
+
+  CHECK(grid.find(leaf) != nullptr);
+  CHECK(grid.statistics().occupied_cells == 1);
+  CHECK(grid.find(CellId{-1, 8, 8}) == nullptr);
+}
+
 }  // namespace
 
 int main() {
   checkSplitReplacesParentWithFourChildren();
+  checkSplitRefusesInactiveCell();
+  checkSplitRefusesAtLevelZero();
   return 0;
 }
