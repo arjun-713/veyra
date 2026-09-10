@@ -40,9 +40,32 @@ void checkFreshGrid() {
   CHECK(small.window().radius_m == 2.0);
 }
 
+// 2. Recentring to where the window already is evicts nothing and releases
+//    nothing, and says the centre did not move.
+//    Catches: an unconditional walk-and-evict that churns the boundary on
+//    every frame, which is allocation on the hot path.
+void checkNoMovementNoEviction() {
+  TileGrid grid{MapWindow{0.0, 0.0, 2.0}};
+  for (std::int32_t i = -4; i <= 4; ++i) {
+    grid.findOrCreate(veyra::core::CellId{0, i, i});
+  }
+  const GridStats before = grid.statistics();
+
+  const veyra::map::EvictionStats e = grid.recenter(0.0, 0.0);
+  CHECK(e.cells_evicted == 0);
+  CHECK(e.tiles_released == 0);
+  CHECK(!e.centre_moved);
+
+  const GridStats after = grid.statistics();
+  CHECK(after.tiles == before.tiles);
+  CHECK(after.occupied_cells == before.occupied_cells);
+  CHECK(after.allocated_bytes == before.allocated_bytes);
+}
+
 }  // namespace
 
 int main() {
   checkFreshGrid();
+  checkNoMovementNoEviction();
   return 0;
 }

@@ -1,5 +1,8 @@
 #include "veyra/map/tile_grid.hpp"
 
+#include <cmath>
+#include <vector>
+
 namespace veyra::map {
 
 Cell* TileGrid::find(core::CellId id) {
@@ -56,6 +59,42 @@ bool TileGrid::erase(core::CellId id) {
     tiles_.erase(it);
   }
   return true;
+}
+
+EvictionStats TileGrid::recenter(double x, double y) {
+  EvictionStats stats;
+
+  // A non-finite or absurd centre would reach worldToKey's double-to-int32
+  // conversion, which is undefined behaviour. Refuse to move rather than
+  // corrupt the window; centre_moved stays false so the caller can see it.
+  if (!std::isfinite(x) || !std::isfinite(y) || std::fabs(x) >= kMaxIndexableM ||
+      std::fabs(y) >= kMaxIndexableM) {
+    return stats;
+  }
+
+  const core::TileId here = tileOfPoint(x, y);
+  if (here == centre_tile_) {
+    return stats;  // still in the same tile: the window has not moved
+  }
+  centre_tile_ = here;
+  window_.centre_x = x;
+  window_.centre_y = y;
+  stats.centre_moved = true;
+
+  const std::size_t tiles_before = tiles_.size();
+  std::vector<core::CellId> doomed;
+  forEachActiveLeaf([&](core::CellId id, const Cell&) {
+    if (!inWindow(window_, id)) {
+      doomed.push_back(id);
+    }
+  });
+  for (const core::CellId id : doomed) {
+    if (erase(id)) {
+      ++stats.cells_evicted;
+    }
+  }
+  stats.tiles_released = tiles_before - tiles_.size();
+  return stats;
 }
 
 GridStats TileGrid::statistics() const {
