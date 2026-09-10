@@ -5,6 +5,7 @@
 build/
 build-local/
 build-strict-*/
+build-*/
 cmake-build-*/
 CMakeCache.txt
 CMakeFiles/

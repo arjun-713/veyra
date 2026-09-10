@@ -2,9 +2,15 @@
   "name": "Veyra (C++20 + Python 3.11)",
   "image": "mcr.microsoft.com/devcontainers/cpp:1-ubuntu-22.04",
   "features": {
-    "ghcr.io/devcontainers/features/python:1": { "version": "3.11" },
-    "ghcr.io/devcontainers/features/cmake:1": { "version": "latest" },
-    "ghcr.io/devcontainers/features/ninja:1": { "version": "latest" }
+    "ghcr.io/devcontainers/features/python:1": {
+      "version": "3.11"
+    },
+    "ghcr.io/devcontainers/features/cmake:1": {
+      "version": "latest"
+    },
+    "ghcr.io/devcontainers/features/ninja:1": {
+      "version": "latest"
+    }
   },
   "customizations": {
     "vscode": {
@@ -16,5 +22,6 @@
       ]
     }
   },
-  "postCreateCommand": "python -m pip install --upgrade pip && (test -f requirements-dev.txt && pip install -r requirements-dev.txt || true)"
+  "postCreateCommand":
+      "python -m pip install --upgrade pip && (test -f requirements-dev.txt && pip install -r requirements-dev.txt || true)"
 }

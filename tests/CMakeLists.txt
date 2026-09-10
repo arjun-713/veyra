@@ -35,3 +35,20 @@ add_test(
   COMMAND ${Python3_EXECUTABLE} -m unittest discover -s tests -p "test_*.py" -v
   WORKING_DIRECTORY ${PROJECT_SOURCE_DIR}
 )
+
+add_executable(test_split_merge test_split_merge.cpp)
+target_include_directories(test_split_merge PRIVATE ${PROJECT_SOURCE_DIR}/include)
+target_compile_features(test_split_merge PRIVATE cxx_std_20)
+add_test(NAME split_merge COMMAND test_split_merge)
+
+add_executable(test_memory_accounting test_memory_accounting.cpp)
+target_include_directories(test_memory_accounting PRIVATE ${PROJECT_SOURCE_DIR}/include)
+target_compile_features(test_memory_accounting PRIVATE cxx_std_20)
+target_link_libraries(test_memory_accounting PRIVATE veyra_map)
+add_test(NAME memory_accounting COMMAND test_memory_accounting)
+
+add_executable(test_point_conservation test_point_conservation.cpp)
+target_include_directories(test_point_conservation PRIVATE ${PROJECT_SOURCE_DIR}/include)
+target_compile_features(test_point_conservation PRIVATE cxx_std_20)
+target_link_libraries(test_point_conservation PRIVATE veyra_map)
+add_test(NAME point_conservation COMMAND test_point_conservation)
