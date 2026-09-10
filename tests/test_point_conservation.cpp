@@ -3,6 +3,8 @@
 // one active leaf, and every point offered is either accepted or rejected.
 //
 // Each group names the production bug it exists to catch.
+#include <algorithm>
+#include <cmath>
 #include <cstddef>
 #include <cstdint>
 #include <vector>
@@ -20,6 +22,15 @@ using veyra::map::FusionStats;
 using veyra::map::integrate;
 using veyra::map::Observation;
 using veyra::map::TileGrid;
+
+// Tolerances as locked in docs/map-correctness.md invariant 4.
+constexpr double kMeanTol = 1e-9;
+constexpr double kVarTol = 1e-5;
+
+bool relClose(double a, double b, double tol) {
+  const double scale = std::max({1.0, std::fabs(a), std::fabs(b)});
+  return std::fabs(a - b) <= tol * scale;
+}
 
 Observation obs(double x, double y, float z) {
   Observation o;
@@ -71,10 +82,91 @@ void checkUniqueOwnership() {
   CHECK(apart.find(veyra::core::CellId{0, 1, 0})->count == 1);
 }
 
+// 3. Boundary determinism. A point exactly on a cell boundary lands in the
+//    cell whose half-open extent [min, max) contains it, on both sides of the
+//    origin. The corners are taken from extentOf so the test states the
+//    convention rather than restating the implementation's arithmetic.
+//    Catches: an index that rounds instead of flooring, and truncation toward
+//    zero, which only misbehaves left of the origin.
+void checkBoundaryDeterminism() {
+  for (const std::int32_t ix : {-3, -1, 0, 1, 4}) {
+    TileGrid grid;
+    const veyra::core::CellId cell{0, ix, ix};
+    const veyra::core::CellExtent e = veyra::core::extentOf(cell);
+
+    // The lower corner belongs to this cell ...
+    integrate(grid, std::vector<Observation>{obs(e.min_x, e.min_y, 1.0F)}, 0);
+    CHECK(grid.find(cell) != nullptr);
+    CHECK(grid.find(cell)->count == 1);
+
+    // ... and the upper corner belongs to the next one.
+    integrate(grid, std::vector<Observation>{obs(e.max_x, e.max_y, 1.0F)}, 0);
+    const veyra::core::CellId next{0, static_cast<std::int32_t>(ix + 1),
+                                   static_cast<std::int32_t>(ix + 1)};
+    CHECK(grid.find(next) != nullptr);
+    CHECK(grid.statistics().occupied_cells == 2);
+  }
+}
+
+// 4. Statistics correctness. Heights folded through integrate produce the same
+//    cell as folding them directly with updateCell.
+//    Catches: fusion dropping a point, applying the update twice, or passing
+//    the wrong value as z.
+void checkStatisticsCorrectness() {
+  const std::vector<float> heights = {1.0F, 2.0F, 3.0F, 4.0F};
+
+  TileGrid grid;
+  std::vector<Observation> batch;
+  for (const float h : heights) {
+    batch.push_back(obs(0.01, 0.01, h));
+  }
+  integrate(grid, batch, 0);
+
+  veyra::map::Cell direct{};
+  for (const float h : heights) {
+    veyra::map::updateCell(direct, static_cast<double>(h));
+  }
+
+  const veyra::map::Cell* fused = grid.find(veyra::core::CellId{0, 0, 0});
+  CHECK(fused != nullptr);
+  CHECK(fused->count == direct.count);
+  CHECK(fused->min_z == direct.min_z);
+  CHECK(fused->max_z == direct.max_z);
+  CHECK(relClose(fused->mean_z, direct.mean_z, kMeanTol));
+  CHECK(relClose(veyra::map::varianceOf(*fused), veyra::map::varianceOf(direct), kVarTol));
+}
+
+// 5. Integrating into an existing cell updates it rather than replacing it,
+//    and never creates a second cell for the same id.
+//    Catches: a fusion path that resets the cell, and one that creates a new
+//    cell per call instead of finding the existing one.
+void checkIdempotentCreation() {
+  TileGrid grid;
+  const veyra::core::CellId id{0, 0, 0};
+
+  const FusionStats first = integrate(grid, std::vector<Observation>{obs(0.01, 0.01, 1.0F)}, 0);
+  CHECK(first.accepted == 1);
+  const veyra::map::Cell* after_first = grid.find(id);
+  CHECK(after_first != nullptr);
+  CHECK(after_first->count == 1);
+
+  const FusionStats second = integrate(grid, std::vector<Observation>{obs(0.02, 0.02, 5.0F)}, 1);
+  CHECK(second.accepted == 1);
+  CHECK(grid.statistics().occupied_cells == 1);
+  CHECK(grid.statistics().tiles == 1);
+  const veyra::map::Cell* after_second = grid.find(id);
+  CHECK(after_second == after_first);  // same storage, not replaced
+  CHECK(after_second->count == 2);
+  CHECK(after_second->max_z == 5.0F);
+}
+
 }  // namespace
 
 int main() {
   checkConservation();
   checkUniqueOwnership();
+  checkBoundaryDeterminism();
+  checkStatisticsCorrectness();
+  checkIdempotentCreation();
   return 0;
 }
