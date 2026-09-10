@@ -23,54 +23,34 @@ default. JSON records runtime hardware/config provenance, scoped stage timing,
 logical versus allocated-map memory availability, current/peak process RSS,
 per-level cells, topology churn, and stream late/drop accounting.
 
-## Real-data perception regression
+## Legacy standalone scan harness
 
-CI uses one immutable Qualcomm AI Hub SalsaNext scan, downloaded at runtime
-and checked against SHA-256 (1,994,688 bytes; never committed):
+`benchmarks/regression.py` remains available for debugging a single raw scan,
+but it is not part of CI's primary validation path. CI uses the official
+SemanticPOSS archive and runs the adapter, real perception stages, map policies,
+and correctness/performance reporting together.
 
-`https://qaihub-public-assets.s3.us-west-2.amazonaws.com/qai-hub-models/models/salsanext/v3/000000.bin`
-
-The asset is raw float32 `XYZI`. Its source has no paired pose or timestamp,
-so the harness preserves both as absent and does not claim temporal acceptance
-or invent motion. The explicit `configs/perception-salsanext.yaml` pipeline
-must provide the real SalsaNext model and Patchwork++ ground backend; missing
-stages fail the run. The report stays before the mapper and records
-input-to-ObservationFrame point correspondence, taxonomy/range validity,
-per-stage timings, total latency, and process RSS. Accuracy is reported as
-`null` because no paired upstream labels have been verified; no labels are
-invented.
-
-To run the bounded regression locally after building the benchmark and
-placing the explicitly configured model in `data/cache/models/`:
-
-```bash
-python -m scripts.fetch_semantic_model
-python -m benchmarks.regression --intensity-scale 1
-```
-
-The pull-request job uses one real scan as an affordable smoke test. The
-scheduled/manual path is the place to add longer, data-backed perception
-coverage. The Qualcomm scan has no paired pose or timestamp, so temporal
-behavior cannot be validated with this sample.
-
-## SemanticPOSS scheduled benchmark
+## SemanticPOSS CI benchmark
 
 The `semanticposs-benchmark` job uses the official SemanticPOSS archive from
 the POSS website. The current archive is approximately 2.41 GB compressed and
-extracts to approximately 4 GB. It is intentionally not part of ordinary PR
-checks.
+extracts to approximately 4 GB. It is part of ordinary PR checks through a
+digest-keyed cache, with a smaller deterministic frame selection on PRs.
 
-It runs on the weekly schedule or by manually dispatching the workflow with
-`run_semanticposs=true`. Sequence `00` defaults to all 488 frames. The map job
-runs those frames through `Uniform5`, `Uniform40`, `DistanceLOD`, and
-`UtilityLOD` with one warmup and one measured repetition using
-`--skip-perception`; this keeps the map comparison focused on the map engine.
-A separate perception job defaults to a deterministic 64-frame sample through
-real SalsaNext + Patchwork++ + terrain. Increase its dispatch input for a
-longer manual run.
+The workflow runs on every pull request, daily at 02:17 UTC, or by manual
+dispatch. Pull requests use a deterministic 64-frame SemanticPOSS selection;
+daily/manual runs default to all 488 frames of sequence `00`. The same job
+validates the real perception pipeline and sends its configured perception
+output through `Uniform5`, `Uniform40`, `DistanceLOD`, and `UtilityLOD`,
+preserving fair shared-input comparisons.
 
 The archive URL, byte count, and trusted SHA-256 are pinned in the workflow;
 any upstream archive mutation fails verification. Each JSON artifact records
 the archive digest, git SHA, sequence/frame range, config digest, model digest
-when applicable, runner CPU/RAM/OS, and compiler/build metadata. This job is
-deliberately a scheduled or operator-triggered regression, not a fast PR gate.
+when applicable, runner CPU/RAM/OS, and compiler/build metadata. The workflow
+uses an immutable archive cache keyed by its digest. A cache miss
+downloads to a temporary path, verifies size and SHA-256, then saves only the
+verified archive. The Actions summary contains the compact tables; JSON, CSV,
+and provenance files remain available as artifacts. Hosted-runner performance
+changes over 20% versus the latest successful `main` artifact are warnings;
+correctness failures are hard failures.

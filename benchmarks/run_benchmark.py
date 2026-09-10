@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import argparse
 import csv
+from datetime import datetime, timezone
 import hashlib
 import json
 import math
@@ -91,6 +92,17 @@ def _git_sha(repo: Path) -> str | None:
             text=True,
         ).stdout.strip()
     except (OSError, subprocess.CalledProcessError):
+        return None
+
+
+def _pull_request_number() -> int | None:
+    event_path = os.environ.get("GITHUB_EVENT_PATH")
+    if not event_path:
+        return None
+    try:
+        event = json.loads(Path(event_path).read_text())
+        return event.get("pull_request", {}).get("number")
+    except (OSError, TypeError, json.JSONDecodeError):
         return None
 
 
@@ -329,6 +341,7 @@ def load_selection(
     count: int,
     *,
     run_perception: bool = True,
+    perception_config: Path | None = None,
 ):
     dataset_config = yaml.safe_load((repo / "configs/datasets.yaml").read_text())
     raw_distance_config = yaml.safe_load(
@@ -370,7 +383,9 @@ def load_selection(
         raise ValueError("frame selection is empty")
     processed, durations_ns = source_frames, []
     if run_perception:
-        pipeline = load_perception_pipeline(repo / "configs" / "perception.yaml")
+        pipeline = load_perception_pipeline(
+            perception_config or repo / "configs" / "perception.yaml"
+        )
         processed = []
         for source_frame in source_frames:
             started = time.perf_counter_ns()
@@ -491,6 +506,11 @@ def run(args: argparse.Namespace) -> dict[str, Any]:
             args.start,
             args.count,
             run_perception=not args.skip_perception,
+            perception_config=(
+                repo / args.perception_config
+                if not Path(args.perception_config).is_absolute()
+                else Path(args.perception_config)
+            ),
         )
     )
     stream, digest = stream_bytes(frames)
@@ -555,6 +575,7 @@ def run(args: argparse.Namespace) -> dict[str, Any]:
             "aggregate": _aggregate_policy_runs(runs),
         }
     config_paths = [
+        repo / args.perception_config,
         repo / "configs/datasets.yaml",
         repo / "configs/distance_lod.yaml",
         repo / "configs/utility_lod.yaml",
@@ -610,6 +631,10 @@ def run(args: argparse.Namespace) -> dict[str, Any]:
             if checkpoint and checkpoint.is_file()
             else None,
             "git_sha": _git_sha(repo),
+            "pull_request_number": _pull_request_number(),
+            "workflow_run_id": os.environ.get("GITHUB_RUN_ID"),
+            "workflow_event": os.environ.get("GITHUB_EVENT_NAME"),
+            "timestamp_utc": datetime.now(timezone.utc).isoformat(),
             "frame_range": {
                 "sequence": args.sequence,
                 "start": args.start,
@@ -741,6 +766,7 @@ def main() -> int:
     parser.add_argument("--skip-perception", action="store_true")
     parser.add_argument("--dataset-sha256")
     parser.add_argument("--build-type", default="Release")
+    parser.add_argument("--perception-config", default="configs/perception.yaml")
     args = parser.parse_args()
     try:
         result = run(args)

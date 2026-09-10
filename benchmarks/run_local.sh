@@ -18,6 +18,7 @@ policies="uniform5,uniform40,distance_lod,utility_lod"
 skip_perception="false"
 dataset_sha256=""
 build_type="Release"
+perception_config="configs/perception.yaml"
 
 usage() {
   cat <<'EOF'
@@ -38,6 +39,7 @@ Options:
   --skip-perception    send dataset frames directly to the map benchmark
   --dataset-sha256 HEX SHA-256 of the source dataset archive for provenance
   --build-type TYPE    CMake build type recorded in the artifact (default: Release)
+  --perception-config PATH  perception config used before mapping
   --build-dir PATH     local CMake build directory
   --output-dir PATH    JSON/CSV output directory
   -h, --help           show this help
@@ -60,6 +62,7 @@ while (($#)); do
     --skip-perception) skip_perception="true"; shift ;;
     --dataset-sha256) dataset_sha256="${2:?missing value for --dataset-sha256}"; shift 2 ;;
     --build-type) build_type="${2:?missing value for --build-type}"; shift 2 ;;
+    --perception-config) perception_config="${2:?missing value for --perception-config}"; shift 2 ;;
     --build-dir) build_dir="${2:?missing value for --build-dir}"; shift 2 ;;
     --output-dir) output_dir="${2:?missing value for --output-dir}"; shift 2 ;;
     -h|--help) usage; exit 0 ;;
@@ -96,6 +99,7 @@ benchmark_args=(
   --output "$json_output" \
   --csv-output "$csv_output" \
   --build-type "$build_type"
+  --perception-config "$perception_config"
 )
 if [[ -n "$dataset_sha256" ]]; then
   benchmark_args+=(--dataset-sha256 "$dataset_sha256")

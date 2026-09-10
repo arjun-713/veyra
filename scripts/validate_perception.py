@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import argparse
 from dataclasses import asdict
+from datetime import datetime, timezone
 import hashlib
 import json
 import os
@@ -45,6 +46,17 @@ def _git_sha(repo: Path) -> str | None:
         return None
 
 
+def _pull_request_number() -> int | None:
+    event_path = os.environ.get("GITHUB_EVENT_PATH")
+    if not event_path:
+        return None
+    try:
+        event = json.loads(Path(event_path).read_text())
+        return event.get("pull_request", {}).get("number")
+    except (OSError, TypeError, json.JSONDecodeError):
+        return None
+
+
 def _physical_memory_bytes() -> int | None:
     try:
         return os.sysconf("SC_PAGE_SIZE") * os.sysconf("SC_PHYS_PAGES")
@@ -77,6 +89,10 @@ def reproducibility_metadata(
     model_path = repo / model_value if isinstance(model_value, str) else None
     return {
         "git_sha": _git_sha(repo),
+        "pull_request_number": _pull_request_number(),
+        "workflow_run_id": os.environ.get("GITHUB_RUN_ID"),
+        "workflow_event": os.environ.get("GITHUB_EVENT_NAME"),
+        "timestamp_utc": datetime.now(timezone.utc).isoformat(),
         "dataset_sha256": dataset_sha256,
         "frame_range": {
             "sequence": sequence,
