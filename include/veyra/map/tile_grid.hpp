@@ -8,6 +8,7 @@
 
 #include "veyra/core/types.hpp"
 #include "veyra/map/cell.hpp"
+#include "veyra/map/rolling_window.hpp"
 
 // Hash for the tile key. All three fields participate: two tiles at the same
 // (tx, ty) but different levels are different tiles, and a hash that ignored
@@ -50,6 +51,11 @@ struct GridStats {
 // storage layout replaceable later.
 class TileGrid {
  public:
+  TileGrid() = default;
+  explicit TileGrid(MapWindow window) : window_(window) {}
+
+  const MapWindow& window() const { return window_; }
+
   Cell* find(core::CellId id);
   const Cell* find(core::CellId id) const;
   Cell& findOrCreate(core::CellId id);
@@ -89,6 +95,7 @@ class TileGrid {
   }
 
   std::unordered_map<core::TileId, Tile> tiles_;
+  MapWindow window_;
 };
 
 template <class Fn>
