@@ -10,6 +10,11 @@ FusionStats integrate(TileGrid& grid, std::span<const Observation> points,
   (void)frame_index;
   FusionStats stats;
   for (const Observation& o : points) {
+    if (o.x < -kMapHalfExtentM || o.x >= kMapHalfExtentM || o.y < -kMapHalfExtentM ||
+        o.y >= kMapHalfExtentM) {
+      ++stats.rejected_out_of_range;
+      continue;
+    }
     const core::CellId id = core::worldToKey(o.x, o.y, 0);
     Cell& cell = grid.findOrCreate(id);
     updateCell(cell, static_cast<double>(o.z));
