@@ -6,6 +6,7 @@
 #include <algorithm>
 #include <cstddef>
 #include <cstdint>
+#include <limits>
 #include <vector>
 
 #include "check.hpp"
@@ -312,6 +313,67 @@ void checkLongDriveStaysBounded() {
   CHECK(grid.find(veyra::core::worldToKey(300.0, 0.0, 0)) != nullptr);
 }
 
+// 10. Thrash. Two hundred recentres that never leave the current tile move
+//     nothing, evict nothing and allocate nothing; the next one that crosses
+//     a tile boundary does move.
+//     Catches: recentring on raw position, which would evict and re-create
+//     boundary cells on every frame -- allocation on the hot path, which
+//     AGENTS.md forbids.
+void checkThrashIsSuppressed() {
+  TileGrid grid{MapWindow{0.0, 0.0, 1.0}};
+  fillBlock(grid, 40);
+  const GridStats base = grid.statistics();
+  CHECK(base.occupied_cells > 0);
+
+  for (int i = 0; i < 200; ++i) {
+    const double d = 0.007 * static_cast<double>(i);  // 0 .. 1.393, one tile wide
+    const veyra::map::EvictionStats e = grid.recenter(d, d);
+    CHECK(!e.centre_moved);
+    CHECK(e.cells_evicted == 0);
+    CHECK(e.tiles_released == 0);
+  }
+  const GridStats after = grid.statistics();
+  CHECK(after.tiles == base.tiles);
+  CHECK(after.occupied_cells == base.occupied_cells);
+  CHECK(after.allocated_bytes == base.allocated_bytes);
+  CHECK(grid.window().centre_x == 0.0);  // never moved
+
+  // Crossing out of the tile does move it.
+  const veyra::map::EvictionStats crossed = grid.recenter(2.0, 0.0);
+  CHECK(crossed.centre_moved);
+  CHECK(crossed.cells_evicted > 0);
+  CHECK(grid.window().centre_x == 2.0);
+}
+
+// 11. The rejection ordering survives the range-check rewrite. Finite first,
+//     then representability, then the window.
+//     Catches: the finite check drifting after the range test -- every
+//     comparison against NaN is false, so a NaN would slip through and reach
+//     worldToKey's double-to-int32 conversion, which is undefined behaviour.
+void checkNonFiniteStillRejected() {
+  const double nan_v = std::numeric_limits<double>::quiet_NaN();
+  const double inf_v = std::numeric_limits<double>::infinity();
+
+  TileGrid grid{MapWindow{0.0, 0.0, 2.0}};
+  const std::vector<veyra::map::Observation> batch = {obs(nan_v, 0.0), obs(0.0, inf_v),
+                                                      obs(1.0e300, 0.0), obs(0.1, 0.0)};
+  const veyra::map::FusionStats s = veyra::map::integrate(grid, batch, 0);
+
+  CHECK(s.accepted == 1);
+  CHECK(s.rejected_non_finite == 2);
+  CHECK(s.rejected_out_of_range == 1);  // 1e300 is finite but not indexable
+  CHECK(s.accepted + s.rejected() == batch.size());
+  CHECK(grid.statistics().occupied_cells == 1);
+
+  // recenter refuses a non-finite centre rather than corrupting the window.
+  const veyra::map::EvictionStats e = grid.recenter(nan_v, 0.0);
+  CHECK(!e.centre_moved);
+  CHECK(grid.window().centre_x == 0.0);
+  const veyra::map::EvictionStats huge = grid.recenter(1.0e300, 0.0);
+  CHECK(!huge.centre_moved);
+  CHECK(grid.window().centre_x == 0.0);
+}
+
 }  // namespace
 
 int main() {
@@ -324,5 +386,7 @@ int main() {
   checkNegativeMotion();
   checkIntegrateHonoursWindow();
   checkLongDriveStaysBounded();
+  checkThrashIsSuppressed();
+  checkNonFiniteStillRejected();
   return 0;
 }
