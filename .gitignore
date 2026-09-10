@@ -107,6 +107,7 @@ viewer/build/
 viewer/node_modules/
 viewer/.next/
 viewer/coverage/
+.impeccable/
 
 # --- ROS2 ---
 ros2/build/
