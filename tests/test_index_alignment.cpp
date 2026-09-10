@@ -321,7 +321,6 @@ void checkTileLocalGlobal() {
       }
     }
   }
-
   // The trap, stated explicitly. Truncating division puts cell -1 in tile 0
   // with local index -1 -- outside its own tile, and colliding with cell 0.
   CHECK(tileOf(CellId{0, -1, -1}, 4) == (TileId{0, -1, -1}));

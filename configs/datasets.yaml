@@ -2,11 +2,22 @@
 # data/ is local-only and git-ignored; datasets/ holds code and IS tracked.
 rellis3d:
   root: data/raw/rellis3d/Rellis-3D
-  sequences: [00000, 00001, 00002, 00003, 00004]
+  sequences: ["00000", "00001", "00002", "00003", "00004"]
   scan_dir: vel_cloud_node_kitti_bin
   label_dir: vel_cloud_node_semantickitti_label_id
+  min_range_m: 0.0
+  max_range_m: 100.0
 semanticposs:
   root: data/raw/semanticposs/dataset
   sequences: ["00", "01", "02", "03", "04", "05"]
   scan_dir: velodyne
   label_dir: labels
+  min_range_m: 0.0
+  max_range_m: 100.0
+semantickitti:
+  root: data/raw/semantickitti/dataset
+  sequences: ["00", "01", "02", "03", "04", "05", "06", "07", "08", "09", "10"]
+  scan_dir: velodyne
+  label_dir: labels
+  min_range_m: 0.0
+  max_range_m: 100.0

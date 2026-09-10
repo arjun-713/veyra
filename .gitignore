@@ -3,6 +3,8 @@
 
 # --- CMake / C++ build ---
 build/
+build-local/
+build-strict-*/
 build-*/
 cmake-build-*/
 CMakeCache.txt
@@ -96,6 +98,7 @@ downloads/
 
 # --- Generated maps / benchmarks / viewer output (never commit) ---
 maps/
+benchmark-results/
 *.pcd.gz
 benchmarks/results/
 benchmarks/dumps/
@@ -106,6 +109,7 @@ viewer/build/
 viewer/node_modules/
 viewer/.next/
 viewer/coverage/
+.impeccable/
 
 # --- ROS2 ---
 ros2/build/

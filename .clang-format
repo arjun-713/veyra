@@ -2,5 +2,4 @@ BasedOnStyle: Google
 ColumnLimit: 100
 DerivePointerAlignment: false
 PointerAlignment: Left
-Standard: c++20
 SortIncludes: true
