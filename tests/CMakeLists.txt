@@ -11,3 +11,8 @@ add_executable(test_split_merge test_split_merge.cpp)
 target_include_directories(test_split_merge PRIVATE ${PROJECT_SOURCE_DIR}/include)
 target_compile_features(test_split_merge PRIVATE cxx_std_20)
 add_test(NAME split_merge COMMAND test_split_merge)
+
+add_executable(test_memory_accounting test_memory_accounting.cpp)
+target_include_directories(test_memory_accounting PRIVATE ${PROJECT_SOURCE_DIR}/include)
+target_compile_features(test_memory_accounting PRIVATE cxx_std_20)
+add_test(NAME memory_accounting COMMAND test_memory_accounting)
