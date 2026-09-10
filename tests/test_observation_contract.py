@@ -10,6 +10,22 @@ from datasets.common.observation import (
 
 
 class ObservationContractTests(unittest.TestCase):
+    def test_probabilities_reject_nan_and_geometry_rejects_infinity(self):
+        for name in ("semantic_confidence", "motion_probability"):
+            with self.subTest(name=name), self.assertRaises(ValueError):
+                _frame(**{name: [np.nan, 0.5]})
+        for name in ("slope", "roughness", "height_complexity", "step"):
+            with self.subTest(name=name), self.assertRaises(ValueError):
+                _frame(**{name: [np.inf, 0.0]})
+        # NaN remains the documented representation for uncomputed geometry.
+        self.assertTrue(np.isnan(_frame(slope=[np.nan, np.nan]).slope).all())
+
+    def test_semantic_classes_must_not_silently_truncate(self):
+        with self.assertRaises(ValueError):
+            _frame(semantic_class=[1.5, 2])
+        with self.assertRaises(ValueError):
+            _frame(raw_semantic_class=[1.5, 2])
+
     def test_observation_frame_keeps_all_point_fields_aligned(self):
         pose = PoseSE3(np.eye(4), timestamp=1.25)
         points = np.array(

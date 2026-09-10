@@ -1,11 +1,12 @@
 import tempfile
 import unittest
+import importlib.util
 from dataclasses import replace
 from pathlib import Path
 
 import numpy as np
 
-from datasets.common.observation import ObservationFrame, PoseSE3
+from datasets.common.observation import FrameProvenance, ObservationFrame, PoseSE3
 from datasets.rellis import Rellis3DDataset
 from datasets.semanticposs import SemanticPOSSDataset
 from perception.ground import GroundEvidence, PatchworkPPUnavailableError
@@ -84,9 +85,82 @@ def _frame(timestamp=2.0):
 
 
 class PerceptionPipelineTests(unittest.TestCase):
+    def test_config_requires_explicit_semantic_mode(self):
+        with self.assertRaisesRegex(Exception, "semantic.mode"):
+            PerceptionPipeline.from_config({"semantic": {}, "ground": {}})
+
+    def test_optional_temporal_rejects_unproven_metadata_without_advancing(self):
+        class MustNotAdvance:
+            def update(self, *args, **kwargs):
+                raise AssertionError("unproven metadata advanced tracker")
+
+        result = PerceptionPipeline(temporal_tracker=MustNotAdvance()).process(_frame())
+        self.assertEqual(result.status.temporal, "unavailable")
+        self.assertTrue(result.status.diagnostics)
+        np.testing.assert_array_equal(result.frame.motion_state, ["unknown"] * 3)
+
+    def test_sensor_backends_receive_inverse_pose_without_changing_map_coordinates(
+        self,
+    ):
+        class CoordinateSemantics:
+            def infer(self, points, labels=None):
+                return SemanticResult(
+                    (points[:, 0] > 1.5).astype(np.int32), np.ones(len(points)), "model"
+                )
+
+        class CoordinateGround:
+            def segment(self, points):
+                return GroundEvidence(
+                    points[:, 2] < 0.5, np.ones(len(points)), "coordinate-ground"
+                )
+
+        original = _frame()
+        matrix = np.array([[0.0, -1, 0, 10], [1, 0, 0, -5], [0, 0, 1, 7], [0, 0, 0, 1]])
+        points = original.points.copy()
+        points[:, :3] = points[:, :3] @ matrix[:3, :3].T + matrix[:3, 3]
+        frame = replace(
+            original,
+            points=points,
+            pose=PoseSE3(matrix),
+            provenance=FrameProvenance(coordinate_frame="world", pose_source="dataset"),
+        )
+        result = PerceptionPipeline(
+            semantic_provider=CoordinateSemantics(), ground_segmenter=CoordinateGround()
+        ).process(frame)
+        np.testing.assert_array_equal(result.frame.semantic_class, [0, 0, 1])
+        np.testing.assert_array_equal(result.frame.ground, [True, True, False])
+        np.testing.assert_array_equal(result.frame.points, points)
+
+    def test_strict_required_ground_failure_raises(self):
+        class BrokenGround:
+            def segment(self, points):
+                raise RuntimeError("backend crashed")
+
+        with self.assertRaises(RuntimeError):
+            PerceptionPipeline(
+                ground_segmenter=BrokenGround(), required_stages=("ground",)
+            ).process(_frame())
+
+    def test_strict_temporal_refuses_unproven_pose_metadata(self):
+        class MustNotAdvance:
+            def update(self, *args, **kwargs):
+                raise AssertionError("invalid provenance advanced temporal state")
+
+        with self.assertRaises(RuntimeError):
+            PerceptionPipeline(
+                temporal_tracker=MustNotAdvance(), required_stages=("temporal",)
+            ).process(_frame())
+
     def test_checked_in_default_config_runs_ground_truth_ground_and_terrain(
         self,
     ):
+        if not all(
+            Path(root).is_dir()
+            for root in ("data/raw/semanticposs/dataset", "data/raw/rellis3d/Rellis-3D")
+        ):
+            self.skipTest("requires original local SemanticPOSS and RELLIS datasets")
+        if importlib.util.find_spec("pypatchworkpp") is None:
+            self.skipTest("requires pypatchworkpp for real ground validation")
         pipeline = load_perception_pipeline("configs/perception.yaml")
         sources = (
             (SemanticPOSSDataset(Path("data/raw/semanticposs/dataset")), "00"),
@@ -106,11 +180,13 @@ class PerceptionPipelineTests(unittest.TestCase):
                     for output in outputs
                 )
             )
-            self.assertTrue(all(output.status.terrain == "available" for output in outputs))
-            self.assertTrue(all(output.status.temporal == "disabled" for output in outputs))
             self.assertTrue(
-                all(np.any(output.frame.ground) for output in outputs)
+                all(output.status.terrain == "available" for output in outputs)
             )
+            self.assertTrue(
+                all(output.status.temporal == "disabled" for output in outputs)
+            )
+            self.assertTrue(all(np.any(output.frame.ground) for output in outputs))
             self.assertTrue(all(output.frame.points.shape[0] > 0 for output in outputs))
 
     def test_sequence_change_resets_an_enabled_temporal_tracker(self):
@@ -175,7 +251,16 @@ class PerceptionPipelineTests(unittest.TestCase):
             ground_segmenter=_GroundSegmenter(),
             terrain_analyzer=_TerrainAnalyzer(),
             temporal_tracker=_TemporalTracker(),
-        ).process(_frame())
+        ).process(
+            replace(
+                _frame(),
+                provenance=FrameProvenance(
+                    coordinate_frame="world",
+                    pose_source="dataset",
+                    timestamp_source="dataset",
+                ),
+            )
+        )
 
         self.assertEqual(output.status.semantic, "ground_truth")
         self.assertEqual(output.status.ground, "test-patchworkpp")

@@ -200,6 +200,19 @@ class RuntimeMapBridgeTests(unittest.TestCase):
         self.assertNotIn("leaves", report["snapshot"])
         self.assertIn("map_update_latency_ns", report["metrics"])
         self.assertIsNotNone(report["metrics"]["measured_rss_bytes"])
+        self.assertTrue(report["input"]["pose_available"])
+        self.assertTrue(report["input"]["enriched_fields_available"])
+        for field in (
+            "semantic_confidence",
+            "slope",
+            "roughness",
+            "height_complexity",
+            "terrain_confidence",
+            "motion_probability",
+            "observation_quality",
+            "raw_semantic_class",
+        ):
+            self.assertIn(field, report["input"]["quality"])
 
 
 def _grid_frame() -> ObservationFrame:

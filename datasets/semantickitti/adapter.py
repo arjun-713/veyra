@@ -19,6 +19,7 @@ class SemanticKITTIDataset(SemanticPOSSDataset):
     dataset_name = "semantickitti"
     default_label_mapping = SEMANTICKITTI_LABELS
     timestamp_filenames = ("times.txt", "timestamps.txt")
+    convert_camera_pose_with_calibration = True
 
 
 __all__ = ["SemanticKITTIDataset"]

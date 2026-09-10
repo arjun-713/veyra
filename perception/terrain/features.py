@@ -39,7 +39,20 @@ class TerrainAnalyzer:
         max_roughness: float = 0.08,
         max_step: float = 0.20,
     ) -> None:
-        if neighborhood_radius <= 0 or min_ground_neighbors < 3:
+        numeric_config = (
+            neighborhood_radius,
+            max_slope,
+            max_roughness,
+            max_step,
+        )
+        if not all(np.isfinite(value) for value in numeric_config):
+            raise ValueError("terrain configuration must be finite")
+        if (
+            neighborhood_radius <= 0
+            or isinstance(min_ground_neighbors, bool)
+            or int(min_ground_neighbors) != min_ground_neighbors
+            or min_ground_neighbors < 3
+        ):
             raise ValueError("invalid neighborhood configuration")
         if min(max_slope, max_roughness, max_step) < 0:
             raise ValueError("terrain thresholds must be non-negative")
@@ -97,6 +110,9 @@ class TerrainAnalyzer:
         # amount of data used by a fit for pathological dense returns.
         max_fit_points = max(32, self.min_ground_neighbors * 16)
         for (bx, by), bucket_points in buckets.items():
+            bucket_indices = np.asarray(bucket_points, dtype=np.intp)
+            if not np.any(mask[bucket_indices]):
+                continue
             candidates = [
                 candidate
                 for dx in (-1, 0, 1)
@@ -112,48 +128,78 @@ class TerrainAnalyzer:
             local = np.einsum("ij,ij->i", offsets, offsets) <= radius_squared * 2.0
             neighbor_indices = candidate_indices[local]
             if neighbor_indices.size > max_fit_points:
+                # Uniform caps are unsafe: a small height hazard can fall
+                # between samples. Always retain both local height extrema,
+                # then fill the remaining budget deterministically.
+                hazard_indices = neighbor_indices[
+                    [
+                        np.argmin(xyz[neighbor_indices, 2]),
+                        np.argmax(xyz[neighbor_indices, 2]),
+                    ]
+                ]
+                sample_budget = max_fit_points - len(np.unique(hazard_indices))
                 selected = np.linspace(
-                    0, neighbor_indices.size - 1, max_fit_points, dtype=np.intp
+                    0,
+                    neighbor_indices.size - 1,
+                    max(0, sample_budget),
+                    dtype=np.intp,
                 )
-                neighbor_indices = neighbor_indices[selected]
+                neighbor_indices = np.unique(
+                    np.concatenate((hazard_indices, neighbor_indices[selected]))
+                )
             neighbors = xyz[neighbor_indices, :3]
             if len(neighbors) < self.min_ground_neighbors:
                 continue
 
-            centered = neighbors - neighbors.mean(axis=0)
+            centered = neighbors - neighbors.sum(axis=0) / len(neighbors)
             xy = centered[:, :2]
             z = centered[:, 2]
             normal_matrix = xy.T @ xy
-            try:
-                gradient = np.linalg.solve(normal_matrix, xy.T @ z)
-            except np.linalg.LinAlgError:
+            rhs = xy.T @ z
+            determinant = (
+                normal_matrix[0, 0] * normal_matrix[1, 1]
+                - normal_matrix[0, 1] * normal_matrix[1, 0]
+            )
+            if not np.isfinite(determinant) or np.isclose(determinant, 0.0):
                 continue
+            gradient = np.array(
+                (
+                    (normal_matrix[1, 1] * rhs[0] - normal_matrix[0, 1] * rhs[1])
+                    / determinant,
+                    (normal_matrix[0, 0] * rhs[1] - normal_matrix[1, 0] * rhs[0])
+                    / determinant,
+                )
+            )
             predicted = xy @ gradient
             residuals = np.abs(z - predicted)
             slope_value = float(np.arctan(np.linalg.norm(gradient)))
-            roughness_value = float(np.sqrt(np.mean(residuals**2)))
-            heights = neighbors[:, 2]
-            complexity_value = float(np.std(heights))
+            roughness_value = float(np.sqrt(np.sum(residuals**2) / len(residuals)))
+            complexity_value = float(np.sqrt(np.sum(z**2) / len(z)))
             # A continuous slope has a large raw height range but no step;
             # use deviation from the locally fitted surface instead.
             step_value = float(np.max(residuals))
 
             support = min(1.0, len(neighbors) / (self.min_ground_neighbors * 2.0))
             confidence_value = float(np.mean(confidence[neighbor_indices]) * support)
-            indices = np.asarray(bucket_points, dtype=np.intp)
+            # Geometry is fitted from ground support, but it must not be
+            # broadcast to obstacle/non-ground points sharing the XY bucket.
+            indices = bucket_indices[mask[bucket_indices]]
+            if indices.size == 0:
+                continue
             slope[indices] = slope_value
             roughness[indices] = roughness_value
             complexity[indices] = complexity_value
             step[indices] = step_value
             output_confidence[indices] = confidence_value
-            if (
-                slope_value <= self.max_slope
-                and roughness_value <= self.max_roughness
-                and step_value <= self.max_step
-            ):
-                result[indices] = "drivable"
-            else:
-                result[indices] = "non_drivable"
+            if confidence_value > 0.0:
+                if (
+                    slope_value <= self.max_slope
+                    and roughness_value <= self.max_roughness
+                    and step_value <= self.max_step
+                ):
+                    result[indices] = "drivable"
+                else:
+                    result[indices] = "non_drivable"
 
         return TerrainEvidence(
             slope=slope,

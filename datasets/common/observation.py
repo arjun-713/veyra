@@ -20,6 +20,19 @@ def _freeze(array: np.ndarray) -> np.ndarray:
     return array
 
 
+def _class_ids(value: np.ndarray, *, name: str) -> np.ndarray:
+    """Validate class IDs before any narrowing conversion can truncate them."""
+    array = np.asarray(value)
+    if (
+        array.dtype.kind not in "iuf"
+        or not np.isfinite(array).all()
+        or np.any(array != np.floor(array))
+        or np.any((array < 0) | (array > np.iinfo(np.int32).max))
+    ):
+        raise ValueError(f"{name} must contain non-negative int32 IDs")
+    return array.astype(np.int32, copy=False)
+
+
 @dataclass(frozen=True)
 class FrameProvenance:
     """State exactly which dataset metadata was consumed for a frame.
@@ -171,7 +184,17 @@ class ObservationFrame:
             "motion_probability",
         )
         arrays = {name: np.asarray(getattr(self, name)) for name in one_dimensional}
-        arrays["semantic_class"] = arrays["semantic_class"].astype(np.int32, copy=False)
+        classes = arrays["semantic_class"]
+        if (
+            classes.dtype.kind not in "iuf"
+            or not np.isfinite(classes).all()
+            or np.any(classes != np.floor(classes))
+            or np.any((classes < 0) | (classes > np.iinfo(np.int32).max))
+        ):
+            raise ValueError("semantic classes must be non-negative int32 IDs")
+        arrays["semantic_class"] = _class_ids(
+            arrays["semantic_class"], name="semantic_class"
+        )
         arrays["semantic_confidence"] = arrays["semantic_confidence"].astype(
             np.float32, copy=False
         )
@@ -187,7 +210,7 @@ class ObservationFrame:
         optional_arrays = {
             "raw_semantic_class": arrays["semantic_class"].copy()
             if self.raw_semantic_class is None
-            else np.asarray(self.raw_semantic_class, dtype=np.int32),
+            else _class_ids(self.raw_semantic_class, name="raw_semantic_class"),
             "terrain_confidence": np.zeros(count, dtype=np.float32)
             if self.terrain_confidence is None
             else np.asarray(self.terrain_confidence, dtype=np.float32),
@@ -236,6 +259,16 @@ class ObservationFrame:
                 (optional_arrays[name] < 0.0) | (optional_arrays[name] > 1.0)
             ):
                 raise ValueError(f"{name} must be finite and within [0, 1]")
+        for name in ("semantic_confidence", "motion_probability"):
+            if not np.isfinite(arrays[name]).all():
+                raise ValueError(f"{name} must be finite")
+        for name in ("slope", "roughness", "height_complexity"):
+            if np.isinf(arrays[name]).any() or np.any(arrays[name] < 0):
+                raise ValueError(f"{name} must be non-negative or NaN when uncomputed")
+        if np.isinf(optional_arrays["step"]).any() or np.any(
+            optional_arrays["step"] < 0
+        ):
+            raise ValueError("step must be non-negative or NaN when uncomputed")
         object.__setattr__(self, "points", _freeze(points))
         object.__setattr__(self, "velocity_xy", _freeze(velocity))
         for name, array in arrays.items():

@@ -1,6 +1,7 @@
 import time
 import unittest
 from pathlib import Path
+from unittest.mock import patch
 
 import numpy as np
 
@@ -21,6 +22,164 @@ def scan(x: float, semantic_class: int = 1) -> tuple[np.ndarray, np.ndarray]:
 
 
 class TemporalTrackerTests(unittest.TestCase):
+    def test_radius_components_empty_input_returns_no_components(self):
+        self.assertEqual(
+            TemporalTracker._radius_components(np.empty((0, 2)), 0.5), []
+        )
+
+    def test_qhull_coplanar_omission_uses_exact_fallback(self):
+        class FakeTriangulation:
+            simplices = np.array([[0, 1, 2]], dtype=np.intp)
+            coplanar = np.array([[3, 0, 0]], dtype=np.intp)
+
+        points = np.array(
+            [[0.0, 0.0], [0.4, 0.0], [0.0, 0.4], [0.4, 0.4]], dtype=np.float64
+        )
+        with patch("scipy.spatial.Delaunay", return_value=FakeTriangulation()):
+            components = TemporalTracker._radius_components(points, 0.5)
+
+        self.assertEqual(len(components), 1)
+        np.testing.assert_array_equal(components[0], np.arange(4))
+
+    def test_first_four_representatives_cannot_hide_a_cross_cell_bridge(self):
+        tracker = TemporalTracker(cluster_tolerance_m=0.5)
+        left = [[x, 0.0, 0.0, 1.0] for x in (0.0, 0.05, 0.1, 0.15, 0.34)]
+        right = [[x, 0.0, 0.0, 1.0] for x in (0.8, 0.81, 0.82, 0.83)]
+        points = np.asarray(left + right, dtype=np.float32)
+        labels = np.ones(len(points), dtype=np.int32)
+
+        tracker.update(points, labels, np.eye(4), timestamp=0.0)
+
+        self.assertEqual(tracker.active_track_count, 1)
+
+    def test_radius_connectivity_handles_single_threshold_and_duplicates(self):
+        tracker = TemporalTracker(cluster_tolerance_m=0.5)
+
+        for values, expected in (
+            ([[0.0, 0.0], [0.5, 0.0]], 1),
+            ([[0.0, 0.0], [0.50001, 0.0]], 2),
+            ([[0.0, 0.0]], 1),
+            ([[0.0, 0.0], [0.0, 0.0], [1.0, 0.0]], 2),
+        ):
+            points = np.asarray(
+                [[x, y, 0.0, 1.0] for x, y in values], dtype=np.float32
+            )
+            labels = np.ones(len(points), dtype=np.int32)
+            tracker.reset()
+            tracker.update(points, labels, np.eye(4), timestamp=0.0)
+            self.assertEqual(tracker.active_track_count, expected)
+
+    def test_collinear_and_near_collinear_components_are_deterministic(self):
+        tracker = TemporalTracker(cluster_tolerance_m=0.41)
+        points = np.asarray(
+            [
+                [0.8, -1e-10, 0.0, 1.0],
+                [0.0, 0.0, 0.0, 1.0],
+                [0.4, 1e-10, 0.0, 1.0],
+            ],
+            dtype=np.float32,
+        )
+        labels = np.ones(3, dtype=np.int32)
+
+        first = tracker._clusters(points[:, :3].astype(np.float64), labels)
+        permutation = np.array([2, 0, 1])
+        permuted_points = points[permutation]
+        second = tracker._clusters(
+            permuted_points[:, :3].astype(np.float64), labels[permutation]
+        )
+
+        self.assertEqual(len(first), 1)
+        self.assertEqual(len(second), 1)
+        first_membership = {
+            tuple(sorted(map(tuple, points[component, :2]))) for component in first
+        }
+        second_membership = {
+            tuple(sorted(map(tuple, permuted_points[component, :2])))
+            for component in second
+        }
+        self.assertEqual(first_membership, second_membership)
+
+        near_collinear = np.array(
+            [[0.0, 0.0], [0.5, 1e-13], [1.0, 0.0]], dtype=np.float64
+        )
+        self.assertFalse(TemporalTracker._is_collinear(near_collinear))
+
+        collinear = np.asarray(
+            [[0.0, 0.0, 0.0, 1.0], [0.4, 0.0, 0.0, 1.0], [0.8, 0.0, 0.0, 1.0]],
+            dtype=np.float32,
+        )
+        self.assertEqual(
+            len(tracker._clusters(collinear[:, :3].astype(np.float64), labels)), 1
+        )
+
+    def test_first_observation_has_unknown_motion_evidence(self):
+        tracker = TemporalTracker()
+        points, labels = scan(2.0)
+
+        evidence = tracker.update(points, labels, np.eye(4), timestamp=0.0)
+
+        self.assertTrue(np.all(evidence.state == "unknown"))
+        np.testing.assert_allclose(evidence.motion_probability, 0.0)
+        np.testing.assert_allclose(evidence.velocity_xy, 0.0)
+
+    def test_same_timestamp_does_not_invent_velocity_or_static_motion(self):
+        tracker = TemporalTracker(moving_speed_mps=0.5)
+        first, labels = scan(2.0)
+        tracker.update(first, labels, np.eye(4), timestamp=1.0)
+
+        second, _ = scan(2.8)
+        evidence = tracker.update(second, labels, np.eye(4), timestamp=1.0)
+
+        np.testing.assert_allclose(evidence.velocity_xy, 0.0)
+        np.testing.assert_allclose(evidence.motion_probability, 0.0)
+        self.assertTrue(np.all(evidence.state == "unknown"))
+
+    def test_cross_cell_connectivity_checks_all_points_not_only_representatives(self):
+        tracker = TemporalTracker(cluster_tolerance_m=0.5)
+        points = np.array(
+            [
+                [0.0, 0.0, 0.0, 1.0],
+                [0.34, 0.0, 0.0, 1.0],
+                [0.51, 0.0, 0.0, 1.0],
+                [0.85, 0.0, 0.0, 1.0],
+            ],
+            dtype=np.float32,
+        )
+        labels = np.ones(4, dtype=np.int32)
+
+        tracker.update(points, labels, np.eye(4), timestamp=0.0)
+
+        self.assertEqual(tracker.active_track_count, 1)
+
+    def test_rejects_non_rigid_pose(self):
+        tracker = TemporalTracker()
+        pose = np.eye(4)
+        pose[0, 1] = 0.2
+        points, labels = scan(0.0)
+
+        with self.assertRaises(ValueError):
+            tracker.update(points, labels, pose, timestamp=0.0)
+
+    def test_rejects_nan_configuration_and_evidence(self):
+        config = {
+            "cluster_tolerance_m": np.nan,
+            "association_distance_m": np.nan,
+            "static_speed_mps": np.nan,
+            "moving_speed_mps": np.nan,
+        }
+        for name, value in config.items():
+            with self.subTest(name=name):
+                with self.assertRaises(ValueError):
+                    TemporalTracker(**{name: value})
+
+        with self.assertRaises(ValueError):
+            MotionEvidence(
+                np.array([np.nan]),
+                np.zeros((1, 2)),
+                np.array(["unknown"]),
+                np.array([1]),
+            )
+
     def test_connected_points_across_grid_boundary_form_one_track(self):
         tracker = TemporalTracker(cluster_tolerance_m=0.5, association_distance_m=2.0)
         points = np.array(
@@ -64,16 +223,24 @@ class TemporalTrackerTests(unittest.TestCase):
         if not root.is_dir():
             self.skipTest("original local SemanticPOSS data is unavailable")
         frames = list(SemanticPOSSDataset(root).replay("00", end=3, max_range_m=100.0))
+        if any(
+            frame.timestamp is None or frame.provenance.pose_source != "dataset"
+            for frame in frames
+        ):
+            self.skipTest(
+                "SemanticPOSS frames lack dataset timestamps or poses; "
+                "full temporal timing cannot invent them"
+            )
         elapsed_s = []
         cluster_counts = []
         tracker = TemporalTracker()
-        for frame_index, frame in enumerate(frames):
+        for frame in frames:
             start = time.perf_counter()
             evidence = tracker.update(
                 frame.points,
                 frame.semantic_class,
-                np.eye(4),
-                timestamp=float(frame_index),
+                frame.pose.matrix,
+                timestamp=float(frame.timestamp),
             )
             elapsed_s.append(time.perf_counter() - start)
             cluster_counts.append(tracker.active_track_count)

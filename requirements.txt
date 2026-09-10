@@ -1,6 +1,7 @@
 # Runtime deps — pin exact CPU-compatible versions for the supported Python
 # 3.13 environment. Keep mapping-only builds dependency-free (see AGENTS.md).
 numpy==2.2.6
+scipy==1.15.3  # bounded spatial connectivity for temporal perception
 pyyaml==6.0.2  # viewer server config (falls back to built-in parser if absent)
 
 # Real perception backends. Model weights remain local, explicitly supplied

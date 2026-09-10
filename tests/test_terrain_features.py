@@ -114,6 +114,68 @@ class TerrainAnalyzerTests(unittest.TestCase):
 
         self.assertTrue(np.all(evidence.drivable == "drivable"))
 
+    def test_non_ground_obstacle_in_ground_bucket_stays_unknown(self):
+        points = np.vstack(
+            (
+                grid(size=5, spacing=0.2),
+                np.array([[0.0, 0.0, 2.0]], dtype=np.float32),
+            )
+        )
+        mask = np.ones(len(points), dtype=bool)
+        mask[-1] = False
+
+        evidence = TerrainAnalyzer(min_ground_neighbors=3).analyze(
+            points, GroundEvidence(mask, np.ones(len(points)))
+        )
+
+        self.assertEqual(evidence.drivable[-1], "unknown")
+        self.assertEqual(float(evidence.confidence[-1]), 0.0)
+        self.assertTrue(np.isnan(evidence.slope[-1]))
+
+    def test_collinear_ground_support_stays_unknown(self):
+        x = np.linspace(-1.0, 1.0, 9, dtype=np.float32)
+        points = np.column_stack((x, np.zeros_like(x), np.zeros_like(x)))
+
+        evidence = TerrainAnalyzer(min_ground_neighbors=3).analyze(
+            points, GroundEvidence(np.ones(len(points)), np.ones(len(points)))
+        )
+
+        self.assertTrue(np.all(evidence.drivable == "unknown"))
+        self.assertTrue(np.all(np.isnan(evidence.slope)))
+
+    def test_nonfinite_configuration_is_rejected(self):
+        for keyword in ("neighborhood_radius", "max_slope", "max_roughness", "max_step"):
+            with self.subTest(keyword=keyword):
+                with self.assertRaises(ValueError):
+                    TerrainAnalyzer(**{keyword: np.nan})
+
+        with self.assertRaises(ValueError):
+            TerrainAnalyzer(min_ground_neighbors=2.5)
+
+    def test_zero_confidence_ground_stays_unknown(self):
+        points = grid()
+
+        evidence = TerrainAnalyzer().analyze(
+            points, GroundEvidence(np.ones(len(points)), np.zeros(len(points)))
+        )
+
+        self.assertTrue(np.all(evidence.drivable == "unknown"))
+        self.assertTrue(np.all(evidence.confidence == 0.0))
+
+    def test_dense_ground_sampling_cannot_hide_height_hazard(self):
+        x = np.linspace(-0.2, 0.2, 1000, dtype=np.float32)
+        y = 0.1 * np.sin(np.arange(len(x), dtype=np.float32))
+        z = np.zeros_like(x)
+        z[1] = 1.0
+        points = np.column_stack((x, y, z))
+
+        evidence = TerrainAnalyzer(min_ground_neighbors=3).analyze(
+            points, GroundEvidence(np.ones(len(points)), np.ones(len(points)))
+        )
+
+        self.assertEqual(evidence.drivable[1], "non_drivable")
+        self.assertGreater(float(evidence.step[1]), 0.2)
+
 
 if __name__ == "__main__":
     unittest.main()

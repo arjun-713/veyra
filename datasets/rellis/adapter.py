@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from collections import OrderedDict
 from collections.abc import Iterator, Mapping
 from pathlib import Path
 
@@ -30,6 +31,8 @@ class Rellis3DDataset:
         sequences: list[str] | None = None,
         scan_dir: str = "vel_cloud_node_kitti_bin",
         label_dir: str = "vel_cloud_node_semantickitti_label_id",
+        max_cached_sequences: int = 8,
+        metadata_root: str | Path | None = None,
     ) -> None:
         self.root = Path(root)
         if not self.root.is_dir():
@@ -39,6 +42,12 @@ class Rellis3DDataset:
         )
         self.scan_dir = scan_dir
         self.label_dir = label_dir
+        self.metadata_root = Path(metadata_root) if metadata_root is not None else self.root
+        if max_cached_sequences <= 0:
+            raise ValueError("max_cached_sequences must be positive")
+        self.max_cached_sequences = max_cached_sequences
+        self._sequence_cache: OrderedDict[str, list[FrameRef]] = OrderedDict()
+        self._metadata_cache: OrderedDict[str, dict[str, object]] = OrderedDict()
 
     def list_sequences(self) -> list[str]:
         if self._sequences is not None:
@@ -54,6 +63,10 @@ class Rellis3DDataset:
 
     def list_frames(self, sequence: str) -> list[FrameRef]:
         sequence = str(sequence)
+        cached = self._sequence_cache.get(sequence)
+        if cached is not None:
+            self._sequence_cache.move_to_end(sequence)
+            return cached
         scan_root = self._sequence_root(sequence) / self.scan_dir
         if not scan_root.is_dir():
             raise FileNotFoundError(f"scan directory does not exist: {scan_root}")
@@ -61,7 +74,7 @@ class Rellis3DDataset:
         scans = sorted(
             scan_root.glob("*.bin"), key=lambda path: self._frame_sort_key(path.stem)
         )
-        return [
+        refs = [
             FrameRef(
                 sequence=sequence,
                 frame_id=scan.stem,
@@ -72,6 +85,15 @@ class Rellis3DDataset:
             )
             for scan in scans
         ]
+        self._sequence_cache[sequence] = refs
+        self._sequence_cache.move_to_end(sequence)
+        self._trim_caches()
+        return refs
+
+    def _trim_caches(self) -> None:
+        while len(self._sequence_cache) > self.max_cached_sequences:
+            sequence, _ = self._sequence_cache.popitem(last=False)
+            self._metadata_cache.pop(sequence, None)
 
     @staticmethod
     def _frame_sort_key(frame_id: str) -> tuple[int, int | str]:
@@ -122,7 +144,7 @@ class Rellis3DDataset:
             RELLIS_LABELS if label_mapping is None else label_mapping,
         )
         raw_semantic_class = (raw_labels & 0xFFFF).astype(np.int32, copy=False)
-        confidence = np.ones(points.shape[0], dtype=np.float32)
+        confidence = np.where(semantic_class == 0, 0.0, 1.0).astype(np.float32)
 
         mask = self._range_mask(points, min_range_m, max_range_m)
         world_points = self._transform_points(points[mask], pose.matrix)
@@ -192,7 +214,8 @@ class Rellis3DDataset:
         if path is None:
             return None, "absent"
         index = self._frame_index(sequence, frame_id)
-        lines = [line.strip() for line in path.read_text().splitlines() if line.strip()]
+        lines = self._cached_lines(self._metadata(sequence), path)
+        self._require_metadata_alignment(sequence, path, lines, "timestamp")
         if index >= len(lines):
             raise ValueError(f"timestamp file has no value for {sequence}/{frame_id}")
         try:
@@ -208,9 +231,14 @@ class Rellis3DDataset:
             pose_path, sequence, frame_id, timestamp
         )
         calibration_path = self._metadata_path(sequence, "calib", "calib.txt")
-        calibration, has_calibration = self._calibration_matrix(calibration_path)
+        _, has_calibration = self._calibration_matrix(
+            calibration_path, self._metadata(sequence)
+        )
+        # RELLIS documents this calibration as Velodyne-versus-camera for
+        # projection. It is not documented as a LiDAR-to-world transform, so
+        # validate and record it without composing it into the world pose.
         return (
-            PoseSE3(pose.matrix @ calibration, timestamp=timestamp),
+            PoseSE3(pose.matrix, timestamp=timestamp),
             "dataset" if has_pose else "identity_absent",
             "dataset" if has_calibration else "identity_absent",
         )
@@ -219,9 +247,9 @@ class Rellis3DDataset:
         self, sequence: str, root_name: str, sequence_name: str
     ) -> Path | None:
         candidates = (
-            self.root / root_name / f"{sequence}.txt",
-            self._sequence_root(sequence) / sequence_name,
-            self.root / sequence_name,
+            self.metadata_root / root_name / f"{sequence}.txt",
+            self.metadata_root / str(sequence) / sequence_name,
+            self.metadata_root / sequence_name,
         )
         return next((path for path in candidates if path.is_file()), None)
 
@@ -241,7 +269,8 @@ class Rellis3DDataset:
         if path is None:
             return PoseSE3.identity(timestamp), False
         index = self._frame_index(sequence, frame_id)
-        lines = [line for line in path.read_text().splitlines() if line.strip()]
+        lines = self._cached_lines(self._metadata(sequence), path)
+        self._require_metadata_alignment(sequence, path, lines, "pose")
         if index >= len(lines):
             raise ValueError(f"pose file has no value for {sequence}/{frame_id}")
         try:
@@ -255,10 +284,13 @@ class Rellis3DDataset:
         return PoseSE3(matrix, timestamp=timestamp), True
 
     @staticmethod
-    def _calibration_matrix(path: Path | None) -> tuple[np.ndarray, bool]:
+    def _calibration_matrix(
+        path: Path | None, metadata: dict[str, object]
+    ) -> tuple[np.ndarray, bool]:
         if path is None:
             return np.eye(4, dtype=np.float64), False
-        for line in path.read_text().splitlines():
+        lines = Rellis3DDataset._cached_lines(metadata, path)
+        for line in lines:
             if line.startswith(("Tr:", "Tr_velo_to_cam:")):
                 try:
                     values = [float(value) for value in line.split(":", 1)[1].split()]
@@ -272,8 +304,45 @@ class Rellis3DDataset:
                     )
                 matrix = np.eye(4, dtype=np.float64)
                 matrix[:3] = np.asarray(values, dtype=np.float64).reshape(3, 4)
+                try:
+                    PoseSE3(matrix)
+                except ValueError as error:
+                    raise ValueError(
+                        f"calibration transform is not a rigid SE(3) matrix: {path}"
+                    ) from error
                 return matrix, True
         raise ValueError(f"calibration transform not found: {path}")
+
+    def _metadata(self, sequence: str) -> dict[str, object]:
+        sequence = str(sequence)
+        metadata = self._metadata_cache.get(sequence)
+        if metadata is None:
+            metadata = {}
+            self._metadata_cache[sequence] = metadata
+            self._metadata_cache.move_to_end(sequence)
+            self._trim_caches()
+        return metadata
+
+    def _require_metadata_alignment(
+        self, sequence: str, path: Path, lines: list[str], kind: str
+    ) -> None:
+        frame_count = len(self.list_frames(sequence))
+        if len(lines) != frame_count:
+            raise ValueError(
+                f"{kind} metadata cannot be aligned by frame order for {sequence}: "
+                f"{path} has {len(lines)} rows for {frame_count} scans"
+            )
+
+    @staticmethod
+    def _nonempty_lines(path: Path) -> list[str]:
+        return [line.strip() for line in path.read_text().splitlines() if line.strip()]
+
+    @classmethod
+    def _cached_lines(cls, metadata: dict[str, object], path: Path) -> list[str]:
+        key = str(path)
+        if key not in metadata:
+            metadata[key] = cls._nonempty_lines(path)
+        return metadata[key]  # type: ignore[return-value]
 
     @staticmethod
     def _transform_points(points: np.ndarray, matrix: np.ndarray) -> np.ndarray:

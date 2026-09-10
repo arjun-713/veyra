@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from collections.abc import Mapping
+from numbers import Integral
 
 import numpy as np
 
@@ -72,31 +73,31 @@ SEMANTIC_POSS_LABELS: dict[int, VeyraClass] = {
     22: 12,
 }
 
-# unmannedlab/RELLIS-3D ``utils/label_convert.py`` learning_map (v1.1 data).
+# RELLIS raw labels are converted by meaning into Veyra's SemanticKITTI-
+# learning space.  This is deliberately not the upstream RELLIS learning_map:
+# that map's class 1 is RELLIS grass, while Veyra class 1 is car.  Raw IDs are
+# retained by the adapter separately from this semantic projection.
 RELLIS_LABELS: dict[int, VeyraClass] = {
     0: 0,
-    1: 0,
-    3: 1,
-    4: 2,
-    5: 3,
-    6: 4,
-    7: 5,
-    8: 6,
-    9: 7,
-    10: 8,
-    12: 9,
-    15: 10,
-    17: 11,
-    18: 12,
-    19: 13,
-    23: 14,
-    27: 15,
-    29: 1,
-    30: 1,
-    31: 16,
-    32: 4,
-    33: 17,
-    34: 18,
+    1: 17,   # dirt -> terrain
+    3: 15,   # grass -> vegetation
+    4: 15,   # tree -> vegetation
+    5: 18,   # pole -> pole
+    6: 0,    # water has no honest SemanticKITTI equivalent
+    7: 0,    # sky is outside the point semantic taxonomy
+    8: 5,    # vehicle -> other-vehicle
+    9: 0,    # generic object is underspecified
+    10: 9,   # asphalt -> road
+    12: 13,  # building -> building
+    15: 16,  # log -> trunk
+    17: 6,   # person -> person
+    18: 14,  # fence -> fence
+    19: 15,  # bush -> vegetation
+    23: 0,   # concrete is a material, not a SemanticKITTI class
+    27: 0,   # barrier has no honest SemanticKITTI equivalent
+    31: 0,   # puddle has no honest SemanticKITTI equivalent
+    33: 17,  # mud -> terrain
+    34: 0,   # rubble has no honest SemanticKITTI equivalent
 }
 
 DATASET_TAXONOMY_VERSIONS = {
@@ -109,13 +110,58 @@ DATASET_TAXONOMY_VERSIONS = {
 def map_dataset_labels(
     labels: np.ndarray, mapping: Mapping[int, int] | None = None
 ) -> np.ndarray:
-    """Map raw dataset IDs, retaining unmapped IDs as explicit unknown."""
+    """Map raw dataset IDs without allocating a range-sized lookup table.
 
-    raw = np.asarray(labels).reshape(-1)
+    Labels must be integer arrays (or finite, integral floating-point values);
+    strings, fractional values, NaNs, and infinities are rejected rather than
+    silently coerced into a potentially wrong class.
+    """
+
+    raw = np.asarray(labels)
+    if raw.dtype.kind == "b":
+        raise TypeError("labels must be integer-valued, not boolean")
+    if raw.dtype.kind in "iu":
+        if raw.dtype.kind == "u" and raw.size and np.max(raw) > np.iinfo(np.int64).max:
+            raise ValueError("unsigned labels exceed supported integer range")
+        integer_labels = raw.astype(np.int64, copy=False).reshape(-1)
+    elif raw.dtype.kind == "f":
+        if not np.all(np.isfinite(raw)) or not np.all(raw == np.floor(raw)):
+            raise ValueError("labels must contain finite integer values")
+        if raw.size and (
+            np.min(raw) < np.iinfo(np.int64).min
+            or np.max(raw) > np.iinfo(np.int64).max
+        ):
+            raise ValueError("labels exceed supported integer range")
+        integer_labels = raw.astype(np.int64).reshape(-1)
+    else:
+        raise TypeError("labels must be a numeric integer array")
+
     table = mapping if mapping is not None else {}
-    return np.array(
-        [table.get(int(label), UNKNOWN_CLASS) for label in raw], dtype=np.int32
-    )
+    entries = []
+    for key, value in table.items():
+        if (
+            isinstance(key, bool)
+            or not isinstance(key, Integral)
+            or isinstance(value, bool)
+            or not isinstance(value, Integral)
+            or int(key) < np.iinfo(np.int64).min
+            or int(key) > np.iinfo(np.int64).max
+            or int(value) < 0
+        ):
+            raise TypeError("mapping keys and values must be non-negative integers")
+        entries.append((int(key), int(value)))
+
+    result = np.full(integer_labels.shape, UNKNOWN_CLASS, dtype=np.int32)
+    if not entries:
+        return result
+    entries.sort(key=lambda item: item[0])
+    keys = np.asarray([item[0] for item in entries], dtype=np.int64)
+    values = np.asarray([item[1] for item in entries], dtype=np.int32)
+    positions = np.searchsorted(keys, integer_labels, side="left")
+    valid = positions < len(keys)
+    valid &= keys[np.minimum(positions, len(keys) - 1)] == integer_labels
+    result[valid] = values[positions[valid]]
+    return result
 
 
 __all__ = [

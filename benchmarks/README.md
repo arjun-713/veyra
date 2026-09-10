@@ -22,3 +22,33 @@ access and writes schema-v2 JSON/CSV results to `benchmark-results/` by
 default. JSON records runtime hardware/config provenance, scoped stage timing,
 logical versus allocated-map memory availability, current/peak process RSS,
 per-level cells, topology churn, and stream late/drop accounting.
+
+## Real-data perception regression
+
+CI uses one immutable Qualcomm AI Hub SalsaNext scan, downloaded at runtime
+and checked against SHA-256 (1,994,688 bytes; never committed):
+
+`https://qaihub-public-assets.s3.us-west-2.amazonaws.com/qai-hub-models/models/salsanext/v3/000000.bin`
+
+The asset is raw float32 `XYZI`. Its source has no paired pose or timestamp,
+so the harness preserves both as absent and does not claim temporal acceptance
+or invent motion. The explicit `configs/perception-salsanext.yaml` pipeline
+must provide the real SalsaNext model and Patchwork++ ground backend; missing
+stages fail the run. The report stays before the mapper and records
+input-to-ObservationFrame point correspondence, taxonomy/range validity,
+per-stage timings, total latency, and process RSS. Accuracy is reported as
+`null` because no paired upstream labels have been verified; no labels are
+invented.
+
+To run the bounded regression locally after building the benchmark and
+placing the explicitly configured model in `data/cache/models/`:
+
+```bash
+python -m scripts.fetch_semantic_model
+python -m benchmarks.regression --intensity-scale 1
+```
+
+The pull-request job uses one real scan as an affordable smoke test. The
+scheduled/manual path is the place to add longer, data-backed perception
+coverage. The Qualcomm scan has no paired pose or timestamp, so temporal
+behavior cannot be validated with this sample.

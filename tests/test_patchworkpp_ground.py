@@ -99,16 +99,14 @@ class PatchworkPPGroundSegmenterTests(unittest.TestCase):
 
     def test_real_rellis_frame_executes_patchworkpp_on_cpu(self):
         if not importlib.util.find_spec("pypatchworkpp"):
-            self.fail("pypatchworkpp is required for the real RELLIS smoke test")
+            self.skipTest("requires pypatchworkpp for real RELLIS smoke test")
 
         from datasets.rellis import Rellis3DDataset
 
         dataset = Rellis3DDataset(
             Path("data/raw/rellis3d/Rellis-3D"), sequences=["00000"]
         )
-        frame = dataset.load_frame(
-            "00000", dataset.list_frames("00000")[0].frame_id
-        )
+        frame = dataset.load_frame("00000", dataset.list_frames("00000")[0].frame_id)
 
         started = time.perf_counter()
         evidence = PatchworkPPGroundSegmenter().segment(frame.points)

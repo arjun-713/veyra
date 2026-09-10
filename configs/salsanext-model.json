@@ -1,0 +1,17 @@
+{
+  "name": "SalsaNext SemanticKITTI float ONNX",
+  "publisher": "Qualcomm AI Hub",
+  "release": "v0.62.1",
+  "url": "https://qaihub-public-assets.s3.us-west-2.amazonaws.com/qai-hub-models/models/salsanext/releases/v0.62.1/salsanext-onnx-float.zip",
+  "sha256": "6941ba37363b3d01672a9fe1461b1307aeafbe1cfd793bd458dd141b7710fa46",
+  "size_bytes": 25016530,
+  "model": "salsanext-onnx-float/salsanext.onnx",
+  "files": {
+    "salsanext-onnx-float/salsanext.onnx": "067086f808985de376e19c174e249190b7c97996cd54be1dbb9d8b298804b548",
+    "salsanext-onnx-float/salsanext.data": "7d3f19934ea73190e67b2550f52d3ce9eedeca55203eb115f8412c3ad5a2e52f"
+  },
+  "model_card": "https://huggingface.co/qualcomm/SalsaNext/tree/4ed890a2edc11ddb0713ee779912246f0c895981",
+  "preprocessing": "https://github.com/qualcomm/ai-hub-models/blob/v0.62.1/src/qai_hub_models/models/salsanext/app.py",
+  "upstream_license": "https://github.com/TiagoCortinhal/SalsaNext/blob/master/LICENSE",
+  "postprocessing": "Published range-image probabilities, nearest-pixel unprojection without KNN; unsupported FOV returns unknown. Confidence is not calibrated cross-dataset."
+}

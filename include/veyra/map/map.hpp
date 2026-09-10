@@ -16,6 +16,10 @@ struct Observation {
   double z = 0.0;
   std::uint64_t timestamp = 0;
   std::uint16_t semantic_class = 0;
+  // Preserve the dataset/model identifier alongside the unified class. A
+  // downstream consumer may need the source taxonomy for diagnostics or
+  // evaluation; it is not used as the map's canonical class key.
+  std::int32_t raw_semantic_class = 0;
   float semantic_confidence = 0.0F;
   // 0=unknown, 1=drivable, 2=non-drivable. Evidence fields are point-local
   // inputs; only their sufficient aggregates are retained in CellStats.
@@ -24,6 +28,8 @@ struct Observation {
   float terrain_confidence = 0.0F;
   float geometry_complexity = 0.0F;
   float motion_probability = 0.0F;
+  // 0=static, 1=possibly moving, 2=moving, 3=unknown.
+  std::uint8_t motion_state = 3;
   float observation_quality = 0.0F;
   // Transient per-point policy input for predictive refinement. Velocity is
   // consumed as an instantaneous radial range rate and is never retained in

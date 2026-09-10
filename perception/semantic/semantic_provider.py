@@ -23,6 +23,15 @@ class SemanticProviderUnavailableError(RuntimeError):
     """The explicitly configured backend cannot execute inference."""
 
 
+def _validate_class_ids(values: np.ndarray) -> None:
+    if values.dtype.kind not in "iuf" or not np.all(np.isfinite(values)):
+        raise ValueError("semantic class IDs must be finite numeric integers")
+    if np.any(values < 0) or np.any(values > np.iinfo(np.int32).max):
+        raise ValueError("semantic class IDs must fit nonnegative int32")
+    if values.dtype.kind == "f" and np.any(values != np.floor(values)):
+        raise ValueError("semantic class IDs must be integers")
+
+
 @dataclass(frozen=True)
 class SemanticResult:
     """Per-point semantic class and confidence returned by a provider."""
@@ -32,6 +41,7 @@ class SemanticResult:
     mode: str
 
     def __post_init__(self) -> None:
+        _validate_class_ids(np.asarray(self.semantic_class))
         classes = np.array(self.semantic_class, dtype=np.int32, copy=True)
         confidence = np.array(self.semantic_confidence, dtype=np.float32, copy=True)
         if classes.ndim != 1 or confidence.ndim != 1:
@@ -44,6 +54,9 @@ class SemanticResult:
             raise ValueError("semantic confidence must be finite and in [0, 1]")
         if self.mode not in {"ground_truth", "model"}:
             raise ValueError("semantic mode must be 'ground_truth' or 'model'")
+        # Unknown is absence of usable semantic evidence, not a confident class.
+        # Validate first so normalization cannot hide malformed backend output.
+        confidence[classes == 0] = 0.0
         object.__setattr__(self, "semantic_class", classes)
         object.__setattr__(self, "semantic_confidence", confidence)
         classes.setflags(write=False)
@@ -68,7 +81,7 @@ class GroundTruthSemanticProvider:
         # Ground-truth callers may pass mapped labels as the sole argument;
         # pipeline callers can pass the same labels in the second slot next to
         # the corresponding XYZI points.
-        classes = np.asarray(points if labels is None else labels, dtype=np.int32)
+        classes = np.asarray(points if labels is None else labels)
         if classes.ndim != 1:
             raise ValueError("ground-truth labels must be one-dimensional")
         return SemanticResult(
@@ -214,6 +227,7 @@ class OnnxSemanticProvider:
                 "semantic ONNX inference must return class IDs and confidence"
             )
         raw_classes = np.asarray(outputs[0]).reshape(-1)
+        _validate_class_ids(raw_classes)
         confidence = np.asarray(outputs[1], dtype=np.float32).reshape(-1)
         if (
             raw_classes.shape != (points_array.shape[0],)

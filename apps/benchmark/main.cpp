@@ -97,6 +97,9 @@ struct Result {
   veyra::map::MapSnapshot snapshot;
   veyra::metrics::MetricsReport metrics;
   std::vector<FrameMetric> frame_metrics;
+  // The persistent viewer response exposes the most recently ingested frame
+  // even during warmup, when it is intentionally absent from frame_metrics.
+  std::optional<InputSummary> last_input;
 };
 
 enum class PolicyKind { kUniform5, kUniform40, kDistanceLod, kUtilityLod };
@@ -432,12 +435,14 @@ veyra::map::Observation parse_observation_record(std::istringstream& input, int 
           .z = z,
           .timestamp = summary.timestamp_us.value_or(0),
           .semantic_class = static_cast<std::uint16_t>(semantic),
+          .raw_semantic_class = static_cast<std::int32_t>(raw_semantic),
           .semantic_confidence = static_cast<float>(semantic_confidence),
           .drivable = static_cast<std::uint8_t>(drivable),
           .ground = static_cast<std::uint8_t>(ground),
           .terrain_confidence = static_cast<float>(terrain_confidence.value_or(0.0)),
           .geometry_complexity = static_cast<float>(height_complexity.value_or(0.0)),
           .motion_probability = static_cast<float>(motion_probability.value_or(0.0)),
+          .motion_state = static_cast<std::uint8_t>(motion_state),
           .observation_quality = static_cast<float>(observation_quality.value_or(0.0)),
           .velocity_x = static_cast<float>(velocity_x.value_or(0.0)),
           .velocity_y = static_cast<float>(velocity_y.value_or(0.0))};
@@ -746,8 +751,12 @@ std::string render(const Result& result) {
       << ",\"warmup_frames\":" << result.warmup_frames
       << ",\"measured_frames\":" << result.frame_metrics.size()
       << ",\"frames\":" << result.frame_metrics.size()
-      << ",\"input_points\":" << result.input_points
-      << ",\"snapshot\":{\"active_leaf_count\":" << snapshot.active_leaf_count
+      << ",\"input_points\":" << result.input_points;
+  if (result.last_input.has_value()) {
+    out << ",\"input\":";
+    write_input_summary(out, *result.last_input);
+  }
+  out << ",\"snapshot\":{\"active_leaf_count\":" << snapshot.active_leaf_count
       << ",\"tile_count\":" << snapshot.tile_count << ",\"point_count\":" << snapshot.point_count
       << ",\"logical_bytes\":" << snapshot.logical_bytes
       << ",\"memory\":{\"logical_payload_bytes\":" << snapshot.memory.logical_payload_bytes
@@ -990,6 +999,7 @@ class PersistentEngineSession {
     previous_topology_changes_ = snapshot.topology_change_count;
     const auto rss = veyra::metrics::read_process_rss_bytes();
     metrics_->observe_rss_bytes(rss);
+    result_.last_input = input_summary_;
     const bool is_warmup = result_.input_frames < options_.warmup_frames;
     ++result_.input_frames;
     if (is_warmup) {
