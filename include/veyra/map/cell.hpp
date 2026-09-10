@@ -1,4 +1,5 @@
 #pragma once
+#include <algorithm>
 #include <cstdint>
 
 namespace veyra::map {
@@ -41,5 +42,32 @@ struct Cell {
 
 static_assert(sizeof(Cell) == 32);
 static_assert(alignof(Cell) == 8);
+
+// Fold one point into a cell (Welford's incremental algorithm).
+//
+// The second use of `mean_z` below is the UPDATED mean, after the increment on
+// the line above it. Using the pre-update value is the classic Welford bug and
+// yields a subtly wrong m2 that no other assertion catches.
+//
+// Computed in double throughout; m2 is stored back as float.
+inline void updateCell(Cell& c, double z) {
+  if (c.count == 0) {
+    // First point: seed directly. min_z / max_z must not be left at 0, or a
+    // cell whose points all sit above or all below zero would report bounds
+    // that include a height it never saw.
+    c.count = 1;
+    c.mean_z = z;
+    c.m2 = 0.0F;
+    c.min_z = static_cast<float>(z);
+    c.max_z = static_cast<float>(z);
+    return;
+  }
+  c.count += 1;
+  const double delta = z - c.mean_z;
+  c.mean_z += delta / static_cast<double>(c.count);
+  c.m2 = static_cast<float>(static_cast<double>(c.m2) + delta * (z - c.mean_z));
+  c.min_z = std::min(c.min_z, static_cast<float>(z));
+  c.max_z = std::max(c.max_z, static_cast<float>(z));
+}
 
 }  // namespace veyra::map
