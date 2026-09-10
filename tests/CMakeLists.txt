@@ -52,3 +52,9 @@ target_include_directories(test_point_conservation PRIVATE ${PROJECT_SOURCE_DIR}
 target_compile_features(test_point_conservation PRIVATE cxx_std_20)
 target_link_libraries(test_point_conservation PRIVATE veyra_map)
 add_test(NAME point_conservation COMMAND test_point_conservation)
+
+add_executable(test_rolling_window test_rolling_window.cpp)
+target_include_directories(test_rolling_window PRIVATE ${PROJECT_SOURCE_DIR}/include)
+target_compile_features(test_rolling_window PRIVATE cxx_std_20)
+target_link_libraries(test_rolling_window PRIVATE veyra_map)
+add_test(NAME rolling_window COMMAND test_rolling_window)

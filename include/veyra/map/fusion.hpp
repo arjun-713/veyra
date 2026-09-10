@@ -4,22 +4,10 @@
 #include <span>
 
 #include "veyra/map/observation.hpp"
+#include "veyra/map/rolling_window.hpp"
 #include "veyra/map/tile_grid.hpp"
 
 namespace veyra::map {
-
-// Half-open map extent per axis, in metres: a point is inside when
-// -kMapHalfExtentM <= v < +kMapHalfExtentM.
-//
-// PROPOSAL. Nothing in the repository defines a map extent; this is derived
-// from the outermost band of configs/distance_lod.yaml (0-10, 10-30, 30-60,
-// 60-100), and needs sign-off alongside Observation.
-//
-// It is a safety gate as well as a policy: worldToKey casts a double to
-// int32_t, and converting an out-of-range or non-finite double to an integer
-// is undefined behaviour. That is why the range check exists even though a
-// stray point would "only" allocate a distant tile.
-inline constexpr double kMapHalfExtentM = 100.0;
 
 struct FusionStats {
   std::size_t accepted = 0;
@@ -32,6 +20,11 @@ struct FusionStats {
 };
 
 // Folds a batch of observations into the grid at level 0.
+//
+// A point is in range when its cell is inside the grid's window -- the same
+// predicate recenter() evicts by, on the same argument type. There is no
+// second range gate anchored to the odom origin; two range checks that can
+// disagree is the bug this replaced.
 FusionStats integrate(TileGrid& grid, std::span<const Observation> points,
                       std::uint32_t frame_index);
 

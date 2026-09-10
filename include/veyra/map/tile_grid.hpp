@@ -8,6 +8,7 @@
 
 #include "veyra/core/types.hpp"
 #include "veyra/map/cell.hpp"
+#include "veyra/map/rolling_window.hpp"
 
 // Hash for the tile key. All three fields participate: two tiles at the same
 // (tx, ty) but different levels are different tiles, and a hash that ignored
@@ -50,6 +51,23 @@ struct GridStats {
 // storage layout replaceable later.
 class TileGrid {
  public:
+  TileGrid() = default;
+  explicit TileGrid(MapWindow window) : window_(window) {
+    centre_tile_ = tileOfPoint(window_.centre_x, window_.centre_y);
+  }
+
+  const MapWindow& window() const { return window_; }
+
+  // Moves the window to follow the vehicle and evicts eagerly: when this
+  // returns, no cell lies outside the window. No deferred cleanup, no dirty
+  // flags -- "how much memory does the map use?" must be answerable without
+  // doing the walk you were avoiding.
+  //
+  // The centre only moves once the vehicle enters a different tile. Tracking
+  // every millimetre would evict and re-create boundary cells continuously,
+  // which is allocation on the hot path.
+  EvictionStats recenter(double x, double y);
+
   Cell* find(core::CellId id);
   const Cell* find(core::CellId id) const;
   Cell& findOrCreate(core::CellId id);
@@ -81,6 +99,9 @@ class TileGrid {
   // infinity where / truncates toward zero, and the two disagree for every
   // cell left of the origin.
   static core::TileId tileOf(core::CellId id) { return core::tileOf(id, kTileLog2); }
+  static core::TileId tileOfPoint(double x, double y) {
+    return core::tileOf(core::worldToKey(x, y, 0), kTileLog2);
+  }
   static std::size_t slotOf(core::CellId id) {
     const std::int32_t lx = core::localIndex(id.ix, kTileLog2);
     const std::int32_t ly = core::localIndex(id.iy, kTileLog2);
@@ -89,6 +110,9 @@ class TileGrid {
   }
 
   std::unordered_map<core::TileId, Tile> tiles_;
+  MapWindow window_;
+  // Tile the centre currently sits in; the hysteresis that stops thrash.
+  core::TileId centre_tile_{};
 };
 
 template <class Fn>

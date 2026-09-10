@@ -15,6 +15,7 @@
 #include "veyra/map/cell.hpp"
 #include "veyra/map/fusion.hpp"
 #include "veyra/map/observation.hpp"
+#include "veyra/map/rolling_window.hpp"
 #include "veyra/map/tile_grid.hpp"
 
 namespace {
@@ -168,7 +169,7 @@ void checkIdempotentCreation() {
 //    that forgets to count.
 void checkOutOfRangeRejection() {
   TileGrid grid;
-  const double far = veyra::map::kMapHalfExtentM + 1.0;
+  const double far = veyra::map::kDefaultWindowRadiusM + 1.0;
   const std::vector<Observation> batch = {obs(0.01, 0.01, 1.0F), obs(far, 0.0, 1.0F),
                                           obs(0.0, -far, 1.0F), obs(-far, -far, 1.0F)};
   const FusionStats s = integrate(grid, batch, 0);
@@ -179,18 +180,13 @@ void checkOutOfRangeRejection() {
   CHECK(grid.statistics().tiles == 1);
   CHECK(grid.statistics().occupied_cells == 1);
 
-  // The extent is half-open: the lower bound is inside, the upper bound is not.
+  // The window is a disc, not a box: just inside the radius is accepted, just
+  // outside is not.
   TileGrid edge;
-  const FusionStats lo =
-      integrate(edge,
-                std::vector<Observation>{
-                    obs(-veyra::map::kMapHalfExtentM, -veyra::map::kMapHalfExtentM, 1.0F)},
-                0);
+  const double r = veyra::map::kDefaultWindowRadiusM;
+  const FusionStats lo = integrate(edge, std::vector<Observation>{obs(r - 0.5, 0.0, 1.0F)}, 0);
   CHECK(lo.accepted == 1);
-  const FusionStats hi = integrate(
-      edge,
-      std::vector<Observation>{obs(veyra::map::kMapHalfExtentM, veyra::map::kMapHalfExtentM, 1.0F)},
-      0);
+  const FusionStats hi = integrate(edge, std::vector<Observation>{obs(r + 0.5, 0.0, 1.0F)}, 0);
   CHECK(hi.accepted == 0);
   CHECK(hi.rejected_out_of_range == 1);
 }

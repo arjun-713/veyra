@@ -56,12 +56,20 @@ FusionStats integrate(TileGrid& grid, std::span<const Observation> points,
       ++stats.rejected_non_finite;
       continue;
     }
-    if (o.x < -kMapHalfExtentM || o.x >= kMapHalfExtentM || o.y < -kMapHalfExtentM ||
-        o.y >= kMapHalfExtentM) {
+    // Representability guard, not policy: worldToKey converts a double to
+    // int32_t and a finite but absurd coordinate would make that conversion
+    // undefined. Must precede worldToKey; the window test follows it.
+    if (std::fabs(o.x) >= kMaxIndexableM || std::fabs(o.y) >= kMaxIndexableM) {
       ++stats.rejected_out_of_range;
       continue;
     }
     const core::CellId id = core::worldToKey(o.x, o.y, 0);
+    // The shared predicate. Acceptance here and eviction in recenter() cannot
+    // disagree, because they are the same function on the same argument.
+    if (!inWindow(grid.window(), id)) {
+      ++stats.rejected_out_of_range;
+      continue;
+    }
     const bool created = grid.find(id) == nullptr;
     Cell& cell = grid.findOrCreate(id);
     // Read last_seen before stamping it: cells_touched counts cells first
