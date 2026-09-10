@@ -8,6 +8,25 @@
 #include "veyra/map/cell.hpp"
 
 namespace veyra::map {
+namespace {
+
+// True when any active cell exists strictly below `id`, at any depth. Merging
+// while one does would leave it underneath an active ancestor -- the same
+// square owned twice, which is invariant 2 violated. Depth is bounded by the
+// four-level ladder, so this is at most 4 + 16 + 64 lookups.
+bool anyDescendantActive(const TileGrid& grid, core::CellId id) {
+  if (id.level <= 0) {
+    return false;
+  }
+  for (const core::CellId child : core::childrenOf(id)) {
+    if (grid.find(child) != nullptr || anyDescendantActive(grid, child)) {
+      return true;
+    }
+  }
+  return false;
+}
+
+}  // namespace
 
 bool split(TileGrid& grid, core::CellId parent) {
   // Level 0 is the floor. Without this an unguarded level - 1 would create
@@ -71,6 +90,11 @@ bool merge(TileGrid& grid, core::CellId parent) {
       return false;
     }
     src[i] = *c;
+  }
+  for (const core::CellId k : kids) {
+    if (anyDescendantActive(grid, k)) {
+      return false;
+    }
   }
 
   // Combined pairwise rather than left to right. All four children share a

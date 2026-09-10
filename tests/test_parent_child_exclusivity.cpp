@@ -137,6 +137,55 @@ void checkChildrenCoverParentExtent() {
   }
 }
 
+// 8. Merging refuses unless all four children are active. Three children do
+//    not cover the parent's square, so collapsing them would claim coverage
+//    of ground the map has no cell for.
+//    Catches: a merge that accepts a partial set and silently invents the
+//    missing quarter.
+void checkMergeRefusesPartialChildren() {
+  TileGrid grid;
+  const CellId parent{2, 5, 5};
+  seed(grid, parent, 8, 1.0);
+  CHECK(veyra::map::split(grid, parent));
+
+  const std::array<CellId, 4> kids = veyra::core::childrenOf(parent);
+  CHECK(grid.erase(kids[3]));
+  CHECK(grid.statistics().occupied_cells == 3);
+
+  CHECK(!veyra::map::merge(grid, parent));
+
+  // Nothing moved: still three children, still no parent.
+  CHECK(grid.statistics().occupied_cells == 3);
+  CHECK(grid.find(parent) == nullptr);
+  for (std::size_t i = 0; i < 3; ++i) {
+    CHECK(grid.find(kids[i]) != nullptr);
+  }
+}
+
+// 9. Merging refuses while a descendant two levels down is active. Collapsing
+//    to the parent would leave that grandchild underneath an active ancestor
+//    -- invariant 2 violated, and the same square owned twice.
+//    Catches: a merge that only looks one level down.
+void checkMergeRefusesActiveGrandchild() {
+  TileGrid grid;
+  const CellId parent{2, 0, 0};
+  seed(grid, parent, 8, 1.0);
+  CHECK(veyra::map::split(grid, parent));
+
+  const CellId child0 = veyra::core::childrenOf(parent)[0];
+  const CellId grandchild = veyra::core::childrenOf(child0)[0];
+  seed(grid, grandchild, 2, 1.0);
+  CHECK(grid.find(child0) != nullptr);
+  CHECK(grid.find(grandchild) != nullptr);
+  const veyra::map::GridStats before = grid.statistics();
+
+  CHECK(!veyra::map::merge(grid, parent));
+
+  CHECK(grid.find(parent) == nullptr);
+  CHECK(grid.statistics().occupied_cells == before.occupied_cells);
+  CHECK(grid.find(grandchild) != nullptr);
+}
+
 }  // namespace
 
 int main() {
@@ -144,5 +193,7 @@ int main() {
   checkSplitRefusesInactiveCell();
   checkSplitRefusesAtLevelZero();
   checkChildrenCoverParentExtent();
+  checkMergeRefusesPartialChildren();
+  checkMergeRefusesActiveGrandchild();
   return 0;
 }
