@@ -65,3 +65,9 @@ target_include_directories(test_parent_child_exclusivity PRIVATE ${PROJECT_SOURC
 target_compile_features(test_parent_child_exclusivity PRIVATE cxx_std_20)
 target_link_libraries(test_parent_child_exclusivity PRIVATE veyra_map)
 add_test(NAME parent_child_exclusivity COMMAND test_parent_child_exclusivity)
+
+add_executable(test_boundary_neighbors test_boundary_neighbors.cpp)
+target_include_directories(test_boundary_neighbors PRIVATE ${PROJECT_SOURCE_DIR}/include)
+target_compile_features(test_boundary_neighbors PRIVATE cxx_std_20)
+target_link_libraries(test_boundary_neighbors PRIVATE veyra_map)
+add_test(NAME boundary_neighbors COMMAND test_boundary_neighbors)
