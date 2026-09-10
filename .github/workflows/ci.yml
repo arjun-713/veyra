@@ -1,0 +1,62 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  cpp:
+    name: C++ ${{ matrix.build_type }}
+    runs-on: ubuntu-24.04
+    strategy:
+      fail-fast: false
+      matrix:
+        build_type: [Debug, Release]
+    steps:
+      - uses: actions/checkout@v4
+      - name: Configure
+        run: >-
+          cmake -S . -B build/${{ matrix.build_type }}
+          -DCMAKE_BUILD_TYPE=${{ matrix.build_type }}
+          -DBUILD_TESTING=ON -DVEYRA_BUILD_APPS=ON
+          -DCMAKE_CXX_FLAGS=-Werror
+      - name: Build
+        run: cmake --build build/${{ matrix.build_type }} --parallel
+      - name: CTest
+        run: ctest --test-dir build/${{ matrix.build_type }} --output-on-failure -E python_unittest
+
+  python:
+    name: Python tests and static checks
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: pip
+          cache-dependency-path: |
+            requirements.txt
+            requirements-dev.txt
+      - name: Install pinned test dependencies
+        run: python -m pip install -r requirements.txt -r requirements-dev.txt
+      - name: Ruff
+        run: ruff check benchmarks tests/test_runtime_map_bridge.py tests/test_viewer_runtime_http.py
+      - name: Python syntax
+        run: python -m compileall -q benchmarks tests/test_runtime_map_bridge.py tests/test_viewer_runtime_http.py
+      - name: Python tests
+        run: >-
+          python -m unittest -v benchmarks.test_runtime
+          tests.test_runtime_map_bridge tests.test_viewer_runtime_http
+
+  formatting:
+    name: C++ formatting
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - name: Check clang-format availability
+        run: sudo apt-get update && sudo apt-get install --no-install-recommends -y clang-format
+      - name: Check owned C++ sources
+        run: clang-format --dry-run --Werror apps/benchmark/main.cpp

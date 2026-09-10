@@ -3,8 +3,8 @@
 semantic:
   mode: ground_truth
 ground:
-  enabled: false
+  enabled: true
 terrain:
-  enabled: false
+  enabled: true
 temporal:
   enabled: false

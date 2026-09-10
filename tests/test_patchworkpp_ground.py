@@ -1,5 +1,7 @@
 import importlib.util
+import time
 import unittest
+from pathlib import Path
 
 import numpy as np
 
@@ -94,6 +96,36 @@ class PatchworkPPGroundSegmenterTests(unittest.TestCase):
 
         self.assertIn("Patchwork++", str(context.exception))
         self.assertIn("module-that-is-not-installed", str(context.exception))
+
+    def test_real_rellis_frame_executes_patchworkpp_on_cpu(self):
+        if not importlib.util.find_spec("pypatchworkpp"):
+            self.fail("pypatchworkpp is required for the real RELLIS smoke test")
+
+        from datasets.rellis import Rellis3DDataset
+
+        dataset = Rellis3DDataset(
+            Path("data/raw/rellis3d/Rellis-3D"), sequences=["00000"]
+        )
+        frame = dataset.load_frame(
+            "00000", dataset.list_frames("00000")[0].frame_id
+        )
+
+        started = time.perf_counter()
+        evidence = PatchworkPPGroundSegmenter().segment(frame.points)
+        elapsed_s = time.perf_counter() - started
+
+        self.assertEqual(evidence.mask.shape, (frame.points.shape[0],))
+        self.assertEqual(evidence.confidence.shape, evidence.mask.shape)
+        self.assertTrue(np.all(np.isfinite(evidence.confidence)))
+        ground_ratio = float(np.mean(evidence.mask))
+        self.assertGreater(ground_ratio, 0.001)
+        self.assertLess(ground_ratio, 0.999)
+        self.assertGreater(elapsed_s, 0.0)
+        print(
+            "real RELLIS Patchwork++: "
+            f"points={frame.points.shape[0]} ground_ratio={ground_ratio:.4f} "
+            f"elapsed_s={elapsed_s:.6f}"
+        )
 
 
 if __name__ == "__main__":

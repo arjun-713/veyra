@@ -4,6 +4,7 @@
 # --- CMake / C++ build ---
 build/
 build-local/
+build-strict-*/
 cmake-build-*/
 CMakeCache.txt
 CMakeFiles/

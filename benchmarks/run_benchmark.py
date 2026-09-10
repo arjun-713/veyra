@@ -26,7 +26,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from benchmarks.protocol import PROTOCOL_VERSION, stream_bytes
 from datasets.rellis import Rellis3DDataset
 from datasets.semanticposs import SemanticPOSSDataset
-from perception.pipeline import PerceptionPipeline
+from perception.pipeline import load_perception_pipeline
 
 SCHEMA_VERSION = 2
 
@@ -109,6 +109,83 @@ def hardware_metadata(profile: str) -> dict[str, Any]:
         "logical_cpu_count": os.cpu_count(),
         "physical_memory_bytes": _host_memory_bytes(),
     }
+
+
+def mapping_quality_report(
+    input_points: np.ndarray,
+    rejected_out_of_window: int,
+    snapshot: dict[str, Any],
+    fine_reference: dict[str, Any],
+) -> dict[str, Any]:
+    """Measure only conservation/topology/elevation evidence exposed by the map."""
+    point_count = int(snapshot["point_count"])
+    nonspatial = int(snapshot.get("nonspatial_prior_point_count", 0))
+    leaf_count = sum(int(leaf["count"]) for leaf in snapshot.get("leaves", []))
+    expected = len(input_points) - int(rejected_out_of_window)
+    conservation = point_count == expected
+    split_merge = leaf_count + nonspatial == point_count
+    errors: list[float] = []
+    reference = fine_reference["mean_z_by_cell"]
+    for leaf in snapshot.get("leaves", []):
+        level = int(leaf["level"])
+        span = 1 << level
+        values = [
+            value
+            for (ix, iy), value in reference.items()
+            if int(leaf["ix"]) * span <= ix < (int(leaf["ix"]) + 1) * span
+            and int(leaf["iy"]) * span <= iy < (int(leaf["iy"]) + 1) * span
+        ]
+        if values:
+            errors.append(float(leaf["mean_z"]) - sum(values) / len(values))
+    rmse = (
+        math.sqrt(sum(error * error for error in errors) / len(errors))
+        if errors
+        else None
+    )
+    return {
+        "point_conservation": {
+            "holds": conservation,
+            "expected_points": expected,
+            "snapshot_points": point_count,
+        },
+        "duplicate_ownership": {
+            "holds": bool(snapshot.get("invariant_no_parent_descendant_overlap", False)),
+            "source": "MapSnapshot.has_no_parent_descendant_overlap",
+        },
+        "split_merge_conservation": {
+            "holds": split_merge,
+            "leaf_stat_points": leaf_count,
+            "nonspatial_prior_points": nonspatial,
+            "snapshot_points": point_count,
+        },
+        "elevation_vs_fine_reference": {
+            "sample_count": len(errors),
+            "rmse_m": rmse,
+            "reference": "5cm input-point bins",
+        },
+    }
+
+
+def _fine_reference(frames: list[Any]) -> dict[str, Any]:
+    bins: dict[tuple[int, int], list[float]] = {}
+    for frame in frames:
+        for x, y, z, _intensity in frame.points:
+            key = (math.floor(float(x) / 0.05), math.floor(float(y) / 0.05))
+            bins.setdefault(key, []).append(float(z))
+    return {"mean_z_by_cell": {key: sum(values) / len(values) for key, values in bins.items()}}
+
+
+def _detail_metric(snapshot: dict[str, Any]) -> dict[str, Any]:
+    leaves = snapshot.get("leaves", [])
+    total = sum(int(leaf["count"]) for leaf in leaves)
+    weighted_level = (
+        sum(int(leaf["count"]) * int(leaf["level"]) for leaf in leaves) / total
+        if total
+        else None
+    )
+    return {"weighted_mean_level": weighted_level, "weighted_resolution_m":
+            None if weighted_level is None else 0.05 * (2 ** weighted_level),
+            "basis": "leaf sufficient-statistic counts"}
 
 
 def validate_hardware_profile(config: object, profile: str) -> None:
@@ -261,7 +338,9 @@ def load_selection(repo: Path, dataset: str, sequence: str, start: int, count: i
     )
     if not source_frames:
         raise ValueError("frame selection is empty")
-    pipeline, processed, durations_ns = PerceptionPipeline(), [], []
+    pipeline, processed, durations_ns = load_perception_pipeline(
+        repo / "configs" / "perception.yaml"
+    ), [], []
     for source_frame in source_frames:
         started = time.perf_counter_ns()
         processed.append(pipeline.process(source_frame).frame)
@@ -300,13 +379,14 @@ def _command(
         str(repo / "configs" / "utility_lod.yaml"),
         "--governor-config",
         str(repo / "configs" / "resource_governor.yaml"),
+        "--include-leaf-details",
     ]
 
 
 def _aggregate_policy_runs(runs: list[dict[str, Any]]) -> dict[str, Any]:
     stages: dict[str, list[int]] = {}
     churn, peak_rss = [], []
-    late_frames = dropped_frames = 0
+    late_frames = dropped_frames = rejected = 0
     drops_available = True
     fps = []
     for run in runs:
@@ -320,6 +400,7 @@ def _aggregate_policy_runs(runs: list[dict[str, Any]]) -> dict[str, Any]:
         if metrics["fps"] is not None:
             fps.append(metrics["fps"])
         late_frames += stream["late_frames"]
+        rejected += stream["rejected_out_of_window"]
         if stream["dropped_frames"] is None:
             drops_available = False
         else:
@@ -335,10 +416,13 @@ def _aggregate_policy_runs(runs: list[dict[str, Any]]) -> dict[str, Any]:
         },
         "topology_churn_per_frame": nearest_rank_summary(churn),
         "late_frames": late_frames,
+        "rejected_out_of_window": rejected,
         "dropped_frames": dropped_frames if drops_available else None,
         "peak_rss_bytes": max(peak_rss) if peak_rss else None,
         "measured_frame_count": sum(run["metrics"]["frame_count"] for run in runs),
         "fps": nearest_rank_summary(fps),
+        "final_leaves_per_level": runs[-1]["snapshot"]["levels"],
+        "quality": [run["quality"] for run in runs],
     }
 
 
@@ -372,6 +456,8 @@ def run(args: argparse.Namespace) -> dict[str, Any]:
         load_selection(repo, args.dataset, args.sequence, args.start, args.count)
     )
     stream, digest = stream_bytes(frames)
+    all_points = np.concatenate([frame.points[:, :3] for frame in frames], axis=0)
+    fine_reference = _fine_reference(frames)
     runs_by_policy: dict[str, list[dict[str, Any]]] = {
         policy: [] for policy in requested
     }
@@ -410,6 +496,13 @@ def run(args: argparse.Namespace) -> dict[str, Any]:
                 raise RuntimeError(
                     f"{policy} repetition {repetition} violated benchmark contract"
                 )
+            result["quality"] = mapping_quality_report(
+                all_points,
+                result["metrics"]["stream"]["rejected_out_of_window"],
+                result["snapshot"],
+                fine_reference,
+            )
+            result["detail_metric"] = _detail_metric(result["snapshot"])
             runs_by_policy[policy].append(result)
     results: dict[str, Any] = {}
     for policy in requested:
@@ -431,6 +524,14 @@ def run(args: argparse.Namespace) -> dict[str, Any]:
         repo / "configs/benchmark.yaml",
         repo / "configs/hardware_profiles.yaml",
     ]
+    if "utility_lod" in results and "distance_lod" in results:
+        utility_detail = results["utility_lod"]["runs"][-1]["detail_metric"]
+        distance_detail = results["distance_lod"]["runs"][-1]["detail_metric"]
+        utility_level = utility_detail["weighted_mean_level"]
+        distance_level = distance_detail["weighted_mean_level"]
+        detail_delta = None if utility_level is None or distance_level is None else utility_level - distance_level
+    else:
+        detail_delta = None
     return {
         "schema_version": SCHEMA_VERSION,
         "provenance": {
@@ -456,6 +557,10 @@ def run(args: argparse.Namespace) -> dict[str, Any]:
         "input_frames": len(frames),
         "measured_frames_per_run": len(frames) - args.warmup_frames,
         "shared_stage_latency_ns": {"perception": nearest_rank_summary(perception_ns)},
+        "utility_vs_distance_detail": {
+            "weighted_mean_level_delta": detail_delta,
+            "interpretation": "positive means UtilityLOD retained finer leaves on the identical input",
+        },
         "policies": results,
     }
 
@@ -475,9 +580,16 @@ def _write_csv(path: Path, result: dict[str, Any]) -> None:
         "map_update_p99_ns",
         "map_update_max_ns",
         "topology_churn_p95",
+        "fps_p50",
+        "fps_p95",
+        "fps_p99",
+        "logical_map_bytes",
+        "allocated_map_bytes",
         "late_frames",
         "dropped_frames",
+        "rejected_out_of_window",
         "peak_rss_bytes",
+        "elevation_vs_fine_rmse_m",
     )
     path.parent.mkdir(parents=True, exist_ok=True)
     with path.open("w", newline="") as file:
@@ -503,9 +615,16 @@ def _write_csv(path: Path, result: dict[str, Any]) -> None:
                     "map_update_p99_ns": map_update["p99"],
                     "map_update_max_ns": map_update["max"],
                     "topology_churn_p95": aggregate["topology_churn_per_frame"]["p95"],
+                    "fps_p50": aggregate["fps"]["p50"],
+                    "fps_p95": aggregate["fps"]["p95"],
+                    "fps_p99": aggregate["fps"]["p99"],
+                    "logical_map_bytes": report["runs"][-1]["metrics"]["memory"]["logical_map_bytes"],
+                    "allocated_map_bytes": report["runs"][-1]["metrics"]["memory"]["allocated_map_bytes"],
                     "late_frames": aggregate["late_frames"],
                     "dropped_frames": aggregate["dropped_frames"],
+                    "rejected_out_of_window": aggregate["rejected_out_of_window"],
                     "peak_rss_bytes": aggregate["peak_rss_bytes"],
+                    "elevation_vs_fine_rmse_m": report["runs"][-1]["quality"]["elevation_vs_fine_reference"]["rmse_m"],
                 }
             )
 

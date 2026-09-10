@@ -134,13 +134,27 @@ class TemporalTracker:
         clusters = self._clusters(world, labels)
         assignments: dict[int, _Track] = {}
         used: set[int] = set()
+        track_bucket_size = self.association_distance_m / np.sqrt(2.0)
+        tracks_by_bucket: dict[tuple[int, int], list[_Track]] = {}
+        for track in self._tracks.values():
+            bucket = tuple(np.floor(track.centroid / track_bucket_size).astype(np.int64))
+            tracks_by_bucket.setdefault((int(bucket[0]), int(bucket[1])), []).append(track)
         for indices in clusters:
             centroid = world[indices].mean(axis=0)[:2]
             label = int(labels[indices[0]])
+            bucket = np.floor(centroid / track_bucket_size).astype(np.int64)
+            nearby_tracks: list[_Track] = []
+            for dx in range(-2, 3):
+                for dy in range(-2, 3):
+                    nearby_tracks.extend(
+                        tracks_by_bucket.get(
+                            (int(bucket[0] + dx), int(bucket[1] + dy)), []
+                        )
+                    )
             candidate = min(
                 (
                     track
-                    for track in self._tracks.values()
+                    for track in nearby_tracks
                     if track.track_id not in used and track.semantic_class == label
                 ),
                 key=lambda track: (
@@ -174,6 +188,12 @@ class TemporalTracker:
                 )
                 self._next_track_id += 1
                 self._tracks[candidate.track_id] = candidate
+                track_bucket = tuple(
+                    np.floor(candidate.centroid / track_bucket_size).astype(np.int64)
+                )
+                tracks_by_bucket.setdefault(
+                    (int(track_bucket[0]), int(track_bucket[1])), []
+                ).append(candidate)
                 used.add(candidate.track_id)
             assignments[id(indices)] = candidate
 
@@ -238,7 +258,7 @@ class TemporalTracker:
                             continue
                         right = np.asarray(bucket_lists[neighbor_key], dtype=np.intp)
                         if self._cells_connect(
-                            local_xy[left], local_xy[right], radius_squared
+                            local_xy[left], local_xy[right], radius_squared,
                         ):
                             # Every point within either cell is already
                             # connected to its first member, so one exact
@@ -255,17 +275,27 @@ class TemporalTracker:
 
     @staticmethod
     def _cells_connect(
-        left: np.ndarray, right: np.ndarray, radius_squared: float
+        left: np.ndarray,
+        right: np.ndarray,
+        radius_squared: float,
     ) -> bool:
         """Check whether two occupied cells have an exact cross-cell edge.
 
-        Chunking bounds temporary memory and stops at the first valid edge;
-        unlike enumerating every neighbouring pair, dense ground returns do
-        not turn one connected component into millions of union operations.
+        Bound the temporary Cartesian product to fixed-size chunks and stop
+        at the first exact edge. This limits peak memory for dense cells while
+        preserving the existing exact radius check.
         """
 
-        for start in range(0, left.shape[0], 256):
-            delta = left[start : start + 256, None, :] - right[None, :, :]
+        left_min = left.min(axis=0)
+        left_max = left.max(axis=0)
+        right_min = right.min(axis=0)
+        right_max = right.max(axis=0)
+        gap = np.maximum(0.0, np.maximum(left_min - right_max, right_min - left_max))
+        if float(np.dot(gap, gap)) > radius_squared:
+            return False
+
+        for start in range(0, left.shape[0], 2048):
+            delta = left[start : start + 2048, None, :] - right[None, :, :]
             if np.any(np.einsum("ijk,ijk->ij", delta, delta) <= radius_squared):
                 return True
         return False

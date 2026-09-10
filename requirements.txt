@@ -1,4 +1,9 @@
-# Runtime deps — pin exact versions as perception modules land.
-# Keep mapping-only builds dependency-free (see AGENTS.md).
-numpy==1.26.4
+# Runtime deps — pin exact CPU-compatible versions for the supported Python
+# 3.13 environment. Keep mapping-only builds dependency-free (see AGENTS.md).
+numpy==2.2.6
 pyyaml==6.0.2  # viewer server config (falls back to built-in parser if absent)
+
+# Real perception backends. Model weights remain local, explicitly supplied
+# assets; neither package downloads weights automatically.
+pypatchworkpp==1.4.1
+onnxruntime==1.22.0

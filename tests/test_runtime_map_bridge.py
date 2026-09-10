@@ -197,6 +197,7 @@ class RuntimeMapBridgeTests(unittest.TestCase):
         self.assertEqual(report["source"], "veyra_persistent_engine")
         self.assertEqual(report["input_points"], 1)
         self.assertIn("levels", report["snapshot"])
+        self.assertNotIn("leaves", report["snapshot"])
         self.assertIn("map_update_latency_ns", report["metrics"])
         self.assertIsNotNone(report["metrics"]["measured_rss_bytes"])
 

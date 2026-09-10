@@ -32,7 +32,34 @@ class TemporalTrackerTests(unittest.TestCase):
 
         self.assertEqual(tracker.active_track_count, 1)
 
-    def test_original_semanticposs_frame_has_recorded_temporal_cluster_cost(self):
+    def test_points_across_grid_seam_need_exact_radius_connectivity(self):
+        tracker = TemporalTracker(cluster_tolerance_m=0.5)
+        points = np.array(
+            [[0.0, 0.0, 0.0, 1.0], [0.5001, 0.0, 0.0, 1.0]], dtype=np.float32
+        )
+        labels = np.array([1, 1], dtype=np.int32)
+
+        tracker.update(points, labels, np.eye(4), timestamp=0.0)
+
+        self.assertEqual(tracker.active_track_count, 2)
+
+    def test_different_labels_and_input_permutations_remain_separate_and_aligned(self):
+        points = np.array(
+            [[0.0, 0.0, 0.0, 1.0], [0.1, 0.0, 0.0, 1.0], [0.2, 0.0, 0.0, 1.0]],
+            dtype=np.float32,
+        )
+        labels = np.array([2, 1, 2], dtype=np.int32)
+        tracker = TemporalTracker(cluster_tolerance_m=0.5)
+        first = tracker.update(points, labels, np.eye(4), timestamp=0.0)
+        self.assertEqual(tracker.active_track_count, 2)
+
+        tracker.reset()
+        order = np.array([2, 0, 1])
+        permuted = tracker.update(points[order], labels[order], np.eye(4), timestamp=0.0)
+        np.testing.assert_array_equal(permuted.state, first.state[order])
+        np.testing.assert_array_equal(permuted.persistence, first.persistence[order])
+
+    def test_original_semanticposs_frame_stays_within_temporal_update_budget(self):
         root = Path("data/raw/semanticposs/dataset")
         if not root.is_dir():
             self.skipTest("original local SemanticPOSS data is unavailable")
@@ -40,12 +67,17 @@ class TemporalTrackerTests(unittest.TestCase):
         elapsed_s = []
         cluster_counts = []
         tracker = TemporalTracker()
-        for frame in frames:
+        for frame_index, frame in enumerate(frames):
             start = time.perf_counter()
-            clusters = tracker._clusters(frame.points[:, :3], frame.semantic_class)
+            evidence = tracker.update(
+                frame.points,
+                frame.semantic_class,
+                np.eye(4),
+                timestamp=float(frame_index),
+            )
             elapsed_s.append(time.perf_counter() - start)
-            cluster_counts.append(len(clusters))
-            self.assertGreater(len(clusters), 0)
+            cluster_counts.append(tracker.active_track_count)
+            self.assertEqual(evidence.persistence.shape, (len(frame.points),))
         milliseconds = np.asarray(elapsed_s) * 1000.0
         print(
             "temporal-cluster semanticposs/00 frames=3 "
@@ -54,7 +86,9 @@ class TemporalTrackerTests(unittest.TestCase):
             f"p95_ms={np.percentile(milliseconds, 95):.3f} "
             f"p99_ms={np.percentile(milliseconds, 99):.3f}"
         )
-        self.assertLess(float(np.max(elapsed_s)), 10.0)
+        # This is intentionally a generous CPU budget for the original
+        # SemanticPOSS frame size, while still catching dense pair scans.
+        self.assertLess(float(np.percentile(milliseconds, 95)), 4000.0)
 
     def test_rejects_out_of_order_timestamps_and_can_reset(self):
         tracker = TemporalTracker()

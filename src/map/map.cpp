@@ -502,6 +502,7 @@ void CellStats::add(const Observation &observation) {
                                                    : 0.0F;
     ground_evidence = observation.ground == 1 ? observation.terrain_confidence : 0.0F;
     terrain_confidence = observation.terrain_confidence;
+    geometry_complexity = observation.geometry_complexity;
     motion_evidence = observation.motion_probability;
     observation_quality = observation.observation_quality;
   } else {
@@ -519,6 +520,8 @@ void CellStats::add(const Observation &observation) {
     ground_evidence = static_cast<float>((ground_evidence * previous_count + ground) / next_count);
     terrain_confidence = static_cast<float>((terrain_confidence * previous_count +
                                               observation.terrain_confidence) / next_count);
+    geometry_complexity = static_cast<float>((geometry_complexity * previous_count +
+                                               observation.geometry_complexity) / next_count);
     motion_evidence = static_cast<float>((motion_evidence * previous_count +
                                            observation.motion_probability) / next_count);
     observation_quality = static_cast<float>((observation_quality * previous_count +
@@ -563,6 +566,8 @@ void CellStats::merge(const CellStats &other) {
                                         other.ground_evidence * right_count) / total);
   terrain_confidence = static_cast<float>((terrain_confidence * left_count +
                                             other.terrain_confidence * right_count) / total);
+  geometry_complexity = static_cast<float>((geometry_complexity * left_count +
+                                             other.geometry_complexity * right_count) / total);
   motion_evidence = static_cast<float>((motion_evidence * left_count +
                                          other.motion_evidence * right_count) / total);
   observation_quality = static_cast<float>((observation_quality * left_count +

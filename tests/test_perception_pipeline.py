@@ -84,7 +84,7 @@ def _frame(timestamp=2.0):
 
 
 class PerceptionPipelineTests(unittest.TestCase):
-    def test_checked_in_default_config_replays_original_semanticposs_and_rellis_frames(
+    def test_checked_in_default_config_runs_ground_truth_ground_and_terrain(
         self,
     ):
         pipeline = load_perception_pipeline("configs/perception.yaml")
@@ -101,7 +101,15 @@ class PerceptionPipelineTests(unittest.TestCase):
                 all(output.status.semantic == "ground_truth" for output in outputs)
             )
             self.assertTrue(
-                all(output.status.ground == "disabled" for output in outputs)
+                all(
+                    output.status.ground not in {"disabled", "unavailable"}
+                    for output in outputs
+                )
+            )
+            self.assertTrue(all(output.status.terrain == "available" for output in outputs))
+            self.assertTrue(all(output.status.temporal == "disabled" for output in outputs))
+            self.assertTrue(
+                all(np.any(output.frame.ground) for output in outputs)
             )
             self.assertTrue(all(output.frame.points.shape[0] > 0 for output in outputs))
 

@@ -49,6 +49,8 @@ struct CellStats {
   float drivable_evidence = 0.0F;
   float ground_evidence = 0.0F;
   float terrain_confidence = 0.0F;
+  // Count-weighted aggregate of the point-local height-complexity signal.
+  float geometry_complexity = 0.0F;
   float motion_evidence = 0.0F;
   float observation_quality = 0.0F;
 

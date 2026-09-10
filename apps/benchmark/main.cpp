@@ -34,6 +34,7 @@ struct Options {
   std::array<double, 3> boundaries{10.0, 30.0, 60.0};
   std::uint64_t warmup_frames = 0;
   bool engine = false;
+  bool include_leaf_details = false;
   std::string utility_config = VEYRA_SOURCE_DIR "/configs/utility_lod.yaml";
   std::string governor_config = VEYRA_SOURCE_DIR "/configs/resource_governor.yaml";
 };
@@ -89,6 +90,7 @@ struct Result {
   // stay comparable across policies and bridges never deadlock on one
   // marginal return.
   std::uint64_t rejected_out_of_window = 0;
+  bool include_leaf_details = false;
   std::uint64_t late_frames = 0;
   std::optional<std::uint64_t> dropped_frames;
   bool source_indices_complete = true;
@@ -296,6 +298,8 @@ Options parse_options(int argc, char **argv) {
       options.warmup_frames = uint_value(argv[++index], "warmup frames");
     } else if (arg == "--engine") {
       options.engine = true;
+    } else if (arg == "--include-leaf-details") {
+      options.include_leaf_details = true;
     } else if (arg == "--utility-config") {
       options.utility_config = argv[++index];
     } else if (arg == "--governor-config") {
@@ -426,6 +430,7 @@ Result run(const Options &options) {
 
   Result result;
   result.policy = options.policy;
+  result.include_leaf_details = options.include_leaf_details;
   bool header = false;
   bool metadata = false;
   bool open = false;
@@ -735,7 +740,22 @@ std::string render(const Result &result) {
     }
     out << '"' << level << "\":" << snapshot.count_at_level(level);
   }
-  out << "}},\"metrics\":{\"frame_count\":" << metrics.frame_count
+  out << "},\"nonspatial_prior_point_count\":"
+      << snapshot.nonspatial_prior_point_count
+      << ",\"invariant_no_parent_descendant_overlap\":"
+      << (snapshot.has_no_parent_descendant_overlap() ? "true" : "false");
+  if (result.include_leaf_details) {
+    out << ",\"leaves\":[";
+    for (std::size_t index = 0; index < snapshot.leaves.size(); ++index) {
+      if (index > 0) out << ',';
+      const auto &leaf = snapshot.leaves[index];
+      out << "{\"level\":" << leaf.id.level << ",\"ix\":" << leaf.id.ix
+          << ",\"iy\":" << leaf.id.iy << ",\"count\":"
+          << leaf.stats.count << ",\"mean_z\":" << leaf.stats.mean_z << '}';
+    }
+    out << ']';
+  }
+  out << "},\"metrics\":{\"frame_count\":" << metrics.frame_count
       << ",\"elapsed_seconds\":" << metrics.elapsed_seconds << ",\"fps\":";
   write_optional_double(out, metrics.fps);
   out << ",\"stage_latency_ns\":{";
@@ -838,6 +858,7 @@ class PersistentEngineSession {
     metrics_ = std::make_unique<veyra::metrics::MetricsCollector>(Clock::time_point{});
     result_ = Result{};
     result_.policy = options_.policy;
+    result_.include_leaf_details = options_.include_leaf_details;
     result_.digest = "engine-session";
     result_.protocol_version = 2;
     open_ = false;

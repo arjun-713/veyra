@@ -143,6 +143,31 @@ void test_cell_statistics_preserve_enriched_observation_evidence() {
   assert(stats.last_seen == 42);
 }
 
+void test_geometry_complexity_is_fused_and_survives_split_merge() {
+  DistanceLodMap map({.window_radius_m = 100.0});
+  map.update(Observation{.x = 70.01,
+                         .y = 0.01,
+                         .z = 1.0,
+                         .geometry_complexity = 0.25F});
+  map.update(Observation{.x = 70.02,
+                         .y = 0.02,
+                         .z = 3.0,
+                         .geometry_complexity = 0.75F});
+
+  const auto parent = map.snapshot().leaves.front().id;
+  map.split(parent);
+  const auto split = map.snapshot();
+  assert(split.point_count == 2);
+  assert(split.has_no_parent_descendant_overlap());
+
+  map.merge_children(parent);
+  const auto merged = map.snapshot();
+  assert(merged.point_count == 2);
+  assert(merged.leaves.size() == 1);
+  assert(std::abs(merged.leaves.front().stats.geometry_complexity - 0.5F) <
+         1e-6F);
+}
+
 void test_split_merge_cycles_and_policy_transitions_preserve_statistics() {
   DistanceLodMap map({.window_radius_m = 100.0});
   map.update(Observation{.x = 70.01, .y = 0.01, .z = -2.0, .timestamp = 3});
@@ -263,6 +288,7 @@ int main() {
   test_dense_snapshot_invariant_check_is_bounded();
   test_policy_compatible_uniform_baselines_and_distance_seams();
   test_cell_statistics_preserve_enriched_observation_evidence();
+  test_geometry_complexity_is_fused_and_survives_split_merge();
   test_split_merge_cycles_and_policy_transitions_preserve_statistics();
   test_exact_cell_window_eviction_stale_cleanup_and_real_tiles();
   Uniform5Map uniform({.window_radius_m = 100.0});

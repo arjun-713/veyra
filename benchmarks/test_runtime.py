@@ -15,7 +15,9 @@ from benchmarks.protocol import stream_bytes
 from benchmarks.run_benchmark import (
     POLICY_ADAPTERS,
     compute_window_radius_m,
+    mapping_quality_report,
     nearest_rank_summary,
+    load_selection,
     validate_configs,
 )
 from datasets.common.observation import ObservationFrame, PoseSE3
@@ -68,6 +70,35 @@ def frame(
 
 
 class RuntimeTests(unittest.TestCase):
+    def test_dataset_selection_uses_checked_in_perception_pipeline(self):
+        repo = Path(__file__).resolve().parents[1]
+        frames, _distance, _entry, _latencies, _radius = load_selection(
+            repo, "rellis3d", "00000", 0, 1
+        )
+        self.assertGreater(float(np.mean(frames[0].ground)), 0.001)
+        self.assertTrue(np.all(np.isfinite(frames[0].terrain_confidence)))
+
+    def test_mapping_quality_report_checks_real_snapshot_evidence(self):
+        report = mapping_quality_report(
+            input_points=np.array(
+                [[0.01, 0.01, 1.0], [0.06, 0.01, 1.2]], dtype=np.float64
+            ),
+            rejected_out_of_window=0,
+            snapshot={
+                "point_count": 2,
+                "nonspatial_prior_point_count": 0,
+                "invariant_no_parent_descendant_overlap": True,
+                "leaves": [
+                    {"level": 0, "ix": 0, "iy": 0, "count": 2, "mean_z": 1.1}
+                ],
+            },
+            fine_reference={"mean_z_by_cell": {(0, 0): 1.1}},
+        )
+
+        self.assertTrue(report["point_conservation"]["holds"])
+        self.assertTrue(report["duplicate_ownership"]["holds"])
+        self.assertTrue(report["split_merge_conservation"]["holds"])
+        self.assertEqual(report["elevation_vs_fine_reference"]["sample_count"], 1)
     def test_config_validation_rejects_non_odom_distance_config(self):
         with self.assertRaisesRegex(ValueError, "frame must be odom"):
             validate_configs(
@@ -291,7 +322,7 @@ class RuntimeTests(unittest.TestCase):
         )
         for policy in ("uniform5", "uniform40", "distance_lod", "utility_lod"):
             completed = subprocess.run(
-                [binary, "--policy", policy],
+                [binary, "--policy", policy, "--include-leaf-details"],
                 input=stream,
                 capture_output=True,
                 check=False,
@@ -315,6 +346,14 @@ class RuntimeTests(unittest.TestCase):
                 result["snapshot"]["memory"]["allocated_bytes"],
                 result["metrics"]["memory"]["allocated_map_bytes"],
             )
+            self.assertTrue(
+                result["snapshot"]["invariant_no_parent_descendant_overlap"]
+            )
+            self.assertEqual(
+                result["snapshot"]["point_count"],
+                sum(leaf["count"] for leaf in result["snapshot"]["leaves"]),
+            )
+            self.assertIn("p99", result["metrics"]["stage_latency_ns"]["map_update"])
 
     def test_real_configured_one_frame_smoke(self):
         repo = Path(__file__).resolve().parents[1]
