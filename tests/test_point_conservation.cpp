@@ -315,6 +315,63 @@ void checkSemanticAccumulation() {
   CHECK(quiet.find(id)->count == 2);
 }
 
+// 10. Batch equivalence: integrating N points in one call leaves the grid in
+//     the same state as integrating them one at a time, and the summed
+//     statistics agree.
+//     Catches: state carried between points within a batch -- a running
+//     index, a cached tile pointer, or an accumulator that is not reset.
+void checkBatchEquivalence() {
+  std::vector<Observation> batch;
+  for (int i = 0; i < 60; ++i) {
+    const double x = -0.3 + 0.021 * static_cast<double>(i);
+    const double y = 0.2 - 0.017 * static_cast<double>(i);
+    batch.push_back(labelled(x, y, static_cast<std::uint8_t>(i % 3), 1.0F));
+  }
+
+  TileGrid at_once;
+  const FusionStats bulk = integrate(at_once, batch, 5);
+
+  TileGrid one_by_one;
+  FusionStats summed;
+  for (const Observation& o : batch) {
+    const FusionStats s = integrate(one_by_one, std::vector<Observation>{o}, 5);
+    summed.accepted += s.accepted;
+    summed.rejected_out_of_range += s.rejected_out_of_range;
+    summed.rejected_non_finite += s.rejected_non_finite;
+    summed.cells_created += s.cells_created;
+    summed.cells_touched += s.cells_touched;
+  }
+
+  CHECK(bulk.accepted == summed.accepted);
+  CHECK(bulk.rejected() == summed.rejected());
+  CHECK(bulk.cells_created == summed.cells_created);
+  CHECK(bulk.cells_touched == summed.cells_touched);
+
+  const veyra::map::GridStats ga = at_once.statistics();
+  const veyra::map::GridStats gb = one_by_one.statistics();
+  CHECK(ga.tiles == gb.tiles);
+  CHECK(ga.occupied_cells == gb.occupied_cells);
+  CHECK(ga.allocated_bytes == gb.allocated_bytes);
+
+  // Every cell agrees, field by field, not just in aggregate.
+  std::size_t compared = 0;
+  at_once.forEachActiveLeaf([&](veyra::core::CellId id, const veyra::map::Cell& lhs) {
+    const veyra::map::Cell* rhs = one_by_one.find(id);
+    CHECK(rhs != nullptr);
+    CHECK(lhs.count == rhs->count);
+    CHECK(lhs.min_z == rhs->min_z);
+    CHECK(lhs.max_z == rhs->max_z);
+    CHECK(lhs.last_seen == rhs->last_seen);
+    CHECK(lhs.cls == rhs->cls);
+    CHECK(lhs.confidence == rhs->confidence);
+    CHECK(relClose(lhs.mean_z, rhs->mean_z, kMeanTol));
+    CHECK(relClose(veyra::map::varianceOf(lhs), veyra::map::varianceOf(*rhs), kVarTol));
+    ++compared;
+  });
+  CHECK(compared == ga.occupied_cells);
+  CHECK(compared > 1);
+}
+
 }  // namespace
 
 int main() {
@@ -327,5 +384,6 @@ int main() {
   checkNonFiniteRejection();
   checkLastSeenStamping();
   checkSemanticAccumulation();
+  checkBatchEquivalence();
   return 0;
 }
