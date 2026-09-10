@@ -6,3 +6,8 @@ add_executable(test_index_alignment test_index_alignment.cpp)
 target_include_directories(test_index_alignment PRIVATE ${PROJECT_SOURCE_DIR}/include)
 target_compile_features(test_index_alignment PRIVATE cxx_std_20)
 add_test(NAME index_alignment COMMAND test_index_alignment)
+
+add_executable(test_split_merge test_split_merge.cpp)
+target_include_directories(test_split_merge PRIVATE ${PROJECT_SOURCE_DIR}/include)
+target_compile_features(test_split_merge PRIVATE cxx_std_20)
+add_test(NAME split_merge COMMAND test_split_merge)

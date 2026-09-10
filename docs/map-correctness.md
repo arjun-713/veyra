@@ -13,7 +13,19 @@ one is not an optimization.
 3. **Exact hierarchy** — four children exactly cover one parent.
 4. **Merge correctness** — merging preserves point count, elevation
    mean, variance / second moment, min/max z, semantic evidence,
-   timestamps / persistence within tolerance.
+   timestamps / persistence within tolerance. "Within tolerance" means
+   exactly this:
+
+   | Quantity | Tolerance |
+   | --- | --- |
+   | `count` | exact equality |
+   | `min_z`, `max_z` | exact equality |
+   | `mean_z` | relative `1e-9` |
+   | variance | relative `1e-5` |
+
+   The mean is strict because it is stored as a `double`; the variance is
+   looser because `m2` is stored as a `float`. These are four separate
+   rules and must not be collapsed into one number.
 5. **Safety floor** — the resource governor must never coarsen
    near-field safety-protected regions.
 6. **Rolling-window correctness** — evicting distant tiles never
