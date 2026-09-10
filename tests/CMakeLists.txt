@@ -83,3 +83,9 @@ target_include_directories(test_resolution_pass PRIVATE ${PROJECT_SOURCE_DIR}/in
 target_compile_features(test_resolution_pass PRIVATE cxx_std_20)
 target_link_libraries(test_resolution_pass PRIVATE veyra_map veyra_policy)
 add_test(NAME resolution_pass COMMAND test_resolution_pass)
+
+add_executable(test_snapshot test_snapshot.cpp)
+target_include_directories(test_snapshot PRIVATE ${PROJECT_SOURCE_DIR}/include)
+target_compile_features(test_snapshot PRIVATE cxx_std_20)
+target_link_libraries(test_snapshot PRIVATE veyra_map)
+add_test(NAME snapshot COMMAND test_snapshot)
