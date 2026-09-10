@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import importlib.util
 import json
 import os
 import subprocess
@@ -15,9 +16,9 @@ from benchmarks.protocol import stream_bytes
 from benchmarks.run_benchmark import (
     POLICY_ADAPTERS,
     compute_window_radius_m,
+    load_selection,
     mapping_quality_report,
     nearest_rank_summary,
-    load_selection,
     validate_configs,
 )
 from datasets.common.observation import ObservationFrame, PoseSE3
@@ -72,6 +73,11 @@ def frame(
 class RuntimeTests(unittest.TestCase):
     def test_dataset_selection_uses_checked_in_perception_pipeline(self):
         repo = Path(__file__).resolve().parents[1]
+        dataset_root = repo / "data" / "raw" / "rellis3d" / "Rellis-3D"
+        if not dataset_root.is_dir():
+            self.skipTest("original RELLIS-3D data is unavailable in CI")
+        if importlib.util.find_spec("pypatchworkpp") is None:
+            self.skipTest("Patchwork++ Python backend is unavailable")
         frames, _distance, _entry, _latencies, _radius = load_selection(
             repo, "rellis3d", "00000", 0, 1
         )

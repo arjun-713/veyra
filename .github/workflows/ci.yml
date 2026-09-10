@@ -26,7 +26,7 @@ jobs:
       - name: Build
         run: cmake --build build/${{ matrix.build_type }} --parallel
       - name: CTest
-        run: ctest --test-dir build/${{ matrix.build_type }} --output-on-failure -E python_unittest
+        run: ctest --test-dir build/${{ matrix.build_type }} --output-on-failure -E "python_unittest|benchmark_runtime"
 
   python:
     name: Python tests and static checks
