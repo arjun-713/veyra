@@ -65,3 +65,21 @@ target_include_directories(test_parent_child_exclusivity PRIVATE ${PROJECT_SOURC
 target_compile_features(test_parent_child_exclusivity PRIVATE cxx_std_20)
 target_link_libraries(test_parent_child_exclusivity PRIVATE veyra_map)
 add_test(NAME parent_child_exclusivity COMMAND test_parent_child_exclusivity)
+
+add_executable(test_boundary_neighbors test_boundary_neighbors.cpp)
+target_include_directories(test_boundary_neighbors PRIVATE ${PROJECT_SOURCE_DIR}/include)
+target_compile_features(test_boundary_neighbors PRIVATE cxx_std_20)
+target_link_libraries(test_boundary_neighbors PRIVATE veyra_map)
+add_test(NAME boundary_neighbors COMMAND test_boundary_neighbors)
+
+add_executable(test_near_field_protection test_near_field_protection.cpp)
+target_include_directories(test_near_field_protection PRIVATE ${PROJECT_SOURCE_DIR}/include)
+target_compile_features(test_near_field_protection PRIVATE cxx_std_20)
+target_link_libraries(test_near_field_protection PRIVATE veyra_map veyra_policy)
+add_test(NAME near_field_protection COMMAND test_near_field_protection)
+
+add_executable(test_resolution_pass test_resolution_pass.cpp)
+target_include_directories(test_resolution_pass PRIVATE ${PROJECT_SOURCE_DIR}/include)
+target_compile_features(test_resolution_pass PRIVATE cxx_std_20)
+target_link_libraries(test_resolution_pass PRIVATE veyra_map veyra_policy)
+add_test(NAME resolution_pass COMMAND test_resolution_pass)

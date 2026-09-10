@@ -4,6 +4,7 @@
 
 #include "veyra/core/types.hpp"
 #include "veyra/map/cell.hpp"
+#include "veyra/map/split_merge.hpp"
 
 namespace veyra::map {
 namespace {
@@ -70,8 +71,23 @@ FusionStats integrate(TileGrid& grid, std::span<const Observation> points,
       ++stats.rejected_out_of_range;
       continue;
     }
-    const bool created = grid.find(id) == nullptr;
-    Cell& cell = grid.findOrCreate(id);
+    // Never place a cell beneath an active one. Indexing is done at level 0,
+    // but once the resolution pass has coarsened a region the observation
+    // belongs to the active leaf already covering it -- creating an L0 cell
+    // underneath would violate invariant 2 (parent/child exclusivity) through
+    // two functions that are each correct alone.
+    core::CellId target = id;
+    core::CellId ancestor = id;
+    while (ancestor.level < kMaxLevel) {
+      ancestor = core::parentOf(ancestor);
+      if (grid.find(ancestor) != nullptr) {
+        target = ancestor;
+        break;
+      }
+    }
+
+    const bool created = grid.find(target) == nullptr;
+    Cell& cell = grid.findOrCreate(target);
     // Read last_seen before stamping it: cells_touched counts cells first
     // seen in this frame, so a second point landing in the same cell in the
     // same frame must not count again.
