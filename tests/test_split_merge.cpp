@@ -280,6 +280,37 @@ void checkRemainderIsDistributed() {
   }
 }
 
+// 7. Invariant 4 across a level change: merge(split(x)) reproduces x. The
+//    equal-mean construction makes Chan's correction term vanish, so this
+//    should hold exactly on count and to within the locked tolerances on mean
+//    and variance.
+//    Catches: evidence lost or invented in either direction -- the failure
+//    that silently corrupts every number the benchmark later reports.
+void checkSplitMergeRoundTrip() {
+  for (const int n : {1, 2, 3, 4, 5, 7, 8, 101}) {
+    veyra::map::TileGrid grid;
+    const veyra::core::CellId parent{2, 2, -3};
+    Cell& p = seedGrid(grid, parent, n);
+    p.confidence = static_cast<std::uint8_t>(n % 256);
+    const Cell before = p;
+
+    CHECK(veyra::map::split(grid, parent));
+    CHECK(grid.statistics().occupied_cells == 4);
+    CHECK(veyra::map::merge(grid, parent));
+
+    const Cell* after = grid.find(parent);
+    CHECK(after != nullptr);
+    CHECK(grid.statistics().occupied_cells == 1);
+
+    CHECK(after->count == before.count);  // exact, not within a tolerance
+    CHECK(after->min_z == before.min_z);  // exact
+    CHECK(after->max_z == before.max_z);  // exact
+    CHECK(after->confidence == before.confidence);
+    CHECK(relClose(after->mean_z, before.mean_z, kMeanTol));
+    CHECK(relClose(varianceOf(*after), varianceOf(before), kVarTol));
+  }
+}
+
 }  // namespace
 
 int main() {
@@ -293,5 +324,6 @@ int main() {
   checkHighCount();
   checkSplitDistributesStatistics();
   checkRemainderIsDistributed();
+  checkSplitMergeRoundTrip();
   return 0;
 }

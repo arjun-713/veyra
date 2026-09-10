@@ -15,4 +15,9 @@ inline constexpr int kMaxLevel = 3;
 // error, so this neither throws nor asserts on its input.
 bool split(TileGrid& grid, core::CellId parent);
 
+// Collapses a cell's four children back into it, one level coarser. The
+// children are removed; the parent becomes active. Returns false and changes
+// nothing when the preconditions do not hold.
+bool merge(TileGrid& grid, core::CellId parent);
+
 }  // namespace veyra::map

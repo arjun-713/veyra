@@ -1,5 +1,6 @@
 #include "veyra/map/split_merge.hpp"
 
+#include <algorithm>
 #include <array>
 #include <cstddef>
 #include <cstdint>
@@ -54,6 +55,45 @@ bool split(TileGrid& grid, core::CellId parent) {
                                               (static_cast<double>(c.count) / total_n))
                          : 0.0F;
   }
+  return true;
+}
+
+bool merge(TileGrid& grid, core::CellId parent) {
+  if (parent.level <= 0 || parent.level > kMaxLevel) {
+    return false;
+  }
+
+  const std::array<core::CellId, 4> kids = core::childrenOf(parent);
+  std::array<Cell, 4> src{};
+  for (std::uint32_t i = 0; i < 4U; ++i) {
+    const Cell* c = grid.find(kids[i]);
+    if (c == nullptr) {
+      return false;
+    }
+    src[i] = *c;
+  }
+
+  // Combined pairwise rather than left to right. All four children share a
+  // mean, so Chan's delta is zero and m2 is a plain sum -- but summing four
+  // equal floats in a balanced tree is exact where a running total need not
+  // be.
+  Cell out = mergeCells(mergeCells(src[0], src[1]), mergeCells(src[2], src[3]));
+
+  // mergeCells carries the non-statistical fields from its first operand, so
+  // confidence is recombined here. Saturating, never wrapping.
+  std::uint32_t conf = 0;
+  std::uint32_t last_seen = 0;
+  for (const Cell& c : src) {
+    conf += static_cast<std::uint32_t>(c.confidence);
+    last_seen = std::max(last_seen, c.last_seen);
+  }
+  out.confidence = static_cast<std::uint8_t>(conf > 255U ? 255U : conf);
+  out.last_seen = last_seen;
+
+  for (const core::CellId k : kids) {
+    grid.erase(k);
+  }
+  grid.findOrCreate(parent) = out;
   return true;
 }
 
