@@ -56,9 +56,51 @@ void checkHostilePolicyCannotCoarsenNearField() {
   CHECK(hit.id.level == 0);
 }
 
+// A square block of level-0 cells, so whole sibling groups exist and a merge
+// has something legal to collapse.
+void fillBlock(TileGrid& grid, std::int32_t x0, std::int32_t y0, std::int32_t n) {
+  for (std::int32_t iy = y0; iy < y0 + n; ++iy) {
+    for (std::int32_t ix = x0; ix < x0 + n; ++ix) {
+      grid.findOrCreate(CellId{0, ix, iy});
+    }
+  }
+}
+
+// 16. The near field follows the vehicle, not the origin. After the vehicle
+//     has driven away, the block it now stands in is protected and the block
+//     back at the origin is not.
+//     Catches: a distance measured from the world origin, which looks correct
+//     for exactly as long as the vehicle never moves -- the same class of bug
+//     as the fixed map box PR D removed.
+void checkNearFieldFollowsTheVehicle() {
+  TileGrid grid{MapWindow{0.0, 0.0, 80.0}};
+  fillBlock(grid, 0, 0, 8);    // at the origin
+  fillBlock(grid, 800, 0, 8);  // 40 m out
+  CHECK(grid.statistics().occupied_cells == 128);
+
+  grid.recenter(40.0, 0.0);
+  veyra::policy::LodPolicy pol = hostilePolicy();
+  const veyra::map::PolicyStats s = veyra::map::applyPolicy(grid, pol, PassContext{40.0, 0.1});
+
+  CHECK(s.near_field_protected > 0);
+  CHECK(s.merges > 0);
+
+  // Where the vehicle stands, the map is still at its finest ...
+  const veyra::map::LeafHit near_hit = veyra::map::activeLeafCovering(grid, 40.1, 0.1);
+  CHECK(near_hit.found);
+  CHECK(near_hit.id.level == 0);
+
+  // ... and back at the origin, 40 m away, the hostile policy was allowed to
+  // coarsen. Both halves matter: measuring from the origin inverts them.
+  const veyra::map::LeafHit far_hit = veyra::map::activeLeafCovering(grid, 0.1, 0.1);
+  CHECK(far_hit.found);
+  CHECK(far_hit.id.level > 0);
+}
+
 }  // namespace
 
 int main() {
   checkHostilePolicyCannotCoarsenNearField();
+  checkNearFieldFollowsTheVehicle();
   return 0;
 }
