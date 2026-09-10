@@ -259,6 +259,62 @@ void checkLastSeenStamping() {
   CHECK(pair.find(id)->last_seen == 3);
 }
 
+Observation labelled(double x, double y, std::uint8_t cls, float conf) {
+  Observation o = obs(x, y, 1.0F);
+  o.cls = cls;
+  o.confidence = conf;
+  return o;
+}
+
+// 9. Semantic accumulation. Cell::cls holds the dominant class by streaming
+//    majority and Cell::confidence is a saturating agreement counter read as
+//    confidence in that class. An observation carrying no confidence votes on
+//    nothing but still contributes geometry.
+//    Catches: a counter that wraps instead of clamping -- 256 agreeing
+//    observations reporting confidence 0 would invert the meaning of the
+//    field; and a takeover rule that lets a single disagreeing point flip an
+//    established label.
+void checkSemanticAccumulation() {
+  // A new cell adopts the first labelled observation it sees.
+  TileGrid fresh;
+  integrate(fresh, std::vector<Observation>{labelled(0.01, 0.01, 4, 1.0F)}, 0);
+  const veyra::core::CellId id{0, 0, 0};
+  CHECK(fresh.find(id)->cls == 4);
+  CHECK(fresh.find(id)->confidence == 1);
+
+  // Agreement accumulates and then clamps. 300 > 255, so a wrapping counter
+  // would land near zero instead.
+  TileGrid agree;
+  std::vector<Observation> many;
+  for (int i = 0; i < 300; ++i) {
+    many.push_back(labelled(0.01, 0.01, 4, 1.0F));
+  }
+  integrate(agree, many, 0);
+  CHECK(agree.find(id)->cls == 4);
+  CHECK(agree.find(id)->confidence == 255);
+  CHECK(agree.find(id)->count == 300);
+
+  // Disagreement erodes the counter before it flips the label: one dissenting
+  // point cannot unseat a class, two can when the counter is at 1.
+  TileGrid flip;
+  integrate(flip, std::vector<Observation>{labelled(0.01, 0.01, 4, 1.0F)}, 0);
+  integrate(flip, std::vector<Observation>{labelled(0.01, 0.01, 7, 1.0F)}, 0);
+  CHECK(flip.find(id)->cls == 4);  // eroded, not unseated
+  CHECK(flip.find(id)->confidence == 0);
+  integrate(flip, std::vector<Observation>{labelled(0.01, 0.01, 7, 1.0F)}, 0);
+  CHECK(flip.find(id)->cls == 7);  // counter was spent, the challenger takes over
+  CHECK(flip.find(id)->confidence == 1);
+
+  // An observation with no confidence carries no semantic evidence: it does
+  // not vote, but its height still counts.
+  TileGrid quiet;
+  integrate(quiet, std::vector<Observation>{labelled(0.01, 0.01, 4, 1.0F)}, 0);
+  integrate(quiet, std::vector<Observation>{labelled(0.01, 0.01, 9, 0.0F)}, 0);
+  CHECK(quiet.find(id)->cls == 4);
+  CHECK(quiet.find(id)->confidence == 1);
+  CHECK(quiet.find(id)->count == 2);
+}
+
 }  // namespace
 
 int main() {
@@ -270,5 +326,6 @@ int main() {
   checkOutOfRangeRejection();
   checkNonFiniteRejection();
   checkLastSeenStamping();
+  checkSemanticAccumulation();
   return 0;
 }
