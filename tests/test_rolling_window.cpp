@@ -3,6 +3,7 @@
 // of remaining in-window cells -- plus the bound the window exists to provide.
 //
 // Each group names the production bug it exists to catch.
+#include <algorithm>
 #include <cstddef>
 #include <cstdint>
 #include <vector>
@@ -259,6 +260,58 @@ void checkIntegrateHonoursWindow() {
   CHECK(grid.find(veyra::core::worldToKey(0.1, 0.0, 0)) == nullptr);
 }
 
+// 9. The claim the project sells: drive far enough and memory stays bounded.
+//    Recentre and integrate across 300 m -- three times the old fixed box --
+//    and assert the cell and byte counts plateau instead of growing.
+//    Catches: the origin-anchored range bug, which this test fails in two
+//    ways at once -- the map stops updating past 100 m, and if it did not,
+//    nothing would ever be evicted.
+void checkLongDriveStaysBounded() {
+  constexpr double kR = 2.0;
+  TileGrid grid{MapWindow{0.0, 0.0, kR}};
+
+  std::size_t max_cells = 0;
+  std::size_t max_bytes = 0;
+  std::size_t max_tiles = 0;
+  std::size_t cells_at_50 = 0;
+  for (int step = 0; step <= 300; ++step) {
+    const double vx = static_cast<double>(step);
+    grid.recenter(vx, 0.0);
+
+    std::vector<veyra::map::Observation> batch;
+    for (int k = -20; k <= 20; ++k) {
+      batch.push_back(obs(vx + 0.05 * static_cast<double>(k), 0.05 * static_cast<double>(k)));
+    }
+    veyra::map::integrate(grid, batch, static_cast<std::uint32_t>(step));
+
+    const GridStats s = grid.statistics();
+    max_cells = std::max(max_cells, s.occupied_cells);
+    max_bytes = std::max(max_bytes, s.allocated_bytes);
+    max_tiles = std::max(max_tiles, s.tiles);
+    if (step == 50) {
+      cells_at_50 = s.occupied_cells;
+    }
+  }
+
+  // Analytic ceiling: a disc of radius 2 m at 5 cm holds pi * 2^2 / 0.05^2 =
+  // 5027 cells. Anything at or below that is bounded by the window, not by
+  // luck.
+  CHECK(max_cells <= 5027);
+  // Bytes are bounded by the same disc. A 4 m diameter spans at most
+  // ceil(4 / 1.6) + 1 = 4 tiles per axis, so 16 tiles, and the byte count must
+  // agree with the tile count rather than being tracked separately.
+  CHECK(max_tiles <= 16);
+  CHECK(max_bytes == max_tiles * TileGrid::bytesPerTile());
+
+  const GridStats end = grid.statistics();
+  CHECK(end.occupied_cells > 0);
+  // Plateau, not growth: 300 m in looks like 50 m in.
+  CHECK(end.occupied_cells <= cells_at_50 + cells_at_50 / 5);
+  CHECK(cells_at_50 > 0);
+  // Still updating 300 m out -- the property the origin-anchored box destroyed.
+  CHECK(grid.find(veyra::core::worldToKey(300.0, 0.0, 0)) != nullptr);
+}
+
 }  // namespace
 
 int main() {
@@ -270,5 +323,6 @@ int main() {
   checkTilesAreReleased();
   checkNegativeMotion();
   checkIntegrateHonoursWindow();
+  checkLongDriveStaysBounded();
   return 0;
 }
