@@ -1,0 +1,305 @@
+"""Composition of dataset frames and optional perception backends."""
+
+from __future__ import annotations
+
+from dataclasses import dataclass
+from pathlib import Path
+from typing import Any
+
+import numpy as np
+
+from datasets.common.observation import ObservationFrame
+from perception.ground import PatchworkPPGroundSegmenter
+from perception.semantic import GroundTruthSemanticProvider, OnnxSemanticProvider
+from perception.temporal import TemporalTracker
+from perception.terrain import TerrainAnalyzer
+
+
+class PerceptionConfigurationError(ValueError):
+    """Raised for an incomplete or contradictory perception configuration."""
+
+
+@dataclass(frozen=True)
+class PipelineStatus:
+    """Backend status suitable for diagnostics and the visualizer."""
+
+    semantic: str
+    ground: str
+    terrain: str
+    temporal: str
+    diagnostics: tuple[str, ...] = ()
+
+
+@dataclass(frozen=True)
+class PipelineOutput:
+    frame: ObservationFrame
+    status: PipelineStatus
+
+
+class PerceptionPipeline:
+    """Run deterministic perception stages over one adapter observation.
+
+    Optional stages fail closed: their existing frame fields are preserved and
+    status is marked ``unavailable``. No unavailable backend is replaced by a
+    heuristic or fabricated result.
+    """
+
+    def __init__(
+        self,
+        *,
+        semantic_provider: Any | None = None,
+        ground_segmenter: Any | None = None,
+        terrain_analyzer: Any | None = None,
+        temporal_tracker: Any | None = None,
+        ground_enabled: bool | None = None,
+        terrain_enabled: bool | None = None,
+        temporal_enabled: bool | None = None,
+    ) -> None:
+        self.semantic_provider = semantic_provider or GroundTruthSemanticProvider()
+        self.ground_segmenter = ground_segmenter
+        self.terrain_analyzer = terrain_analyzer
+        self.temporal_tracker = temporal_tracker
+        self._ground_enabled = ground_enabled
+        self._terrain_enabled = terrain_enabled
+        self._temporal_enabled = temporal_enabled
+        self._last_sequence_key: tuple[str, str] | None = None
+
+    @classmethod
+    def from_config(cls, config: dict[str, Any]) -> PerceptionPipeline:
+        """Construct explicit production stages from a validated config mapping."""
+
+        if not isinstance(config, dict):
+            raise PerceptionConfigurationError("perception config must be a mapping")
+        semantic_config = cls._config_section(config, "semantic")
+        mode = semantic_config.get("mode", "ground_truth")
+        if mode == "ground_truth":
+            semantic_provider = GroundTruthSemanticProvider()
+        elif mode == "onnx":
+            mapping = semantic_config.get("mapping")
+            model_path = semantic_config.get("model_path")
+            if not isinstance(mapping, dict) or not isinstance(model_path, str):
+                raise PerceptionConfigurationError(
+                    "onnx semantic mode requires mapping and model_path"
+                )
+            providers = semantic_config.get("providers")
+            if providers is not None and (
+                not isinstance(providers, list)
+                or not all(isinstance(item, str) for item in providers)
+            ):
+                raise PerceptionConfigurationError(
+                    "onnx providers must be a string list"
+                )
+            semantic_provider = OnnxSemanticProvider.from_model_path(
+                model_path,
+                mapping={int(key): int(value) for key, value in mapping.items()},
+                default_class=int(semantic_config.get("default_class", 0)),
+                providers=providers,
+            )
+        else:
+            raise PerceptionConfigurationError(f"unsupported semantic mode: {mode}")
+
+        ground_config = cls._config_section(config, "ground")
+        terrain_config = cls._config_section(config, "terrain")
+        temporal_config = cls._config_section(config, "temporal")
+        ground_enabled = cls._enabled(ground_config, "ground")
+        terrain_enabled = cls._enabled(terrain_config, "terrain")
+        temporal_enabled = cls._enabled(temporal_config, "temporal")
+        if terrain_enabled and not ground_enabled:
+            raise PerceptionConfigurationError(
+                "terrain cannot be enabled without an explicit ground stage"
+            )
+        return cls(
+            semantic_provider=semantic_provider,
+            ground_segmenter=(PatchworkPPGroundSegmenter() if ground_enabled else None),
+            terrain_analyzer=(
+                TerrainAnalyzer(**cls._options(terrain_config))
+                if terrain_enabled
+                else None
+            ),
+            temporal_tracker=(
+                TemporalTracker(**cls._options(temporal_config))
+                if temporal_enabled
+                else None
+            ),
+            ground_enabled=ground_enabled,
+            terrain_enabled=terrain_enabled,
+            temporal_enabled=temporal_enabled,
+        )
+
+    @staticmethod
+    def _config_section(config: dict[str, Any], name: str) -> dict[str, Any]:
+        section = config.get(name, {})
+        if not isinstance(section, dict):
+            raise PerceptionConfigurationError(f"{name} config must be a mapping")
+        return section
+
+    @staticmethod
+    def _enabled(section: dict[str, Any], name: str) -> bool:
+        enabled = section.get("enabled", False)
+        if not isinstance(enabled, bool):
+            raise PerceptionConfigurationError(f"{name}.enabled must be boolean")
+        return enabled
+
+    @staticmethod
+    def _options(section: dict[str, Any]) -> dict[str, Any]:
+        return {key: value for key, value in section.items() if key != "enabled"}
+
+    def process(self, frame: ObservationFrame) -> PipelineOutput:
+        if self.temporal_tracker is not None:
+            sequence_key = (frame.dataset, frame.sequence)
+            if (
+                self._last_sequence_key is not None
+                and sequence_key != self._last_sequence_key
+            ):
+                reset = getattr(self.temporal_tracker, "reset", None)
+                if callable(reset):
+                    reset()
+            self._last_sequence_key = sequence_key
+        points = frame.points
+        semantic = self.semantic_provider.infer(points, frame.semantic_class)
+        self._require_size(semantic.semantic_class, points.shape[0], "semantic class")
+        self._require_size(
+            semantic.semantic_confidence, points.shape[0], "semantic confidence"
+        )
+
+        ground = None
+        ground_status = "unavailable"
+        diagnostics: list[str] = []
+        if self._ground_enabled is False:
+            ground_status = "disabled"
+        elif self.ground_segmenter is not None:
+            try:
+                ground = self.ground_segmenter.segment(points)
+                self._require_size(ground.mask, points.shape[0], "ground mask")
+                ground_status = str(ground.backend)
+            except RuntimeError as error:
+                ground = None
+                diagnostics.append(f"ground backend unavailable: {error}")
+
+        terrain = None
+        terrain_status = "unavailable"
+        if self._terrain_enabled is False:
+            terrain_status = "disabled"
+        elif ground is not None and self.terrain_analyzer is not None:
+            terrain = self.terrain_analyzer.analyze(points, ground)
+            self._require_size(terrain.drivable, points.shape[0], "terrain result")
+            terrain_status = "available"
+
+        motion = None
+        temporal_status = "unavailable"
+        if self._temporal_enabled is False:
+            temporal_status = "disabled"
+        elif (
+            self.temporal_tracker is not None
+            and frame.timestamp is not None
+            and np.isfinite(frame.timestamp)
+            and frame.provenance.coordinate_frame in {"world", "unspecified"}
+        ):
+            motion = self.temporal_tracker.update(
+                points,
+                semantic.semantic_class,
+                frame.pose.matrix,
+                timestamp=float(frame.timestamp),
+            )
+            self._require_size(
+                motion.motion_probability, points.shape[0], "motion result"
+            )
+            temporal_status = "available"
+        elif self.temporal_tracker is not None:
+            diagnostics.append(
+                "temporal stage unavailable: requires dataset timestamp and world coordinates"
+            )
+
+        output = ObservationFrame(
+            timestamp=frame.timestamp,
+            pose=frame.pose,
+            points=points,
+            semantic_class=semantic.semantic_class,
+            semantic_confidence=semantic.semantic_confidence,
+            ground=ground.mask if ground is not None else frame.ground,
+            drivable=terrain.drivable if terrain is not None else frame.drivable,
+            slope=terrain.slope if terrain is not None else frame.slope,
+            roughness=terrain.roughness if terrain is not None else frame.roughness,
+            height_complexity=(
+                terrain.height_complexity
+                if terrain is not None
+                else frame.height_complexity
+            ),
+            motion_probability=(
+                motion.motion_probability
+                if motion is not None
+                else frame.motion_probability
+            ),
+            velocity_xy=motion.velocity_xy if motion is not None else frame.velocity_xy,
+            dataset=frame.dataset,
+            sequence=frame.sequence,
+            frame_id=frame.frame_id,
+            terrain_confidence=(
+                ground.confidence
+                if terrain is None and ground is not None
+                else terrain.confidence
+                if terrain is not None
+                else frame.terrain_confidence
+            ),
+            step=terrain.step if terrain is not None else frame.step,
+            motion_state=motion.state if motion is not None else frame.motion_state,
+            observation_quality=(self._quality(semantic.semantic_confidence, terrain)),
+            raw_semantic_class=frame.raw_semantic_class,
+            provenance=frame.provenance,
+        )
+        return PipelineOutput(
+            frame=output,
+            status=PipelineStatus(
+                semantic=semantic.mode,
+                ground=ground_status,
+                terrain=terrain_status,
+                temporal=temporal_status,
+                diagnostics=tuple(diagnostics),
+            ),
+        )
+
+    @staticmethod
+    def _quality(semantic_confidence: np.ndarray, terrain: Any | None) -> np.ndarray:
+        if terrain is None:
+            return np.asarray(semantic_confidence, dtype=np.float32)
+        return np.minimum(
+            np.asarray(semantic_confidence, dtype=np.float32),
+            np.asarray(terrain.confidence, dtype=np.float32),
+        )
+
+    @staticmethod
+    def _require_size(values: np.ndarray, count: int, name: str) -> None:
+        if np.asarray(values).reshape(-1).shape != (count,):
+            raise ValueError(f"{name} must contain one value per point")
+
+
+def load_perception_pipeline(path: str | Path) -> PerceptionPipeline:
+    """Load a local, explicit YAML configuration into a perception pipeline."""
+
+    config_path = Path(path)
+    if not config_path.is_file():
+        raise PerceptionConfigurationError(
+            f"perception configuration does not exist: {config_path}"
+        )
+    try:
+        import yaml
+    except ImportError as error:
+        raise PerceptionConfigurationError(
+            "PyYAML is required to load a perception configuration"
+        ) from error
+    try:
+        config = yaml.safe_load(config_path.read_text())
+    except yaml.YAMLError as error:
+        raise PerceptionConfigurationError(
+            f"invalid perception YAML: {config_path}"
+        ) from error
+    return PerceptionPipeline.from_config(config)
+
+
+__all__ = [
+    "PerceptionConfigurationError",
+    "PerceptionPipeline",
+    "PipelineOutput",
+    "PipelineStatus",
+    "load_perception_pipeline",
+]

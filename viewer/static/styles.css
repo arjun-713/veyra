@@ -216,6 +216,7 @@ body[data-dataset="semanticposs"] .dsbtn[data-dataset="semanticposs"] .led { bac
   cursor: pointer;
 }
 .tbtn { width: 38px; height: 34px; }
+.tbtn#resetBtn { width: auto; padding: 0 10px; font: 700 11px/1 var(--mono); letter-spacing: .08em; }
 .tbtn svg { width: 16px; height: 16px; }
 .tbtn:hover { border-color: var(--bone-faint); }
 .runbtn {

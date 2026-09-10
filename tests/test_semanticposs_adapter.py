@@ -4,7 +4,9 @@ from pathlib import Path
 
 import numpy as np
 
+from datasets.common.taxonomy import SEMANTIC_POSS_LABELS, map_dataset_labels
 from datasets.semanticposs.adapter import SemanticPOSSDataset
+from perception.pipeline import PerceptionPipeline
 
 
 def write_frame(
@@ -21,6 +23,54 @@ def write_frame(
 
 
 class SemanticPOSSAdapterTests(unittest.TestCase):
+    def test_uses_the_versioned_semanticposs_label_taxonomy(self):
+        raw = np.array([0, 4, 7, 8, 15, 22], dtype=np.uint32)
+
+        mapped = map_dataset_labels(raw, SEMANTIC_POSS_LABELS)
+
+        np.testing.assert_array_equal(mapped, [0, 6, 1, 16, 13, 12])
+
+    def test_range_crop_uses_lidar_range_before_world_translation(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            write_frame(root, "00", "0", [1.0, 200.0])
+            (root / "00" / "poses.txt").write_text("1 0 0 1000 0 1 0 0 0 0 1 0\n")
+            (root / "00" / "calib.txt").write_text("Tr: 1 0 0 0 0 1 0 0 0 0 1 0\n")
+
+            frame = SemanticPOSSDataset(root).load_frame("00", "0", max_range_m=100.0)
+
+        self.assertEqual(frame.points.shape, (1, 4))
+        self.assertAlmostEqual(float(frame.points[0, 0]), 1001.0)
+
+    def test_reports_present_pose_and_absent_timestamp_provenance(self):
+        root = Path("data/raw/semanticposs/dataset")
+        if not root.is_dir():
+            self.skipTest("original local SemanticPOSS data is unavailable")
+
+        frame = SemanticPOSSDataset(root).load_frame("00", "000000")
+
+        self.assertEqual(frame.provenance.coordinate_frame, "world")
+        self.assertEqual(frame.provenance.pose_source, "dataset")
+        self.assertEqual(frame.provenance.calibration_source, "dataset")
+        self.assertEqual(frame.provenance.timestamp_source, "absent")
+
+    def test_original_local_frame_maps_real_labels_and_pipeline_contract(self):
+        root = Path(__file__).parents[1] / "data/raw/semanticposs/dataset"
+        if not root.is_dir():
+            self.skipTest("original local SemanticPOSS data is unavailable")
+        adapter = SemanticPOSSDataset(root, sequences=["00"])
+        frame = adapter.load_frame("00", adapter.list_frames("00")[0].frame_id)
+        self.assertGreater(frame.points.shape[0], 10_000)
+        self.assertGreater(np.count_nonzero(frame.semantic_class), 0)
+
+        output = PerceptionPipeline().process(frame)
+        self.assertEqual(output.status.semantic, "ground_truth")
+        self.assertEqual(output.frame.points.shape, frame.points.shape)
+
+    def test_real_taxonomy_maps_known_labels_and_preserves_unknown(self):
+        mapped = map_dataset_labels(np.array([4, 7, 999]), SEMANTIC_POSS_LABELS)
+        self.assertEqual(mapped.tolist(), [6, 1, 0])
+
     def test_frames_are_sorted_numerically_and_labels_are_paired(self):
         with tempfile.TemporaryDirectory() as raw:
             root = Path(raw)
@@ -33,6 +83,7 @@ class SemanticPOSSAdapterTests(unittest.TestCase):
             )
             frame = adapter.load_frame("00", "2", label_mapping={10: 1, 20: 2})
             np.testing.assert_array_equal(frame.semantic_class, [1, 2])
+            np.testing.assert_array_equal(frame.raw_semantic_class, [10, 20])
             np.testing.assert_array_equal(frame.semantic_confidence, [1.0, 1.0])
 
     def test_pose_and_calibration_transform_points_into_world(self):

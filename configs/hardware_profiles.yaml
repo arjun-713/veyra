@@ -1,7 +1,7 @@
-# Named-hardware profiles for reporting measured (not analytical) numbers.
+# Runtime hardware is captured by the runner. Profiles label a run but must not
+# contain guessed CPU, GPU, or RAM values.
+schema_version: 2
 profiles:
-  - name: dev-laptop
-    os: ubuntu-22.04
-    cpu: TODO
-    gpu: TODO
-    ram_gb: TODO
+  - name: auto
+    capture: runtime
+    description: Capture OS, CPU model, logical CPUs, and physical memory at run time.

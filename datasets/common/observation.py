@@ -14,6 +14,42 @@ def _as_array(value: np.ndarray, *, dtype: np.dtype | None = None) -> np.ndarray
     return array
 
 
+def _freeze(array: np.ndarray) -> np.ndarray:
+    array = np.array(array, copy=True)
+    array.setflags(write=False)
+    return array
+
+
+@dataclass(frozen=True)
+class FrameProvenance:
+    """State exactly which dataset metadata was consumed for a frame.
+
+    A missing pose, time, or calibration file is meaningful runtime state. It
+    must not be mistaken for a measured identity transform or generated time.
+    """
+
+    coordinate_frame: str = "unspecified"
+    timestamp_source: str = "unspecified"
+    pose_source: str = "unspecified"
+    calibration_source: str = "unspecified"
+
+    def __post_init__(self) -> None:
+        if self.coordinate_frame not in {
+            "world",
+            "lidar",
+            "calibrated_lidar",
+            "unspecified",
+        }:
+            raise ValueError("coordinate_frame is invalid")
+        if self.timestamp_source not in {"dataset", "absent", "unspecified"}:
+            raise ValueError("timestamp_source is invalid")
+        for name in ("pose_source", "calibration_source"):
+            if getattr(self, name) not in {"dataset", "identity_absent", "unspecified"}:
+                raise ValueError(f"{name} is invalid")
+        if self.coordinate_frame == "world" and self.pose_source != "dataset":
+            raise ValueError("world coordinates require a dataset pose")
+
+
 @dataclass(frozen=True)
 class PoseSE3:
     """A rigid transform from the LiDAR frame into the configured world frame."""
@@ -22,12 +58,19 @@ class PoseSE3:
     timestamp: float | None = None
 
     def __post_init__(self) -> None:
+        if self.timestamp is not None and not np.isfinite(self.timestamp):
+            raise ValueError("PoseSE3.timestamp must be finite")
         matrix = _as_array(self.matrix, dtype=np.float64)
         if matrix.shape != (4, 4):
             raise ValueError("PoseSE3.matrix must have shape (4, 4)")
         if not np.allclose(matrix[3], [0.0, 0.0, 0.0, 1.0]):
             raise ValueError("PoseSE3.matrix must be homogeneous")
-        object.__setattr__(self, "matrix", matrix)
+        rotation = matrix[:3, :3]
+        if not np.allclose(
+            rotation.T @ rotation, np.eye(3), atol=2e-3
+        ) or not np.isclose(np.linalg.det(rotation), 1.0, atol=2e-3):
+            raise ValueError("PoseSE3.matrix rotation must be rigid")
+        object.__setattr__(self, "matrix", _freeze(matrix))
 
     @classmethod
     def identity(cls, timestamp: float | None = None) -> PoseSE3:
@@ -46,12 +89,14 @@ class LidarFrame:
     timestamp: float | None = None
 
     def __post_init__(self) -> None:
+        if self.timestamp is not None and not np.isfinite(self.timestamp):
+            raise ValueError("LidarFrame.timestamp must be finite")
         points = _as_array(self.points, dtype=np.float32)
         if points.ndim != 2 or points.shape[1] != 4:
             raise ValueError(
                 "LidarFrame.points must have shape (N, 4): XYZ plus intensity"
             )
-        object.__setattr__(self, "points", points)
+        object.__setattr__(self, "points", _freeze(points))
 
 
 @dataclass(frozen=True)
@@ -71,8 +116,8 @@ class SemanticFrame:
             raise ValueError("semantic confidence must be in [0, 1]")
         if self.mode not in {"ground_truth", "model"}:
             raise ValueError("semantic mode must be 'ground_truth' or 'model'")
-        object.__setattr__(self, "semantic_class", classes)
-        object.__setattr__(self, "semantic_confidence", confidence)
+        object.__setattr__(self, "semantic_class", _freeze(classes))
+        object.__setattr__(self, "semantic_confidence", _freeze(confidence))
 
 
 @dataclass(frozen=True)
@@ -99,8 +144,18 @@ class ObservationFrame:
     dataset: str = ""
     sequence: str = ""
     frame_id: str = ""
+    terrain_confidence: np.ndarray | None = None
+    step: np.ndarray | None = None
+    motion_state: np.ndarray | None = None
+    observation_quality: np.ndarray | None = None
+    raw_semantic_class: np.ndarray | None = None
+    provenance: FrameProvenance = FrameProvenance()
 
     def __post_init__(self) -> None:
+        if self.timestamp is not None and not np.isfinite(self.timestamp):
+            raise ValueError("ObservationFrame.timestamp must be finite")
+        if not isinstance(self.provenance, FrameProvenance):
+            raise TypeError("provenance must be a FrameProvenance")
         points = _as_array(self.points, dtype=np.float32)
         if points.ndim != 2 or points.shape[1] != 4:
             raise ValueError("ObservationFrame.points must have shape (N, 4)")
@@ -129,8 +184,30 @@ class ObservationFrame:
             "motion_probability",
         ):
             arrays[name] = arrays[name].astype(np.float32, copy=False)
+        optional_arrays = {
+            "raw_semantic_class": arrays["semantic_class"].copy()
+            if self.raw_semantic_class is None
+            else np.asarray(self.raw_semantic_class, dtype=np.int32),
+            "terrain_confidence": np.zeros(count, dtype=np.float32)
+            if self.terrain_confidence is None
+            else np.asarray(self.terrain_confidence, dtype=np.float32),
+            "step": np.full(count, np.nan, dtype=np.float32)
+            if self.step is None
+            else np.asarray(self.step, dtype=np.float32),
+            "motion_state": np.full(count, "unknown", dtype="U15")
+            if self.motion_state is None
+            else np.asarray(self.motion_state, dtype=str),
+            "observation_quality": arrays["semantic_confidence"].copy()
+            if self.observation_quality is None
+            else np.asarray(self.observation_quality, dtype=np.float32),
+        }
         if any(array.ndim != 1 or array.shape[0] != count for array in arrays.values()):
             raise ValueError("all ObservationFrame per-point fields must have length N")
+        if any(
+            array.ndim != 1 or array.shape[0] != count
+            for array in optional_arrays.values()
+        ):
+            raise ValueError("all optional ObservationFrame fields must have length N")
         velocity = _as_array(self.velocity_xy, dtype=np.float32)
         if velocity.shape != (count, 2):
             raise ValueError("ObservationFrame.velocity_xy must have shape (N, 2)")
@@ -143,10 +220,34 @@ class ObservationFrame:
             (arrays["motion_probability"] < 0.0) | (arrays["motion_probability"] > 1.0)
         ):
             raise ValueError("motion probability must be in [0, 1]")
-        object.__setattr__(self, "points", points)
-        object.__setattr__(self, "velocity_xy", velocity)
+        if np.any(
+            ~np.isin(arrays["drivable"], ["drivable", "non_drivable", "unknown"])
+        ):
+            raise ValueError("drivable must be drivable, non_drivable, or unknown")
+        if np.any(
+            ~np.isin(
+                optional_arrays["motion_state"],
+                ["static", "possibly_moving", "moving", "unknown"],
+            )
+        ):
+            raise ValueError("motion_state contains an invalid value")
+        for name in ("terrain_confidence", "observation_quality"):
+            if np.any(~np.isfinite(optional_arrays[name])) or np.any(
+                (optional_arrays[name] < 0.0) | (optional_arrays[name] > 1.0)
+            ):
+                raise ValueError(f"{name} must be finite and within [0, 1]")
+        object.__setattr__(self, "points", _freeze(points))
+        object.__setattr__(self, "velocity_xy", _freeze(velocity))
         for name, array in arrays.items():
-            object.__setattr__(self, name, array)
+            object.__setattr__(self, name, _freeze(array))
+        for name, array in optional_arrays.items():
+            object.__setattr__(self, name, _freeze(array))
 
 
-__all__ = ["LidarFrame", "ObservationFrame", "PoseSE3", "SemanticFrame"]
+__all__ = [
+    "FrameProvenance",
+    "LidarFrame",
+    "ObservationFrame",
+    "PoseSE3",
+    "SemanticFrame",
+]

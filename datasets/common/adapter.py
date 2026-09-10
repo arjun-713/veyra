@@ -23,6 +23,10 @@ class DatasetAdapter(Protocol):
 
     def list_frames(self, sequence: str) -> list[DatasetFrameRef]: ...
 
+    def load_frame(
+        self, sequence: str, frame_id: str, **options: object
+    ) -> ObservationFrame: ...
+
     def replay(
         self, sequence: str, **options: object
     ) -> Iterator[ObservationFrame]: ...

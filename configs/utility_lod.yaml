@@ -1,6 +1,21 @@
 # UtilityLOD: distance baseline + promotion gated by observation quality.
 # See docs/resolution-policies.md
-baseline: distance_lod
-promote_on: [geometry, semantics, motion, traversability_risk]
-gate_uncertainty_by: observation_quality
-protect_near_field_m: 10.0
+mode: utility_lod
+distance_boundaries_m: [10.0, 30.0, 60.0]
+max_range_m: 100.0
+utility:
+  geometry_weight: 0.20
+  semantic_weight: 0.30
+  motion_weight: 0.15
+  traversability_risk_weight: 0.25
+  uncertainty_weight: 0.10
+  min_observation_quality: 0.50
+  min_point_density: 0.50
+  ema_alpha: 0.35
+  split_threshold: 0.55
+  merge_threshold: 0.30
+  split_consecutive_frames: 2
+  merge_consecutive_frames: 3
+  cooldown_frames: 4
+  max_level_changes_per_decision: 1
+  prediction_horizon_s: 1.0

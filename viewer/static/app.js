@@ -42,7 +42,7 @@
   var els = {};
   ["pairLed", "pairTxt", "scopeRead", "glwrap", "gl", "skeleton", "scopeMsg",
    "frameRead", "seqRead", "ptsRead", "shownRead", "clsRead", "bankRow",
-   "timeRead", "poseRead", "rangeRead", "clipRead", "hist", "prevBtn", "runBtn", "runLabel", "runIcon", "nextBtn",
+   "timeRead", "poseRead", "rangeRead", "groundRead", "terrainRead", "motionRead", "mapRead", "lodRead", "mapFpsRead", "mapLatencyRead", "rssRead", "clipRead", "histTitle", "hist", "prevBtn", "runBtn", "runLabel", "runIcon", "nextBtn", "resetBtn",
    "budget", "stepRow", "scrub", "statusRoot", "statusData"
   ].forEach(function (id) { els[id] = $(id); });
 
@@ -138,6 +138,19 @@
     return [c[0] / 255, c[1] / 255, c[2] / 255];
   }
 
+  function evidenceColor(f, i, kind) {
+    if (kind === "ground") return f.pipeline_status && f.pipeline_status.ground !== "unavailable"
+      ? (f.ground[i] ? [0.24, 0.86, 0.5] : [0.25, 0.28, 0.3]) : [0.25, 0.28, 0.3];
+    if (kind === "terrain") {
+      if (!f.pipeline_status || f.pipeline_status.terrain === "unavailable") return [0.25, 0.28, 0.3];
+      return f.drivable[i] === "drivable" ? [0.24, 0.86, 0.5]
+        : f.drivable[i] === "non_drivable" ? [1.0, 0.23, 0.19] : [0.62, 0.58, 0.48];
+    }
+    if (!f.pipeline_status || f.pipeline_status.temporal === "unavailable") return [0.25, 0.28, 0.3];
+    var motion = Math.max(0, Math.min(1, Number(f.motion_probability[i] || 0)));
+    return lerp3([0.22, 0.31, 0.38], [1.0, 0.23, 0.19], motion);
+  }
+
   function className(dataset, id) {
     if (dataset === "semanticposs" && POSS_NAMES[id] !== undefined) return POSS_NAMES[id];
     return "class " + id;
@@ -160,6 +173,7 @@
     for (i = 0; i < n; i++) {
       var c;
       if (state.color === "sem" && f.labels) c = semColor(f.dataset, f.labels[i]);
+      else if (["ground", "terrain", "motion"].indexOf(state.color) >= 0) c = evidenceColor(f, i, state.color);
       else if (state.color === "int") {
         var g = imax > 0 ? f.intensity[i] / imax : 0;
         c = [g, g, g * 0.96];
@@ -174,6 +188,91 @@
     g.setAttribute("color", new THREE.BufferAttribute(col, 3));
     points = new THREE.Points(g, new THREE.PointsMaterial({ size: 0.14, vertexColors: true, sizeAttenuation: true }));
     scene.add(points);
+  }
+
+  var MAP_MODES = ["mapelev", "mapsem", "mapmotion", "maplod"];
+  var LEVEL_RES = [0.05, 0.10, 0.20, 0.40];
+  var LEVEL_COLORS = [[255, 59, 48], [255, 176, 0], [237, 232, 220], [138, 143, 152]];
+  var mapPoints = [];
+
+  function isMapMode() { return MAP_MODES.indexOf(state.color) >= 0; }
+
+  function clearMapCells() {
+    mapPoints.forEach(function (p) { scene.remove(p); p.geometry.dispose(); p.material.dispose(); });
+    mapPoints = [];
+  }
+
+  function pushLinear(col, c) {
+    var tc = new THREE.Color(c[0], c[1], c[2]);
+    if (tc.convertSRGBToLinear) tc.convertSRGBToLinear();
+    col.push(tc.r, tc.g, tc.b);
+  }
+
+  function drawCells(dataset, cells) {
+    clearMapCells();
+    if (!cells.length) return;
+    var zmin = Infinity, zmax = -Infinity, mmax = 0, i, cell;
+    for (i = 0; i < cells.length; i++) {
+      cell = cells[i];
+      if (cell.z < zmin) zmin = cell.z;
+      if (cell.z > zmax) zmax = cell.z;
+      if (cell.m > mmax) mmax = cell.m;
+    }
+    if (mmax <= 0) mmax = 1;
+    var byLevel = [[], [], [], []];
+    cells.forEach(function (cell) { byLevel[cell.l].push(cell); });
+    byLevel.forEach(function (group, level) {
+      if (!group.length) return;
+      var res = LEVEL_RES[level];
+      var pos = new Float32Array(group.length * 3);
+      var col = [];
+      group.forEach(function (cell, k) {
+        pos[k * 3] = (cell.iy + 0.5) * res;
+        pos[k * 3 + 1] = cell.z;
+        pos[k * 3 + 2] = -((cell.ix + 0.5) * res);
+        var c;
+        if (state.color === "mapsem") c = semColor(dataset, cell.c);
+        else if (state.color === "mapmotion") {
+          var t = Math.max(0, Math.min(1, cell.m / mmax));
+          c = lerp3([0.22, 0.31, 0.38], [1.0, 0.23, 0.19], t);
+        }
+        else if (state.color === "maplod") {
+          var lc = LEVEL_COLORS[level];
+          c = [lc[0] / 255, lc[1] / 255, lc[2] / 255];
+        }
+        else c = elevColor(cell.z, zmin, zmax);
+        pushLinear(col, c);
+      });
+      var geo = new THREE.BufferGeometry();
+      geo.setAttribute("position", new THREE.BufferAttribute(pos, 3));
+      geo.setAttribute("color", new THREE.BufferAttribute(new Float32Array(col), 3));
+      var pts = new THREE.Points(geo, new THREE.PointsMaterial({
+        size: res * 0.9, vertexColors: true, sizeAttenuation: true
+      }));
+      scene.add(pts);
+      mapPoints.push(pts);
+    });
+  }
+
+  function loadMapCells() {
+    var map = state.frame && state.frame.map;
+    if (!map || map.status !== "available") {
+      clearMapCells();
+      showMsg("", "<b>MAP LAYERS UNAVAILABLE</b> — start the server with " +
+        "<code>--runtime-config</code> pointing at a <code>map.executable</code> " +
+        "(see <code>viewer/runtime.example.json</code>). Point layers keep working.");
+      return;
+    }
+    hideMsg();
+    api("/api/map_cells?budget=20000").then(function (res) {
+      if (res.status !== "available" || !res.cells) throw new Error("map engine returned no cells");
+      // A newer frame may have loaded while fetching; only draw for current.
+      if (!state.frame || !isMapMode()) return;
+      drawCells(state.frame.dataset, res.cells);
+    }).catch(function (err) {
+      clearMapCells();
+      showMsg("error", "<b>MAP CELLS FAILED</b> — " + escapeHtml(err.message));
+    });
   }
 
   function setView(v) {
@@ -210,6 +309,33 @@
       return j;
     });
   }
+  function post(path) {
+    return fetch(path, { method: "POST" }).then(function (r) {
+      if (!r.ok) throw new Error("HTTP " + r.status + " for " + path);
+      return r.json();
+    }).then(function (j) {
+      if (j.error) throw new Error(j.error);
+      return j;
+    });
+  }
+  function acceptFrame(f) {
+    state.frame = f;
+    state.index = f.index;
+    state.frames = f.frames;
+    if (isMapMode()) {
+      if (points) { scene.remove(points); points.geometry.dispose(); points.material.dispose(); points = null; }
+      renderReadouts(f);
+      renderStrip();
+      writeHash();
+      loadMapCells();
+      return;
+    }
+    clearMapCells();
+    drawFrame(f);
+    renderReadouts(f);
+    renderStrip();
+    writeHash();
+  }
   function showMsg(kind, html) {
     els.scopeMsg.hidden = false;
     els.scopeMsg.className = "scope-msg" + (kind === "error" ? " error" : "");
@@ -230,13 +356,8 @@
         "&seq=" + encodeURIComponent(state.seq) +
         "&index=" + state.index + "&budget=" + state.budget)
       .then(function (f) {
-        state.frame = f;
-        state.frames = f.frames;
-        drawFrame(f);
-        renderReadouts(f);
-        renderStrip();
+        acceptFrame(f);
         setLoading(false);
-        writeHash();
       })
       .catch(function (err) {
         setLoading(false);
@@ -268,13 +389,56 @@
     els.rangeRead.textContent = f.cropped
       ? "CROPPED ≤ " + Number(f.range_m || 100).toFixed(0) + " M"
       : "FULL FRAME";
+    var statuses = f.pipeline_status || {};
+    els.groundRead.textContent = String(statuses.ground || "UNAVAILABLE").toUpperCase();
+    els.terrainRead.textContent = String(statuses.terrain || "UNAVAILABLE").toUpperCase();
+    els.motionRead.textContent = String(statuses.temporal || "UNAVAILABLE").toUpperCase();
+    var map = f.map || {};
+    var mapMetrics = map.metrics || {};
+    var mapSnapshot = map.snapshot || {};
+    var levels = mapSnapshot.levels || {};
+    els.mapRead.textContent = String(map.status || "UNAVAILABLE").toUpperCase();
+    els.lodRead.textContent = map.status === "available"
+      ? [0, 1, 2, 3].map(function (level) { return "L" + level + " " + (levels[level] || 0); }).join(" · ")
+      : "UNAVAILABLE";
+    els.mapFpsRead.textContent = map.status === "available" && mapMetrics.fps !== null && mapMetrics.fps !== undefined
+      ? Number(mapMetrics.fps).toFixed(2) : "UNAVAILABLE";
+    var latency = mapMetrics.map_update_latency_ns || {};
+    els.mapLatencyRead.textContent = map.status === "available" && latency.p95 !== undefined
+      ? (Number(latency.p95) / 1e6).toFixed(3) + " MS" : "UNAVAILABLE";
+    els.rssRead.textContent = map.status === "available" && mapMetrics.measured_rss_bytes !== null && mapMetrics.measured_rss_bytes !== undefined
+      ? (Number(mapMetrics.measured_rss_bytes) / (1024 * 1024)).toFixed(1) + " MIB" : "UNAVAILABLE";
     els.scopeRead.textContent = state.dataset.toUpperCase() + " " + f.seq + " #" + f.id;
     els.pairLed.setAttribute("data-state", f.paired ? "ok" : "bad");
     els.pairTxt.textContent = f.paired ? "SCAN+LABEL" : "SCAN ONLY";
     els.scrub.max = String(Math.max(0, f.frames - 1));
     els.scrub.value = String(f.index);
     // Histogram: bar length IS the value (exact proportion of the top class).
+    // In map modes the histogram shows live level counts from the snapshot,
+    // not the decimated point classes, so the panel never contradicts the view.
+    els.histTitle.textContent = "CLASS HISTOGRAM";
     els.hist.innerHTML = "";
+    if (isMapMode()) {
+      els.histTitle.textContent = "LEVELS IN MAP";
+      if (map.status !== "available") {
+        els.hist.innerHTML = "<li class=\"empty\">Map layers need a configured map runtime.</li>";
+        return;
+      }
+      var counts = [0, 1, 2, 3].map(function (level) { return Number(levels[level] || 0); });
+      var top = Math.max.apply(null, counts.concat([1]));
+      counts.forEach(function (count, level) {
+        var row = document.createElement("li");
+        var lc = LEVEL_COLORS[level];
+        row.innerHTML = "<span class=\"sw\"></span><span class=\"bar\"></span>" +
+          "<span class=\"lbl mono\"></span>";
+        row.children[0].style.background = "rgb(" + lc[0] + "," + lc[1] + "," + lc[2] + ")";
+        row.children[1].style.width = (100 * count / top).toFixed(1) + "%";
+        row.children[1].style.background = "rgb(" + lc[0] + "," + lc[1] + "," + lc[2] + ")";
+        row.children[2].textContent = "L" + level + " · " + fmt(count);
+        els.hist.appendChild(row);
+      });
+      return;
+    }
     if (!f.paired) {
       els.hist.innerHTML = "<li class=\"empty\">No label file for this frame — showing geometry only.</li>";
       return;
@@ -437,7 +601,10 @@
           x.classList.toggle("on", on);
           x.setAttribute("aria-pressed", on ? "true" : "false");
         });
-        if (state.frame) { drawFrame(state.frame); renderReadouts(state.frame); }
+        if (state.frame) {
+          if (isMapMode()) { renderReadouts(state.frame); loadMapCells(); }
+          else { clearMapCells(); hideMsg(); drawFrame(state.frame); renderReadouts(state.frame); }
+        }
       });
     });
     document.querySelectorAll("[data-view]").forEach(function (b) {
@@ -452,6 +619,17 @@
       stop();
       state.index = (state.index + 1) % Math.max(1, state.frames);
       loadFrame();
+    });
+    els.resetBtn.addEventListener("click", function () {
+      stop();
+      setLoading(true);
+      post("/api/runtime/reset?budget=" + state.budget).then(function (f) {
+        acceptFrame(f);
+        setLoading(false);
+      }).catch(function (err) {
+        setLoading(false);
+        showMsg("error", "<b>RUNTIME RESET FAILED</b> — " + escapeHtml(err.message));
+      });
     });
     els.runBtn.addEventListener("click", toggle);
     document.querySelectorAll("[data-tempo]").forEach(function (b) {
@@ -479,9 +657,11 @@
       if (e.key === "ArrowRight") { stop(); state.index = Math.min(state.frames - 1, state.index + (e.shiftKey ? 10 : 1)); loadFrame(); }
       else if (e.key === "ArrowLeft") { stop(); state.index = Math.max(0, state.index - (e.shiftKey ? 10 : 1)); loadFrame(); }
       else if (e.key === " ") { e.preventDefault(); toggle(); }
-      else if (e.key === "1" || e.key === "2" || e.key === "3") {
-        var modes = ["sem", "elev", "int"];
-        document.querySelector("[data-color=\"" + modes[+e.key - 1] + "\"]").click();
+      else if (e.key >= "1" && e.key <= "9" || e.key === "0") {
+        var modes = ["sem", "elev", "int", "ground", "terrain", "motion",
+                     "mapelev", "mapsem", "mapmotion", "maplod"];
+        var mode = modes[(+e.key + 9) % 10];
+        if (mode) document.querySelector("[data-color=\"" + mode + "\"]").click();
       }
       else if (e.key === "o" || e.key === "O") setView("orbit");
       else if (e.key === "t" || e.key === "T") setView("top");

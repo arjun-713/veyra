@@ -1,5 +1,9 @@
 #include <cstdio>
+
 int main() {
-  std::puts("veyra live: ROS2/live LiDAR entrypoint (Vinay).");
-  return 0;
+  std::fputs(
+      "veyra_live unavailable: no ROS2/live-LiDAR adapter public interface is installed; "
+      "the local dataset player remains available via veyra_player.\n",
+      stderr);
+  return 3;
 }

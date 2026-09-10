@@ -2,7 +2,11 @@ import unittest
 
 import numpy as np
 
-from datasets.common.observation import ObservationFrame, PoseSE3
+from datasets.common.observation import (
+    FrameProvenance,
+    ObservationFrame,
+    PoseSE3,
+)
 
 
 class ObservationContractTests(unittest.TestCase):
@@ -35,6 +39,81 @@ class ObservationContractTests(unittest.TestCase):
     def test_pose_rejects_non_homogeneous_matrix(self):
         with self.assertRaises(ValueError):
             PoseSE3(np.eye(3))
+
+    def test_observation_rejects_invalid_states_and_freezes_arrays(self):
+        with self.assertRaises(ValueError):
+            _frame(drivable=["maybe", "unknown"])
+        with self.assertRaises(ValueError):
+            _frame(motion_state=["static", "flying"])
+
+        frame = _frame()
+        with self.assertRaises(ValueError):
+            frame.points[0, 0] = 99.0
+
+    def test_observation_preserves_raw_labels_separately_from_mapped_labels(self):
+        frame = _frame(
+            raw_semantic_class=np.array([42, 7], dtype=np.int32),
+            semantic_class=np.array([3, 1], dtype=np.int32),
+        )
+
+        np.testing.assert_array_equal(frame.raw_semantic_class, [42, 7])
+        np.testing.assert_array_equal(frame.semantic_class, [3, 1])
+        with self.assertRaises(ValueError):
+            frame.raw_semantic_class[0] = 99
+
+    def test_pose_and_timestamp_require_finite_values(self):
+        with self.assertRaises(ValueError):
+            PoseSE3.identity(timestamp=float("nan"))
+        with self.assertRaises(ValueError):
+            _frame(timestamp=float("inf"))
+
+    def test_observation_rejects_nan_point_coordinates(self):
+        points = np.zeros((2, 4), dtype=np.float32)
+        points[1, 2] = np.nan
+
+        with self.assertRaises(ValueError):
+            _frame(points=points)
+
+    def test_pose_rejects_a_non_rigid_rotation(self):
+        scaled = np.eye(4)
+        scaled[0, 0] = 2.0
+
+        with self.assertRaises(ValueError):
+            PoseSE3(scaled)
+
+    def test_metadata_provenance_makes_missing_sources_explicit(self):
+        frame = _frame(
+            timestamp=None,
+            provenance=FrameProvenance(
+                coordinate_frame="lidar",
+                timestamp_source="absent",
+                pose_source="identity_absent",
+                calibration_source="identity_absent",
+            ),
+        )
+
+        self.assertEqual(frame.provenance.coordinate_frame, "lidar")
+        self.assertEqual(frame.provenance.timestamp_source, "absent")
+
+
+def _frame(**overrides):
+    values = {
+        "timestamp": 1.0,
+        "pose": PoseSE3.identity(timestamp=1.0),
+        "points": np.zeros((2, 4), dtype=np.float32),
+        "semantic_class": np.zeros(2, dtype=np.int32),
+        "semantic_confidence": np.ones(2, dtype=np.float32),
+        "ground": np.zeros(2, dtype=bool),
+        "drivable": np.full(2, "unknown"),
+        "slope": np.zeros(2, dtype=np.float32),
+        "roughness": np.zeros(2, dtype=np.float32),
+        "height_complexity": np.zeros(2, dtype=np.float32),
+        "motion_probability": np.zeros(2, dtype=np.float32),
+        "velocity_xy": np.zeros((2, 2), dtype=np.float32),
+        "motion_state": np.full(2, "unknown"),
+    }
+    values.update(overrides)
+    return ObservationFrame(**values)
 
 
 if __name__ == "__main__":

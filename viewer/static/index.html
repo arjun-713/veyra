@@ -46,7 +46,10 @@ FINISH: unreviewed and undocumented is unfinished; this build ends with the fini
       <span class="mono scope-read" id="scopeRead">NO FRAME</span>
       <span class="chrome-right">
         <span class="seg" role="group" aria-label="Color mode">
-          <button type="button" data-color="sem" class="on" aria-pressed="true">SEM</button><button type="button" data-color="elev" aria-pressed="false">ELEV</button><button type="button" data-color="int" aria-pressed="false">INT</button>
+          <button type="button" data-color="sem" class="on" aria-pressed="true">SEM</button><button type="button" data-color="elev" aria-pressed="false">ELEV</button><button type="button" data-color="int" aria-pressed="false">INT</button><button type="button" data-color="ground" aria-pressed="false">GROUND</button><button type="button" data-color="terrain" aria-pressed="false">TERRAIN</button><button type="button" data-color="motion" aria-pressed="false">MOTION</button>
+        </span>
+        <span class="seg" role="group" aria-label="Live map layers">
+          <button type="button" data-color="mapelev" aria-pressed="false">MAP ELEV</button><button type="button" data-color="mapsem" aria-pressed="false">MAP SEM</button><button type="button" data-color="mapmotion" aria-pressed="false">MAP MOTION</button><button type="button" data-color="maplod" aria-pressed="false">MAP LOD</button>
         </span>
         <span class="seg" role="group" aria-label="Camera view">
           <button type="button" data-view="orbit" class="on" aria-pressed="true">ORBIT</button><button type="button" data-view="top" aria-pressed="false">TOP</button><button type="button" data-view="driver" aria-pressed="false">DRIVER</button>
@@ -59,7 +62,7 @@ FINISH: unreviewed and undocumented is unfinished; this build ends with the fini
       <div class="scope-msg" id="scopeMsg" hidden></div>
     </div>
     <div class="keymap mono" aria-label="Keyboard shortcuts">
-      <span><b>&larr;/&rarr;</b> step</span><span><b>shift</b> &times;10</span><span><b>space</b> run</span><span><b>1/2/3</b> color</span><span><b>O/T/D</b> view</span>
+      <span><b>&larr;/&rarr;</b> step</span><span><b>shift</b> &times;10</span><span><b>space</b> run</span><span><b>1–6</b> layers</span><span><b>7–0</b> map</span><span><b>O/T/D</b> view</span>
     </div>
   </section>
 
@@ -76,6 +79,14 @@ FINISH: unreviewed and undocumented is unfinished; this build ends with the fini
         <div><dt>TIME</dt><dd class="mono" id="timeRead">—</dd></div>
         <div><dt>POSE</dt><dd class="mono" id="poseRead">—</dd></div>
         <div><dt>RANGE</dt><dd class="mono" id="rangeRead">—</dd></div>
+        <div><dt>GROUND</dt><dd class="mono" id="groundRead">—</dd></div>
+        <div><dt>TERRAIN</dt><dd class="mono" id="terrainRead">—</dd></div>
+        <div><dt>MOTION</dt><dd class="mono" id="motionRead">—</dd></div>
+        <div><dt>MAP</dt><dd class="mono" id="mapRead">—</dd></div>
+        <div><dt>LOD</dt><dd class="mono" id="lodRead">—</dd></div>
+        <div><dt>MAP FPS</dt><dd class="mono" id="mapFpsRead">—</dd></div>
+        <div><dt>MAP P95</dt><dd class="mono" id="mapLatencyRead">—</dd></div>
+        <div><dt>RSS</dt><dd class="mono" id="rssRead">—</dd></div>
       </dl>
     </div>
     <div class="panel">
@@ -83,7 +94,7 @@ FINISH: unreviewed and undocumented is unfinished; this build ends with the fini
       <div class="bankrow" id="bankRow" role="group" aria-label="Sequence"></div>
     </div>
     <div class="panel grow">
-      <h2>CLASS HISTOGRAM</h2>
+      <h2 id="histTitle">CLASS HISTOGRAM</h2>
       <ol class="hist" id="hist"></ol>
     </div>
   </aside>
@@ -101,6 +112,7 @@ FINISH: unreviewed and undocumented is unfinished; this build ends with the fini
     <button type="button" class="tbtn" id="nextBtn" aria-label="Next frame">
       <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M5 3l5 5-5 5" fill="none" stroke="currentColor" stroke-width="1.5"/></svg>
     </button>
+    <button type="button" class="tbtn" id="resetBtn" aria-label="Reset sequence runtime">RESET</button>
     <label class="tempo">TEMPO
       <span class="seg" role="group" aria-label="Playback tempo, max 4x">
         <button type="button" data-tempo="1" class="on" aria-pressed="true">1X</button><button type="button" data-tempo="2" aria-pressed="false">2X</button><button type="button" data-tempo="4" aria-pressed="false">4X</button>

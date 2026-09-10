@@ -8,9 +8,9 @@ set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 option(BUILD_TESTING "Build tests" ON)
 option(VEYRA_BUILD_APPS "Build apps" ON)
 
+include(CTest)
 add_subdirectory(src)
 
-include(CTest)
 if(BUILD_TESTING)
   add_subdirectory(tests)
 endif()

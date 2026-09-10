@@ -16,3 +16,8 @@ Typography is the existing system sans for interface copy and system
 monospace for frame IDs, counts, timestamps, and status. The radius system is
 square by default; no decorative gradients, blobs, or generic dashboard
 metrics are part of the surface.
+
+The compact readout ramp is deliberate: 11px for silkscreen labels, 12px for
+changing key-value measurements, 13px for scope/error copy, 14px for body
+copy, and 20px for the wordmark. These values preserve dense instrument
+readability without adding a generic dashboard scale.

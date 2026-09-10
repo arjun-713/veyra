@@ -1,0 +1,5 @@
+# Budgets are compared to caller-supplied runtime telemetry, never static readings.
+max_active_cells: 250000
+max_logical_bytes: 134217728
+near_field_radius_m: 10.0
+max_actions_per_frame: 64

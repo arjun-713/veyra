@@ -1,0 +1,21 @@
+schema_version: 2
+protocol_version: 2
+map_frame: odom
+default_selection:
+  frames: 10
+  warmup_frames: 2
+  repetitions: 3
+policies:
+  - uniform5
+  - uniform40
+  - distance_lod
+  - utility_lod
+measurement_scope:
+  map_window_follow: C++ public map window-center update from the transmitted world-frame pose.
+  map_update: C++ map update calls only; excludes parsing, snapshotting, and serialization.
+  protocol_parse_and_validate: C++ token parsing and validation; excludes stdin I/O.
+  snapshot_and_topology: C++ snapshot and topology extraction; excludes serialization.
+memory:
+  logical_map_bytes: Map implementation accounting estimate.
+  allocated_map_bytes: null unless a public map allocator measurement is published.
+  rss_bytes: Current and peak process RSS sampled after each input frame.

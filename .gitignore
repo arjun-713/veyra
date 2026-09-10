@@ -3,6 +3,7 @@
 
 # --- CMake / C++ build ---
 build/
+build-local/
 cmake-build-*/
 CMakeCache.txt
 CMakeFiles/
@@ -95,6 +96,7 @@ downloads/
 
 # --- Generated maps / benchmarks / viewer output (never commit) ---
 maps/
+benchmark-results/
 *.pcd.gz
 benchmarks/results/
 benchmarks/dumps/

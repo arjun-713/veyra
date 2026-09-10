@@ -1,0 +1,10 @@
+# Explicit production-safe perception pipeline. Optional backends stay disabled
+# until a deployed environment supplies and validates their dependencies/models.
+semantic:
+  mode: ground_truth
+ground:
+  enabled: false
+terrain:
+  enabled: false
+temporal:
+  enabled: false

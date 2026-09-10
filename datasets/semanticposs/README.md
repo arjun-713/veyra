@@ -20,7 +20,9 @@ for frame in dataset.replay("00", max_range_m=100.0):
     consume(frame)  # datasets.common.ObservationFrame
 ```
 
-The adapter currently uses ground-truth labels. Pretrained model inference,
-Patchwork++ ground segmentation, terrain features, and temporal motion remain
-later perception stages. Unmapped labels are represented by Veyra class `0`
-(`unknown`) rather than guessed.
+The adapter consumes the original per-sequence `poses.txt` and `calib.txt` when
+present, publishes world-frame points, and marks the absence of a timestamp
+file explicitly in frame provenance. SemanticPOSS v1.0 raw labels are mapped
+through its published `LABEL_DICT` into the versioned Veyra taxonomy; unmapped
+classes remain class `0` (`unknown`) rather than guessed. The range crop happens
+in the input LiDAR frame before applying a pose.

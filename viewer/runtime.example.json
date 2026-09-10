@@ -1,0 +1,14 @@
+{
+  "dataset": "rellis3d",
+  "sequence": "00000",
+  "pipeline": {
+    "semantic": { "mode": "ground_truth" },
+    "ground": { "enabled": true },
+    "terrain": { "enabled": true },
+    "temporal": { "enabled": true }
+  },
+  "map": {
+    "executable": "build/apps/benchmark/veyra_benchmark",
+    "policy": "distance_lod"
+  }
+}

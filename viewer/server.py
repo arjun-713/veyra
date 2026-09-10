@@ -22,6 +22,7 @@ from typing import TYPE_CHECKING
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 if TYPE_CHECKING:
+    from datasets.rellis import Rellis3DDataset
     from datasets.semanticposs import SemanticPOSSDataset
 
 try:
@@ -67,6 +68,7 @@ def find_repo_root(start: Path) -> Path:
 REPO = find_repo_root(Path.cwd().resolve())
 CFG = _load_yaml(REPO / "configs" / "datasets.yaml")
 STATIC = Path(__file__).resolve().parent / "static"
+RUNTIME = None
 
 
 def _seq_dir(dataset: str, seq: str) -> Path:
@@ -92,6 +94,18 @@ def _semanticposs_adapter() -> SemanticPOSSDataset:
         sequences=[str(value) for value in spec["sequences"]],
         scan_dir=spec.get("scan_dir", "velodyne"),
         label_dir=spec.get("label_dir", "labels"),
+    )
+
+
+def _rellis_adapter() -> Rellis3DDataset:
+    from datasets.rellis import Rellis3DDataset
+
+    spec = CFG["rellis3d"]
+    return Rellis3DDataset(
+        REPO / spec["root"],
+        sequences=[str(value) for value in spec["sequences"]],
+        scan_dir=spec.get("scan_dir", "vel_cloud_node_kitti_bin"),
+        label_dir=spec.get("label_dir", "vel_cloud_node_semantickitti_label_id"),
     )
 
 
@@ -131,8 +145,22 @@ def datasets_payload() -> dict:
 
 
 def frame_payload(dataset: str, seq: str, index: int, budget: int) -> dict:
+    if RUNTIME is not None:
+        if dataset != RUNTIME.dataset:
+            raise KeyError(
+                f"runtime is configured for {RUNTIME.dataset}, not {dataset}"
+            )
+        if str(seq) != RUNTIME.sequence:
+            return RUNTIME.select_sequence(str(seq), budget=budget)
+        return RUNTIME.frame_payload(index, budget=budget)
     if dataset == "semanticposs":
         return _semanticposs_frame_payload(seq, index, budget)
+    if dataset == "rellis3d":
+        try:
+            return _rellis_frame_payload(seq, index, budget)
+        except FileNotFoundError:
+            # Preserve scan-only visualization for incomplete local exports.
+            pass
     scans = _scan_files(dataset, seq)
     if not scans:
         raise KeyError("sequence not found")
@@ -172,6 +200,20 @@ def frame_payload(dataset: str, seq: str, index: int, budget: int) -> dict:
         "timestamp": None,
         "pose": {"available": False, "matrix": None},
         "cropped": False,
+        "ground": [False] * int(sub.shape[0]),
+        "drivable": ["unknown"] * int(sub.shape[0]),
+        "slope": [None] * int(sub.shape[0]),
+        "roughness": [None] * int(sub.shape[0]),
+        "height_complexity": [None] * int(sub.shape[0]),
+        "motion_probability": [0.0] * int(sub.shape[0]),
+        "velocity_xy": [[0.0, 0.0]] * int(sub.shape[0]),
+        "motion_state": ["unknown"] * int(sub.shape[0]),
+        "pipeline_status": {
+            "semantic": "ground_truth" if paired else "unavailable",
+            "ground": "unavailable",
+            "terrain": "unavailable",
+            "temporal": "unavailable",
+        },
     }
 
 
@@ -233,7 +275,110 @@ def _semanticposs_frame_payload(seq: str, index: int, budget: int) -> dict:
         "pose": {"available": True, "matrix": matrix},
         "cropped": n != int(raw_points.shape[0]),
         "range_m": float(spec.get("max_range_m", 100.0)),
+        "ground": observation.ground[::stride].tolist(),
+        "drivable": observation.drivable[::stride].tolist(),
+        "slope": _json_float_array(observation.slope[::stride]),
+        "roughness": _json_float_array(observation.roughness[::stride]),
+        "height_complexity": _json_float_array(observation.height_complexity[::stride]),
+        "motion_probability": observation.motion_probability[::stride].tolist(),
+        "velocity_xy": observation.velocity_xy[::stride].tolist(),
+        "motion_state": observation.motion_state[::stride].tolist(),
+        "pipeline_status": {
+            "semantic": "ground_truth",
+            "ground": "unavailable",
+            "terrain": "unavailable",
+            "temporal": "unavailable",
+        },
     }
+
+
+def _rellis_frame_payload(seq: str, index: int, budget: int) -> dict:
+    adapter = _rellis_adapter()
+    refs = adapter.list_frames(seq)
+    if not refs:
+        raise KeyError("sequence not found")
+    index = max(0, min(index, len(refs) - 1))
+    ref = refs[index]
+    if ref.label_path is None:
+        raise FileNotFoundError(f"label file is missing for {seq}/{ref.frame_id}")
+    spec = CFG["rellis3d"]
+    observation = adapter.load_frame(
+        seq,
+        ref.frame_id,
+        min_range_m=float(spec.get("min_range_m", 0.0)),
+        max_range_m=(
+            float(spec["max_range_m"]) if spec.get("max_range_m") is not None else None
+        ),
+    )
+    raw_points = np.fromfile(ref.scan_path, dtype=np.float32).reshape((-1, 4))
+    raw_labels = np.fromfile(ref.label_path, dtype=np.uint32) & 0xFFFF
+    world_points = adapter._transform_points(raw_points, observation.pose.matrix)
+    raw_labels = raw_labels[
+        adapter._range_mask(
+            world_points,
+            float(spec.get("min_range_m", 0.0)),
+            float(spec["max_range_m"]) if spec.get("max_range_m") is not None else None,
+        )
+    ]
+    n = int(observation.points.shape[0])
+    stride = max(1, -(-n // max(1, budget)))
+    hist = {
+        str(int(key)): int(count)
+        for key, count in zip(*np.unique(raw_labels, return_counts=True))
+    }
+    return {
+        "dataset": "rellis3d",
+        "seq": seq,
+        "index": index,
+        "id": ref.frame_id,
+        "n_points": n,
+        "raw_points": int(raw_points.shape[0]),
+        "shown": int(observation.points[::stride].shape[0]),
+        "stride": stride,
+        "points": [
+            [round(float(x), 3) for x in row[:3]]
+            for row in observation.points[::stride].tolist()
+        ],
+        "intensity": [
+            round(float(v), 3) for v in observation.points[::stride, 3].tolist()
+        ],
+        "labels": raw_labels[::stride].tolist(),
+        "semantic_labels": observation.semantic_class[::stride].tolist(),
+        "paired": True,
+        "hist": hist,
+        "frames": len(refs),
+        "source": "Rellis3DDataset",
+        "timestamp": observation.timestamp,
+        "pose": {"available": False, "matrix": observation.pose.matrix.tolist()},
+        "cropped": n != int(raw_points.shape[0]),
+        "range_m": spec.get("max_range_m"),
+        "ground": observation.ground[::stride].tolist(),
+        "drivable": observation.drivable[::stride].tolist(),
+        "slope": _json_float_array(observation.slope[::stride]),
+        "roughness": _json_float_array(observation.roughness[::stride]),
+        "height_complexity": _json_float_array(observation.height_complexity[::stride]),
+        "motion_probability": observation.motion_probability[::stride].tolist(),
+        "velocity_xy": observation.velocity_xy[::stride].tolist(),
+        "motion_state": observation.motion_state[::stride].tolist(),
+        "pipeline_status": {
+            "semantic": "ground_truth",
+            "ground": "unavailable",
+            "terrain": "unavailable",
+            "temporal": "unavailable",
+        },
+    }
+
+
+def _json_float_array(values: np.ndarray) -> list[float | None]:
+    """Serialize NaN feature values as null so unavailable data stays visible."""
+
+    return [float(value) if np.isfinite(value) else None for value in values]
+
+
+def runtime_status_payload() -> dict:
+    if RUNTIME is None:
+        return {"state": "not_configured", "map": "unavailable"}
+    return RUNTIME.status()
 
 
 class Handler(http.server.SimpleHTTPRequestHandler):
@@ -260,6 +405,17 @@ class Handler(http.server.SimpleHTTPRequestHandler):
             return super().do_GET()
         if parsed.path == "/api/datasets":
             return self._send_json(datasets_payload())
+        if parsed.path == "/api/runtime/status":
+            return self._send_json(runtime_status_payload())
+        if parsed.path == "/api/map_cells":
+            if RUNTIME is None:
+                return self._send_json({"error": "runtime is not configured"}, 409)
+            query = urllib.parse.parse_qs(parsed.query)
+            try:
+                budget = max(1000, min(int(query.get("budget", ["20000"])[0]), 100000))
+            except (ValueError, IndexError):
+                return self._send_json({"error": "bad cell budget"}, 400)
+            return self._send_json(RUNTIME.map_cells(budget=budget))
         if parsed.path.startswith("/static/"):
             # Static assets live in viewer/static/; strip the mount prefix so
             # /static/app.js resolves to viewer/static/app.js.
@@ -292,12 +448,42 @@ class Handler(http.server.SimpleHTTPRequestHandler):
             return self._send_json({"error": "unknown endpoint"}, 404)
         return super().do_GET()
 
+    def do_POST(self) -> None:
+        parsed = urllib.parse.urlparse(self.path)
+        if parsed.path != "/api/runtime/reset":
+            return self._send_json({"error": "unknown endpoint"}, 404)
+        if RUNTIME is None:
+            return self._send_json({"error": "runtime is not configured"}, 409)
+        query = urllib.parse.parse_qs(parsed.query)
+        try:
+            budget = max(1000, min(int(query.get("budget", ["25000"])[0]), 100000))
+        except (ValueError, IndexError):
+            return self._send_json({"error": "bad point budget"}, 400)
+        try:
+            return self._send_json(RUNTIME.reset(budget=budget))
+        except (FileNotFoundError, ValueError) as error:
+            return self._send_json({"error": str(error)}, 422)
+
 
 def main() -> None:
     ap = argparse.ArgumentParser(description="Veyra LiDAR dataset visualizer")
     ap.add_argument("--port", type=int, default=8765)
     ap.add_argument("--host", default="127.0.0.1")
+    ap.add_argument(
+        "--runtime-config",
+        type=Path,
+        help="viewer-owned JSON selection and configured perception stages",
+    )
     args = ap.parse_args()
+    global RUNTIME
+    if args.runtime_config is not None:
+        from viewer.runtime import build_runtime_session, load_runtime_config
+
+        RUNTIME = build_runtime_session(
+            load_runtime_config(args.runtime_config),
+            dataset_settings=CFG,
+            repo_root=REPO,
+        )
     missing = [
         d
         for d in ("data/raw/rellis3d", "data/raw/semanticposs")
