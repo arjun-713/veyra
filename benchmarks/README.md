@@ -52,3 +52,23 @@ The pull-request job uses one real scan as an affordable smoke test. The
 scheduled/manual path is the place to add longer, data-backed perception
 coverage. The Qualcomm scan has no paired pose or timestamp, so temporal
 behavior cannot be validated with this sample.
+
+## SemanticPOSS scheduled benchmark
+
+The `semanticposs-benchmark` job uses the official SemanticPOSS archive from
+the POSS website. The current archive is approximately 2.41 GB compressed and
+extracts to approximately 4 GB. It is intentionally not part of ordinary PR
+checks.
+
+It runs on the weekly schedule or by manually dispatching the workflow with
+`run_semanticposs=true`. Sequence `00` defaults to all 488 frames. The job
+runs the same selected frames through `Uniform5`, `Uniform40`, `DistanceLOD`,
+and `UtilityLOD` with one warmup and one measured repetition, then runs the
+real SalsaNext + Patchwork++ + terrain perception validator over the same
+sequence selection.
+
+Artifacts include the downloaded archive SHA-256, four-policy JSON/CSV map
+results, and the perception JSON report. The archive URL and expected byte
+count are pinned in the workflow; the checksum is recorded at runtime because
+the official page does not publish one. This job is deliberately a scheduled
+or operator-triggered regression, not a fast PR gate.
