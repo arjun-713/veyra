@@ -8,10 +8,42 @@ from pathlib import Path
 import numpy as np
 
 from scripts.fetch_semantic_model import fetch
-from scripts.validate_perception import confusion_report, latency_summary
+from scripts.validate_perception import (
+    confusion_report,
+    latency_summary,
+    reproducibility_metadata,
+)
 
 
 class PerceptionValidationTests(unittest.TestCase):
+    def test_reproducibility_metadata_records_selection_and_digests(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            config = root / "perception.yaml"
+            model = root / "model.onnx"
+            config.write_text("semantic:\n  model_path: model.onnx\n")
+            model.write_bytes(b"model")
+            config_sha = hashlib.sha256(config.read_bytes()).hexdigest()
+            metadata = reproducibility_metadata(
+                repo=root,
+                config_path=config,
+                config_data={"semantic": {"model_path": "model.onnx"}},
+                dataset_sha256="a" * 64,
+                sequence="00",
+                start=4,
+                count=64,
+            )
+        self.assertEqual(
+            metadata["frame_range"],
+            {"sequence": "00", "start": 4, "end_exclusive": 68, "count": 64},
+        )
+        self.assertEqual(metadata["dataset_sha256"], "a" * 64)
+        self.assertEqual(metadata["config_sha256"], config_sha)
+        self.assertEqual(
+            metadata["model_checkpoint_sha256"], hashlib.sha256(b"model").hexdigest()
+        )
+        self.assertIn("cpu", metadata["runner"])
+
     def test_range_metrics_include_wrong_unknown_predictions(self):
         matrix = np.zeros((20, 20), np.int64)
         matrix[1, 1], matrix[1, 0], matrix[9, 1], matrix[9, 9] = 2, 1, 1, 2

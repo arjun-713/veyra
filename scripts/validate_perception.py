@@ -11,9 +11,11 @@ import argparse
 from dataclasses import asdict
 import hashlib
 import json
+import os
 from pathlib import Path
 import platform
 import resource
+import subprocess
 from time import perf_counter
 
 import numpy as np
@@ -25,6 +27,75 @@ from datasets.semanticposs import SemanticPOSSDataset
 from datasets.semantickitti import SemanticKITTIDataset
 from benchmarks.protocol import frame_records
 from perception.pipeline import PerceptionPipeline
+
+
+def _sha256_file(path: Path) -> str | None:
+    return hashlib.sha256(path.read_bytes()).hexdigest() if path.is_file() else None
+
+
+def _git_sha(repo: Path) -> str | None:
+    try:
+        return subprocess.run(
+            ["git", "-C", str(repo), "rev-parse", "HEAD"],
+            check=True,
+            capture_output=True,
+            text=True,
+        ).stdout.strip()
+    except (OSError, subprocess.CalledProcessError):
+        return None
+
+
+def _physical_memory_bytes() -> int | None:
+    try:
+        return os.sysconf("SC_PAGE_SIZE") * os.sysconf("SC_PHYS_PAGES")
+    except (AttributeError, OSError, ValueError):
+        return None
+
+
+def _cpu_model() -> str | None:
+    try:
+        for line in Path("/proc/cpuinfo").read_text().splitlines():
+            if line.startswith("model name"):
+                return line.split(":", 1)[1].strip()
+    except OSError:
+        pass
+    return platform.processor() or None
+
+
+def reproducibility_metadata(
+    *,
+    repo: Path,
+    config_path: Path,
+    config_data: dict,
+    dataset_sha256: str | None,
+    sequence: str,
+    start: int,
+    count: int,
+) -> dict:
+    """Record inputs needed to explain a future perception regression."""
+    model_value = config_data.get("semantic", {}).get("model_path")
+    model_path = repo / model_value if isinstance(model_value, str) else None
+    return {
+        "git_sha": _git_sha(repo),
+        "dataset_sha256": dataset_sha256,
+        "frame_range": {
+            "sequence": sequence,
+            "start": start,
+            "end_exclusive": start + count,
+            "count": count,
+        },
+        "config_sha256": _sha256_file(config_path.resolve()),
+        "model_checkpoint_sha256": _sha256_file(model_path) if model_path else None,
+        "runner": {
+            "os": platform.platform(),
+            "cpu": _cpu_model(),
+            "logical_cpu_count": os.cpu_count(),
+            "physical_memory_bytes": _physical_memory_bytes(),
+            "python": platform.python_version(),
+        },
+        "compiler": "not applicable (Python-only perception artifact)",
+        "build_type": "not applicable",
+    }
 
 
 def latency_summary(values):
@@ -66,7 +137,8 @@ def validate(args):
         if args.dataset == "generic"
         else adapters[args.dataset](args.root)
     )
-    config = yaml.safe_load(Path(args.config).read_text())
+    config_path = Path(args.config).resolve()
+    config = yaml.safe_load(config_path.read_text())
     required = ["semantic", "ground", "terrain"]
     if args.require_temporal:
         config["temporal"] = {**config.get("temporal", {}), "enabled": True}
@@ -150,6 +222,17 @@ def validate(args):
         "sequence": args.sequence,
         "frames": records,
         "input_sha256": digest.hexdigest(),
+        "reproducibility": reproducibility_metadata(
+            repo=config_path.parents[1]
+            if config_path.parent.name == "configs"
+            else Path.cwd().resolve(),
+            config_path=config_path,
+            config_data=config,
+            dataset_sha256=args.dataset_sha256,
+            sequence=args.sequence,
+            start=args.start,
+            count=args.count,
+        ),
         "config": config,
         "hardware": {
             "platform": platform.platform(),
@@ -193,6 +276,10 @@ def main():
     parser.add_argument("--count", type=int, default=10)
     parser.add_argument("--start", type=int, default=0)
     parser.add_argument("--require-temporal", action="store_true")
+    parser.add_argument(
+        "--dataset-sha256",
+        help="SHA-256 of the source dataset archive, when the run used one",
+    )
     parser.add_argument("--output", type=Path, required=True)
     args = parser.parse_args()
     if args.count < 1 or args.start < 0:

@@ -61,14 +61,16 @@ extracts to approximately 4 GB. It is intentionally not part of ordinary PR
 checks.
 
 It runs on the weekly schedule or by manually dispatching the workflow with
-`run_semanticposs=true`. Sequence `00` defaults to all 488 frames. The job
-runs the same selected frames through `Uniform5`, `Uniform40`, `DistanceLOD`,
-and `UtilityLOD` with one warmup and one measured repetition, then runs the
-real SalsaNext + Patchwork++ + terrain perception validator over the same
-sequence selection.
+`run_semanticposs=true`. Sequence `00` defaults to all 488 frames. The map job
+runs those frames through `Uniform5`, `Uniform40`, `DistanceLOD`, and
+`UtilityLOD` with one warmup and one measured repetition using
+`--skip-perception`; this keeps the map comparison focused on the map engine.
+A separate perception job defaults to a deterministic 64-frame sample through
+real SalsaNext + Patchwork++ + terrain. Increase its dispatch input for a
+longer manual run.
 
-Artifacts include the downloaded archive SHA-256, four-policy JSON/CSV map
-results, and the perception JSON report. The archive URL and expected byte
-count are pinned in the workflow; the checksum is recorded at runtime because
-the official page does not publish one. This job is deliberately a scheduled
-or operator-triggered regression, not a fast PR gate.
+The archive URL, byte count, and trusted SHA-256 are pinned in the workflow;
+any upstream archive mutation fails verification. Each JSON artifact records
+the archive digest, git SHA, sequence/frame range, config digest, model digest
+when applicable, runner CPU/RAM/OS, and compiler/build metadata. This job is
+deliberately a scheduled or operator-triggered regression, not a fast PR gate.

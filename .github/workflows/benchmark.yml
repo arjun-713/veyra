@@ -54,6 +54,11 @@ on:
         required: false
         default: "488"
         type: string
+      semanticposs_perception_count:
+        description: "Deterministic perception sample; full sequence remains manual"
+        required: false
+        default: "64"
+        type: string
   schedule:
     - cron: "17 2 * * 0"
 
@@ -161,8 +166,8 @@ jobs:
   # Full SemanticPOSS is intentionally kept out of ordinary PR checks. The
   # official archive is multi-gigabyte and the complete sequence benchmark is
   # a scheduled/manual regression job, not a fast merge gate.
-  semanticposs-benchmark:
-    name: SemanticPOSS sequence and four-policy benchmark
+  semanticposs-map-benchmark:
+    name: SemanticPOSS full-sequence map benchmark
     if: >-
       github.event_name == 'schedule' ||
       (github.event_name == 'workflow_dispatch' && inputs.run_semanticposs == true)
@@ -171,8 +176,70 @@ jobs:
     env:
       SEMANTIC_POSS_URL: http://www.poss.pku.edu.cn/OpenDataResource/SemanticPOSS/SemanticPOSS_dataset.zip
       SEMANTIC_POSS_ARCHIVE_BYTES: "2410727418"
+      SEMANTIC_POSS_ARCHIVE_SHA256: "f02f801a8f16de1bf8b3a39bf4050e2ff3551f98dd855980b01cdb35f49f4f98"
       SEMANTIC_POSS_SEQUENCE: ${{ inputs.semanticposs_sequence || '00' }}
       SEMANTIC_POSS_COUNT: ${{ inputs.semanticposs_count || '488' }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: |
+            requirements.txt
+            requirements-dev.txt
+      - name: Install map benchmark dependencies
+        run: python -m pip install numpy==2.2.6 pyyaml==6.0.2
+      - name: Download and verify official SemanticPOSS archive
+        run: |
+          set -euo pipefail
+          mkdir -p .cache/semanticposs artifacts data/raw/semanticposs
+          curl --fail --location --retry 3 --max-filesize 3000000000 \
+            "$SEMANTIC_POSS_URL" --output .cache/semanticposs/SemanticPOSS_dataset.zip
+          test "$(stat -c '%s' .cache/semanticposs/SemanticPOSS_dataset.zip)" = "$SEMANTIC_POSS_ARCHIVE_BYTES"
+          printf '%s  %s\n' "$SEMANTIC_POSS_ARCHIVE_SHA256" .cache/semanticposs/SemanticPOSS_dataset.zip | sha256sum --check
+          printf '%s\n' "$SEMANTIC_POSS_ARCHIVE_SHA256" > artifacts/semanticposs-archive.sha256
+          unzip -q .cache/semanticposs/SemanticPOSS_dataset.zip -d .cache/semanticposs/extracted
+          sequence_root="$(find .cache/semanticposs/extracted -type d -name sequences -print -quit)"
+          test -n "$sequence_root"
+          dataset_root="$(dirname "$sequence_root")"
+          ln -s "$(realpath "$dataset_root")" data/raw/semanticposs/dataset
+          test -d data/raw/semanticposs/dataset/sequences/"$SEMANTIC_POSS_SEQUENCE"
+          find data/raw/semanticposs/dataset/sequences/"$SEMANTIC_POSS_SEQUENCE"/velodyne -type f -name '*.bin' | sort | head -1
+      - name: Run four-policy SemanticPOSS map benchmark
+        run: |
+          mkdir -p artifacts/map
+          benchmarks/run_local.sh \
+            --dataset semanticposs \
+            --sequence "$SEMANTIC_POSS_SEQUENCE" \
+            --count "$SEMANTIC_POSS_COUNT" \
+            --warmup-frames 10 \
+            --repetitions 1 \
+            --skip-perception \
+            --dataset-sha256 "$SEMANTIC_POSS_ARCHIVE_SHA256" \
+            --build-type Release \
+            --build-dir "$RUNNER_TEMP/veyra-build" \
+            --output-dir "$GITHUB_WORKSPACE/artifacts/map"
+      - name: Upload SemanticPOSS map benchmark artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: veyra-semanticposs-map-benchmark
+          path: artifacts/
+
+  semanticposs-perception-benchmark:
+    name: SemanticPOSS perception regression sample
+    if: >-
+      github.event_name == 'schedule' ||
+      (github.event_name == 'workflow_dispatch' && inputs.run_semanticposs == true)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 180
+    env:
+      SEMANTIC_POSS_URL: http://www.poss.pku.edu.cn/OpenDataResource/SemanticPOSS/SemanticPOSS_dataset.zip
+      SEMANTIC_POSS_ARCHIVE_BYTES: "2410727418"
+      SEMANTIC_POSS_ARCHIVE_SHA256: "f02f801a8f16de1bf8b3a39bf4050e2ff3551f98dd855980b01cdb35f49f4f98"
+      SEMANTIC_POSS_SEQUENCE: ${{ inputs.semanticposs_sequence || '00' }}
+      SEMANTIC_POSS_PERCEPTION_COUNT: ${{ inputs.semanticposs_perception_count || '64' }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
@@ -191,25 +258,14 @@ jobs:
           curl --fail --location --retry 3 --max-filesize 3000000000 \
             "$SEMANTIC_POSS_URL" --output .cache/semanticposs/SemanticPOSS_dataset.zip
           test "$(stat -c '%s' .cache/semanticposs/SemanticPOSS_dataset.zip)" = "$SEMANTIC_POSS_ARCHIVE_BYTES"
-          sha256sum .cache/semanticposs/SemanticPOSS_dataset.zip | tee artifacts/semanticposs-archive.sha256
+          printf '%s  %s\n' "$SEMANTIC_POSS_ARCHIVE_SHA256" .cache/semanticposs/SemanticPOSS_dataset.zip | sha256sum --check
+          printf '%s\n' "$SEMANTIC_POSS_ARCHIVE_SHA256" > artifacts/semanticposs-archive.sha256
           unzip -q .cache/semanticposs/SemanticPOSS_dataset.zip -d .cache/semanticposs/extracted
           sequence_root="$(find .cache/semanticposs/extracted -type d -name sequences -print -quit)"
           test -n "$sequence_root"
           dataset_root="$(dirname "$sequence_root")"
           ln -s "$(realpath "$dataset_root")" data/raw/semanticposs/dataset
           test -d data/raw/semanticposs/dataset/sequences/"$SEMANTIC_POSS_SEQUENCE"
-          find data/raw/semanticposs/dataset/sequences/"$SEMANTIC_POSS_SEQUENCE"/velodyne -type f -name '*.bin' | sort | head -1
-      - name: Run four-policy SemanticPOSS map benchmark
-        run: |
-          mkdir -p artifacts/map
-          benchmarks/run_local.sh \
-            --dataset semanticposs \
-            --sequence "$SEMANTIC_POSS_SEQUENCE" \
-            --count "$SEMANTIC_POSS_COUNT" \
-            --warmup-frames 10 \
-            --repetitions 1 \
-            --build-dir "$RUNNER_TEMP/veyra-build" \
-            --output-dir "$GITHUB_WORKSPACE/artifacts/map"
       - name: Fetch pinned SalsaNext model
         run: python -m scripts.fetch_semantic_model
       - name: Run bounded SemanticPOSS perception benchmark
@@ -218,12 +274,13 @@ jobs:
             --dataset semanticposs \
             --root data/raw/semanticposs/dataset \
             --sequence "$SEMANTIC_POSS_SEQUENCE" \
-            --count "$SEMANTIC_POSS_COUNT" \
+            --count "$SEMANTIC_POSS_PERCEPTION_COUNT" \
             --config configs/perception-salsanext.yaml \
+            --dataset-sha256 "$SEMANTIC_POSS_ARCHIVE_SHA256" \
             --output artifacts/semanticposs-perception.json
-      - name: Upload SemanticPOSS benchmark artifacts
+      - name: Upload SemanticPOSS perception artifacts
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: veyra-semanticposs-benchmark
+          name: veyra-semanticposs-perception-benchmark
           path: artifacts/
