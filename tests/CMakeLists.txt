@@ -58,3 +58,9 @@ target_include_directories(test_rolling_window PRIVATE ${PROJECT_SOURCE_DIR}/inc
 target_compile_features(test_rolling_window PRIVATE cxx_std_20)
 target_link_libraries(test_rolling_window PRIVATE veyra_map)
 add_test(NAME rolling_window COMMAND test_rolling_window)
+
+add_executable(test_parent_child_exclusivity test_parent_child_exclusivity.cpp)
+target_include_directories(test_parent_child_exclusivity PRIVATE ${PROJECT_SOURCE_DIR}/include)
+target_compile_features(test_parent_child_exclusivity PRIVATE cxx_std_20)
+target_link_libraries(test_parent_child_exclusivity PRIVATE veyra_map)
+add_test(NAME parent_child_exclusivity COMMAND test_parent_child_exclusivity)
