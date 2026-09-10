@@ -230,6 +230,35 @@ void checkNonFiniteRejection() {
   CHECK(hz.statistics().tiles == 0);
 }
 
+// 8. last_seen records the frame the cell was last observed in, and a later
+//    frame updates it. cells_touched counts cells first seen in this frame,
+//    cells_created counts cells that did not exist at all.
+//    Catches: a constant stamped instead of the frame index, and a touched
+//    count that cannot distinguish a new cell from a revisited one.
+void checkLastSeenStamping() {
+  TileGrid grid;
+  const veyra::core::CellId id{0, 0, 0};
+
+  const FusionStats f7 = integrate(grid, std::vector<Observation>{obs(0.01, 0.01, 1.0F)}, 7);
+  CHECK(grid.find(id)->last_seen == 7);
+  CHECK(f7.cells_created == 1);
+  CHECK(f7.cells_touched == 1);
+
+  const FusionStats f9 = integrate(grid, std::vector<Observation>{obs(0.02, 0.02, 2.0F)}, 9);
+  CHECK(grid.find(id)->last_seen == 9);
+  CHECK(f9.cells_created == 0);  // already existed
+  CHECK(f9.cells_touched == 1);
+
+  // Two points in the same cell in one frame touch one cell, not two.
+  TileGrid pair;
+  const FusionStats both =
+      integrate(pair, std::vector<Observation>{obs(0.01, 0.01, 1.0F), obs(0.02, 0.02, 2.0F)}, 3);
+  CHECK(both.accepted == 2);
+  CHECK(both.cells_created == 1);
+  CHECK(both.cells_touched == 1);
+  CHECK(pair.find(id)->last_seen == 3);
+}
+
 }  // namespace
 
 int main() {
@@ -240,5 +269,6 @@ int main() {
   checkIdempotentCreation();
   checkOutOfRangeRejection();
   checkNonFiniteRejection();
+  checkLastSeenStamping();
   return 0;
 }

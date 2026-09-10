@@ -9,7 +9,6 @@ namespace veyra::map {
 
 FusionStats integrate(TileGrid& grid, std::span<const Observation> points,
                       std::uint32_t frame_index) {
-  (void)frame_index;
   FusionStats stats;
   for (const Observation& o : points) {
     // Finite first, always. Every comparison against NaN is false, so a NaN
@@ -25,9 +24,19 @@ FusionStats integrate(TileGrid& grid, std::span<const Observation> points,
       continue;
     }
     const core::CellId id = core::worldToKey(o.x, o.y, 0);
+    const bool created = grid.find(id) == nullptr;
     Cell& cell = grid.findOrCreate(id);
+    // Read last_seen before stamping it: cells_touched counts cells first
+    // seen in this frame, so a second point landing in the same cell in the
+    // same frame must not count again.
+    const bool first_this_frame = created || cell.last_seen != frame_index;
+
     updateCell(cell, static_cast<double>(o.z));
+    cell.last_seen = frame_index;
+
     ++stats.accepted;
+    stats.cells_created += static_cast<std::size_t>(created);
+    stats.cells_touched += static_cast<std::size_t>(first_this_frame);
   }
   return stats;
 }
