@@ -5,6 +5,7 @@
 // The policy itself is veyra::policy::LodPolicy, which already carries the
 // DistanceLOD bands. This file tests the bands' contract and the pass that
 // applies them to the grid. Each group names the production bug it catches.
+#include <algorithm>
 #include <array>
 #include <cstddef>
 #include <cstdint>
@@ -12,6 +13,8 @@
 
 #include "check.hpp"
 #include "veyra/core/types.hpp"
+#include "veyra/map/fusion.hpp"
+#include "veyra/map/observation.hpp"
 #include "veyra/map/resolution_pass.hpp"
 #include "veyra/map/rolling_window.hpp"
 #include "veyra/map/tile_grid.hpp"
@@ -227,6 +230,104 @@ void checkIdempotentWhenConverged() {
   CHECK(after.tiles == before.tiles);
 }
 
+// Invariant 2, checked directly: no active cell may sit beneath another
+// active cell. Returns the number of violations so the caller can report it.
+std::size_t countAncestorViolations(const TileGrid& grid) {
+  std::size_t bad = 0;
+  grid.forEachActiveLeaf([&grid, &bad](CellId id, const veyra::map::Cell&) {
+    CellId up = id;
+    while (up.level < veyra::map::kMaxLevel) {
+      up = veyra::core::parentOf(up);
+      if (grid.find(up) != nullptr) {
+        ++bad;
+        return;
+      }
+    }
+  });
+  return bad;
+}
+
+veyra::map::Observation point(double x, double y) {
+  veyra::map::Observation o;
+  o.x = x;
+  o.y = y;
+  o.z = 0.1F;
+  o.cls = 1;
+  o.confidence = 1.0F;
+  return o;
+}
+
+// 17. The whole loop over a simulated drive: integrate, recentre, apply the
+//     policy, repeatedly. Memory stays bounded, and the exclusivity invariant
+//     holds at every single step.
+//     Catches: any interaction between fusion, the window and the pass that
+//     is invisible when each is tested alone.
+void checkFullLoopOverADrive() {
+  constexpr double kR = 25.0;
+  TileGrid grid{MapWindow{0.0, 0.0, kR}};
+  LodPolicy pol = distancePolicy();
+
+  std::size_t max_cells = 0;
+  std::size_t max_bytes = 0;
+  std::size_t worst_violation = 0;
+
+  for (int step = 0; step <= 120; ++step) {
+    const double vx = static_cast<double>(step);
+    grid.recenter(vx, 0.0);
+
+    // A swath, not a single row. A one-cell-tall line can never be merged --
+    // merge needs all four siblings -- so a line-shaped drive would coarsen
+    // nothing and this test would pass without exercising the interaction it
+    // exists to cover.
+    std::vector<veyra::map::Observation> batch;
+    // One point per 5 cm cell. At coarser spacing the swath is a comb with no
+    // 2x2 sibling blocks, merge refuses every request, and this test passes
+    // while coarsening nothing at all.
+    for (int k = -400; k <= 400; ++k) {
+      for (int r = 0; r < 8; ++r) {
+        batch.push_back(point(vx + 0.05 * static_cast<double>(k), 0.05 * static_cast<double>(r)));
+      }
+    }
+    veyra::map::integrate(grid, batch, static_cast<std::uint32_t>(step));
+    veyra::map::applyPolicy(grid, pol, PassContext{vx, 0.0});
+
+    const veyra::map::GridStats gs = grid.statistics();
+    max_cells = std::max(max_cells, gs.occupied_cells);
+    max_bytes = std::max(max_bytes, gs.allocated_bytes);
+    worst_violation = std::max(worst_violation, countAncestorViolations(grid));
+  }
+
+  // Invariant 2 holds at every step of a 200 m drive.
+  CHECK(worst_violation == 0);
+
+  // ... and the detector above can actually fire, so that zero means
+  // something. A cell placed directly beneath an active parent is exactly the
+  // violation being ruled out.
+  {
+    TileGrid probe{MapWindow{0.0, 0.0, 50.0}};
+    probe.findOrCreate(CellId{1, 5, 5});
+    probe.findOrCreate(CellId{0, 10, 10});  // a child of the cell above
+    CHECK(countAncestorViolations(probe) > 0);
+  }
+
+  // The drive really did coarsen -- otherwise the interaction above is untested.
+  std::array<std::size_t, 4> per_level{};
+  grid.forEachActiveLeaf([&per_level](CellId id, const veyra::map::Cell&) {
+    ++per_level[static_cast<std::size_t>(id.level)];
+  });
+  CHECK(per_level[1] + per_level[2] + per_level[3] > 0);
+
+  // Bounded: a disc of radius 25 m holds at most pi * 25^2 / 0.05^2 cells even
+  // if every one of them were at level 0.
+  CHECK(max_cells <= 785399U);
+  CHECK(grid.statistics().occupied_cells > 0);
+  CHECK(max_bytes > 0);
+
+  // Still mapping 120 m from where it started.
+  const veyra::map::LeafHit hit = veyra::map::activeLeafCovering(grid, 120.0, 0.1);
+  CHECK(hit.found);
+}
+
 }  // namespace
 
 int main() {
@@ -237,5 +338,6 @@ int main() {
   checkHysteresisPreventsThrash();
   checkPerFrameCapIsRespected();
   checkIdempotentWhenConverged();
+  checkFullLoopOverADrive();
   return 0;
 }
