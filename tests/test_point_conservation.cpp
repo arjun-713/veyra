@@ -7,6 +7,7 @@
 #include <cmath>
 #include <cstddef>
 #include <cstdint>
+#include <limits>
 #include <vector>
 
 #include "check.hpp"
@@ -194,6 +195,41 @@ void checkOutOfRangeRejection() {
   CHECK(hi.rejected_out_of_range == 1);
 }
 
+// 7. Non-finite coordinates are rejected and counted separately from
+//    out-of-range ones. A NaN reaching the index arithmetic is a silent
+//    corruption, not a rejection, so the two are not the same event.
+//    Catches: a missing finite check, and a range check placed before it --
+//    every comparison against NaN is false, so a NaN would pass a naive
+//    range test and reach the double-to-int32 conversion, which is undefined
+//    behaviour.
+void checkNonFiniteRejection() {
+  const double nan_v = std::numeric_limits<double>::quiet_NaN();
+  const double inf_v = std::numeric_limits<double>::infinity();
+
+  TileGrid grid;
+  const std::vector<Observation> batch = {
+      obs(nan_v, 0.0, 1.0F),  obs(0.0, nan_v, 1.0F), obs(inf_v, 0.0, 1.0F),
+      obs(0.0, -inf_v, 1.0F), obs(0.01, 0.01, 1.0F),
+  };
+  const FusionStats s = integrate(grid, batch, 0);
+
+  CHECK(s.accepted == 1);
+  CHECK(s.rejected_non_finite == 4);
+  CHECK(s.rejected_out_of_range == 0);
+  CHECK(s.accepted + s.rejected() == batch.size());
+  CHECK(grid.statistics().occupied_cells == 1);
+  CHECK(grid.statistics().tiles == 1);
+
+  // A non-finite height is rejected too: it would poison the Welford mean of
+  // every later point in that cell.
+  TileGrid hz;
+  const FusionStats z = integrate(
+      hz, std::vector<Observation>{obs(0.01, 0.01, std::numeric_limits<float>::quiet_NaN())}, 0);
+  CHECK(z.accepted == 0);
+  CHECK(z.rejected_non_finite == 1);
+  CHECK(hz.statistics().tiles == 0);
+}
+
 }  // namespace
 
 int main() {
@@ -203,5 +239,6 @@ int main() {
   checkStatisticsCorrectness();
   checkIdempotentCreation();
   checkOutOfRangeRejection();
+  checkNonFiniteRejection();
   return 0;
 }

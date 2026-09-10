@@ -1,5 +1,7 @@
 #include "veyra/map/fusion.hpp"
 
+#include <cmath>
+
 #include "veyra/core/types.hpp"
 #include "veyra/map/cell.hpp"
 
@@ -10,6 +12,13 @@ FusionStats integrate(TileGrid& grid, std::span<const Observation> points,
   (void)frame_index;
   FusionStats stats;
   for (const Observation& o : points) {
+    // Finite first, always. Every comparison against NaN is false, so a NaN
+    // would slip through the range test below and reach the double-to-int32
+    // conversion in worldToKey, which is undefined behaviour.
+    if (!std::isfinite(o.x) || !std::isfinite(o.y) || !std::isfinite(o.z)) {
+      ++stats.rejected_non_finite;
+      continue;
+    }
     if (o.x < -kMapHalfExtentM || o.x >= kMapHalfExtentM || o.y < -kMapHalfExtentM ||
         o.y >= kMapHalfExtentM) {
       ++stats.rejected_out_of_range;
