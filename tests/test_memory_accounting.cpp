@@ -6,6 +6,7 @@
 // Every group names the production bug it exists to catch.
 #include <cstddef>
 #include <cstdint>
+#include <functional>
 #include <vector>
 
 #include "check.hpp"
@@ -30,6 +31,12 @@ bool approxEq(double a, double b) { return (a > b ? a - b : b - a) < kEps; }
 //    Catches: statistics() returning hardcoded numbers, and a grid that
 //    pre-allocates tiles before anything is inserted.
 void checkEmptyGrid() {
+  // The tile shape is a settled design decision (issue #6), not an
+  // implementation detail, so it is pinned with literals. Deriving these from
+  // kTileSpan would make every expectation below move with the constant.
+  CHECK(kTileSpan == 32);
+  CHECK(kCellsPerTile == 1024);
+
   const TileGrid grid;
   const GridStats s = grid.statistics();
   CHECK(s.tiles == 0);
@@ -56,14 +63,14 @@ void checkOneCellOneTile() {
 //    several tiles.
 void checkFullTileIsOneTile() {
   TileGrid grid;
-  for (int32_t iy = 0; iy < kTileSpan; ++iy) {
-    for (int32_t ix = 0; ix < kTileSpan; ++ix) {
+  for (int32_t iy = 0; iy < 32; ++iy) {
+    for (int32_t ix = 0; ix < 32; ++ix) {
       grid.findOrCreate(CellId{0, ix, iy});
     }
   }
   const GridStats s = grid.statistics();
   CHECK(s.tiles == 1);
-  CHECK(s.occupied_cells == kCellsPerTile);
+  CHECK(s.occupied_cells == 1024);
   CHECK(approxEq(s.occupancy, 1.0));
 }
 
@@ -73,8 +80,8 @@ void checkFullTileIsOneTile() {
 void checkSeparateTileRegions() {
   TileGrid grid;
   grid.findOrCreate(CellId{0, 0, 0});
-  grid.findOrCreate(CellId{0, kTileSpan, 0});
-  grid.findOrCreate(CellId{0, 0, kTileSpan});
+  grid.findOrCreate(CellId{0, 32, 0});
+  grid.findOrCreate(CellId{0, 0, 32});
   const GridStats s = grid.statistics();
   CHECK(s.tiles == 3);
   CHECK(s.occupied_cells == 3);
@@ -96,6 +103,13 @@ void checkLevelsNeverShareATile() {
   CHECK(s.occupied_cells == 2);
   CHECK(grid.find(CellId{0, 1, 1})->count == 11);
   CHECK(grid.find(CellId{1, 1, 1})->count == 22);
+
+  // The assertions above pass even with a level-blind hash, because
+  // operator== still separates the keys -- the two tiles merely collide into
+  // one bucket. So this pins hash quality directly. It proves the level
+  // reaches the hash, not that lookup is correct; lookup is guarded above.
+  using veyra::core::TileId;
+  CHECK(std::hash<TileId>{}(TileId{0, 1, 1}) != std::hash<TileId>{}(TileId{1, 1, 1}));
 }
 
 // 6. Byte accounting is derived from sizeof, not written down.
@@ -106,7 +120,7 @@ void checkByteAccountingIsDerived() {
 
   TileGrid grid;
   for (int32_t i = 0; i < 5; ++i) {
-    grid.findOrCreate(CellId{0, i * kTileSpan, 0});
+    grid.findOrCreate(CellId{0, i * 32, 0});
   }
   const GridStats s = grid.statistics();
   CHECK(s.tiles == 5);
@@ -121,7 +135,7 @@ void checkOccupancyWasteIsVisible() {
   TileGrid grid;
   grid.findOrCreate(CellId{0, 0, 0});
   const GridStats s = grid.statistics();
-  CHECK(approxEq(s.occupancy, 1.0 / static_cast<double>(kCellsPerTile)));
+  CHECK(approxEq(s.occupancy, 1.0 / 1024.0));
   CHECK(s.allocated_bytes == TileGrid::bytesPerTile());
 }
 
@@ -134,8 +148,8 @@ void checkOccupancyWasteIsVisible() {
 void checkNegativeCoordinates() {
   TileGrid grid;
   Cell& left = grid.findOrCreate(CellId{0, -1, 0});
-  Cell& right = grid.findOrCreate(CellId{0, kTileSpan - 1, 0});
-  Cell& further = grid.findOrCreate(CellId{0, -kTileSpan - 1, 0});
+  Cell& right = grid.findOrCreate(CellId{0, 31, 0});
+  Cell& further = grid.findOrCreate(CellId{0, -33, 0});
   left.count = 1;
   right.count = 2;
   further.count = 3;
@@ -144,8 +158,8 @@ void checkNegativeCoordinates() {
   CHECK(s.tiles == 3);
   CHECK(s.occupied_cells == 3);
   CHECK(grid.find(CellId{0, -1, 0})->count == 1);
-  CHECK(grid.find(CellId{0, kTileSpan - 1, 0})->count == 2);
-  CHECK(grid.find(CellId{0, -kTileSpan - 1, 0})->count == 3);
+  CHECK(grid.find(CellId{0, 31, 0})->count == 2);
+  CHECK(grid.find(CellId{0, -33, 0})->count == 3);
 
   // The ids come back out of iteration exactly as they went in, which pins
   // the slot -> CellId decomposition as well as the tile index.
@@ -154,8 +168,7 @@ void checkNegativeCoordinates() {
   CHECK(seen.size() == 3);
   int found = 0;
   for (const CellId id : seen) {
-    if (id == (CellId{0, -1, 0}) || id == (CellId{0, kTileSpan - 1, 0}) ||
-        id == (CellId{0, -kTileSpan - 1, 0})) {
+    if (id == (CellId{0, -1, 0}) || id == (CellId{0, 31, 0}) || id == (CellId{0, -33, 0})) {
       ++found;
     }
   }
