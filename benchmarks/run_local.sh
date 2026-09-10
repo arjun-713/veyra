@@ -19,6 +19,7 @@ skip_perception="false"
 dataset_sha256=""
 build_type="Release"
 perception_config="configs/perception.yaml"
+python_bin="${VEYRA_PYTHON:-python3}"
 
 usage() {
   cat <<'EOF'
@@ -40,6 +41,7 @@ Options:
   --dataset-sha256 HEX SHA-256 of the source dataset archive for provenance
   --build-type TYPE    CMake build type recorded in the artifact (default: Release)
   --perception-config PATH  perception config used before mapping
+  --python PATH         Python interpreter for the benchmark harness
   --build-dir PATH     local CMake build directory
   --output-dir PATH    JSON/CSV output directory
   -h, --help           show this help
@@ -63,6 +65,7 @@ while (($#)); do
     --dataset-sha256) dataset_sha256="${2:?missing value for --dataset-sha256}"; shift 2 ;;
     --build-type) build_type="${2:?missing value for --build-type}"; shift 2 ;;
     --perception-config) perception_config="${2:?missing value for --perception-config}"; shift 2 ;;
+    --python) python_bin="${2:?missing value for --python}"; shift 2 ;;
     --build-dir) build_dir="${2:?missing value for --build-dir}"; shift 2 ;;
     --output-dir) output_dir="${2:?missing value for --output-dir}"; shift 2 ;;
     -h|--help) usage; exit 0 ;;
@@ -86,7 +89,7 @@ json_output="${output_dir}/${dataset}-${sequence}-${start}-${count}.json"
 csv_output="${output_dir}/${dataset}-${sequence}-${start}-${count}.csv"
 
 benchmark_args=(
-  python3 "$repo_dir/benchmarks/run_benchmark.py"
+  "$python_bin" "$repo_dir/benchmarks/run_benchmark.py"
   --repo "$repo_dir" \
   --binary "$build_dir/apps/benchmark/veyra_benchmark" \
   --dataset "$dataset" \

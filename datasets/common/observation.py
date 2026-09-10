@@ -265,6 +265,11 @@ class ObservationFrame:
         for name in ("slope", "roughness", "height_complexity"):
             if np.isinf(arrays[name]).any() or np.any(arrays[name] < 0):
                 raise ValueError(f"{name} must be non-negative or NaN when uncomputed")
+        if np.any(
+            np.isfinite(arrays["height_complexity"])
+            & (arrays["height_complexity"] > 1.0)
+        ):
+            raise ValueError("height_complexity must be within [0, 1] when computed")
         if np.isinf(optional_arrays["step"]).any() or np.any(
             optional_arrays["step"] < 0
         ):

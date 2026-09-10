@@ -111,6 +111,23 @@ class ObservationContractTests(unittest.TestCase):
         self.assertEqual(frame.provenance.coordinate_frame, "lidar")
         self.assertEqual(frame.provenance.timestamp_source, "absent")
 
+    def test_height_complexity_rejects_unbounded_map_evidence(self):
+        with self.assertRaises(ValueError):
+            ObservationFrame(
+                timestamp=1.0,
+                pose=PoseSE3.identity(timestamp=1.0),
+                points=np.zeros((1, 4), dtype=np.float32),
+                semantic_class=np.array([1]),
+                semantic_confidence=np.array([1.0]),
+                ground=np.array([True]),
+                drivable=np.array(["drivable"]),
+                slope=np.array([0.0]),
+                roughness=np.array([0.0]),
+                height_complexity=np.array([1.01]),
+                motion_probability=np.array([0.0]),
+                velocity_xy=np.zeros((1, 2)),
+            )
+
 
 def _frame(**overrides):
     values = {

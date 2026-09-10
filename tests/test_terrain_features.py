@@ -82,6 +82,15 @@ class TerrainAnalyzerTests(unittest.TestCase):
         self.assertGreater(float(np.max(evidence.step)), 0.0)
         self.assertTrue(np.any(evidence.height_complexity > 0.1))
 
+    def test_height_complexity_is_bounded_for_map_evidence(self):
+        points = grid(height=lambda x, y: 2.0 * x)
+        evidence = TerrainAnalyzer().analyze(
+            points, GroundEvidence(np.ones(len(points)), np.ones(len(points)))
+        )
+
+        self.assertTrue(np.all(np.isfinite(evidence.height_complexity)))
+        self.assertTrue(np.all(evidence.height_complexity <= 1.0))
+
     def test_sparse_or_missing_ground_stays_unknown(self):
         points = grid(size=3)
         mask = np.zeros(len(points), dtype=bool)
@@ -144,7 +153,12 @@ class TerrainAnalyzerTests(unittest.TestCase):
         self.assertTrue(np.all(np.isnan(evidence.slope)))
 
     def test_nonfinite_configuration_is_rejected(self):
-        for keyword in ("neighborhood_radius", "max_slope", "max_roughness", "max_step"):
+        for keyword in (
+            "neighborhood_radius",
+            "max_slope",
+            "max_roughness",
+            "max_step",
+        ):
             with self.subTest(keyword=keyword):
                 with self.assertRaises(ValueError):
                     TerrainAnalyzer(**{keyword: np.nan})

@@ -28,6 +28,7 @@ jobs:
         env:
           RUN_URL: ${{ github.event.workflow_run.html_url }}
           HEAD_SHA: ${{ github.event.workflow_run.head_sha }}
+          CONCLUSION: ${{ github.event.workflow_run.conclusion }}
         with:
           script: |
             const fs = require('fs');
@@ -79,6 +80,7 @@ jobs:
               '## Veyra Benchmark',
               '',
               `**Run:** [${context.payload.workflow_run.id}](${process.env.RUN_URL})  `,
+              `**Status:** **${process.env.CONCLUSION.toUpperCase()}**  `,
               `**Commit:** \`${process.env.HEAD_SHA}\`  `,
               `**Dataset:** SemanticPOSS / sequence \`${map?.sequence || perception?.sequence || 'n/a'}\``,
               '', '### Map policies', '', mapTable,

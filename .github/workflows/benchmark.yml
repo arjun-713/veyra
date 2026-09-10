@@ -76,7 +76,7 @@ jobs:
           key: semanticposs-archive-${{ env.SEMANTIC_POSS_ARCHIVE_SHA256 }}
       - name: Record runner and disk state
         run: |
-          mkdir -p artifacts
+          mkdir -p artifacts/map artifacts/baseline
           {
             echo "runner_started_at=$(date --iso-8601=seconds)"
             echo "free_disk_before_bytes=$(df --output=avail -B1 . | tail -1 | tr -d ' ')"
@@ -143,28 +143,47 @@ jobs:
         run: |
           config=configs/perception.yaml
           if [[ "$PERCEPTION_MODE" == "salsanext" ]]; then config=configs/perception-salsanext.yaml; fi
-          benchmarks/run_local.sh --dataset semanticposs \
-            --sequence "$SEMANTIC_POSS_SEQUENCE" --count "$SEMANTIC_POSS_COUNT" \
-            --warmup-frames 10 --repetitions "$BENCHMARK_REPETITIONS" \
-            --policies "$BENCHMARK_POLICIES" --perception-config "$config" \
-            --dataset-sha256 "$SEMANTIC_POSS_ARCHIVE_SHA256" --build-type Release \
-            --build-dir "$RUNNER_TEMP/veyra-build" --output-dir "$GITHUB_WORKSPACE/artifacts/map"
+          rc=1
+          for attempt in 1 2; do
+            rm -f artifacts/map/*
+            if benchmarks/run_local.sh --dataset semanticposs \
+              --sequence "$SEMANTIC_POSS_SEQUENCE" --count "$SEMANTIC_POSS_COUNT" \
+              --warmup-frames 10 --repetitions "$BENCHMARK_REPETITIONS" \
+              --policies "$BENCHMARK_POLICIES" --perception-config "$config" \
+              --dataset-sha256 "$SEMANTIC_POSS_ARCHIVE_SHA256" --build-type Release \
+              --build-dir "$RUNNER_TEMP/veyra-build" --output-dir "$GITHUB_WORKSPACE/artifacts/map"; then
+              rc=0
+              break
+            fi
+            rc=$?
+            echo "map benchmark attempt $attempt failed with exit $rc; retrying once for transient runner failures"
+            sleep 5
+          done
+          exit "$rc"
       - name: Render Actions job summary
         if: always()
         run: |
           python -m benchmarks.render_report \
-            --map "$(find artifacts/map -name '*.json' -print -quit)" \
+            --map "$(find artifacts/map -name '*.json' -print -quit 2>/dev/null || true)" \
             --perception artifacts/semanticposs-perception.json \
-            --baseline "$(find artifacts/baseline -name '*.json' -print -quit)" \
+            --baseline "$(find artifacts/baseline -name '*.json' -print -quit 2>/dev/null || true)" \
             --output artifacts/summary.md || true
           cat artifacts/summary.md 2>/dev/null >> "$GITHUB_STEP_SUMMARY" || true
           python -m benchmarks.render_report \
-            --map "$(find artifacts/map -name '*.json' -print -quit)" \
+            --map "$(find artifacts/map -name '*.json' -print -quit 2>/dev/null || true)" \
             --perception artifacts/semanticposs-perception.json \
             --fail-on-correctness
           echo "" >> "$GITHUB_STEP_SUMMARY"
           df --output=avail -B1 . | tail -1 | tr -d ' ' | sed 's/^/free_disk_after_bytes=/' >> artifacts/workflow-provenance.env
           echo "benchmark_finished_at=$(date --iso-8601=seconds)" >> artifacts/workflow-provenance.env
+      - name: Capture benchmark failure diagnostics
+        if: failure()
+        run: |
+          {
+            echo "benchmark_failed=true"
+            echo "failure_captured_at=$(date --iso-8601=seconds)"
+            echo "disk_state=$(df -h . | tail -1)"
+          } > artifacts/benchmark-failure.txt
       - name: Upload benchmark artifacts
         if: always()
         uses: actions/upload-artifact@v4

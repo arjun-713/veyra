@@ -14,7 +14,7 @@ class TerrainEvidence:
     """Per-point terrain evidence aligned with the input point array.
 
     ``slope`` is in radians, ``roughness`` is RMS plane residual in metres,
-    ``height_complexity`` is the local standard deviation of height, and
+    ``height_complexity`` is a bounded local height-complexity score, and
     ``step`` is the largest local height discontinuity in metres.  A point
     is ``unknown`` when there is not enough trusted ground support.
     """
@@ -174,7 +174,12 @@ class TerrainAnalyzer:
             residuals = np.abs(z - predicted)
             slope_value = float(np.arctan(np.linalg.norm(gradient)))
             roughness_value = float(np.sqrt(np.sum(residuals**2) / len(residuals)))
-            complexity_value = float(np.sqrt(np.sum(z**2) / len(z)))
+            # The map/policy contract consumes a unit-interval evidence score.
+            # Preserve ordering for large local height variation while
+            # preventing world-frame elevation scale from invalidating the
+            # downstream protocol.
+            raw_complexity = float(np.sqrt(np.sum(z**2) / len(z)))
+            complexity_value = float(np.tanh(raw_complexity))
             # A continuous slope has a large raw height range but no step;
             # use deviation from the locally fitted surface instead.
             step_value = float(np.max(residuals))
