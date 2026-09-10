@@ -1,7 +1,3 @@
-#include "veyra/map/map.hpp"
-#include "veyra/metrics/metrics.hpp"
-#include "veyra/policy/policy.hpp"
-
 #include <algorithm>
 #include <array>
 #include <chrono>
@@ -21,6 +17,10 @@
 #include <utility>
 #include <variant>
 #include <vector>
+
+#include "veyra/map/map.hpp"
+#include "veyra/metrics/metrics.hpp"
+#include "veyra/policy/policy.hpp"
 
 namespace {
 
@@ -103,23 +103,28 @@ enum class PolicyKind { kUniform5, kUniform40, kDistanceLod, kUtilityLod };
 
 class MapPolicyAdapter {
  public:
-  MapPolicyAdapter(PolicyKind kind, veyra::map::MapConfig config,
-                   const Options& options)
-      : kind_(kind), config_(config),
+  MapPolicyAdapter(PolicyKind kind, veyra::map::MapConfig config, const Options& options)
+      : kind_(kind),
+        config_(config),
         map_(make_storage(kind, config)),
         utility_(kind == PolicyKind::kUtilityLod
-                     ? std::optional<veyra::policy::LodPolicy>{veyra::policy::load_policy_config(options.utility_config)}
+                     ? std::optional<veyra::policy::LodPolicy>{veyra::policy::load_policy_config(
+                           options.utility_config)}
                      : std::nullopt),
-        governor_(kind == PolicyKind::kUtilityLod
-                      ? std::optional<veyra::policy::ResourceGovernor>{veyra::policy::load_resource_governor_config(options.governor_config)}
-                      : std::nullopt) {}
+        governor_(
+            kind == PolicyKind::kUtilityLod
+                ? std::optional<
+                      veyra::policy::ResourceGovernor>{veyra::policy::load_resource_governor_config(
+                      options.governor_config)}
+                : std::nullopt) {}
 
   [[nodiscard]] bool accepts(double x, double y) const {
-    return std::visit([x, y](const auto &map) { return map.accepts(x, y); }, map_);
+    return std::visit([x, y](const auto& map) { return map.accepts(x, y); }, map_);
   }
 
-  void update(const veyra::map::Observation &observation) {    if (kind_ != PolicyKind::kUtilityLod) {
-      std::visit([&observation](auto &map) { map.update(observation); }, map_);
+  void update(const veyra::map::Observation& observation) {
+    if (kind_ != PolicyKind::kUtilityLod) {
+      std::visit([&observation](auto& map) { map.update(observation); }, map_);
       return;
     }
     auto& map = std::get<veyra::map::Map>(map_);
@@ -133,9 +138,12 @@ class MapPolicyAdapter {
         .state_cell = baseline_cell,
         .safety_critical = observation.drivable == 2,
         .geometry_complexity = static_cast<double>(observation.geometry_complexity),
-        .semantic_importance = observation.semantic_class == 0 ? 0.0 : static_cast<double>(observation.semantic_confidence),
+        .semantic_importance = observation.semantic_class == 0
+                                   ? 0.0
+                                   : static_cast<double>(observation.semantic_confidence),
         .motion = static_cast<double>(observation.motion_probability),
-        .traversability_risk = observation.drivable == 2 ? static_cast<double>(observation.terrain_confidence) : 0.0,
+        .traversability_risk =
+            observation.drivable == 2 ? static_cast<double>(observation.terrain_confidence) : 0.0,
         .semantic_uncertainty = 1.0 - static_cast<double>(observation.semantic_confidence),
         .observation_quality = static_cast<double>(observation.observation_quality),
         .point_density = 1.0,
@@ -149,11 +157,11 @@ class MapPolicyAdapter {
   void set_window_center(double x, double y) {
     center_x_ = x;
     center_y_ = y;
-    std::visit([x, y](auto &map) { map.set_window_center(x, y); }, map_);
+    std::visit([x, y](auto& map) { map.set_window_center(x, y); }, map_);
   }
 
   [[nodiscard]] veyra::map::MapSnapshot snapshot() const {
-    return std::visit([](const auto &map) { return map.snapshot(); }, map_);
+    return std::visit([](const auto& map) { return map.snapshot(); }, map_);
   }
 
   [[nodiscard]] bool uses_stateful_policy() const noexcept { return utility_.has_value(); }
@@ -168,18 +176,20 @@ class MapPolicyAdapter {
       const double y = (static_cast<double>(leaf.id.iy) + 0.5) * resolution;
       candidates.push_back({.cell = leaf.id,
                             .range_m = std::hypot(x - center_x_, y - center_y_),
-                            .utility_score = std::clamp(static_cast<double>(leaf.stats.observation_quality), 0.0, 1.0),
+                            .utility_score = std::clamp(
+                                static_cast<double>(leaf.stats.observation_quality), 0.0, 1.0),
                             .active_level = leaf.id.level,
                             .safety_critical = leaf.stats.drivable_evidence < 0.0F});
     }
-    const auto actions = governor_->decide(
-        {.active_cells = snapshot.active_leaf_count,
-         .logical_bytes = snapshot.logical_bytes,
-         .frame_time_ms = frame_time_ms,
-         .target_frame_time_ms = 100.0}, candidates);
+    const auto actions = governor_->decide({.active_cells = snapshot.active_leaf_count,
+                                            .logical_bytes = snapshot.logical_bytes,
+                                            .frame_time_ms = frame_time_ms,
+                                            .target_frame_time_ms = 100.0},
+                                           candidates);
     auto& map = std::get<veyra::map::Map>(map_);
     for (const auto& action : actions) {
-      if (action.action == veyra::policy::ResolutionAction::Merge) map.merge_children(action.cell.parent());
+      if (action.action == veyra::policy::ResolutionAction::Merge)
+        map.merge_children(action.cell.parent());
     }
   }
 
@@ -188,10 +198,14 @@ class MapPolicyAdapter {
                                veyra::map::DistanceLodMap, veyra::map::Map>;
   static Storage make_storage(PolicyKind kind, veyra::map::MapConfig config) {
     switch (kind) {
-      case PolicyKind::kUniform5: return veyra::map::Uniform5Map{config};
-      case PolicyKind::kUniform40: return veyra::map::Uniform40Map{config};
-      case PolicyKind::kDistanceLod: return veyra::map::DistanceLodMap{config};
-      case PolicyKind::kUtilityLod: return veyra::map::Map{veyra::map::ResolutionPolicy::DistanceLod, config};
+      case PolicyKind::kUniform5:
+        return veyra::map::Uniform5Map{config};
+      case PolicyKind::kUniform40:
+        return veyra::map::Uniform40Map{config};
+      case PolicyKind::kDistanceLod:
+        return veyra::map::DistanceLodMap{config};
+      case PolicyKind::kUtilityLod:
+        return veyra::map::Map{veyra::map::ResolutionPolicy::DistanceLod, config};
     }
     throw std::logic_error("unknown policy kind");
   }
@@ -208,8 +222,8 @@ class MapPolicyAdapter {
 // A point outside the active window is a counted, documented rejection, not
 // a frame abort: one marginal return must never strand a whole frame (or a
 // whole pipe). Malformed records still throw via parse_observation_record.
-bool ingest_observation(MapPolicyAdapter &map, const veyra::map::Observation &observation,
-                        std::uint64_t &rejected_out_of_window) {
+bool ingest_observation(MapPolicyAdapter& map, const veyra::map::Observation& observation,
+                        std::uint64_t& rejected_out_of_window) {
   if (!map.accepts(observation.x, observation.y)) {
     ++rejected_out_of_window;
     return false;
@@ -218,7 +232,7 @@ bool ingest_observation(MapPolicyAdapter &map, const veyra::map::Observation &ob
   return true;
 }
 
-double real_value(const std::string &value, const char *name) {
+double real_value(const std::string& value, const char* name) {
   std::size_t used = 0;
   const auto result = std::stod(value, &used);
   if (used != value.size() || !std::isfinite(result)) {
@@ -227,13 +241,11 @@ double real_value(const std::string &value, const char *name) {
   return result;
 }
 
-std::optional<double> optional_real_value(const std::string &value,
-                                          const char *name) {
-  return value == "NA" ? std::nullopt
-                       : std::optional<double>{real_value(value, name)};
+std::optional<double> optional_real_value(const std::string& value, const char* name) {
+  return value == "NA" ? std::nullopt : std::optional<double>{real_value(value, name)};
 }
 
-std::uint64_t uint_value(const std::string &value, const char *name) {
+std::uint64_t uint_value(const std::string& value, const char* name) {
   std::size_t used = 0;
   const auto result = std::stoull(value, &used);
   if (used != value.size()) {
@@ -242,13 +254,11 @@ std::uint64_t uint_value(const std::string &value, const char *name) {
   return result;
 }
 
-std::optional<std::uint64_t> optional_uint_value(const std::string &value,
-                                                  const char *name) {
-  return value == "NA" ? std::nullopt
-                       : std::optional<std::uint64_t>{uint_value(value, name)};
+std::optional<std::uint64_t> optional_uint_value(const std::string& value, const char* name) {
+  return value == "NA" ? std::nullopt : std::optional<std::uint64_t>{uint_value(value, name)};
 }
 
-std::int64_t int_value(const std::string &value, const char *name) {
+std::int64_t int_value(const std::string& value, const char* name) {
   std::size_t used = 0;
   const auto result = std::stoll(value, &used);
   if (used != value.size()) {
@@ -257,7 +267,7 @@ std::int64_t int_value(const std::string &value, const char *name) {
   return result;
 }
 
-void require_end(std::istringstream &input, const char *record) {
+void require_end(std::istringstream& input, const char* record) {
   std::string extra;
   if (input >> extra) {
     throw std::invalid_argument(std::string("malformed ") + record + " record");
@@ -276,13 +286,12 @@ PolicyKind parse_policy(std::string_view name) {
   throw std::invalid_argument("unknown policy: " + std::string(name));
 }
 
-Options parse_options(int argc, char **argv) {
+Options parse_options(int argc, char** argv) {
   Options options;
   for (int index = 1; index < argc; ++index) {
     const std::string_view arg(argv[index]);
-    const auto needs_value = arg == "--policy" || arg == "--output" ||
-                             arg == "--window-radius" || arg == "--levels" ||
-                             arg == "--distance-boundaries" ||
+    const auto needs_value = arg == "--policy" || arg == "--output" || arg == "--window-radius" ||
+                             arg == "--levels" || arg == "--distance-boundaries" ||
                              arg == "--warmup-frames" || arg == "--utility-config" ||
                              arg == "--governor-config";
     if (needs_value && index + 1 >= argc) {
@@ -322,7 +331,8 @@ Options parse_options(int argc, char **argv) {
         throw std::invalid_argument("distance boundaries must be a,b,c");
       }
     } else {
-      throw std::invalid_argument("usage: --policy uniform5|distance_lod [--warmup-frames N] [--output path]");
+      throw std::invalid_argument(
+          "usage: --policy uniform5|distance_lod [--warmup-frames N] [--output path]");
     }
   }
   (void)parse_policy(options.policy);
@@ -342,17 +352,15 @@ std::int64_t duration_ns(Clock::time_point started) {
   return std::chrono::duration_cast<std::chrono::nanoseconds>(Clock::now() - started).count();
 }
 
-void observe_quality(InputSummary &summary, std::string_view name,
-                     std::optional<double> value) {
+void observe_quality(InputSummary& summary, std::string_view name, std::optional<double> value) {
   summary.quality[std::string(name)].add(value);
 }
 
 // This is the sole protocol-to-map observation mapping. Both batch execution
 // and the long-lived engine consume it, preventing a viewer-specific lossy
 // interpretation of V2 semantic, terrain, motion, and quality evidence.
-veyra::map::Observation parse_observation_record(std::istringstream &input,
-                                                  int stream_version,
-                                                  InputSummary &summary) {
+veyra::map::Observation parse_observation_record(std::istringstream& input, int stream_version,
+                                                 InputSummary& summary) {
   std::vector<std::string> fields;
   for (std::string field; input >> field;) fields.push_back(std::move(field));
   const std::size_t expected_fields = stream_version == 1 ? 6U : 19U;
@@ -360,25 +368,41 @@ veyra::map::Observation parse_observation_record(std::istringstream &input,
   const auto x = real_value(fields[0], "x");
   const auto y = real_value(fields[1], "y");
   const auto z = real_value(fields[2], "z");
-  const auto intensity = stream_version == 1 ? std::optional<double>{}
-      : std::optional<double>{real_value(fields[3], "intensity")};
+  const auto intensity = stream_version == 1
+                             ? std::optional<double>{}
+                             : std::optional<double>{real_value(fields[3], "intensity")};
   const auto semantic = uint_value(fields[stream_version == 1 ? 3 : 4], "semantic class");
-  const auto semantic_confidence = real_value(fields[stream_version == 1 ? 4 : 5], "semantic confidence");
+  const auto semantic_confidence =
+      real_value(fields[stream_version == 1 ? 4 : 5], "semantic confidence");
   const auto ground = stream_version == 1 ? 0 : uint_value(fields[6], "ground");
   const auto drivable = uint_value(fields[stream_version == 1 ? 5 : 7], "drivable");
-  const auto slope = stream_version == 1 ? std::optional<double>{} : optional_real_value(fields[8], "slope");
-  const auto roughness = stream_version == 1 ? std::optional<double>{} : optional_real_value(fields[9], "roughness");
-  const auto height_complexity = stream_version == 1 ? std::optional<double>{} : optional_real_value(fields[10], "height complexity");
-  const auto terrain_confidence = stream_version == 1 ? std::optional<double>{} : optional_real_value(fields[11], "terrain confidence");
-  const auto step = stream_version == 1 ? std::optional<double>{} : optional_real_value(fields[12], "step");
-  const auto motion_probability = stream_version == 1 ? std::optional<double>{} : optional_real_value(fields[13], "motion probability");
+  const auto slope =
+      stream_version == 1 ? std::optional<double>{} : optional_real_value(fields[8], "slope");
+  const auto roughness =
+      stream_version == 1 ? std::optional<double>{} : optional_real_value(fields[9], "roughness");
+  const auto height_complexity = stream_version == 1
+                                     ? std::optional<double>{}
+                                     : optional_real_value(fields[10], "height complexity");
+  const auto terrain_confidence = stream_version == 1
+                                      ? std::optional<double>{}
+                                      : optional_real_value(fields[11], "terrain confidence");
+  const auto step =
+      stream_version == 1 ? std::optional<double>{} : optional_real_value(fields[12], "step");
+  const auto motion_probability = stream_version == 1
+                                      ? std::optional<double>{}
+                                      : optional_real_value(fields[13], "motion probability");
   const auto motion_state = stream_version == 1 ? 3 : uint_value(fields[14], "motion state");
-  const auto velocity_x = stream_version == 1 ? std::optional<double>{} : optional_real_value(fields[15], "velocity x");
-  const auto velocity_y = stream_version == 1 ? std::optional<double>{} : optional_real_value(fields[16], "velocity y");
-  const auto observation_quality = stream_version == 1 ? std::optional<double>{} : optional_real_value(fields[17], "observation quality");
-  const auto raw_semantic = stream_version == 1 ? static_cast<std::int64_t>(semantic) : int_value(fields[18], "raw semantic class");
-  if (semantic > 65535 || semantic_confidence < 0.0 || semantic_confidence > 1.0 ||
-      ground > 1 || drivable > 2 || motion_state > 3 || raw_semantic < 0) {
+  const auto velocity_x =
+      stream_version == 1 ? std::optional<double>{} : optional_real_value(fields[15], "velocity x");
+  const auto velocity_y =
+      stream_version == 1 ? std::optional<double>{} : optional_real_value(fields[16], "velocity y");
+  const auto observation_quality = stream_version == 1
+                                       ? std::optional<double>{}
+                                       : optional_real_value(fields[17], "observation quality");
+  const auto raw_semantic = stream_version == 1 ? static_cast<std::int64_t>(semantic)
+                                                : int_value(fields[18], "raw semantic class");
+  if (semantic > 65535 || semantic_confidence < 0.0 || semantic_confidence > 1.0 || ground > 1 ||
+      drivable > 2 || motion_state > 3 || raw_semantic < 0) {
     throw std::invalid_argument("point values out of range");
   }
   for (const auto confidence : {terrain_confidence, motion_probability, observation_quality}) {
@@ -419,7 +443,7 @@ veyra::map::Observation parse_observation_record(std::istringstream &input,
           .velocity_y = static_cast<float>(velocity_y.value_or(0.0))};
 }
 
-Result run(const Options &options) {
+Result run(const Options& options) {
   const veyra::map::MapConfig config{
       .window_radius_m = options.window_radius,
       .tile_size_m = 10.0,
@@ -466,7 +490,8 @@ Result run(const Options &options) {
       result.protocol_version = stream_version;
       header = true;
     } else if (kind == "H") {
-      if (!header || metadata || open || trailer || !(input >> result.digest) || result.digest.empty()) {
+      if (!header || metadata || open || trailer || !(input >> result.digest) ||
+          result.digest.empty()) {
         throw std::invalid_argument("invalid stream metadata");
       }
       require_end(input, "stream metadata");
@@ -478,10 +503,7 @@ Result run(const Options &options) {
       }
       std::string timestamp, pose_timestamp, source_index, count;
       std::array<double, 16> pose{};
-      pose = {1.0, 0.0, 0.0, 0.0,
-              0.0, 1.0, 0.0, 0.0,
-              0.0, 0.0, 1.0, 0.0,
-              0.0, 0.0, 0.0, 1.0};
+      pose = {1.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 1.0};
       if (stream_version == 1) {
         if (!(input >> timestamp >> count)) {
           throw std::invalid_argument("malformed legacy frame marker");
@@ -491,7 +513,7 @@ Result run(const Options &options) {
         if (!(input >> timestamp >> pose_timestamp >> source_index)) {
           throw std::invalid_argument("malformed frame marker");
         }
-        for (double &element : pose) {
+        for (double& element : pose) {
           std::string value;
           if (!(input >> value)) {
             throw std::invalid_argument("malformed frame pose");
@@ -560,7 +582,10 @@ Result run(const Options &options) {
       parse_duration += std::chrono::nanoseconds{duration_ns(parse_started)};
       const auto snapshot_started = Clock::now();
       auto snapshot = map.snapshot();
-      map.apply_governor(snapshot, static_cast<double>((parse_duration + window_duration + update_duration).count()) / 1'000'000.0);
+      map.apply_governor(
+          snapshot,
+          static_cast<double>((parse_duration + window_duration + update_duration).count()) /
+              1'000'000.0);
       snapshot = map.snapshot();
       const auto snapshot_duration = std::chrono::nanoseconds{duration_ns(snapshot_started)};
       const auto topology_churn = snapshot.topology_change_count - previous_topology_changes;
@@ -572,7 +597,8 @@ Result run(const Options &options) {
       if (is_warmup) {
         ++result.warmup_frames;
       } else {
-        const auto frame_pipeline = parse_duration + window_duration + update_duration + snapshot_duration;
+        const auto frame_pipeline =
+            parse_duration + window_duration + update_duration + snapshot_duration;
         measured_elapsed += frame_pipeline;
         metrics.record_duration("protocol_parse_and_validate", parse_duration);
         metrics.record_duration("map_window_follow", window_duration);
@@ -638,8 +664,7 @@ std::string escape(std::string_view value) {
   return result;
 }
 
-void write_optional_uint(std::ostringstream &out,
-                         std::optional<std::uint64_t> value) {
+void write_optional_uint(std::ostringstream& out, std::optional<std::uint64_t> value) {
   if (value.has_value()) {
     out << *value;
   } else {
@@ -647,7 +672,7 @@ void write_optional_uint(std::ostringstream &out,
   }
 }
 
-void write_optional_double(std::ostringstream &out, std::optional<double> value) {
+void write_optional_double(std::ostringstream& out, std::optional<double> value) {
   if (value.has_value()) {
     out << *value;
   } else {
@@ -655,36 +680,33 @@ void write_optional_double(std::ostringstream &out, std::optional<double> value)
   }
 }
 
-void write_numeric_summary(std::ostringstream &out, const NumericSummary &summary) {
+void write_numeric_summary(std::ostringstream& out, const NumericSummary& summary) {
   out << "{\"count\":" << summary.count << ",\"mean\":";
   if (summary.count == 0) {
     out << "null,\"min\":null,\"max\":null}";
     return;
   }
-  out << summary.sum / static_cast<double>(summary.count) << ",\"min\":"
-      << summary.min << ",\"max\":" << summary.max << '}';
+  out << summary.sum / static_cast<double>(summary.count) << ",\"min\":" << summary.min
+      << ",\"max\":" << summary.max << '}';
 }
 
-void write_duration_statistics(std::ostringstream &out,
-                               const veyra::metrics::DurationStatistics &stats) {
+void write_duration_statistics(std::ostringstream& out,
+                               const veyra::metrics::DurationStatistics& stats) {
   out << "{\"count\":" << stats.count << ",\"mean\":" << stats.mean_ns
-      << ",\"min\":" << stats.min_ns << ",\"max\":" << stats.max_ns
-      << ",\"p50\":" << stats.p50_ns << ",\"p95\":" << stats.p95_ns
-      << ",\"p99\":" << stats.p99_ns << '}';
+      << ",\"min\":" << stats.min_ns << ",\"max\":" << stats.max_ns << ",\"p50\":" << stats.p50_ns
+      << ",\"p95\":" << stats.p95_ns << ",\"p99\":" << stats.p99_ns << '}';
 }
 
-void write_value_statistics(std::ostringstream &out,
-                            const veyra::metrics::ValueStatistics &stats) {
-  out << "{\"count\":" << stats.count << ",\"mean\":" << stats.mean
-      << ",\"min\":" << stats.min << ",\"max\":" << stats.max
-      << ",\"p50\":" << stats.p50 << ",\"p95\":" << stats.p95
+void write_value_statistics(std::ostringstream& out, const veyra::metrics::ValueStatistics& stats) {
+  out << "{\"count\":" << stats.count << ",\"mean\":" << stats.mean << ",\"min\":" << stats.min
+      << ",\"max\":" << stats.max << ",\"p50\":" << stats.p50 << ",\"p95\":" << stats.p95
       << ",\"p99\":" << stats.p99 << '}';
 }
 
-void write_input_summary(std::ostringstream &out, const InputSummary &input) {
+void write_input_summary(std::ostringstream& out, const InputSummary& input) {
   out << "{\"pose_available\":" << (input.pose_available ? "true" : "false")
-      << ",\"enriched_fields_available\":"
-      << (input.enriched_fields_available ? "true" : "false") << ",\"timestamp_us\":";
+      << ",\"enriched_fields_available\":" << (input.enriched_fields_available ? "true" : "false")
+      << ",\"timestamp_us\":";
   write_optional_uint(out, input.timestamp_us);
   out << ",\"pose_timestamp_us\":";
   write_optional_uint(out, input.pose_timestamp_us);
@@ -692,17 +714,18 @@ void write_input_summary(std::ostringstream &out, const InputSummary &input) {
   write_optional_uint(out, input.source_index);
   out << ",\"pose_translation_xyz\":[" << input.pose_translation[0] << ','
       << input.pose_translation[1] << ',' << input.pose_translation[2]
-      << "],\"point_count\":" << input.point_count << ",\"ground\":{\"true_count\":"
-      << input.ground_true_count << ",\"false_count\":"
-      << input.point_count - input.ground_true_count << "},\"drivable_counts\":{\"unknown\":"
-      << input.drivable_counts[0] << ",\"drivable\":" << input.drivable_counts[1]
+      << "],\"point_count\":" << input.point_count
+      << ",\"ground\":{\"true_count\":" << input.ground_true_count
+      << ",\"false_count\":" << input.point_count - input.ground_true_count
+      << "},\"drivable_counts\":{\"unknown\":" << input.drivable_counts[0]
+      << ",\"drivable\":" << input.drivable_counts[1]
       << ",\"non_drivable\":" << input.drivable_counts[2]
       << "},\"motion_state_counts\":{\"static\":" << input.motion_state_counts[0]
       << ",\"possibly_moving\":" << input.motion_state_counts[1]
       << ",\"moving\":" << input.motion_state_counts[2]
       << ",\"unknown\":" << input.motion_state_counts[3] << "},\"quality\":{";
   bool first = true;
-  for (const auto &[name, summary] : input.quality) {
+  for (const auto& [name, summary] : input.quality) {
     if (!std::exchange(first, false)) {
       out << ',';
     }
@@ -712,46 +735,44 @@ void write_input_summary(std::ostringstream &out, const InputSummary &input) {
   out << "}}";
 }
 
-std::string render(const Result &result) {
-  const auto &snapshot = result.snapshot;
-  const auto &metrics = result.metrics;
+std::string render(const Result& result) {
+  const auto& snapshot = result.snapshot;
+  const auto& metrics = result.metrics;
   std::ostringstream out;
   out << std::setprecision(17);
   out << "{\"schema_version\":2,\"protocol_version\":" << result.protocol_version
-      << ",\"policy\":\""
-      << escape(result.policy) << "\",\"stream_digest\":\"" << escape(result.digest)
-      << "\",\"input_frames\":" << result.input_frames << ",\"warmup_frames\":"
-      << result.warmup_frames << ",\"measured_frames\":" << result.frame_metrics.size()
+      << ",\"policy\":\"" << escape(result.policy) << "\",\"stream_digest\":\""
+      << escape(result.digest) << "\",\"input_frames\":" << result.input_frames
+      << ",\"warmup_frames\":" << result.warmup_frames
+      << ",\"measured_frames\":" << result.frame_metrics.size()
       << ",\"frames\":" << result.frame_metrics.size()
-      << ",\"input_points\":" << result.input_points << ",\"snapshot\":{\"active_leaf_count\":"
-      << snapshot.active_leaf_count << ",\"tile_count\":" << snapshot.tile_count
-      << ",\"point_count\":" << snapshot.point_count << ",\"logical_bytes\":"
-      << snapshot.logical_bytes << ",\"memory\":{\"logical_payload_bytes\":"
-      << snapshot.memory.logical_payload_bytes << ",\"retained_prior_payload_bytes\":"
-      << snapshot.memory.retained_prior_payload_bytes << ",\"allocated_cell_array_bytes\":"
-      << snapshot.memory.allocated_cell_array_bytes << ",\"allocated_tile_bytes\":"
-      << snapshot.memory.allocated_tile_bytes << ",\"allocated_index_bytes\":"
-      << snapshot.memory.allocated_index_bytes << ",\"allocated_overhead_bytes\":"
-      << snapshot.memory.allocated_overhead_bytes << ",\"allocated_bytes\":"
-      << snapshot.memory.allocated_bytes << "},\"levels\":{";
+      << ",\"input_points\":" << result.input_points
+      << ",\"snapshot\":{\"active_leaf_count\":" << snapshot.active_leaf_count
+      << ",\"tile_count\":" << snapshot.tile_count << ",\"point_count\":" << snapshot.point_count
+      << ",\"logical_bytes\":" << snapshot.logical_bytes
+      << ",\"memory\":{\"logical_payload_bytes\":" << snapshot.memory.logical_payload_bytes
+      << ",\"retained_prior_payload_bytes\":" << snapshot.memory.retained_prior_payload_bytes
+      << ",\"allocated_cell_array_bytes\":" << snapshot.memory.allocated_cell_array_bytes
+      << ",\"allocated_tile_bytes\":" << snapshot.memory.allocated_tile_bytes
+      << ",\"allocated_index_bytes\":" << snapshot.memory.allocated_index_bytes
+      << ",\"allocated_overhead_bytes\":" << snapshot.memory.allocated_overhead_bytes
+      << ",\"allocated_bytes\":" << snapshot.memory.allocated_bytes << "},\"levels\":{";
   for (int level = 0; level < 4; ++level) {
     if (level > 0) {
       out << ',';
     }
     out << '"' << level << "\":" << snapshot.count_at_level(level);
   }
-  out << "},\"nonspatial_prior_point_count\":"
-      << snapshot.nonspatial_prior_point_count
+  out << "},\"nonspatial_prior_point_count\":" << snapshot.nonspatial_prior_point_count
       << ",\"invariant_no_parent_descendant_overlap\":"
       << (snapshot.has_no_parent_descendant_overlap() ? "true" : "false");
   if (result.include_leaf_details) {
     out << ",\"leaves\":[";
     for (std::size_t index = 0; index < snapshot.leaves.size(); ++index) {
       if (index > 0) out << ',';
-      const auto &leaf = snapshot.leaves[index];
-      out << "{\"level\":" << leaf.id.level << ",\"ix\":" << leaf.id.ix
-          << ",\"iy\":" << leaf.id.iy << ",\"count\":"
-          << leaf.stats.count << ",\"mean_z\":" << leaf.stats.mean_z << '}';
+      const auto& leaf = snapshot.leaves[index];
+      out << "{\"level\":" << leaf.id.level << ",\"ix\":" << leaf.id.ix << ",\"iy\":" << leaf.id.iy
+          << ",\"count\":" << leaf.stats.count << ",\"mean_z\":" << leaf.stats.mean_z << '}';
     }
     out << ']';
   }
@@ -762,7 +783,7 @@ std::string render(const Result &result) {
   bool first = true;
   const std::map<std::string, veyra::metrics::DurationStatistics> sorted_durations(
       metrics.durations.begin(), metrics.durations.end());
-  for (const auto &[name, stats] : sorted_durations) {
+  for (const auto& [name, stats] : sorted_durations) {
     if (!std::exchange(first, false)) {
       out << ',';
     }
@@ -775,8 +796,8 @@ std::string render(const Result &result) {
     out << ",\"map_update_latency_ns\":";
     write_duration_statistics(out, map_update->second);
   }
-  out << ",\"topology\":{\"total_change_count\":"
-      << snapshot.topology_change_count << ",\"per_level_cells_final\":{";
+  out << ",\"topology\":{\"total_change_count\":" << snapshot.topology_change_count
+      << ",\"per_level_cells_final\":{";
   for (int level = 0; level < 4; ++level) {
     if (level > 0) {
       out << ',';
@@ -785,9 +806,9 @@ std::string render(const Result &result) {
   }
   out << "},\"per_frame\":{";
   first = true;
-  const std::map<std::string, veyra::metrics::ValueStatistics> sorted_values(
-      metrics.values.begin(), metrics.values.end());
-  for (const auto &[name, stats] : sorted_values) {
+  const std::map<std::string, veyra::metrics::ValueStatistics> sorted_values(metrics.values.begin(),
+                                                                             metrics.values.end());
+  for (const auto& [name, stats] : sorted_values) {
     if (!std::exchange(first, false)) {
       out << ',';
     }
@@ -800,9 +821,8 @@ std::string render(const Result &result) {
   out << ",\"allocated_map_bytes_available\":"
       << (metrics.allocated_map_bytes.has_value() ? "true" : "false")
       << ",\"allocated_map_bytes_reason\":\""
-      << (metrics.allocated_map_bytes.has_value()
-              ? "public map allocator measurement"
-              : "allocator measurement unavailable")
+      << (metrics.allocated_map_bytes.has_value() ? "public map allocator measurement"
+                                                  : "allocator measurement unavailable")
       << "\""
       << ",\"current_rss_bytes\":";
   write_optional_uint(out, metrics.current_rss_bytes);
@@ -811,31 +831,29 @@ std::string render(const Result &result) {
   out << "},\"measured_rss_bytes\":";
   write_optional_uint(out, metrics.current_rss_bytes);
   out << ",\"stream\":{\"late_frames\":" << result.late_frames
-      << ",\"rejected_out_of_window\":" << result.rejected_out_of_window
-      << ",\"dropped_frames\":";
+      << ",\"rejected_out_of_window\":" << result.rejected_out_of_window << ",\"dropped_frames\":";
   write_optional_uint(out, result.dropped_frames);
-  out << ",\"source_index_complete\":"
-      << (result.source_indices_complete ? "true" : "false") << "}}";
+  out << ",\"source_index_complete\":" << (result.source_indices_complete ? "true" : "false")
+      << "}}";
   out << ",\"frame_metrics\":[";
   for (std::size_t index = 0; index < result.frame_metrics.size(); ++index) {
     if (index > 0) {
       out << ',';
     }
-    const auto &frame = result.frame_metrics[index];
+    const auto& frame = result.frame_metrics[index];
     out << "{\"input\":";
     write_input_summary(out, frame.input);
     out << ",\"stages_ns\":{";
     first = true;
-    for (const auto &[name, duration] : frame.stages_ns) {
+    for (const auto& [name, duration] : frame.stages_ns) {
       if (!std::exchange(first, false)) {
         out << ',';
       }
       out << '"' << escape(name) << "\":" << duration;
     }
-    out << "},\"topology_churn\":" << frame.topology_churn
-        << ",\"cells_by_level\":[" << frame.cells_by_level[0] << ','
-        << frame.cells_by_level[1] << ',' << frame.cells_by_level[2] << ','
-        << frame.cells_by_level[3] << "],\"rss_bytes\":";
+    out << "},\"topology_churn\":" << frame.topology_churn << ",\"cells_by_level\":["
+        << frame.cells_by_level[0] << ',' << frame.cells_by_level[1] << ','
+        << frame.cells_by_level[2] << ',' << frame.cells_by_level[3] << "],\"rss_bytes\":";
     write_optional_uint(out, frame.rss_bytes);
     out << '}';
   }
@@ -923,10 +941,11 @@ class PersistentEngineSession {
     }
     if (input_summary_.source_index.has_value() && previous_source_index_.has_value() &&
         *input_summary_.source_index > *previous_source_index_ + 1) {
-      result_.dropped_frames = result_.dropped_frames.value_or(0) +
-                               *input_summary_.source_index - *previous_source_index_ - 1;
+      result_.dropped_frames = result_.dropped_frames.value_or(0) + *input_summary_.source_index -
+                               *previous_source_index_ - 1;
     }
-    if (input_summary_.source_index.has_value()) previous_source_index_ = input_summary_.source_index;
+    if (input_summary_.source_index.has_value())
+      previous_source_index_ = input_summary_.source_index;
     result_.late_frames += late ? 1 : 0;
     expected_points_ = uint_value(count, "frame point count");
     points_ = 0;
@@ -961,7 +980,10 @@ class PersistentEngineSession {
     parse_duration_ += std::chrono::nanoseconds{duration_ns(parse_started)};
     const auto snapshot_started = Clock::now();
     auto snapshot = map_->snapshot();
-    map_->apply_governor(snapshot, static_cast<double>((parse_duration_ + window_duration_ + update_duration_).count()) / 1'000'000.0);
+    map_->apply_governor(
+        snapshot,
+        static_cast<double>((parse_duration_ + window_duration_ + update_duration_).count()) /
+            1'000'000.0);
     snapshot = map_->snapshot();
     const auto snapshot_duration = std::chrono::nanoseconds{duration_ns(snapshot_started)};
     const auto topology_churn = snapshot.topology_change_count - previous_topology_changes_;
@@ -973,7 +995,8 @@ class PersistentEngineSession {
     if (is_warmup) {
       ++result_.warmup_frames;
     } else {
-      const auto frame_pipeline = parse_duration_ + window_duration_ + update_duration_ + snapshot_duration;
+      const auto frame_pipeline =
+          parse_duration_ + window_duration_ + update_duration_ + snapshot_duration;
       measured_elapsed_ += frame_pipeline;
       metrics_->record_duration("protocol_parse_and_validate", parse_duration_);
       metrics_->record_duration("map_window_follow", window_duration_);
@@ -986,20 +1009,23 @@ class PersistentEngineSession {
                                static_cast<std::int64_t>(snapshot.count_at_level(level)));
       }
       metrics_->record_frame();
-      result_.frame_metrics.push_back(FrameMetric{.input = std::move(input_summary_),
-          .stages_ns = {{"protocol_parse_and_validate", parse_duration_.count()},
-                        {"map_window_follow", window_duration_.count()},
-                        {"map_update", update_duration_.count()},
-                        {"snapshot_and_topology", snapshot_duration.count()},
-                        {"frame_pipeline", frame_pipeline.count()}},
-          .topology_churn = topology_churn,
-          .cells_by_level = {snapshot.count_at_level(0), snapshot.count_at_level(1),
-                             snapshot.count_at_level(2), snapshot.count_at_level(3)},
-          .rss_bytes = rss});
+      result_.frame_metrics.push_back(
+          FrameMetric{.input = std::move(input_summary_),
+                      .stages_ns = {{"protocol_parse_and_validate", parse_duration_.count()},
+                                    {"map_window_follow", window_duration_.count()},
+                                    {"map_update", update_duration_.count()},
+                                    {"snapshot_and_topology", snapshot_duration.count()},
+                                    {"frame_pipeline", frame_pipeline.count()}},
+                      .topology_churn = topology_churn,
+                      .cells_by_level = {snapshot.count_at_level(0), snapshot.count_at_level(1),
+                                         snapshot.count_at_level(2), snapshot.count_at_level(3)},
+                      .rss_bytes = rss});
     }
     result_.snapshot = snapshot;
-    if (!result_.source_indices_complete) result_.dropped_frames = std::nullopt;
-    else if (!result_.dropped_frames.has_value()) result_.dropped_frames = 0;
+    if (!result_.source_indices_complete)
+      result_.dropped_frames = std::nullopt;
+    else if (!result_.dropped_frames.has_value())
+      result_.dropped_frames = 0;
     metrics_->set_logical_map_bytes(snapshot.logical_bytes);
     metrics_->set_allocated_map_bytes(snapshot.memory.allocated_bytes);
     result_.metrics = metrics_->report(Clock::time_point{} + measured_elapsed_);
@@ -1121,8 +1147,8 @@ int run_engine(const Options& options) {
         std::cout << report << std::flush;
       }
     } catch (const std::exception& error) {
-      std::cout << "{\"status\":\"unavailable\",\"reason\":\""
-                << escape(error.what()) << "\"}\n" << std::flush;
+      std::cout << "{\"status\":\"unavailable\",\"reason\":\"" << escape(error.what()) << "\"}\n"
+                << std::flush;
       session.reset();
       draining = true;
     }
@@ -1132,7 +1158,7 @@ int run_engine(const Options& options) {
 
 }  // namespace
 
-int main(int argc, char **argv) {
+int main(int argc, char** argv) {
   try {
     const auto options = parse_options(argc, argv);
     if (options.engine) return run_engine(options);
@@ -1147,7 +1173,7 @@ int main(int argc, char **argv) {
       file << output;
     }
     return 0;
-  } catch (const std::exception &error) {
+  } catch (const std::exception& error) {
     std::cerr << "veyra_benchmark: " << error.what() << '\n';
     return 2;
   }
