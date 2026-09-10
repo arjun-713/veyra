@@ -101,11 +101,13 @@ class PatchworkPPGroundSegmenterTests(unittest.TestCase):
         if not importlib.util.find_spec("pypatchworkpp"):
             self.skipTest("requires pypatchworkpp for real RELLIS smoke test")
 
+        dataset_root = Path("data/raw/rellis3d/Rellis-3D")
+        if not dataset_root.is_dir():
+            self.skipTest("original local RELLIS-3D data is unavailable")
+
         from datasets.rellis import Rellis3DDataset
 
-        dataset = Rellis3DDataset(
-            Path("data/raw/rellis3d/Rellis-3D"), sequences=["00000"]
-        )
+        dataset = Rellis3DDataset(dataset_root, sequences=["00000"])
         frame = dataset.load_frame("00000", dataset.list_frames("00000")[0].frame_id)
 
         started = time.perf_counter()
