@@ -17,3 +17,9 @@ target_include_directories(test_memory_accounting PRIVATE ${PROJECT_SOURCE_DIR}/
 target_compile_features(test_memory_accounting PRIVATE cxx_std_20)
 target_link_libraries(test_memory_accounting PRIVATE veyra_map)
 add_test(NAME memory_accounting COMMAND test_memory_accounting)
+
+add_executable(test_point_conservation test_point_conservation.cpp)
+target_include_directories(test_point_conservation PRIVATE ${PROJECT_SOURCE_DIR}/include)
+target_compile_features(test_point_conservation PRIVATE cxx_std_20)
+target_link_libraries(test_point_conservation PRIVATE veyra_map)
+add_test(NAME point_conservation COMMAND test_point_conservation)
