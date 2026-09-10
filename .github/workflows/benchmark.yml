@@ -64,6 +64,7 @@ on:
 
 permissions:
   contents: read
+  pull-requests: write
 
 jobs:
   perception-smoke:
@@ -284,3 +285,121 @@ jobs:
         with:
           name: veyra-semanticposs-perception-benchmark
           path: artifacts/
+
+  semanticposs-benchmark-report:
+    name: Publish SemanticPOSS benchmark report
+    if: >-
+      always() &&
+      (needs.semanticposs-map-benchmark.result == 'success' ||
+      needs.semanticposs-perception-benchmark.result == 'success')
+    needs:
+      - semanticposs-map-benchmark
+      - semanticposs-perception-benchmark
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - name: Download map benchmark artifact
+        uses: actions/download-artifact@v4
+        continue-on-error: true
+        with:
+          name: veyra-semanticposs-map-benchmark
+          path: artifacts/map
+      - name: Download perception benchmark artifact
+        uses: actions/download-artifact@v4
+        continue-on-error: true
+        with:
+          name: veyra-semanticposs-perception-benchmark
+          path: artifacts/perception
+      - name: Comment measured results on associated pull request
+        uses: actions/github-script@v7
+        env:
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+          SEQUENCE: ${{ inputs.semanticposs_sequence || '00' }}
+          MAP_COUNT: ${{ inputs.semanticposs_count || '488' }}
+          PERCEPTION_COUNT: ${{ inputs.semanticposs_perception_count || '64' }}
+        with:
+          script: |
+            const fs = require('fs');
+            const path = require('path');
+            const repo = context.repo;
+            const pulls = await github.paginate(
+              github.rest.repos.listPullRequestsAssociatedWithCommit,
+              { owner: repo.owner, repo: repo.repo, commit_sha: context.sha }
+            );
+            const pull = pulls.find((item) => item.state === 'open');
+            if (!pull) {
+              core.info('No open pull request is associated with this benchmark commit; artifacts remain available.');
+              return;
+            }
+            const readJson = (root, suffix) => {
+              if (!fs.existsSync(root)) return null;
+              const matches = [];
+              const walk = (directory) => {
+                for (const entry of fs.readdirSync(directory, { withFileTypes: true })) {
+                  const full = path.join(directory, entry.name);
+                  if (entry.isDirectory()) walk(full);
+                  else if (entry.name.endsWith(suffix)) matches.push(full);
+                }
+              };
+              walk(root);
+              return matches.length ? JSON.parse(fs.readFileSync(matches[0], 'utf8')) : null;
+            };
+            const map = readJson('artifacts/map', '.json');
+            const perception = readJson('artifacts/perception', 'semanticposs-perception.json');
+            const mb = (bytes) => bytes == null ? 'n/a' : `${(bytes / 1048576).toFixed(1)} MB`;
+            const ms = (nanoseconds) => nanoseconds == null ? 'n/a' : `${(nanoseconds / 1e6).toFixed(1)} ms`;
+            let mapTable = '| Policy | Leaves | Map p50 / p95 / p99 | Peak RSS |\n| --- | ---: | ---: | ---: |\n';
+            if (map) {
+              for (const [policy, report] of Object.entries(map.policies || {})) {
+                const aggregate = report.aggregate;
+                const latency = aggregate.stage_latency_ns?.map_update;
+                const leaves = Object.values(aggregate.final_leaves_per_level || {}).reduce((a, b) => a + Number(b), 0);
+                mapTable += `| ${policy} | ${leaves.toLocaleString()} | ${ms(latency?.p50)} / ${ms(latency?.p95)} / ${ms(latency?.p99)} | ${mb(aggregate.peak_rss_bytes)} |\n`;
+              }
+            } else {
+              mapTable += '| unavailable | — | map job did not produce an artifact | — |\n';
+            }
+            let perceptionTable = '| Stage | Mean | p50 | p95 | p99 |\n| --- | ---: | ---: | ---: | ---: |\n';
+            if (perception) {
+              for (const [stage, values] of Object.entries(perception.timings || {})) {
+                perceptionTable += `| ${stage} | ${values.mean_ms.toFixed(1)} ms | ${values.p50_ms.toFixed(1)} ms | ${values.p95_ms.toFixed(1)} ms | ${values.p99_ms.toFixed(1)} ms |\n`;
+              }
+            } else {
+              perceptionTable += '| unavailable | — | perception job did not produce an artifact | — | — |\n';
+            }
+            const mapProvenance = map?.provenance || {};
+            const perceptionProvenance = perception?.reproducibility || {};
+            const body = [
+              '<!-- veyra-semanticposs-benchmark -->',
+              '## SemanticPOSS benchmark results',
+              '',
+              `Workflow: [${context.runId}](${process.env.RUN_URL})`,
+              `Commit: \`${context.sha}\``,
+              `Sequence: \`${process.env.SEQUENCE}\`; map frames: \`${process.env.MAP_COUNT}\`; perception sample: \`${process.env.PERCEPTION_COUNT}\``,
+              '',
+              '### Map comparison',
+              '',
+              mapTable,
+              '### Perception regression',
+              '',
+              perceptionTable,
+              '### Reproducibility',
+              '',
+              '| Field | Value |',
+              '| --- | --- |',
+              `| Dataset archive SHA-256 | \`${mapProvenance.dataset_sha256 || perceptionProvenance.dataset_sha256 || 'n/a'}\` |`,
+              `| Config digest | \`${mapProvenance.config_digest || 'see perception artifact'}\` |`,
+              `| Model checkpoint SHA-256 | \`${perceptionProvenance.model_checkpoint_sha256 || mapProvenance.model_checkpoint_sha256 || 'not used in map job'}\` |`,
+              `| Runner | ${JSON.stringify(mapProvenance.hardware || perceptionProvenance.runner || {})} |`,
+              '',
+              'Artifacts are attached to the workflow run. The map benchmark deliberately excludes Python perception; the separate perception job uses the deterministic sample size shown above.',
+            ].join('\n');
+            const comments = await github.paginate(github.rest.issues.listComments, {
+              owner: repo.owner, repo: repo.repo, issue_number: pull.number
+            });
+            const existing = comments.find((comment) => comment.body?.includes('<!-- veyra-semanticposs-benchmark -->'));
+            if (existing) {
+              await github.rest.issues.updateComment({ owner: repo.owner, repo: repo.repo, comment_id: existing.id, body });
+            } else {
+              await github.rest.issues.createComment({ owner: repo.owner, repo: repo.repo, issue_number: pull.number, body });
+            }
