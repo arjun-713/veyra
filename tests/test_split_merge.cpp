@@ -9,7 +9,10 @@
 #include <vector>
 
 #include "check.hpp"
+#include "veyra/core/types.hpp"
 #include "veyra/map/cell.hpp"
+#include "veyra/map/split_merge.hpp"
+#include "veyra/map/tile_grid.hpp"
 
 namespace {
 
@@ -201,6 +204,82 @@ void checkHighCount() {
   CHECK(late.max_z == 31.0F);
 }
 
+// --- split/merge statistics: invariant 4 across a level change ------------
+
+veyra::map::Cell& seedGrid(veyra::map::TileGrid& grid, veyra::core::CellId id, int points) {
+  veyra::map::Cell& c = grid.findOrCreate(id);
+  for (int i = 0; i < points; ++i) {
+    updateCell(c, 3.0 + 0.05 * static_cast<double>(i));
+  }
+  return c;
+}
+
+// 5. Splitting distributes evidence rather than multiplying it: each child
+//    takes roughly a quarter of the count, keeps the parent's mean and
+//    extremes, and carries a reduced confidence to mark it as an estimate.
+//    Catches: m2 or count copied undivided, which would let four children each
+//    claim the parent's full observation weight -- inventing evidence that was
+//    never gathered.
+void checkSplitDistributesStatistics() {
+  veyra::map::TileGrid grid;
+  const veyra::core::CellId parent{2, 1, 1};
+  Cell& p = seedGrid(grid, parent, 8);
+  p.confidence = 8;
+  const Cell before = p;
+
+  CHECK(veyra::map::split(grid, parent));
+
+  std::uint32_t total = 0;
+  std::uint32_t conf_total = 0;
+  double m2_total = 0.0;
+  std::size_t kids = 0;
+  grid.forEachActiveLeaf([&](veyra::core::CellId, const Cell& c) {
+    ++kids;
+    total += c.count;
+    conf_total += c.confidence;
+    m2_total += static_cast<double>(c.m2);
+    CHECK(c.count == 2);  // 8 / 4, no remainder
+    // The parent's mean is the best available estimate for every part of its
+    // square, and its extremes genuinely bound the children's.
+    CHECK(c.mean_z == before.mean_z);
+    CHECK(c.min_z == before.min_z);
+    CHECK(c.max_z == before.max_z);
+    // Each child keeps the parent's variance: m2 scales with count.
+    CHECK(relClose(varianceOf(c), varianceOf(before), kVarTol));
+    // Provenance: a split child holds an estimate, not a measurement.
+    CHECK(c.confidence < before.confidence);
+  });
+  CHECK(kids == 4);
+  CHECK(total == before.count);
+  CHECK(conf_total == before.confidence);
+  CHECK(relClose(m2_total, static_cast<double>(before.m2), kVarTol));
+}
+
+// 6. The integer remainder is distributed, not dropped. n / 4 loses up to
+//    three counts; at n = 101 that is a silent conservation failure that
+//    n = 100 would never reveal.
+//    Catches: count divided by four with the remainder discarded.
+void checkRemainderIsDistributed() {
+  for (const int n : {1, 2, 3, 5, 7, 101}) {
+    veyra::map::TileGrid grid;
+    const veyra::core::CellId parent{2, 0, 0};
+    seedGrid(grid, parent, n);
+    const std::uint32_t before = grid.find(parent)->count;
+    CHECK(before == static_cast<std::uint32_t>(n));
+
+    CHECK(veyra::map::split(grid, parent));
+
+    std::uint32_t total = 0;
+    std::size_t kids = 0;
+    grid.forEachActiveLeaf([&](veyra::core::CellId, const Cell& c) {
+      total += c.count;
+      ++kids;
+    });
+    CHECK(kids == 4);
+    CHECK(total == before);
+  }
+}
+
 }  // namespace
 
 int main() {
@@ -212,5 +291,7 @@ int main() {
   checkFourChildMerge();
   checkNegativeAndMixedHeights();
   checkHighCount();
+  checkSplitDistributesStatistics();
+  checkRemainderIsDistributed();
   return 0;
 }

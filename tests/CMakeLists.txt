@@ -39,6 +39,7 @@ add_test(
 add_executable(test_split_merge test_split_merge.cpp)
 target_include_directories(test_split_merge PRIVATE ${PROJECT_SOURCE_DIR}/include)
 target_compile_features(test_split_merge PRIVATE cxx_std_20)
+target_link_libraries(test_split_merge PRIVATE veyra_map)
 add_test(NAME split_merge COMMAND test_split_merge)
 
 add_executable(test_memory_accounting test_memory_accounting.cpp)

@@ -93,11 +93,56 @@ void checkSplitRefusesAtLevelZero() {
   CHECK(grid.find(CellId{-1, 8, 8}) == nullptr);
 }
 
+// 4. Invariant 3 across a real split: the four resulting cells exactly tile
+//    the parent's world extent -- no gap, no overlap -- on both sides of the
+//    origin.
+//    Catches: a split that emits the wrong four ids, which would leave a strip
+//    of the parent's square uncovered or double-covered.
+void checkChildrenCoverParentExtent() {
+  const std::array<CellId, 4> parents = {CellId{2, 3, 5}, CellId{2, -3, -5}, CellId{1, -1, 0},
+                                         CellId{3, -7, 2}};
+  for (const CellId parent : parents) {
+    TileGrid grid;
+    seed(grid, parent, 4, 1.0);
+    const veyra::core::CellExtent pe = veyra::core::extentOf(parent);
+    CHECK(veyra::map::split(grid, parent));
+
+    double area = 0.0;
+    std::vector<veyra::core::CellExtent> es;
+    grid.forEachActiveLeaf([&](CellId id, const Cell&) {
+      const veyra::core::CellExtent e = veyra::core::extentOf(id);
+      es.push_back(e);
+      area += (e.max_x - e.min_x) * (e.max_y - e.min_y);
+      // Every child lies inside the parent.
+      CHECK(e.min_x >= pe.min_x - 1e-9);
+      CHECK(e.min_y >= pe.min_y - 1e-9);
+      CHECK(e.max_x <= pe.max_x + 1e-9);
+      CHECK(e.max_y <= pe.max_y + 1e-9);
+    });
+    CHECK(es.size() == 4);
+
+    // No overlap: interiors are pairwise disjoint along at least one axis.
+    for (std::size_t i = 0; i < es.size(); ++i) {
+      for (std::size_t j = i + 1; j < es.size(); ++j) {
+        const bool disjoint = es[i].max_x - es[j].min_x < 1e-9 ||
+                              es[j].max_x - es[i].min_x < 1e-9 ||
+                              es[i].max_y - es[j].min_y < 1e-9 || es[j].max_y - es[i].min_y < 1e-9;
+        CHECK(disjoint);
+      }
+    }
+    // No gap: the four areas sum to the parent's.
+    const double parent_area = (pe.max_x - pe.min_x) * (pe.max_y - pe.min_y);
+    CHECK(area > parent_area - 1e-9);
+    CHECK(area < parent_area + 1e-9);
+  }
+}
+
 }  // namespace
 
 int main() {
   checkSplitReplacesParentWithFourChildren();
   checkSplitRefusesInactiveCell();
   checkSplitRefusesAtLevelZero();
+  checkChildrenCoverParentExtent();
   return 0;
 }
