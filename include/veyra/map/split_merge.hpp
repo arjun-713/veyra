@@ -20,4 +20,15 @@ bool split(TileGrid& grid, core::CellId parent);
 // nothing when the preconditions do not hold.
 bool merge(TileGrid& grid, core::CellId parent);
 
+// The active leaf covering a world point, if any.
+struct LeafHit {
+  bool found = false;
+  core::CellId id{};
+};
+
+// Finds the single active cell whose extent contains (x, y), searching finest
+// level first. Invariant 1 says at most one exists; this returns it without
+// exposing the grid's storage, so the search stays on the public API.
+LeafHit activeLeafCovering(const TileGrid& grid, double x, double y);
+
 }  // namespace veyra::map

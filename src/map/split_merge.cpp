@@ -121,4 +121,16 @@ bool merge(TileGrid& grid, core::CellId parent) {
   return true;
 }
 
+LeafHit activeLeafCovering(const TileGrid& grid, double x, double y) {
+  // Finest first: a point is owned by the smallest active cell containing it,
+  // and invariant 2 guarantees no ancestor of that cell is active too.
+  for (int level = 0; level <= kMaxLevel; ++level) {
+    const core::CellId id = core::worldToKey(x, y, level);
+    if (grid.find(id) != nullptr) {
+      return LeafHit{true, id};
+    }
+  }
+  return LeafHit{};
+}
+
 }  // namespace veyra::map

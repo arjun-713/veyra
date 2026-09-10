@@ -11,6 +11,8 @@
 #include "check.hpp"
 #include "veyra/core/types.hpp"
 #include "veyra/map/cell.hpp"
+#include "veyra/map/fusion.hpp"
+#include "veyra/map/observation.hpp"
 #include "veyra/map/split_merge.hpp"
 #include "veyra/map/tile_grid.hpp"
 
@@ -311,6 +313,57 @@ void checkSplitMergeRoundTrip() {
   }
 }
 
+// 12. A split child is an estimate until a real observation reaches it. After
+//     integrating, that child's count grows and its confidence rises, while
+//     its siblings are untouched.
+//     Chosen behaviour: the count grows and confidence recovers -- there is no
+//     separate flag to clear, because provenance is carried as the reduced
+//     confidence itself.
+//     Catches: an observation landing in the wrong child, and a split that
+//     leaves children unreachable to fusion.
+void checkSplitThenIntegrate() {
+  veyra::map::TileGrid grid;
+  const veyra::core::CellId parent{1, 2, 2};  // splits into level-0 children
+  Cell& p = seedGrid(grid, parent, 12);
+  p.confidence = 12;
+  CHECK(veyra::map::split(grid, parent));
+
+  const std::array<veyra::core::CellId, 4> kids = veyra::core::childrenOf(parent);
+  const veyra::core::CellId target = kids[2];
+  const Cell before = *grid.find(target);
+  CHECK(before.count == 3);
+
+  // Aim at the middle of that child so the point cannot land on a boundary.
+  const veyra::core::CellExtent e = veyra::core::extentOf(target);
+  veyra::map::Observation o;
+  o.x = 0.5 * (e.min_x + e.max_x);
+  o.y = 0.5 * (e.min_y + e.max_y);
+  o.z = 9.0F;
+  o.cls = before.cls;
+  o.confidence = 1.0F;
+  const veyra::map::FusionStats fs =
+      veyra::map::integrate(grid, std::vector<veyra::map::Observation>{o}, 77);
+  CHECK(fs.accepted == 1);
+  CHECK(fs.cells_created == 0);  // the child already existed
+
+  const Cell* after = grid.find(target);
+  CHECK(after != nullptr);
+  CHECK(after->count == before.count + 1);
+  CHECK(after->confidence > before.confidence);  // evidence recovered
+  CHECK(after->last_seen == 77);
+  CHECK(after->max_z == 9.0F);
+
+  // Siblings untouched, and no fifth cell created.
+  CHECK(grid.statistics().occupied_cells == 4);
+  for (std::size_t i = 0; i < 4; ++i) {
+    if (kids[i] == target) {
+      continue;
+    }
+    CHECK(grid.find(kids[i])->count == 3);
+    CHECK(grid.find(kids[i])->last_seen != 77);
+  }
+}
+
 }  // namespace
 
 int main() {
@@ -325,5 +378,6 @@ int main() {
   checkSplitDistributesStatistics();
   checkRemainderIsDistributed();
   checkSplitMergeRoundTrip();
+  checkSplitThenIntegrate();
   return 0;
 }

@@ -16,6 +16,7 @@
 #include "check.hpp"
 #include "veyra/core/types.hpp"
 #include "veyra/map/cell.hpp"
+#include "veyra/map/rolling_window.hpp"
 #include "veyra/map/split_merge.hpp"
 #include "veyra/map/tile_grid.hpp"
 
@@ -186,6 +187,154 @@ void checkMergeRefusesActiveGrandchild() {
   CHECK(grid.find(grandchild) != nullptr);
 }
 
+// True when any ancestor of `id` is also active. Invariant 2 says this can
+//    never happen.
+bool anyAncestorActive(const TileGrid& grid, CellId id) {
+  CellId up = id;
+  while (up.level < veyra::map::kMaxLevel) {
+    up = veyra::core::parentOf(up);
+    if (grid.find(up) != nullptr) {
+      return true;
+    }
+  }
+  return false;
+}
+
+// 10. Invariant 2 under a scripted sequence of splits and merges, not just a
+//     single operation. After every step, no active cell has an active
+//     ancestor.
+//     Catches: an operation that leaves a stale cell behind at the wrong
+//     level -- which a single split-then-check would not reveal.
+void checkExclusivityUnderSequences() {
+  TileGrid grid;
+  const CellId root{3, 1, -2};
+  seed(grid, root, 40, 5.0);
+
+  const auto assertExclusive = [&grid]() {
+    std::size_t seen = 0;
+    grid.forEachActiveLeaf([&](CellId id, const Cell&) {
+      CHECK(!anyAncestorActive(grid, id));
+      ++seen;
+    });
+    CHECK(seen == grid.statistics().occupied_cells);
+  };
+
+  assertExclusive();
+  CHECK(veyra::map::split(grid, root));  // L3 -> four L2
+  assertExclusive();
+
+  const std::array<CellId, 4> l2 = veyra::core::childrenOf(root);
+  CHECK(veyra::map::split(grid, l2[0]));  // one L2 -> four L1
+  assertExclusive();
+  CHECK(veyra::map::split(grid, veyra::core::childrenOf(l2[0])[3]));  // one L1 -> four L0
+  assertExclusive();
+
+  // Collapse back up in the reverse order.
+  CHECK(veyra::map::merge(grid, veyra::core::childrenOf(l2[0])[3]));
+  assertExclusive();
+  CHECK(veyra::map::merge(grid, l2[0]));
+  assertExclusive();
+  CHECK(veyra::map::merge(grid, root));
+  assertExclusive();
+
+  CHECK(grid.statistics().occupied_cells == 1);
+  CHECK(grid.find(root) != nullptr);
+}
+
+// 11. Invariant 1 across levels, tested for the first time with more than one
+//     level present. Every point falls in exactly one active leaf when the map
+//     holds a mix of L0, L1 and L2 cells.
+//     Catches: the level-blind class of bug -- a key that ignores level would
+//     make two cells at different resolutions collide or both claim a point.
+void checkOwnershipAcrossMixedLevels() {
+  TileGrid grid;
+  const CellId root{2, 0, 0};
+  seed(grid, root, 32, 4.0);
+  CHECK(veyra::map::split(grid, root));  // four L1
+  const CellId l1 = veyra::core::childrenOf(root)[0];
+  CHECK(veyra::map::split(grid, l1));            // one L1 -> four L0
+  CHECK(grid.statistics().occupied_cells == 7);  // 3 x L1 + 4 x L0
+
+  const veyra::core::CellExtent re = veyra::core::extentOf(root);
+  std::size_t probed = 0;
+  for (int i = 1; i < 20; ++i) {
+    for (int j = 1; j < 20; ++j) {
+      const double x = re.min_x + (re.max_x - re.min_x) * (static_cast<double>(i) / 20.0);
+      const double y = re.min_y + (re.max_y - re.min_y) * (static_cast<double>(j) / 20.0);
+
+      // Count every active cell whose half-open extent contains the point.
+      std::size_t owners = 0;
+      grid.forEachActiveLeaf([&](CellId id, const Cell&) {
+        const veyra::core::CellExtent e = veyra::core::extentOf(id);
+        if (e.min_x <= x && x < e.max_x && e.min_y <= y && y < e.max_y) {
+          ++owners;
+        }
+      });
+      CHECK(owners == 1);
+
+      // And the grid's own lookup agrees with that single owner.
+      const veyra::map::LeafHit hit = veyra::map::activeLeafCovering(grid, x, y);
+      CHECK(hit.found);
+      const veyra::core::CellExtent he = veyra::core::extentOf(hit.id);
+      CHECK(he.min_x <= x && x < he.max_x);
+      CHECK(he.min_y <= y && y < he.max_y);
+      ++probed;
+    }
+  }
+  CHECK(probed == 19 * 19);
+
+  // A point outside the square is owned by nobody.
+  CHECK(!veyra::map::activeLeafCovering(grid, re.min_x - 1.0, re.min_y - 1.0).found);
+}
+
+// 13. Eviction and split compose: when a split cell's children fall outside
+//     the window they are all evicted, leaving no orphan behind.
+//     Catches: children that outlive their region because eviction only knew
+//     about the level the parent used to be at.
+void checkEvictionRemovesSplitChildren() {
+  TileGrid grid{veyra::map::MapWindow{0.0, 0.0, 1.0}};
+  const CellId parent{2, 1, 1};
+  seed(grid, parent, 8, 1.0);
+  CHECK(veyra::map::split(grid, parent));
+  CHECK(grid.statistics().occupied_cells == 4);
+
+  const veyra::map::EvictionStats e = grid.recenter(40.0, 40.0);
+  CHECK(e.centre_moved);
+  CHECK(e.cells_evicted == 4);
+
+  CHECK(grid.statistics().occupied_cells == 0);
+  CHECK(grid.statistics().tiles == 0);
+  CHECK(grid.find(parent) == nullptr);
+  for (const CellId k : veyra::core::childrenOf(parent)) {
+    CHECK(grid.find(k) == nullptr);
+  }
+}
+
+// 14. Levels never share a tile, so a split moves its cells into a different
+//     tile and releases the one the parent occupied.
+//     Catches: a tile key that ignores level -- the bug PR B's mutation check
+//     found and which nothing could exercise until cells existed above L0.
+void checkSplitMovesCellsToADifferentTile() {
+  TileGrid grid;
+  const CellId parent{2, 0, 0};
+  seed(grid, parent, 8, 1.0);
+  const veyra::map::GridStats before = grid.statistics();
+  CHECK(before.tiles == 1);
+  CHECK(before.occupied_cells == 1);
+
+  CHECK(veyra::map::split(grid, parent));
+  const veyra::map::GridStats after = grid.statistics();
+  CHECK(after.occupied_cells == 4);
+  CHECK(after.tiles == 1);  // the level-2 tile released, a level-1 tile taken
+  CHECK(after.allocated_bytes == after.tiles * TileGrid::bytesPerTile());
+
+  // Re-creating a cell at the old level takes a second tile, because a tile
+  // belongs to exactly one level even at the same (tx, ty).
+  seed(grid, parent, 2, 1.0);
+  CHECK(grid.statistics().tiles == 2);
+  CHECK(grid.statistics().allocated_bytes == 2 * TileGrid::bytesPerTile());
+}
+
 }  // namespace
 
 int main() {
@@ -195,5 +344,9 @@ int main() {
   checkChildrenCoverParentExtent();
   checkMergeRefusesPartialChildren();
   checkMergeRefusesActiveGrandchild();
+  checkExclusivityUnderSequences();
+  checkOwnershipAcrossMixedLevels();
+  checkEvictionRemovesSplitChildren();
+  checkSplitMovesCellsToADifferentTile();
   return 0;
 }
