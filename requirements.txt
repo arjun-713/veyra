@@ -1,10 +1,10 @@
 # Runtime deps — pin exact CPU-compatible versions for the supported Python
 # 3.13 environment. Keep mapping-only builds dependency-free (see AGENTS.md).
-numpy==2.2.6
-scipy==1.15.3  # bounded spatial connectivity for temporal perception
-pyyaml==6.0.2  # viewer server config (falls back to built-in parser if absent)
+numpy==2.5.3
+scipy==1.18.1  # bounded spatial connectivity for temporal perception
+pyyaml==6.0.3  # viewer server config (falls back to built-in parser if absent)
 
 # Real perception backends. Model weights remain local, explicitly supplied
 # assets; neither package downloads weights automatically.
 pypatchworkpp==1.4.1
-onnxruntime==1.22.0
+onnxruntime==1.29.0
