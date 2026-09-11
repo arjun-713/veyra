@@ -37,7 +37,13 @@ jobs:
       - name: Verify product runtime
         env:
           VEYRA_BENCHMARK_BINARY: ${{ github.workspace }}/build/apps/benchmark/veyra_benchmark
+          VEYRA_RUNTIME_BINARY: ${{ github.workspace }}/build/apps/runtime/veyra_runtime
         run: |
+          # These suites skip when the C++ apps are absent, which is correct for
+          # the Python-only CI job. This job builds them, so a skip here would
+          # hide a real regression: fail loudly if either binary is missing.
+          test -x "$VEYRA_BENCHMARK_BINARY" || { echo "benchmark binary missing"; exit 1; }
+          test -x "$VEYRA_RUNTIME_BINARY" || { echo "runtime binary missing"; exit 1; }
           python -m unittest tests.test_engine_service -v
           python -m unittest tests.test_product_runtime -v
           python -m unittest tests.test_package_backend -v

@@ -18,7 +18,7 @@ async function genericDataset(){
 
 test('real labeled replay drives the light dashboard and every product workspace',async()=>{
  const datasetRoot=await genericDataset();
- const app=await electron.launch({args:[path.resolve('.')],env:{...process.env,VEYRA_PYTHON:'/tmp/veyra-product-env/bin/python',VEYRA_DATASET_ROOT:datasetRoot}});
+ const app=await electron.launch({args:[path.resolve('.')],env:{...process.env,VEYRA_DATASET_ROOT:datasetRoot}});
  try{
   const page=await app.firstWindow();const errors:string[]=[];page.on('pageerror',error=>errors.push(error.message));
   await expect(page.getByRole('heading',{name:'Adaptive 2.5D LiDAR Dashboard'})).toBeVisible();

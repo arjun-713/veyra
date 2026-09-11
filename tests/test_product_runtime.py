@@ -10,6 +10,10 @@ import time
 import unittest
 from pathlib import Path
 
+from tests.test_engine_service import require_binary
+
+BENCHMARK_RELATIVE = "build/apps/benchmark/veyra_benchmark"
+
 
 class ProductProtocolTests(unittest.TestCase):
     def test_protocol_package_exists(self):
@@ -269,6 +273,7 @@ class ProductServiceTests(unittest.TestCase):
         from runtime.service import ProductRuntime
         from tests.test_runtime_player import _write_frame
 
+        mapper = require_binary(self, "VEYRA_BENCHMARK_BINARY", BENCHMARK_RELATIVE)
         with tempfile.TemporaryDirectory() as raw:
             root = Path(raw)
             for index in range(3):
@@ -279,7 +284,7 @@ class ProductServiceTests(unittest.TestCase):
                 "dataset_root": str(root),
                 "sequence": "00000",
                 "map": {
-                    "executable": "build/apps/benchmark/veyra_benchmark",
+                    "executable": str(mapper),
                     "policy": "distance_lod",
                 },
                 "pipeline": {"semantic": {"mode": "ground_truth"}},
