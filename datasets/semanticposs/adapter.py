@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from collections import OrderedDict
 from collections.abc import Iterator, Mapping
 from pathlib import Path
 
@@ -20,6 +21,10 @@ class SemanticPOSSDataset:
     dataset_name = "semanticposs"
     default_label_mapping = SEMANTIC_POSS_LABELS
     timestamp_filenames = ("timestamps.txt",)
+    # The original SemanticPOSS paper says the dataset follows SemanticKITTI
+    # format, but does not define the pose frame or Tr direction. Do not
+    # infer the SemanticKITTI camera-to-LiDAR conjugation for POSS.
+    convert_camera_pose_with_calibration = False
 
     def __init__(
         self,
@@ -28,6 +33,7 @@ class SemanticPOSSDataset:
         sequences: list[str] | None = None,
         scan_dir: str = "velodyne",
         label_dir: str = "labels",
+        max_cached_sequences: int = 8,
     ) -> None:
         self.root = Path(root)
         if not self.root.is_dir():
@@ -37,6 +43,11 @@ class SemanticPOSSDataset:
         )
         self.scan_dir = scan_dir
         self.label_dir = label_dir
+        if max_cached_sequences <= 0:
+            raise ValueError("max_cached_sequences must be positive")
+        self.max_cached_sequences = max_cached_sequences
+        self._sequence_cache: OrderedDict[str, list[FrameRef]] = OrderedDict()
+        self._metadata_cache: OrderedDict[str, dict[str, object]] = OrderedDict()
 
     def list_sequences(self) -> list[str]:
         if self._sequences is not None:
@@ -56,6 +67,10 @@ class SemanticPOSSDataset:
 
     def list_frames(self, sequence: str) -> list[FrameRef]:
         sequence = str(sequence)
+        cached = self._sequence_cache.get(sequence)
+        if cached is not None:
+            self._sequence_cache.move_to_end(sequence)
+            return cached
         scan_root = self._sequence_root(sequence) / self.scan_dir
         if not scan_root.is_dir():
             raise FileNotFoundError(f"scan directory does not exist: {scan_root}")
@@ -63,7 +78,7 @@ class SemanticPOSSDataset:
             scan_root.glob("*.bin"), key=lambda path: self._frame_sort_key(path.stem)
         )
         label_root = self._sequence_root(sequence) / self.label_dir
-        return [
+        refs = [
             FrameRef(
                 sequence=sequence,
                 frame_id=scan.stem,
@@ -74,6 +89,15 @@ class SemanticPOSSDataset:
             )
             for scan in scans
         ]
+        self._sequence_cache[sequence] = refs
+        self._sequence_cache.move_to_end(sequence)
+        self._trim_caches()
+        return refs
+
+    def _trim_caches(self) -> None:
+        while len(self._sequence_cache) > self.max_cached_sequences:
+            sequence, _ = self._sequence_cache.popitem(last=False)
+            self._metadata_cache.pop(sequence, None)
 
     @staticmethod
     def _frame_sort_key(frame_id: str) -> tuple[int, int | str]:
@@ -121,7 +145,7 @@ class SemanticPOSSDataset:
             self.default_label_mapping if label_mapping is None else label_mapping,
         )
         raw_semantic_class = (raw_labels & 0xFFFF).astype(np.int32, copy=False)
-        confidence = np.ones(points.shape[0], dtype=np.float32)
+        confidence = np.where(semantic_class == 0, 0.0, 1.0).astype(np.float32)
 
         # Crop in the sensor frame. A valid world translation must not make a
         # near return disappear merely because the robot moved away from odom.
@@ -189,6 +213,7 @@ class SemanticPOSSDataset:
             )
 
     def _timestamp(self, sequence: str, frame_id: str) -> tuple[float | None, str]:
+        metadata = self._metadata(sequence)
         candidates = tuple(
             path
             for name in self.timestamp_filenames
@@ -197,23 +222,12 @@ class SemanticPOSSDataset:
                 self._sequence_root(sequence) / name,
             )
         )
-        frame_index = next(
-            (
-                index
-                for index, ref in enumerate(self.list_frames(sequence))
-                if ref.frame_id == str(frame_id)
-            ),
-            None,
-        )
+        frame_index = self._frame_index(sequence, frame_id)
         if frame_index is None:
             return None, "absent"
         for path in candidates:
             if path.is_file():
-                values = [
-                    line.strip()
-                    for line in path.read_text().splitlines()
-                    if line.strip()
-                ]
+                values = self._cached_lines(metadata, path)
                 if frame_index >= len(values):
                     raise ValueError(
                         f"timestamp file has no value for {sequence}/{frame_id}"
@@ -229,6 +243,7 @@ class SemanticPOSSDataset:
     def _world_pose(
         self, sequence: str, frame_id: str, timestamp: float | None
     ) -> tuple[PoseSE3, str, str]:
+        metadata = self._metadata(sequence)
         pose_path = next(
             (
                 path
@@ -254,9 +269,17 @@ class SemanticPOSSDataset:
             ),
             None,
         )
-        calibration, has_calibration = self._calibration_matrix(calibration_path)
+        calibration, has_calibration = self._calibration_matrix(calibration_path, metadata)
+        # SemanticKITTI-compatible poses are published in the camera frame.
+        # Convert the camera-frame pose to the LiDAR frame before exposing the
+        # sensor-to-world transform consumed by ObservationFrame.
+        lidar_pose = (
+            np.linalg.inv(calibration) @ pose.matrix @ calibration
+            if has_calibration and self.convert_camera_pose_with_calibration
+            else pose.matrix
+        )
         return (
-            PoseSE3(pose.matrix @ calibration, timestamp=timestamp),
+            PoseSE3(lidar_pose, timestamp=timestamp),
             "dataset" if has_pose else "identity_absent",
             "dataset" if has_calibration else "identity_absent",
         )
@@ -270,12 +293,8 @@ class SemanticPOSSDataset:
     ) -> tuple[PoseSE3, bool]:
         if path is None:
             return PoseSE3.identity(timestamp), False
-        frame_index = next(
-            index
-            for index, ref in enumerate(self.list_frames(sequence))
-            if ref.frame_id == str(frame_id)
-        )
-        lines = [line for line in path.read_text().splitlines() if line.strip()]
+        frame_index = self._frame_index(sequence, frame_id)
+        lines = self._cached_lines(self._metadata(sequence), path)
         if frame_index >= len(lines):
             raise ValueError(f"pose file has no value for {sequence}/{frame_id}")
         try:
@@ -291,10 +310,11 @@ class SemanticPOSSDataset:
         return PoseSE3(matrix, timestamp=timestamp), True
 
     @staticmethod
-    def _calibration_matrix(path: Path | None) -> tuple[np.ndarray, bool]:
+    def _calibration_matrix(path: Path | None, metadata: dict[str, object]) -> tuple[np.ndarray, bool]:
         if path is None:
             return np.eye(4, dtype=np.float64), False
-        for line in path.read_text().splitlines():
+        lines = SemanticPOSSDataset._cached_lines(metadata, path)
+        for line in lines:
             if line.startswith(("Tr:", "Tr_velo_to_cam:")):
                 try:
                     values = [float(value) for value in line.split(":", 1)[1].split()]
@@ -307,9 +327,42 @@ class SemanticPOSSDataset:
                         f"calibration transform must contain 12 values: {path}"
                     )
                 matrix = np.eye(4, dtype=np.float64)
-                matrix[:3] = np.asarray(values).reshape(3, 4)
+                matrix[:3] = np.asarray(values, dtype=np.float64).reshape(3, 4)
+                try:
+                    PoseSE3(matrix)
+                except ValueError as error:
+                    raise ValueError(
+                        f"calibration transform is not a rigid SE(3) matrix: {path}"
+                    ) from error
                 return matrix, True
         raise ValueError(f"calibration transform not found: {path}")
+
+    def _metadata(self, sequence: str) -> dict[str, object]:
+        sequence = str(sequence)
+        metadata = self._metadata_cache.get(sequence)
+        if metadata is None:
+            metadata = {}
+            self._metadata_cache[sequence] = metadata
+            self._metadata_cache.move_to_end(sequence)
+            self._trim_caches()
+        return metadata
+
+    @staticmethod
+    def _nonempty_lines(path: Path) -> list[str]:
+        return [line.strip() for line in path.read_text().splitlines() if line.strip()]
+
+    @classmethod
+    def _cached_lines(cls, metadata: dict[str, object], path: Path) -> list[str]:
+        key = str(path)
+        if key not in metadata:
+            metadata[key] = cls._nonempty_lines(path)
+        return metadata[key]  # type: ignore[return-value]
+
+    def _frame_index(self, sequence: str, frame_id: str) -> int:
+        for index, ref in enumerate(self.list_frames(sequence)):
+            if ref.frame_id == str(frame_id):
+                return index
+        raise FileNotFoundError(f"frame {sequence}/{frame_id} does not exist")
 
     @staticmethod
     def _transform_points(points: np.ndarray, matrix: np.ndarray) -> np.ndarray:

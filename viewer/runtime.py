@@ -191,6 +191,7 @@ class PersistentMapEngine:
             "unknown_traversability_points": int(
                 frame.points.shape[0] - np.count_nonzero(known)
             ),
+            "input": response.get("input", {}),
             "snapshot": response.get("snapshot", {}),
             "metrics": _viewer_metrics(response.get("metrics", {})),
         }
@@ -267,53 +268,29 @@ def _enabled(settings: Mapping[str, Any], name: str) -> bool:
     return bool(stage.get("enabled", False))
 
 
-def build_pipeline(settings: Mapping[str, Any]) -> PerceptionPipeline:
-    """Build only configured, installed stages from public constructors."""
+def build_pipeline(
+    settings: Mapping[str, Any], *, repo_root: str | Path | None = None
+) -> PerceptionPipeline:
+    """Build the same configured pipeline used by acceptance tools."""
 
-    semantic = settings.get("semantic", {"mode": "ground_truth"})
-    if (
-        not isinstance(semantic, Mapping)
-        or semantic.get("mode", "ground_truth") != "ground_truth"
-    ):
-        raise RuntimeConfigurationError(
-            "only semantic.mode=ground_truth is runnable here; ONNX requires an "
-            "explicit session integration and is never mocked"
-        )
-    ground_settings = settings.get("ground", {})
-    if not isinstance(ground_settings, Mapping):
-        raise RuntimeConfigurationError("pipeline.ground must be an object")
-    ground_enabled = _enabled(settings, "ground")
-    terrain_enabled = _enabled(settings, "terrain")
-    if terrain_enabled and not ground_enabled:
-        raise RuntimeConfigurationError("terrain requires an enabled ground stage")
-    ground = None
-    terrain = None
-    temporal = None
-    if ground_enabled:
-        from perception.ground.patchworkpp import PatchworkPPGroundSegmenter
-
-        module_names = ground_settings.get("module_names")
-        if module_names is not None and (
-            not isinstance(module_names, list)
-            or not all(isinstance(name, str) and name for name in module_names)
-        ):
-            raise RuntimeConfigurationError(
-                "pipeline.ground.module_names must be a list of names"
-            )
-        ground = PatchworkPPGroundSegmenter(module_names=module_names)
-    if terrain_enabled:
-        from perception.terrain.features import TerrainAnalyzer
-
-        terrain = TerrainAnalyzer()
-    if _enabled(settings, "temporal"):
-        from perception.temporal.tracker import TemporalTracker
-
-        temporal = TemporalTracker()
-    return PerceptionPipeline(
-        ground_segmenter=ground,
-        terrain_analyzer=terrain,
-        temporal_tracker=temporal,
-    )
+    config = dict(settings)
+    semantic = config.get("semantic")
+    if semantic is None:
+        config["semantic"] = {"mode": "ground_truth"}
+    elif not isinstance(semantic, Mapping):
+        raise RuntimeConfigurationError("pipeline.semantic must be an object")
+    else:
+        semantic = dict(semantic)
+        model_path = semantic.get("model_path")
+        if repo_root is not None and isinstance(model_path, str):
+            model = Path(model_path)
+            if not model.is_absolute():
+                semantic["model_path"] = str(Path(repo_root) / model)
+        config["semantic"] = semantic
+    try:
+        return PerceptionPipeline.from_config(config)
+    except (ValueError, RuntimeError) as error:
+        raise RuntimeConfigurationError(str(error)) from error
 
 
 def build_runtime_session(
@@ -378,6 +355,7 @@ def build_runtime_session(
         min_range_m=float(spec.get("min_range_m", 0.0)),
         max_range_m=float(maximum) if maximum is not None else None,
         map_runner=map_runner,
+        repo_root=repo_root,
     )
 
 
@@ -394,6 +372,7 @@ class RuntimeSession:
         min_range_m: float = 0.0,
         max_range_m: float | None = None,
         map_runner: _MapRunner | None = None,
+        repo_root: str | Path | None = None,
     ) -> None:
         self.adapter = adapter
         self.dataset = dataset
@@ -402,9 +381,10 @@ class RuntimeSession:
         self.min_range_m = min_range_m
         self.max_range_m = max_range_m
         self.map_runner = map_runner
+        self.repo_root = Path(repo_root).resolve() if repo_root is not None else None
         self.index = 0
         self._lock = threading.RLock()
-        self.pipeline = build_pipeline(self.pipeline_config)
+        self.pipeline = build_pipeline(self.pipeline_config, repo_root=self.repo_root)
         self._frames = self._require_frames(self.sequence)
         self._last_output: Any | None = None
         self._last_map_payload: dict[str, Any] | None = None
@@ -481,7 +461,7 @@ class RuntimeSession:
             }
 
     def _reset_locked(self) -> None:
-        self.pipeline = build_pipeline(self.pipeline_config)
+        self.pipeline = build_pipeline(self.pipeline_config, repo_root=self.repo_root)
         if self.map_runner is not None:
             self.map_runner.reset()
         self.index = 0
@@ -617,6 +597,9 @@ class RuntimeSession:
             "motion_probability": frame.motion_probability[sample]
             .astype(float)
             .tolist(),
+            "semantic_confidence": frame.semantic_confidence[sample]
+            .astype(float)
+            .tolist(),
             "velocity_xy": frame.velocity_xy[sample].astype(float).tolist(),
             "motion_state": frame.motion_state[sample].tolist(),
             "pipeline_status": {
@@ -625,6 +608,9 @@ class RuntimeSession:
                 "terrain": status.terrain,
                 "temporal": status.temporal,
                 "diagnostics": list(status.diagnostics),
+            },
+            "perception_timings_ms": {
+                key: float(value) for key, value in output.timings_ms.items()
             },
             "map": map_payload,
         }

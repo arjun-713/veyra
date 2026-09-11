@@ -6,10 +6,40 @@ from perception.semantic.semantic_provider import (
     GroundTruthSemanticProvider,
     OnnxSemanticProvider,
     SemanticProviderConfigurationError,
+    SemanticResult,
 )
 
 
 class SemanticProviderTests(unittest.TestCase):
+    def test_rejects_invalid_classes_before_integer_conversion(self):
+        for value in (-1, 1.5, np.nan, np.inf, 2**32):
+            with self.subTest(value=value):
+                with self.assertRaises(ValueError):
+                    SemanticResult(np.array([value]), np.ones(1), "model")
+                with self.assertRaises(ValueError):
+                    GroundTruthSemanticProvider().infer(np.array([value]))
+
+    def test_unknown_confidence_normalization_cannot_hide_invalid_probability(self):
+        for value in (np.nan, np.inf, -0.1, 1.1):
+            with self.subTest(value=value), self.assertRaises(ValueError):
+                SemanticResult(np.array([0]), np.array([value]), "model")
+
+    def test_onnx_rejects_fractional_raw_class_instead_of_truncating(self):
+        session = _Session(
+            input_shape=[None, 4],
+            output_shapes=[[1], [1]],
+            outputs=([7.5], [0.9]),
+        )
+        with self.assertRaises(ValueError):
+            OnnxSemanticProvider(session=session, mapping={7: 3}).infer(
+                np.zeros((1, 4), dtype=np.float32)
+            )
+
+    def test_ground_truth_unknown_has_no_semantic_confidence(self):
+        result = GroundTruthSemanticProvider().infer(np.array([0, 9]))
+        np.testing.assert_array_equal(result.semantic_class, [0, 9])
+        np.testing.assert_array_equal(result.semantic_confidence, [0.0, 1.0])
+
     def test_ground_truth_preserves_mapped_labels_and_assigns_confidence_one(self):
         labels = np.array([7, 2, 7], dtype=np.int32)
 
@@ -52,7 +82,7 @@ class SemanticProviderTests(unittest.TestCase):
         )
 
         np.testing.assert_array_equal(result.semantic_class, [3, 0])
-        np.testing.assert_allclose(result.semantic_confidence, [0.75, 0.25])
+        np.testing.assert_allclose(result.semantic_confidence, [0.75, 0.0])
         self.assertEqual(result.mode, "model")
 
     def test_onnx_rejects_output_not_aligned_to_points(self):

@@ -23,12 +23,56 @@ def write_frame(root: Path, sequence: str, frame_id: str, xs: list[float]) -> No
 
 
 class Rellis3DAdapterTests(unittest.TestCase):
+    def test_reuses_one_explicit_sequence_index_for_frame_selection(self):
+        with tempfile.TemporaryDirectory() as raw:
+            root = Path(raw)
+            write_frame(root, "00000", "10", [10.0])
+            write_frame(root, "00000", "2", [2.0])
+            adapter = Rellis3DDataset(root, sequences=["00000"])
+
+            first = adapter.list_frames("00000")
+            (root / "00000" / "vel_cloud_node_kitti_bin" / "99.bin").write_bytes(
+                (root / "00000" / "vel_cloud_node_kitti_bin" / "10.bin").read_bytes()
+            )
+
+            self.assertEqual([ref.frame_id for ref in adapter.list_frames("00000")], ["2", "10"])
+            self.assertIs(adapter.list_frames("00000"), first)
+
+    def test_rejects_malformed_timestamp_and_pose_without_reparsing_each_frame(self):
+        with tempfile.TemporaryDirectory() as raw:
+            root = Path(raw)
+            write_frame(root, "00000", "0", [1.0])
+            (root / "timestamps").mkdir()
+            (root / "timestamps" / "00000.txt").write_text("not-a-time\n")
+            with self.assertRaisesRegex(ValueError, "invalid timestamp"):
+                Rellis3DDataset(root).load_frame("00000", "0")
+
+            (root / "timestamps" / "00000.txt").write_text("1.0\n")
+            (root / "poses").mkdir()
+            (root / "poses" / "00000.txt").write_text("1 0 0\n")
+            with self.assertRaisesRegex(ValueError, "pose must contain 12 values"):
+                Rellis3DDataset(root).load_frame("00000", "0")
+
+    def test_metadata_cache_does_not_reread_cached_pose_text(self):
+        with tempfile.TemporaryDirectory() as raw:
+            root = Path(raw)
+            write_frame(root, "00000", "0", [1.0])
+            (root / "poses").mkdir()
+            pose_path = root / "poses" / "00000.txt"
+            pose_path.write_text("1 0 0 10 0 1 0 20 0 0 1 30\n")
+            adapter = Rellis3DDataset(root)
+
+            adapter.load_frame("00000", "0")
+            pose_path.write_text("malformed\n")
+
+            self.assertEqual(adapter.load_frame("00000", "0").frame_id, "0")
+
     def test_uses_the_versioned_rellis_learning_taxonomy(self):
         raw = np.array([0, 3, 4, 17, 18, 19, 23, 31, 33], dtype=np.uint32)
 
         mapped = map_dataset_labels(raw, RELLIS_LABELS)
 
-        np.testing.assert_array_equal(mapped, [0, 1, 2, 11, 12, 13, 14, 16, 17])
+        np.testing.assert_array_equal(mapped, [0, 15, 15, 6, 14, 15, 0, 0, 17])
 
     def test_reports_absent_metadata_without_claiming_world_coordinates(self):
         root = Path("data/raw/rellis3d/Rellis-3D")
@@ -52,7 +96,7 @@ class Rellis3DAdapterTests(unittest.TestCase):
 
     def test_real_taxonomy_maps_known_labels_and_preserves_unknown(self):
         mapped = map_dataset_labels(np.array([3, 17, 999]), RELLIS_LABELS)
-        self.assertEqual(mapped.tolist(), [1, 11, 0])
+        self.assertEqual(mapped.tolist(), [15, 6, 0])
 
     def test_pairs_numeric_frames_and_extracts_low_16_labels(self):
         with tempfile.TemporaryDirectory() as raw:
@@ -68,7 +112,41 @@ class Rellis3DAdapterTests(unittest.TestCase):
             np.testing.assert_array_equal(frame.semantic_class, [1, 2])
             np.testing.assert_array_equal(frame.raw_semantic_class, [10, 20])
 
-    def test_applies_real_pose_and_calibration_when_present(self):
+    def test_unknown_mapped_label_has_zero_semantic_confidence(self):
+        with tempfile.TemporaryDirectory() as raw:
+            root = Path(raw)
+            write_frame(root, "00000", "0", [1.0, 2.0, 3.0])
+            frame = Rellis3DDataset(root).load_frame(
+                "00000", "0", label_mapping={10: 1, 20: 2}
+            )
+
+            np.testing.assert_array_equal(frame.semantic_class, [1, 2, 0])
+            np.testing.assert_array_equal(frame.semantic_confidence, [1.0, 1.0, 0.0])
+
+    def test_uses_explicit_metadata_root_and_rejects_unmatched_pose_rows(self):
+        with tempfile.TemporaryDirectory() as raw, tempfile.TemporaryDirectory() as metadata:
+            root = Path(raw)
+            metadata_root = Path(metadata)
+            write_frame(root, "00000", "0", [1.0])
+            sequence_metadata = metadata_root / "00000"
+            sequence_metadata.mkdir()
+            (sequence_metadata / "poses.txt").write_text(
+                "1 0 0 0 0 1 0 0 0 0 1 0\n"
+                "1 0 0 1 0 1 0 0 0 0 1 0\n"
+            )
+            (sequence_metadata / "calib.txt").write_text(
+                "P0: 1 0 0 0 0 1 0 0 0 0 1 0\n"
+                "P1: 1 0 0 0 0 1 0 0 0 0 1 0\n"
+                "P2: 1 0 0 0 0 1 0 0 0 0 1 0\n"
+                "P3: 1 0 0 0 0 1 0 0 0 0 1 0\n"
+                "Tr: 1 0 0 0 0 1 0 0 0 0 1 0\n"
+            )
+
+            adapter = Rellis3DDataset(root, metadata_root=metadata_root)
+            with self.assertRaisesRegex(ValueError, "cannot be aligned"):
+                adapter.load_frame("00000", "0")
+
+    def test_applies_pose_and_validates_camera_calibration_without_composing_it(self):
         with tempfile.TemporaryDirectory() as raw:
             root = Path(raw)
             write_frame(root, "00000", "0", [1.0])
@@ -81,8 +159,8 @@ class Rellis3DAdapterTests(unittest.TestCase):
 
             frame = Rellis3DDataset(root).load_frame("00000", "0")
 
-            np.testing.assert_allclose(frame.points[0, :3], [12.0, 22.0, 33.0])
-            self.assertEqual(frame.pose.matrix[0, 3], 11.0)
+            np.testing.assert_allclose(frame.points[0, :3], [11.0, 20.0, 30.0])
+            self.assertEqual(frame.pose.matrix[0, 3], 10.0)
 
     def test_uses_identity_pose_when_metadata_is_absent(self):
         with tempfile.TemporaryDirectory() as raw:

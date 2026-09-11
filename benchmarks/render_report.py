@@ -1,0 +1,222 @@
+"""Render compact benchmark JSON as an Actions summary and review comment."""
+
+from __future__ import annotations
+
+import argparse
+import json
+from pathlib import Path
+from typing import Any
+
+
+def _json(path: Path | None) -> dict[str, Any] | None:
+    if path is None or not path.is_file():
+        return None
+    return json.loads(path.read_text())
+
+
+def _ms(value: int | float | None) -> str:
+    return "n/a" if value is None else f"{float(value) / 1e6:.2f} ms"
+
+
+def _mb(value: int | float | None) -> str:
+    return "n/a" if value is None else f"{float(value) / 1048576:.1f} MB"
+
+
+def _metres(value: int | float | None) -> str:
+    return "n/a" if value is None else f"{float(value):.4f} m"
+
+
+def _map_table(report: dict[str, Any] | None) -> str:
+    headers = ["Metric", "Uniform5", "Uniform40", "DistanceLOD", "UtilityLOD"]
+    metrics = [
+        ("FPS", lambda a, r: a["fps"]["p50"]),
+        (
+            "p50 map latency",
+            lambda a, r: _ms(a["stage_latency_ns"]["map_update"]["p50"]),
+        ),
+        ("p95", lambda a, r: _ms(a["stage_latency_ns"]["map_update"]["p95"])),
+        ("p99", lambda a, r: _ms(a["stage_latency_ns"]["map_update"]["p99"])),
+        ("Peak RSS", lambda a, r: _mb(a["peak_rss_bytes"])),
+        (
+            "Logical bytes",
+            lambda a, r: str(r["runs"][-1]["metrics"]["memory"]["logical_map_bytes"]),
+        ),
+        (
+            "Allocated bytes",
+            lambda a, r: str(r["runs"][-1]["metrics"]["memory"]["allocated_map_bytes"]),
+        ),
+        (
+            "Active leaves",
+            lambda a, r: f'{sum(a["final_leaves_per_level"].values()):,}',
+        ),
+        ("Topology churn", lambda a, r: f'{a["topology_churn_per_frame"]["p95"]:.1f}'),
+        (
+            "Elevation error",
+            lambda a, r: _metres(
+                a["quality"][-1]["elevation_vs_fine_reference"]["rmse_m"]
+            ),
+        ),
+        (
+            "Point conservation",
+            lambda a, r: "PASS"
+            if all(q["point_conservation"]["holds"] for q in a["quality"])
+            else "FAIL",
+        ),
+        (
+            "Duplicate ownership",
+            lambda a, r: "PASS"
+            if all(q["duplicate_ownership"]["holds"] for q in a["quality"])
+            else "FAIL",
+        ),
+    ]
+    lines = ["| " + " | ".join(headers) + " |", "| --- | ---: | ---: | ---: | ---: |"]
+    for label, getter in metrics:
+        values = []
+        for policy in headers[1:]:
+            # Policy names use snake_case in JSON while the table uses review names.
+            aliases = {
+                "Uniform5": "uniform5",
+                "Uniform40": "uniform40",
+                "DistanceLOD": "distance_lod",
+                "UtilityLOD": "utility_lod",
+            }
+            policy_report = (
+                report.get("policies", {}).get(aliases[policy]) if report else None
+            )
+            values.append(
+                "n/a"
+                if not policy_report
+                else str(getter(policy_report["aggregate"], policy_report))
+            )
+        lines.append("| " + " | ".join([label, *values]) + " |")
+    return "\n".join(lines)
+
+
+def _perception_table(report: dict[str, Any] | None) -> str:
+    lines = ["| Stage | p50 | p95 | p99 |", "| --- | ---: | ---: | ---: |"]
+    if not report:
+        return "\n".join(lines + ["| unavailable | n/a | n/a | n/a |"])
+    aliases = {
+        "load": "Dataset load",
+        "semantic": "SalsaNext",
+        "ground": "Patchwork++",
+        "terrain": "Terrain",
+        "temporal": "Temporal",
+        "bridge": "Bridge",
+        "total": "Total perception",
+        "end_to_end": "End-to-end",
+    }
+    for key, values in report.get("timings", {}).items():
+        lines.append(
+            f"| {aliases.get(key, key)} | {values['p50_ms']:.2f} ms | {values['p95_ms']:.2f} ms | {values['p99_ms']:.2f} ms |"
+        )
+    return "\n".join(lines)
+
+
+def _hard_failure(
+    mapping: dict[str, Any] | None, perception: dict[str, Any] | None
+) -> bool:
+    if mapping is None or perception is None:
+        return True
+    return any(
+        not quality["point_conservation"]["holds"]
+        or not quality["duplicate_ownership"]["holds"]
+        for policy in mapping.get("policies", {}).values()
+        for quality in policy.get("aggregate", {}).get("quality", [])
+    )
+
+
+def _performance_warnings(
+    mapping: dict[str, Any] | None, baseline: dict[str, Any] | None
+) -> list[str]:
+    if not mapping or not baseline:
+        return []
+    warnings = []
+    for policy, current_report in mapping.get("policies", {}).items():
+        previous_report = baseline.get("policies", {}).get(policy)
+        if not previous_report:
+            continue
+        current = current_report["aggregate"]
+        previous = previous_report["aggregate"]
+        current_p95 = current["stage_latency_ns"]["map_update"]["p95"]
+        previous_p95 = previous["stage_latency_ns"]["map_update"]["p95"]
+        if current_p95 > previous_p95 * 1.2:
+            warnings.append(f"{policy} p95 map latency increased by more than 20%")
+        if (
+            current["peak_rss_bytes"]
+            and previous["peak_rss_bytes"]
+            and current["peak_rss_bytes"] > previous["peak_rss_bytes"] * 1.2
+        ):
+            warnings.append(f"{policy} peak RSS increased by more than 20%")
+    return warnings
+
+
+def render(
+    map_path: Path | None,
+    perception_path: Path | None,
+    baseline_path: Path | None = None,
+) -> str:
+    mapping, perception, baseline = (
+        _json(map_path),
+        _json(perception_path),
+        _json(baseline_path),
+    )
+    provenance = (mapping or {}).get("provenance", {})
+    frame = provenance.get("frame_range", {})
+    lines = [
+        "## Veyra SemanticPOSS benchmark",
+        "",
+        f"- Dataset: `{(mapping or perception or {}).get('dataset', 'n/a')}` / sequence `{frame.get('sequence', (mapping or perception or {}).get('sequence', 'n/a'))}` / frames `{frame.get('count', 'n/a')}`",
+        f"- Commit: `{provenance.get('git_sha', (perception or {}).get('reproducibility', {}).get('git_sha', 'n/a'))}`",
+        f"- Dataset SHA-256: `{provenance.get('dataset_sha256', (perception or {}).get('reproducibility', {}).get('dataset_sha256', 'n/a'))}`",
+        "",
+        "### Map benchmark",
+        "",
+        _map_table(mapping),
+        "",
+        "### Perception benchmark",
+        "",
+        _perception_table(perception),
+        "",
+        "### Regression status",
+        "",
+    ]
+    hard_fail = _hard_failure(mapping, perception)
+    if baseline:
+        warnings = _performance_warnings(mapping, baseline)
+        lines.append(
+            "Performance comparison: **WARNING** — " + "; ".join(warnings)
+            if warnings
+            else "Performance comparison: **UNCHANGED/IMPROVED** within the initial 20% hosted-runner tolerance."
+        )
+    else:
+        lines.append(
+            "Performance comparison: WARNING — no trusted main baseline artifact was available for this run."
+        )
+    lines.append(f"Correctness gate: **{'HARD FAILURE' if hard_fail else 'PASS'}**")
+    return "\n".join(lines) + "\n"
+
+
+def main() -> int:
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--map", type=Path)
+    parser.add_argument("--perception", type=Path)
+    parser.add_argument("--baseline", type=Path)
+    parser.add_argument("--output", type=Path)
+    parser.add_argument("--fail-on-correctness", action="store_true")
+    args = parser.parse_args()
+    rendered = render(args.map, args.perception, args.baseline)
+    if args.output:
+        args.output.write_text(rendered)
+    else:
+        print(rendered, end="")
+    return (
+        1
+        if args.fail_on_correctness
+        and _hard_failure(_json(args.map), _json(args.perception))
+        else 0
+    )
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

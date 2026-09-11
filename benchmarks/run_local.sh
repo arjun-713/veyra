@@ -15,13 +15,19 @@ count="10"
 warmup_frames="2"
 repetitions="3"
 policies="uniform5,uniform40,distance_lod,utility_lod"
+skip_perception="false"
+dataset_sha256=""
+build_type="Release"
+perception_config="configs/perception.yaml"
+python_bin="${VEYRA_PYTHON:-python3}"
 
 usage() {
   cat <<'EOF'
 Usage: benchmarks/run_local.sh [options]
 
 Runs the configured local dataset through Python perception and the C++ map
-benchmark. No network access or dataset download is performed.
+benchmark. Use --skip-perception for a map-only run. No network access or
+dataset download is performed.
 
 Options:
   --dataset NAME       semanticposs or rellis3d (default: semanticposs)
@@ -31,6 +37,11 @@ Options:
   --warmup-frames N    unreported frames that initialize map state (default: 2)
   --repetitions N      measured process repetitions per policy (default: 3)
   --policies LIST      comma-separated available policies (default: all four)
+  --skip-perception    send dataset frames directly to the map benchmark
+  --dataset-sha256 HEX SHA-256 of the source dataset archive for provenance
+  --build-type TYPE    CMake build type recorded in the artifact (default: Release)
+  --perception-config PATH  perception config used before mapping
+  --python PATH         Python interpreter for the benchmark harness
   --build-dir PATH     local CMake build directory
   --output-dir PATH    JSON/CSV output directory
   -h, --help           show this help
@@ -50,6 +61,11 @@ while (($#)); do
     --warmup-frames) warmup_frames="${2:?missing value for --warmup-frames}"; shift 2 ;;
     --repetitions) repetitions="${2:?missing value for --repetitions}"; shift 2 ;;
     --policies) policies="${2:?missing value for --policies}"; shift 2 ;;
+    --skip-perception) skip_perception="true"; shift ;;
+    --dataset-sha256) dataset_sha256="${2:?missing value for --dataset-sha256}"; shift 2 ;;
+    --build-type) build_type="${2:?missing value for --build-type}"; shift 2 ;;
+    --perception-config) perception_config="${2:?missing value for --perception-config}"; shift 2 ;;
+    --python) python_bin="${2:?missing value for --python}"; shift 2 ;;
     --build-dir) build_dir="${2:?missing value for --build-dir}"; shift 2 ;;
     --output-dir) output_dir="${2:?missing value for --output-dir}"; shift 2 ;;
     -h|--help) usage; exit 0 ;;
@@ -63,7 +79,7 @@ case "$dataset" in
 esac
 
 cmake -S "$repo_dir" -B "$build_dir" \
-  -DCMAKE_BUILD_TYPE=Release \
+  -DCMAKE_BUILD_TYPE="$build_type" \
   -DBUILD_TESTING=ON \
   -DVEYRA_BUILD_APPS=ON
 cmake --build "$build_dir" --target veyra_benchmark -j
@@ -72,7 +88,8 @@ mkdir -p "$output_dir"
 json_output="${output_dir}/${dataset}-${sequence}-${start}-${count}.json"
 csv_output="${output_dir}/${dataset}-${sequence}-${start}-${count}.csv"
 
-python3 "$repo_dir/benchmarks/run_benchmark.py" \
+benchmark_args=(
+  "$python_bin" "$repo_dir/benchmarks/run_benchmark.py"
   --repo "$repo_dir" \
   --binary "$build_dir/apps/benchmark/veyra_benchmark" \
   --dataset "$dataset" \
@@ -83,7 +100,17 @@ python3 "$repo_dir/benchmarks/run_benchmark.py" \
   --repetitions "$repetitions" \
   --policies "$policies" \
   --output "$json_output" \
-  --csv-output "$csv_output"
+  --csv-output "$csv_output" \
+  --build-type "$build_type"
+  --perception-config "$perception_config"
+)
+if [[ -n "$dataset_sha256" ]]; then
+  benchmark_args+=(--dataset-sha256 "$dataset_sha256")
+fi
+if [[ "$skip_perception" == "true" ]]; then
+  benchmark_args+=(--skip-perception)
+fi
+"${benchmark_args[@]}"
 
 echo "JSON: $json_output"
 echo "CSV:  $csv_output"

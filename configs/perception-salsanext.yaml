@@ -1,0 +1,13 @@
+# SemanticPOSS/RELLIS byte-valued intensity. Use intensity_scale: 1 for KITTI.
+semantic:
+  mode: salsanext
+  model_path: data/cache/models/salsanext-onnx-float/salsanext.onnx
+  threads: 2
+  intensity_scale: 255
+ground:
+  enabled: true
+terrain:
+  enabled: true
+temporal:
+  enabled: false
+required_stages: [semantic, ground, terrain]

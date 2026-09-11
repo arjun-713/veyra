@@ -42,7 +42,7 @@
   var els = {};
   ["pairLed", "pairTxt", "scopeRead", "glwrap", "gl", "skeleton", "scopeMsg",
    "frameRead", "seqRead", "ptsRead", "shownRead", "clsRead", "bankRow",
-   "timeRead", "poseRead", "rangeRead", "groundRead", "terrainRead", "motionRead", "mapRead", "lodRead", "mapFpsRead", "mapLatencyRead", "rssRead", "clipRead", "histTitle", "hist", "prevBtn", "runBtn", "runLabel", "runIcon", "nextBtn", "resetBtn",
+   "timeRead", "poseRead", "rangeRead", "semanticRead", "semanticConfidenceRead", "groundRead", "groundLatencyRead", "terrainRead", "terrainLatencyRead", "motionRead", "temporalLatencyRead", "perceptionLatencyRead", "mapRead", "lodRead", "mapFpsRead", "mapLatencyRead", "rssRead", "clipRead", "histTitle", "hist", "prevBtn", "runBtn", "runLabel", "runIcon", "nextBtn", "resetBtn",
    "budget", "stepRow", "scrub", "statusRoot", "statusData"
   ].forEach(function (id) { els[id] = $(id); });
 
@@ -172,7 +172,7 @@
     }
     for (i = 0; i < n; i++) {
       var c;
-      if (state.color === "sem" && f.labels) c = semColor(f.dataset, f.labels[i]);
+      if (state.color === "sem" && f.semantic_labels) c = semColor(f.dataset, f.semantic_labels[i]);
       else if (["ground", "terrain", "motion"].indexOf(state.color) >= 0) c = evidenceColor(f, i, state.color);
       else if (state.color === "int") {
         var g = imax > 0 ? f.intensity[i] / imax : 0;
@@ -390,9 +390,19 @@
       ? "CROPPED ≤ " + Number(f.range_m || 100).toFixed(0) + " M"
       : "FULL FRAME";
     var statuses = f.pipeline_status || {};
+    var timings = f.perception_timings_ms || {};
+    els.semanticRead.textContent = String(statuses.semantic || "UNAVAILABLE").toUpperCase();
+    var confidence = f.semantic_confidence || [];
+    els.semanticConfidenceRead.textContent = confidence.length
+      ? (100 * confidence.reduce(function (sum, value) { return sum + Number(value || 0); }, 0) / confidence.length).toFixed(1) + "% AVG"
+      : "UNAVAILABLE";
     els.groundRead.textContent = String(statuses.ground || "UNAVAILABLE").toUpperCase();
+    els.groundLatencyRead.textContent = timings.ground === undefined ? "UNAVAILABLE" : Number(timings.ground).toFixed(1) + " MS";
     els.terrainRead.textContent = String(statuses.terrain || "UNAVAILABLE").toUpperCase();
+    els.terrainLatencyRead.textContent = timings.terrain === undefined ? "UNAVAILABLE" : Number(timings.terrain).toFixed(1) + " MS";
     els.motionRead.textContent = String(statuses.temporal || "UNAVAILABLE").toUpperCase();
+    els.temporalLatencyRead.textContent = timings.temporal === undefined ? "UNAVAILABLE" : Number(timings.temporal).toFixed(1) + " MS";
+    els.perceptionLatencyRead.textContent = timings.total === undefined ? "UNAVAILABLE" : Number(timings.total).toFixed(1) + " MS";
     var map = f.map || {};
     var mapMetrics = map.metrics || {};
     var mapSnapshot = map.snapshot || {};

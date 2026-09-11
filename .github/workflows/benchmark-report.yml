@@ -1,0 +1,96 @@
+name: Publish SemanticPOSS benchmark report
+
+on:
+  workflow_run:
+    workflows: [SemanticPOSS benchmark]
+    types: [completed]
+
+permissions:
+  contents: read
+  actions: read
+  pull-requests: write
+
+jobs:
+  report:
+    if: github.event.workflow_run.conclusion != 'cancelled'
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Download benchmark artifact from completed run
+        uses: actions/download-artifact@v4
+        continue-on-error: true
+        with:
+          name: veyra-semanticposs-benchmark
+          path: artifacts
+          github-token: ${{ github.token }}
+          run-id: ${{ github.event.workflow_run.id }}
+      - name: Upsert benchmark comment on associated pull request
+        uses: actions/github-script@v7
+        env:
+          RUN_URL: ${{ github.event.workflow_run.html_url }}
+          HEAD_SHA: ${{ github.event.workflow_run.head_sha }}
+          CONCLUSION: ${{ github.event.workflow_run.conclusion }}
+        with:
+          script: |
+            const fs = require('fs');
+            const path = require('path');
+            const repo = context.repo;
+            const pulls = await github.paginate(
+              github.rest.repos.listPullRequestsAssociatedWithCommit,
+              { owner: repo.owner, repo: repo.repo, commit_sha: process.env.HEAD_SHA }
+            );
+            const pull = pulls.find((item) => item.state === 'open');
+            if (!pull) {
+              core.info('No open PR is associated with this benchmark run.');
+              return;
+            }
+            const findJson = (directory, name) => {
+              if (!fs.existsSync(directory)) return null;
+              for (const entry of fs.readdirSync(directory, { withFileTypes: true })) {
+                const full = path.join(directory, entry.name);
+                if (entry.isDirectory()) { const found = findJson(full, name); if (found) return found; }
+                else if (entry.name === name || (name === 'map' && entry.name.endsWith('.json'))) return full;
+              }
+              return null;
+            };
+            const mapPath = findJson('artifacts', 'map');
+            const perceptionPath = findJson('artifacts', 'semanticposs-perception.json');
+            const map = mapPath ? JSON.parse(fs.readFileSync(mapPath, 'utf8')) : null;
+            const perception = perceptionPath ? JSON.parse(fs.readFileSync(perceptionPath, 'utf8')) : null;
+            const ms = (v) => v == null ? 'n/a' : `${(Number(v) / 1e6).toFixed(2)} ms`;
+            const mb = (v) => v == null ? 'n/a' : `${(Number(v) / 1048576).toFixed(1)} MB`;
+            const aliases = {uniform5: 'Uniform5', uniform40: 'Uniform40', distance_lod: 'DistanceLOD', utility_lod: 'UtilityLOD'};
+            let mapTable = '| Metric | Uniform5 | Uniform40 | DistanceLOD | UtilityLOD |\n| --- | ---: | ---: | ---: | ---: |\n';
+            for (const [label, getter] of [
+              ['p50 map latency', a => ms(a.stage_latency_ns?.map_update?.p50)],
+              ['p95', a => ms(a.stage_latency_ns?.map_update?.p95)],
+              ['p99', a => ms(a.stage_latency_ns?.map_update?.p99)],
+              ['FPS', a => a.fps?.p50 == null ? 'n/a' : Number(a.fps.p50).toFixed(2)],
+              ['Peak RSS', a => mb(a.peak_rss_bytes)],
+              ['Topology churn p95', a => a.topology_churn_per_frame?.p95 ?? 'n/a'],
+            ]) {
+              mapTable += `| ${label} | ${['uniform5','uniform40','distance_lod','utility_lod'].map(p => map?.policies?.[p] ? getter(map.policies[p].aggregate) : 'n/a').join(' | ')} |\n`;
+            }
+            let perceptionTable = '| Stage | p50 | p95 | p99 |\n| --- | ---: | ---: | ---: |\n';
+            for (const [stage, values] of Object.entries(perception?.timings || {})) {
+              perceptionTable += `| ${stage} | ${values.p50_ms.toFixed(2)} ms | ${values.p95_ms.toFixed(2)} ms | ${values.p99_ms.toFixed(2)} ms |\n`;
+            }
+            const prov = map?.provenance || perception?.reproducibility || {};
+            const body = [
+              '<!-- veyra-semanticposs-benchmark -->',
+              '## Veyra Benchmark',
+              '',
+              `**Run:** [${context.payload.workflow_run.id}](${process.env.RUN_URL})  `,
+              `**Status:** **${process.env.CONCLUSION.toUpperCase()}**  `,
+              `**Commit:** \`${process.env.HEAD_SHA}\`  `,
+              `**Dataset:** SemanticPOSS / sequence \`${map?.sequence || perception?.sequence || 'n/a'}\``,
+              '', '### Map policies', '', mapTable,
+              '### Perception', '', perceptionTable,
+              '### Provenance', '',
+              `Dataset SHA-256: \`${prov.dataset_sha256 || 'n/a'}\`  `,
+              `Config digest: \`${prov.config_digest || 'see artifact'}\``,
+              '', 'Artifacts are attached to the workflow run.',
+            ].join('\n');
+            const comments = await github.paginate(github.rest.issues.listComments, {owner: repo.owner, repo: repo.repo, issue_number: pull.number});
+            const existing = comments.find((comment) => comment.body?.includes('<!-- veyra-semanticposs-benchmark -->'));
+            if (existing) await github.rest.issues.updateComment({owner: repo.owner, repo: repo.repo, comment_id: existing.id, body});
+            else await github.rest.issues.createComment({owner: repo.owner, repo: repo.repo, issue_number: pull.number, body});

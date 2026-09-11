@@ -42,7 +42,9 @@ class ViewerAdapterIntegrationTests(unittest.TestCase):
 
             self.assertEqual(payload["source"], "Rellis3DDataset")
             self.assertEqual(payload["pipeline_status"]["semantic"], "ground_truth")
-            self.assertEqual(payload["pipeline_status"]["ground"], "unavailable")
+            self.assertEqual(payload["pipeline_status"]["ground"], "disabled")
+            self.assertEqual(payload["semantic_confidence"], [0.0])
+            self.assertIn("total", payload["perception_timings_ms"])
             self.assertEqual(status["state"], "configured")
             self.assertEqual(status["dataset"], "rellis3d")
 

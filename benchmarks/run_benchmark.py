@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import argparse
 import csv
+from datetime import datetime, timezone
 import hashlib
 import json
 import math
@@ -82,6 +83,29 @@ def _sha256_file(path: Path) -> str:
     return hashlib.sha256(path.read_bytes()).hexdigest()
 
 
+def _git_sha(repo: Path) -> str | None:
+    try:
+        return subprocess.run(
+            ["git", "-C", str(repo), "rev-parse", "HEAD"],
+            check=True,
+            capture_output=True,
+            text=True,
+        ).stdout.strip()
+    except (OSError, subprocess.CalledProcessError):
+        return None
+
+
+def _pull_request_number() -> int | None:
+    event_path = os.environ.get("GITHUB_EVENT_PATH")
+    if not event_path:
+        return None
+    try:
+        event = json.loads(Path(event_path).read_text())
+        return event.get("pull_request", {}).get("number")
+    except (OSError, TypeError, json.JSONDecodeError):
+        return None
+
+
 def _host_memory_bytes() -> int | None:
     try:
         return os.sysconf("SC_PAGE_SIZE") * os.sysconf("SC_PHYS_PAGES")
@@ -149,7 +173,9 @@ def mapping_quality_report(
             "snapshot_points": point_count,
         },
         "duplicate_ownership": {
-            "holds": bool(snapshot.get("invariant_no_parent_descendant_overlap", False)),
+            "holds": bool(
+                snapshot.get("invariant_no_parent_descendant_overlap", False)
+            ),
             "source": "MapSnapshot.has_no_parent_descendant_overlap",
         },
         "split_merge_conservation": {
@@ -172,7 +198,11 @@ def _fine_reference(frames: list[Any]) -> dict[str, Any]:
         for x, y, z, _intensity in frame.points:
             key = (math.floor(float(x) / 0.05), math.floor(float(y) / 0.05))
             bins.setdefault(key, []).append(float(z))
-    return {"mean_z_by_cell": {key: sum(values) / len(values) for key, values in bins.items()}}
+    return {
+        "mean_z_by_cell": {
+            key: sum(values) / len(values) for key, values in bins.items()
+        }
+    }
 
 
 def _detail_metric(snapshot: dict[str, Any]) -> dict[str, Any]:
@@ -183,9 +213,13 @@ def _detail_metric(snapshot: dict[str, Any]) -> dict[str, Any]:
         if total
         else None
     )
-    return {"weighted_mean_level": weighted_level, "weighted_resolution_m":
-            None if weighted_level is None else 0.05 * (2 ** weighted_level),
-            "basis": "leaf sufficient-statistic counts"}
+    return {
+        "weighted_mean_level": weighted_level,
+        "weighted_resolution_m": None
+        if weighted_level is None
+        else 0.05 * (2**weighted_level),
+        "basis": "leaf sufficient-statistic counts",
+    }
 
 
 def validate_hardware_profile(config: object, profile: str) -> None:
@@ -299,7 +333,16 @@ def validate_configs(dataset_config: object, distance_config: object) -> None:
             raise ValueError(f"dataset range for {name} must match distance_lod.yaml")
 
 
-def load_selection(repo: Path, dataset: str, sequence: str, start: int, count: int):
+def load_selection(
+    repo: Path,
+    dataset: str,
+    sequence: str,
+    start: int,
+    count: int,
+    *,
+    run_perception: bool = True,
+    perception_config: Path | None = None,
+):
     dataset_config = yaml.safe_load((repo / "configs/datasets.yaml").read_text())
     raw_distance_config = yaml.safe_load(
         (repo / "configs/distance_lod.yaml").read_text()
@@ -338,13 +381,16 @@ def load_selection(repo: Path, dataset: str, sequence: str, start: int, count: i
     )
     if not source_frames:
         raise ValueError("frame selection is empty")
-    pipeline, processed, durations_ns = load_perception_pipeline(
-        repo / "configs" / "perception.yaml"
-    ), [], []
-    for source_frame in source_frames:
-        started = time.perf_counter_ns()
-        processed.append(pipeline.process(source_frame).frame)
-        durations_ns.append(time.perf_counter_ns() - started)
+    processed, durations_ns = source_frames, []
+    if run_perception:
+        pipeline = load_perception_pipeline(
+            perception_config or repo / "configs" / "perception.yaml"
+        )
+        processed = []
+        for source_frame in source_frames:
+            started = time.perf_counter_ns()
+            processed.append(pipeline.process(source_frame).frame)
+            durations_ns.append(time.perf_counter_ns() - started)
     return (
         processed,
         distance_config,
@@ -453,7 +499,19 @@ def run(args: argparse.Namespace) -> dict[str, Any]:
     )
     validate_hardware_profile(hardware_config, args.hardware_profile)
     frames, distance_config, _dataset_entry, perception_ns, window_radius_m = (
-        load_selection(repo, args.dataset, args.sequence, args.start, args.count)
+        load_selection(
+            repo,
+            args.dataset,
+            args.sequence,
+            args.start,
+            args.count,
+            run_perception=not args.skip_perception,
+            perception_config=(
+                repo / args.perception_config
+                if not Path(args.perception_config).is_absolute()
+                else Path(args.perception_config)
+            ),
+        )
     )
     stream, digest = stream_bytes(frames)
     all_points = np.concatenate([frame.points[:, :3] for frame in frames], axis=0)
@@ -517,6 +575,7 @@ def run(args: argparse.Namespace) -> dict[str, Any]:
             "aggregate": _aggregate_policy_runs(runs),
         }
     config_paths = [
+        repo / args.perception_config,
         repo / "configs/datasets.yaml",
         repo / "configs/distance_lod.yaml",
         repo / "configs/utility_lod.yaml",
@@ -529,22 +588,71 @@ def run(args: argparse.Namespace) -> dict[str, Any]:
         distance_detail = results["distance_lod"]["runs"][-1]["detail_metric"]
         utility_level = utility_detail["weighted_mean_level"]
         distance_level = distance_detail["weighted_mean_level"]
-        detail_delta = None if utility_level is None or distance_level is None else utility_level - distance_level
+        detail_delta = (
+            None
+            if utility_level is None or distance_level is None
+            else utility_level - distance_level
+        )
     else:
         detail_delta = None
+    compiler = None
+    try:
+        compiler = subprocess.run(
+            [os.environ.get("CXX", "c++"), "--version"],
+            check=True,
+            capture_output=True,
+            text=True,
+        ).stdout.splitlines()[0]
+    except (OSError, subprocess.CalledProcessError, IndexError):
+        pass
+    config_digests = {path.name: _sha256_file(path) for path in config_paths}
+    aggregate_config_digest = hashlib.sha256(
+        json.dumps(config_digests, sort_keys=True).encode("utf-8")
+    ).hexdigest()
+    model_path = repo / "configs" / "perception-salsanext.yaml"
+    model_config = (
+        yaml.safe_load(model_path.read_text()) if model_path.is_file() else {}
+    )
+    model_value = (
+        model_config.get("semantic", {}).get("model_path")
+        if isinstance(model_config, dict)
+        else None
+    )
+    checkpoint = repo / model_value if isinstance(model_value, str) else None
     return {
         "schema_version": SCHEMA_VERSION,
         "provenance": {
             "protocol_version": PROTOCOL_VERSION,
             "selection_digest": digest,
-            "config_sha256": {path.name: _sha256_file(path) for path in config_paths},
+            "config_sha256": config_digests,
+            "config_digest": aggregate_config_digest,
+            "dataset_sha256": args.dataset_sha256,
+            "model_checkpoint_sha256": _sha256_file(checkpoint)
+            if checkpoint and checkpoint.is_file()
+            else None,
+            "git_sha": _git_sha(repo),
+            "pull_request_number": _pull_request_number(),
+            "workflow_run_id": os.environ.get("GITHUB_RUN_ID"),
+            "workflow_event": os.environ.get("GITHUB_EVENT_NAME"),
+            "timestamp_utc": datetime.now(timezone.utc).isoformat(),
+            "frame_range": {
+                "sequence": args.sequence,
+                "start": args.start,
+                "end_exclusive": args.start + args.count,
+                "count": len(frames),
+            },
+            "compiler": compiler,
+            "build_type": args.build_type,
+            "perception_executed": not args.skip_perception,
             "hardware": hardware_metadata(args.hardware_profile),
             "repetitions": args.repetitions,
             "warmup_frames": args.warmup_frames,
             "policy_execution_order": execution_order,
             "map_window_radius_m": window_radius_m,
             "measurement_scope": {
-                "perception": "Python PerceptionPipeline processing, shared once before all policy runs",
+                "perception": "Python PerceptionPipeline processing, shared once before all policy runs"
+                if not args.skip_perception
+                else "not run; source dataset frames were sent directly to the map",
                 "map_window_follow": "C++ public map window-center update from the transmitted world-frame pose; excludes serialization",
                 "map_update": "C++ map update calls only; excludes protocol parsing, snapshotting, and JSON/CSV serialization",
                 "protocol_parse_and_validate": "C++ token parsing and Observation construction; excludes stdin I/O",
@@ -556,7 +664,9 @@ def run(args: argparse.Namespace) -> dict[str, Any]:
         "start": args.start,
         "input_frames": len(frames),
         "measured_frames_per_run": len(frames) - args.warmup_frames,
-        "shared_stage_latency_ns": {"perception": nearest_rank_summary(perception_ns)},
+        "shared_stage_latency_ns": {
+            "perception": nearest_rank_summary(perception_ns) if perception_ns else None
+        },
         "utility_vs_distance_detail": {
             "weighted_mean_level_delta": detail_delta,
             "interpretation": "positive means UtilityLOD retained finer leaves on the identical input",
@@ -618,13 +728,19 @@ def _write_csv(path: Path, result: dict[str, Any]) -> None:
                     "fps_p50": aggregate["fps"]["p50"],
                     "fps_p95": aggregate["fps"]["p95"],
                     "fps_p99": aggregate["fps"]["p99"],
-                    "logical_map_bytes": report["runs"][-1]["metrics"]["memory"]["logical_map_bytes"],
-                    "allocated_map_bytes": report["runs"][-1]["metrics"]["memory"]["allocated_map_bytes"],
+                    "logical_map_bytes": report["runs"][-1]["metrics"]["memory"][
+                        "logical_map_bytes"
+                    ],
+                    "allocated_map_bytes": report["runs"][-1]["metrics"]["memory"][
+                        "allocated_map_bytes"
+                    ],
                     "late_frames": aggregate["late_frames"],
                     "dropped_frames": aggregate["dropped_frames"],
                     "rejected_out_of_window": aggregate["rejected_out_of_window"],
                     "peak_rss_bytes": aggregate["peak_rss_bytes"],
-                    "elevation_vs_fine_rmse_m": report["runs"][-1]["quality"]["elevation_vs_fine_reference"]["rmse_m"],
+                    "elevation_vs_fine_rmse_m": report["runs"][-1]["quality"][
+                        "elevation_vs_fine_reference"
+                    ]["rmse_m"],
                 }
             )
 
@@ -647,6 +763,10 @@ def main() -> int:
     parser.add_argument("--hardware-profile", default="auto")
     parser.add_argument("--output", type=Path)
     parser.add_argument("--csv-output", type=Path)
+    parser.add_argument("--skip-perception", action="store_true")
+    parser.add_argument("--dataset-sha256")
+    parser.add_argument("--build-type", default="Release")
+    parser.add_argument("--perception-config", default="configs/perception.yaml")
     args = parser.parse_args()
     try:
         result = run(args)

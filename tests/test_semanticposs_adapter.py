@@ -23,6 +23,37 @@ def write_frame(
 
 
 class SemanticPOSSAdapterTests(unittest.TestCase):
+    def test_caches_frame_and_metadata_indexes_per_sequence(self):
+        with tempfile.TemporaryDirectory() as raw:
+            root = Path(raw)
+            write_frame(root, "00", "0", [1.0])
+            (root / "00" / "poses.txt").write_text("1 0 0 0 0 1 0 0 0 0 1 0\n")
+            adapter = SemanticPOSSDataset(root, sequences=["00"])
+
+            refs = adapter.list_frames("00")
+            frame = adapter.load_frame("00", "0", label_mapping={10: 1})
+            (root / "00" / "poses.txt").write_text("malformed\n")
+            (root / "00" / "velodyne" / "1.bin").write_bytes(
+                (root / "00" / "velodyne" / "0.bin").read_bytes()
+            )
+
+            self.assertIs(adapter.list_frames("00"), refs)
+            self.assertEqual(frame.frame_id, "0")
+            self.assertEqual(
+                adapter.load_frame("00", "0", label_mapping={10: 1}).frame_id, "0"
+            )
+            self.assertEqual(len(adapter._sequence_cache), 1)
+            self.assertEqual(len(adapter._metadata_cache), 1)
+
+    def test_rejects_negative_or_nonfinite_range_bounds(self):
+        with tempfile.TemporaryDirectory() as raw:
+            root = Path(raw)
+            write_frame(root, "00", "0", [1.0])
+            adapter = SemanticPOSSDataset(root)
+            for kwargs in ({"min_range_m": -1.0}, {"min_range_m": float("nan")}, {"max_range_m": 0.5, "min_range_m": 1.0}):
+                with self.assertRaises(ValueError):
+                    adapter.load_frame("00", "0", **kwargs)
+
     def test_uses_the_versioned_semanticposs_label_taxonomy(self):
         raw = np.array([0, 4, 7, 8, 15, 22], dtype=np.uint32)
 
@@ -53,6 +84,22 @@ class SemanticPOSSAdapterTests(unittest.TestCase):
         self.assertEqual(frame.provenance.pose_source, "dataset")
         self.assertEqual(frame.provenance.calibration_source, "dataset")
         self.assertEqual(frame.provenance.timestamp_source, "absent")
+
+    def test_reports_dataset_pose_and_timestamp_provenance_when_both_exist(self):
+        with tempfile.TemporaryDirectory() as raw:
+            root = Path(raw)
+            write_frame(root, "00", "0", [1.0])
+            (root / "00" / "poses.txt").write_text(
+                "1 0 0 10 0 1 0 20 0 0 1 30\n"
+            )
+            (root / "00" / "timestamps.txt").write_text("4.25\n")
+
+            frame = SemanticPOSSDataset(root).load_frame("00", "0")
+
+        self.assertEqual(frame.timestamp, 4.25)
+        self.assertEqual(frame.provenance.timestamp_source, "dataset")
+        self.assertEqual(frame.provenance.pose_source, "dataset")
+        self.assertEqual(frame.provenance.coordinate_frame, "world")
 
     def test_original_local_frame_maps_real_labels_and_pipeline_contract(self):
         root = Path(__file__).parents[1] / "data/raw/semanticposs/dataset"
@@ -86,6 +133,28 @@ class SemanticPOSSAdapterTests(unittest.TestCase):
             np.testing.assert_array_equal(frame.raw_semantic_class, [10, 20])
             np.testing.assert_array_equal(frame.semantic_confidence, [1.0, 1.0])
 
+    def test_unknown_mapped_label_has_zero_semantic_confidence(self):
+        with tempfile.TemporaryDirectory() as raw:
+            root = Path(raw)
+            write_frame(root, "00", "0", [1.0, 2.0, 3.0])
+            frame = SemanticPOSSDataset(root).load_frame(
+                "00", "0", label_mapping={10: 1, 20: 2}
+            )
+
+            np.testing.assert_array_equal(frame.semantic_class, [1, 2, 0])
+            np.testing.assert_array_equal(frame.semantic_confidence, [1.0, 1.0, 0.0])
+
+    def test_rejects_nonrigid_calibration_even_when_pose_is_identity(self):
+        with tempfile.TemporaryDirectory() as raw:
+            root = Path(raw)
+            write_frame(root, "00", "0", [1.0])
+            (root / "00" / "calib.txt").write_text(
+                "Tr: 2 0 0 0 0 1 0 0 0 0 1 0\n"
+            )
+
+            with self.assertRaisesRegex(ValueError, "not a rigid"):
+                SemanticPOSSDataset(root).load_frame("00", "0")
+
     def test_pose_and_calibration_transform_points_into_world(self):
         with tempfile.TemporaryDirectory() as raw:
             root = Path(raw)
@@ -98,7 +167,7 @@ class SemanticPOSSAdapterTests(unittest.TestCase):
 
             frame = adapter.load_frame("00", "0", label_mapping={10: 1})
 
-            np.testing.assert_allclose(frame.points[0, :3], [12.0, 22.0, 33.0])
+            np.testing.assert_allclose(frame.points[0, :3], [11.0, 20.0, 30.0])
 
     def test_range_crop_drops_points_outside_100_m_envelope(self):
         with tempfile.TemporaryDirectory() as raw:

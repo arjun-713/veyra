@@ -43,13 +43,28 @@ jobs:
       - name: Install pinned test dependencies
         run: python -m pip install -r requirements.txt -r requirements-dev.txt
       - name: Ruff
-        run: ruff check benchmarks tests/test_runtime_map_bridge.py tests/test_viewer_runtime_http.py
-      - name: Python syntax
-        run: python -m compileall -q benchmarks tests/test_runtime_map_bridge.py tests/test_viewer_runtime_http.py
-      - name: Python tests
         run: >-
-          python -m unittest -v benchmarks.test_runtime
-          tests.test_runtime_map_bridge tests.test_viewer_runtime_http
+          ruff check benchmarks perception datasets
+          viewer/runtime.py viewer/server.py
+          scripts/fetch_semantic_model.py scripts/validate_perception.py
+          tests/test_perception_pipeline.py tests/test_salsanext.py tests/test_taxonomy.py
+          --ignore SIM117,I001
+      - name: Python formatting
+        run: >-
+          ruff format --check
+          viewer/runtime.py viewer/server.py
+          datasets/generic perception/semantic/salsanext.py
+          scripts/validate_perception.py
+          tests/test_generic_adapter.py tests/test_viewer_adapter_integration.py
+          tests/test_viewer_runtime_http.py
+      - name: JavaScript syntax
+        run: node --check viewer/static/app.js
+      - name: Python syntax
+        run: python -m compileall -q benchmarks datasets perception scripts tests
+      - name: Python tests
+        run: |
+          python -m unittest discover -s benchmarks -p 'test*.py' -v
+          python -m unittest discover -s tests -p 'test*.py' -v
 
   formatting:
     name: C++ formatting
