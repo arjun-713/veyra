@@ -6,6 +6,7 @@ import importlib.util
 import json
 import os
 import subprocess
+import sys
 import tempfile
 import unittest
 from pathlib import Path
@@ -15,6 +16,7 @@ import numpy as np
 from benchmarks.protocol import stream_bytes
 from benchmarks.run_benchmark import (
     POLICY_ADAPTERS,
+    PUBLIC_POLICY_NAMES,
     compute_window_radius_m,
     load_selection,
     mapping_quality_report,
@@ -94,9 +96,7 @@ class RuntimeTests(unittest.TestCase):
                 "point_count": 2,
                 "nonspatial_prior_point_count": 0,
                 "invariant_no_parent_descendant_overlap": True,
-                "leaves": [
-                    {"level": 0, "ix": 0, "iy": 0, "count": 2, "mean_z": 1.1}
-                ],
+                "leaves": [{"level": 0, "ix": 0, "iy": 0, "count": 2, "mean_z": 1.1}],
             },
             fine_reference={"mean_z_by_cell": {(0, 0): 1.1}},
         )
@@ -105,6 +105,7 @@ class RuntimeTests(unittest.TestCase):
         self.assertTrue(report["duplicate_ownership"]["holds"])
         self.assertTrue(report["split_merge_conservation"]["holds"])
         self.assertEqual(report["elevation_vs_fine_reference"]["sample_count"], 1)
+
     def test_config_validation_rejects_non_odom_distance_config(self):
         with self.assertRaisesRegex(ValueError, "frame must be odom"):
             validate_configs(
@@ -181,7 +182,7 @@ class RuntimeTests(unittest.TestCase):
     def test_runner_script_supports_direct_invocation(self):
         repo = Path(__file__).resolve().parents[1]
         completed = subprocess.run(
-            ["python3", str(repo / "benchmarks" / "run_benchmark.py"), "--help"],
+            [sys.executable, str(repo / "benchmarks" / "run_benchmark.py"), "--help"],
             capture_output=True,
             text=True,
             check=False,
@@ -216,8 +217,11 @@ class RuntimeTests(unittest.TestCase):
 
     def test_all_public_policy_adapters_are_available(self):
         self.assertEqual(
-            {name for name, adapter in POLICY_ADAPTERS.items() if adapter.available},
+            set(PUBLIC_POLICY_NAMES),
             {"uniform5", "uniform40", "distance_lod", "utility_lod"},
+        )
+        self.assertTrue(
+            all(POLICY_ADAPTERS[name].available for name in PUBLIC_POLICY_NAMES)
         )
 
     def test_actual_binary(self):

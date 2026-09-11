@@ -4,6 +4,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <filesystem>
+#include <optional>
 #include <unordered_map>
 #include <vector>
 
@@ -54,6 +55,9 @@ struct UtilityConfig {
   int cooldown_frames = 0;
   int max_level_changes_per_decision = 1;
   double prediction_horizon_s = 1.0;
+  int max_promotion_depth = 1;
+  std::size_t max_state_cells = 65536;
+  std::uint64_t state_ttl_frames = 120;
 };
 
 struct PolicyConfig {
@@ -71,9 +75,13 @@ class LodPolicy {
  public:
   explicit LodPolicy(PolicyConfig config = PolicyConfig::defaults());
   [[nodiscard]] PolicyDecision decide(const DecisionInput& input);
+  // Explicit frame IDs make hysteresis independent of point count. IDs must increase.
+  void begin_frame(std::uint64_t frame_id);
+  void reset() noexcept;
+  [[nodiscard]] std::size_t retained_state_count() const noexcept { return states_.size(); }
 
  private:
-  struct AdaptationState {
+  struct TemporalState {
     bool initialized = false;
     bool promoted = false;
     double ema = 0.0;
@@ -83,7 +91,20 @@ class LodPolicy {
     int promoted_level = 3;
   };
 
+  struct AdaptationState {
+    TemporalState current{};
+    TemporalState frame_start{};
+    std::uint64_t last_frame = 0;
+    bool seen = false;
+    double frame_score = 0.0;
+    bool frame_predictive = false;
+    bool frame_safety = false;
+    int frame_goal = 3;
+  };
+
   PolicyConfig config_;
+  std::optional<std::uint64_t> frame_id_;
+  std::uint64_t implicit_frame_id_ = 0;
   std::unordered_map<core::CellId, AdaptationState, core::CellIdHash> states_;
 };
 
@@ -92,6 +113,12 @@ struct ResourceGovernorConfig {
   std::size_t max_logical_bytes = 1;
   double near_field_radius_m = 10.0;
   std::size_t max_actions_per_frame = 1;
+  std::size_t max_rss_bytes = 0;  // Zero disables the RSS budget.
+  double target_frame_time_ms = 100.0;
+  double pressure_ratio = 0.90;
+  double recovery_ratio = 0.75;
+  int overload_consecutive_frames = 3;
+  int recovery_consecutive_frames = 5;
 
   void validate() const;
 };
@@ -100,7 +127,8 @@ struct ResourceTelemetry {
   std::size_t active_cells = 0;
   std::size_t logical_bytes = 0;
   double frame_time_ms = 0.0;
-  double target_frame_time_ms = 0.0;
+  double target_frame_time_ms = 0.0;  // Zero uses the configured target.
+  std::optional<std::size_t> rss_bytes = std::nullopt;
 };
 
 struct GovernorCandidate {
@@ -116,24 +144,45 @@ struct GovernorAction {
   ResolutionAction action = ResolutionAction::Keep;
 };
 
+enum class GovernorState { Normal, ApproachingBudget, Overloaded, Recovering, Disabled };
+enum class GovernorOverride { Automatic, Disabled, Conserve };
+
+struct GovernorStatus {
+  GovernorState state = GovernorState::Normal;
+  bool allow_optional_splits = true;
+  int overload_frames = 0;
+  int recovery_frames = 0;
+  std::uint64_t interventions = 0;
+  std::uint64_t actions_requested = 0;
+  std::uint64_t actions_applied = 0;
+};
+
 class ResourceGovernor {
  public:
   explicit ResourceGovernor(ResourceGovernorConfig config);
   [[nodiscard]] std::vector<GovernorAction> decide(
-      const ResourceTelemetry& telemetry, const std::vector<GovernorCandidate>& candidates) const;
+      const ResourceTelemetry& telemetry, const std::vector<GovernorCandidate>& candidates);
+  [[nodiscard]] const GovernorStatus& status() const noexcept { return status_; }
+  [[nodiscard]] const ResourceGovernorConfig& config() const noexcept { return config_; }
+  void reset() noexcept;
+  void set_override(GovernorOverride mode) noexcept;
+  void record_applied_actions(std::size_t count);
 
  private:
   ResourceGovernorConfig config_;
+  GovernorStatus status_{};
+  GovernorOverride override_ = GovernorOverride::Automatic;
 };
 
 [[nodiscard]] PolicyConfig load_policy_config(const std::filesystem::path& path);
-[[nodiscard]] ResourceGovernorConfig load_resource_governor_config(const std::filesystem::path& path);
+[[nodiscard]] ResourceGovernorConfig load_resource_governor_config(
+    const std::filesystem::path& path);
 
 // Radial component of a world-frame XY velocity along the robot-to-point
 // offset. Negative means approaching, positive means receding. A zero-length
 // offset or any non-finite input fails safe to exactly zero so predictive
 // refinement is never derived from garbage velocity evidence.
-[[nodiscard]] double radial_range_rate_mps(double velocity_x, double velocity_y,
-                                           double offset_x, double offset_y) noexcept;
+[[nodiscard]] double radial_range_rate_mps(double velocity_x, double velocity_y, double offset_x,
+                                           double offset_y) noexcept;
 
 }  // namespace veyra::policy

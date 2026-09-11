@@ -109,6 +109,12 @@ viewer/build/
 viewer/node_modules/
 viewer/.next/
 viewer/coverage/
+apps/desktop/node_modules/
+apps/desktop/.vite/
+apps/desktop/out/
+apps/desktop/coverage/
+apps/desktop/test-results/
+apps/desktop/playwright-report/
 .impeccable/
 
 # --- ROS2 ---

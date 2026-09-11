@@ -20,16 +20,15 @@ void validate_name(std::string_view name) {
   }
 }
 
-std::int64_t nearest_rank(const std::vector<std::int64_t> &sorted,
-                          double percentile) {
-  const auto rank = static_cast<std::size_t>(
-      std::ceil(percentile * static_cast<double>(sorted.size())));
+std::int64_t nearest_rank(const std::vector<std::int64_t>& sorted, double percentile) {
+  const auto rank =
+      static_cast<std::size_t>(std::ceil(percentile * static_cast<double>(sorted.size())));
   const auto index = std::min(sorted.size() - 1, rank == 0 ? 0 : rank - 1);
   return sorted[index];
 }
 
 template <typename Statistics>
-Statistics summarize(const std::vector<std::int64_t> &samples) {
+Statistics summarize(const std::vector<std::int64_t>& samples) {
   Statistics result;
   if (samples.empty()) {
     return result;
@@ -61,7 +60,7 @@ Statistics summarize(const std::vector<std::int64_t> &samples) {
   return result;
 }
 
-} // namespace
+}  // namespace
 
 std::optional<std::uint64_t> read_process_rss_bytes() noexcept {
 #if defined(__linux__)
@@ -77,8 +76,7 @@ std::optional<std::uint64_t> read_process_rss_bytes() noexcept {
     return std::nullopt;
   }
   const auto page_size_u = static_cast<std::uint64_t>(page_size);
-  if (resident_pages > std::numeric_limits<std::uint64_t>::max() /
-                           page_size_u) {
+  if (resident_pages > std::numeric_limits<std::uint64_t>::max() / page_size_u) {
     return std::nullopt;
   }
   return resident_pages * page_size_u;
@@ -87,21 +85,30 @@ std::optional<std::uint64_t> read_process_rss_bytes() noexcept {
 #endif
 }
 
-MetricsCollector::MetricsCollector(Clock::time_point start) : start_(start) {}
+MetricsCollector::MetricsCollector(Clock::time_point start, std::size_t sample_limit)
+    : sample_limit_(sample_limit), start_(start) {}
 
-void MetricsCollector::reserve_duration_samples(std::string_view name,
-                                                std::size_t capacity) {
-  validate_name(name);
-  durations_[std::string(name)].reserve(capacity);
+void MetricsCollector::Samples::add(std::int64_t value, std::size_t limit) {
+  if (limit == 0 || values.size() < limit) {
+    values.push_back(value);
+  } else {
+    values[next] = value;
+    next = (next + 1) % limit;
+  }
 }
 
-void MetricsCollector::record_duration(std::string_view name,
-                                       std::chrono::nanoseconds duration) {
+void MetricsCollector::reserve_duration_samples(std::string_view name, std::size_t capacity) {
+  validate_name(name);
+  durations_[std::string(name)].values.reserve(
+      sample_limit_ == 0 ? capacity : std::min(capacity, sample_limit_));
+}
+
+void MetricsCollector::record_duration(std::string_view name, std::chrono::nanoseconds duration) {
   validate_name(name);
   if (duration.count() < 0) {
     throw std::invalid_argument("duration must not be negative");
   }
-  durations_[std::string(name)].push_back(duration.count());
+  durations_[std::string(name)].add(duration.count(), sample_limit_);
 }
 
 void MetricsCollector::add_counter(std::string_view name, std::int64_t delta) {
@@ -109,7 +116,7 @@ void MetricsCollector::add_counter(std::string_view name, std::int64_t delta) {
   if (delta < 0) {
     throw std::invalid_argument("counter delta must not be negative");
   }
-  auto &counter = counters_[std::string(name)];
+  auto& counter = counters_[std::string(name)];
   const auto amount = static_cast<std::uint64_t>(delta);
   if (counter > std::numeric_limits<std::uint64_t>::max() - amount) {
     throw std::overflow_error("counter overflow");
@@ -119,7 +126,7 @@ void MetricsCollector::add_counter(std::string_view name, std::int64_t delta) {
 
 void MetricsCollector::record_value(std::string_view name, std::int64_t value) {
   validate_name(name);
-  values_[std::string(name)].push_back(value);
+  values_[std::string(name)].add(value, sample_limit_);
 }
 
 void MetricsCollector::record_frame() {
@@ -133,8 +140,7 @@ void MetricsCollector::set_logical_map_bytes(std::uint64_t bytes) noexcept {
   logical_map_bytes_ = bytes;
 }
 
-void MetricsCollector::set_allocated_map_bytes(
-    std::optional<std::uint64_t> bytes) {
+void MetricsCollector::set_allocated_map_bytes(std::optional<std::uint64_t> bytes) {
   if (bytes.has_value() && *bytes == 0) {
     throw std::invalid_argument("allocated map bytes must be positive");
   }
@@ -173,17 +179,16 @@ MetricsReport MetricsCollector::report(Clock::time_point now) const {
   result.allocated_map_bytes = allocated_map_bytes_;
   result.current_rss_bytes = current_rss_bytes_;
   result.peak_rss_bytes = peak_rss_bytes_;
-  for (const auto &[name, samples] : durations_) {
-    result.durations.emplace(name, summarize<DurationStatistics>(samples));
+  for (const auto& [name, samples] : durations_) {
+    result.durations.emplace(name, summarize<DurationStatistics>(samples.values));
   }
-  for (const auto &[name, samples] : values_) {
-    result.values.emplace(name, summarize<ValueStatistics>(samples));
+  for (const auto& [name, samples] : values_) {
+    result.values.emplace(name, summarize<ValueStatistics>(samples.values));
   }
-  if (frame_count_ > 0 && result.elapsed_seconds > 0.0 &&
-      std::isfinite(result.elapsed_seconds)) {
+  if (frame_count_ > 0 && result.elapsed_seconds > 0.0 && std::isfinite(result.elapsed_seconds)) {
     result.fps = static_cast<double>(frame_count_) / result.elapsed_seconds;
   }
   return result;
 }
 
-} // namespace veyra::metrics
+}  // namespace veyra::metrics

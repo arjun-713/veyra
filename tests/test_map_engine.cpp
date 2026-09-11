@@ -10,8 +10,8 @@
 using veyra::map::DistanceLodMap;
 using veyra::map::Map;
 using veyra::map::Observation;
-using veyra::map::Uniform5Map;
 using veyra::map::Uniform40Map;
+using veyra::map::Uniform5Map;
 
 void test_distance_lod_dense_update_budget() {
   DistanceLodMap map({.window_radius_m = 100.0});
@@ -21,8 +21,8 @@ void test_distance_lod_dense_update_budget() {
     const double angle = static_cast<double>(i % 1024) * 0.006135923151542565;
     const double radius = 2.0 + static_cast<double>((i * 7919) % 9800) / 100.0;
     map.update(Observation{.x = radius * std::cos(angle),
-                            .y = radius * std::sin(angle),
-                            .z = static_cast<double>(i % 37) * 0.01});
+                           .y = radius * std::sin(angle),
+                           .z = static_cast<double>(i % 37) * 0.01});
   }
   const auto elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(
       std::chrono::steady_clock::now() - started);
@@ -47,7 +47,7 @@ void test_split_merge_preserves_all_statistics() {
   const auto after = map.snapshot();
   assert(after.point_count == before.point_count);
   assert(after.leaves.size() == 1);
-  const auto &stats = after.leaves.front().stats;
+  const auto& stats = after.leaves.front().stats;
   assert(stats.count == 2);
   assert(std::abs(stats.mean_z - 1.0) < 1e-12);
   assert(std::abs(stats.m2_z - 18.0) < 1e-12);
@@ -69,7 +69,7 @@ void test_split_never_invents_a_child_location_for_parent_evidence() {
   // must not fabricate a more precise position by assigning them to a child.
   const auto split = map.snapshot();
   assert(split.active_leaf_count == 4);
-  for (const auto &leaf : split.leaves) {
+  for (const auto& leaf : split.leaves) {
     assert(leaf.stats.count == 0);
   }
   assert(split.point_count == 2);
@@ -145,14 +145,8 @@ void test_cell_statistics_preserve_enriched_observation_evidence() {
 
 void test_geometry_complexity_is_fused_and_survives_split_merge() {
   DistanceLodMap map({.window_radius_m = 100.0});
-  map.update(Observation{.x = 70.01,
-                         .y = 0.01,
-                         .z = 1.0,
-                         .geometry_complexity = 0.25F});
-  map.update(Observation{.x = 70.02,
-                         .y = 0.02,
-                         .z = 3.0,
-                         .geometry_complexity = 0.75F});
+  map.update(Observation{.x = 70.01, .y = 0.01, .z = 1.0, .geometry_complexity = 0.25F});
+  map.update(Observation{.x = 70.02, .y = 0.02, .z = 3.0, .geometry_complexity = 0.75F});
 
   const auto parent = map.snapshot().leaves.front().id;
   map.split(parent);
@@ -164,8 +158,7 @@ void test_geometry_complexity_is_fused_and_survives_split_merge() {
   const auto merged = map.snapshot();
   assert(merged.point_count == 2);
   assert(merged.leaves.size() == 1);
-  assert(std::abs(merged.leaves.front().stats.geometry_complexity - 0.5F) <
-         1e-6F);
+  assert(std::abs(merged.leaves.front().stats.geometry_complexity - 0.5F) < 1e-6F);
 }
 
 void test_split_merge_cycles_and_policy_transitions_preserve_statistics() {
@@ -201,15 +194,12 @@ void test_split_merge_cycles_and_policy_transitions_preserve_statistics() {
   assert(refined.has_no_parent_descendant_overlap());
 
   DistanceLodMap merge_from_children({.window_radius_m = 100.0});
-  merge_from_children.update(
-      Observation{.x = 70.01, .y = 0.01, .z = -2.0, .timestamp = 3});
-  merge_from_children.update(
-      Observation{.x = 70.02, .y = 0.02, .z = 4.0, .timestamp = 8});
+  merge_from_children.update(Observation{.x = 70.01, .y = 0.01, .z = -2.0, .timestamp = 3});
+  merge_from_children.update(Observation{.x = 70.02, .y = 0.02, .z = 4.0, .timestamp = 8});
   const auto coarse_parent = merge_from_children.snapshot().leaves.front().id;
   merge_from_children.split(coarse_parent);
   merge_from_children.set_window_center(20.0, 0.0);
-  merge_from_children.update(
-      Observation{.x = 70.25, .y = 0.01, .z = 10.0, .timestamp = 11});
+  merge_from_children.update(Observation{.x = 70.25, .y = 0.01, .z = 10.0, .timestamp = 11});
   merge_from_children.merge_children(coarse_parent);
   const auto merged_children = merge_from_children.snapshot();
   assert(merged_children.point_count == 3);
@@ -242,10 +232,8 @@ void test_exact_cell_window_eviction_stale_cleanup_and_real_tiles() {
   assert(allocated.tile_count == 2);
   assert(allocated.memory.logical_payload_bytes ==
          allocated.active_leaf_count * sizeof(veyra::map::Leaf));
-  assert(allocated.memory.allocated_cell_array_bytes >=
-         allocated.memory.logical_payload_bytes);
-  assert(allocated.memory.allocated_bytes >=
-         allocated.memory.allocated_cell_array_bytes);
+  assert(allocated.memory.allocated_cell_array_bytes >= allocated.memory.logical_payload_bytes);
+  assert(allocated.memory.allocated_bytes >= allocated.memory.allocated_cell_array_bytes);
   assert(allocated.memory.allocated_overhead_bytes ==
          allocated.memory.allocated_bytes - allocated.memory.allocated_cell_array_bytes);
 
@@ -267,7 +255,7 @@ void test_window_containment_is_queryable_for_stream_ingest() {
   bool threw = false;
   try {
     query.update(Observation{.x = 101.0, .y = 0.0, .z = 0.0});
-  } catch (const std::out_of_range &) {
+  } catch (const std::out_of_range&) {
     threw = true;
   }
   assert(threw);
@@ -302,7 +290,7 @@ int main() {
   const auto uniform_snapshot = uniform.snapshot();
   assert(uniform_snapshot.active_leaf_count == 1);
   assert(uniform_snapshot.point_count == 2);
-  const auto &stats = uniform_snapshot.leaves.front().stats;
+  const auto& stats = uniform_snapshot.leaves.front().stats;
   assert(std::abs(stats.mean_z - 2.0) < 1e-12);
   assert(std::abs(stats.variance_z() - 2.0) < 1e-12);
 
@@ -343,15 +331,19 @@ int main() {
   adaptive.split(coarse_leaf);
   assert(adaptive.snapshot().has_no_parent_descendant_overlap());
   assert(adaptive.snapshot().topology_change_count == 1);
+  assert(adaptive.snapshot().split_count == 1);
+  assert(adaptive.snapshot().merge_count == 0);
   const auto before_merge = adaptive.snapshot().point_count;
   adaptive.merge_children(coarse_leaf);
   assert(adaptive.snapshot().point_count == before_merge);
   assert(adaptive.snapshot().topology_change_count == 2);
+  assert(adaptive.snapshot().split_count == 1);
+  assert(adaptive.snapshot().merge_count == 1);
 
   bool out_of_range = false;
   try {
     adaptive.update(Observation{.x = 101.0, .y = 0.0, .z = 1.0});
-  } catch (const std::out_of_range &) {
+  } catch (const std::out_of_range&) {
     out_of_range = true;
   }
   assert(out_of_range);
@@ -360,7 +352,7 @@ int main() {
   bool rejected = false;
   try {
     uniform.update(Observation{.x = NAN, .y = 0.0, .z = 0.0});
-  } catch (const std::invalid_argument &) {
+  } catch (const std::invalid_argument&) {
     rejected = true;
   }
   assert(rejected);
@@ -368,7 +360,7 @@ int main() {
   bool bad_level = false;
   try {
     (void)veyra::core::resolution_m(4);
-  } catch (const std::invalid_argument &) {
+  } catch (const std::invalid_argument&) {
     bad_level = true;
   }
   assert(bad_level);
@@ -376,7 +368,7 @@ int main() {
   bool bad_config = false;
   try {
     Uniform5Map invalid({.window_radius_m = 0.0});
-  } catch (const std::invalid_argument &) {
+  } catch (const std::invalid_argument&) {
     bad_config = true;
   }
   assert(bad_config);

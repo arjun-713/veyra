@@ -57,10 +57,23 @@ def _map_table(report: dict[str, Any] | None) -> str:
             ),
         ),
         (
+            "Elevation coverage",
+            lambda a, r: (
+                "n/a"
+                if a["quality"][-1]["elevation_vs_fine_reference"].get("coverage")
+                is None
+                else f'{a["quality"][-1]["elevation_vs_fine_reference"]["coverage"]:.1%}'
+            ),
+        ),
+        (
             "Point conservation",
             lambda a, r: "PASS"
             if all(q["point_conservation"]["holds"] for q in a["quality"])
             else "FAIL",
+        ),
+        (
+            "Governor interventions",
+            lambda a, r: str(a.get("governor", {}).get("interventions", "n/a")),
         ),
         (
             "Duplicate ownership",
@@ -110,6 +123,47 @@ def _perception_table(report: dict[str, Any] | None) -> str:
         lines.append(
             f"| {aliases.get(key, key)} | {values['p50_ms']:.2f} ms | {values['p95_ms']:.2f} ms | {values['p99_ms']:.2f} ms |"
         )
+    return "\n".join(lines)
+
+
+def _ablation_table(report: dict[str, Any] | None) -> str:
+    ablation = (report or {}).get("utility_ablation")
+    if not isinstance(ablation, dict):
+        return "Ablation matrix was not included in this artifact."
+    members = ablation.get("members", {})
+    lines = [
+        "| Variant | Signals | RMSE | Δ RMSE | p95 map | Δ RSS |",
+        "| --- | --- | ---: | ---: | ---: | ---: |",
+    ]
+    for name in ablation.get("required_policies", []):
+        member = members.get(name)
+        if not member:
+            lines.append(f"| {name} | not run | n/a | n/a | n/a | n/a |")
+            continue
+        measured = member["measurements"]
+        delta = member["delta_vs_distance"]
+        rss_delta = delta["peak_rss_fraction"]
+        lines.append(
+            "| "
+            + " | ".join(
+                [
+                    name,
+                    ", ".join(member["signals"]) or "distance only",
+                    _metres(measured["elevation_rmse_m"]),
+                    _metres(delta["elevation_rmse_m"]),
+                    _ms(measured["map_latency_p95_ns"]),
+                    "n/a" if rss_delta is None else f"{rss_delta:+.1%}",
+                ]
+            )
+            + " |"
+        )
+    lines.extend(
+        [
+            "",
+            f"Status: **{ablation.get('status', 'unknown')}**. Full vs distance: "
+            f"`{ablation.get('full_vs_distance_assessment', 'unavailable')}`.",
+        ]
+    )
     return "\n".join(lines)
 
 
@@ -173,6 +227,10 @@ def render(
         "### Map benchmark",
         "",
         _map_table(mapping),
+        "",
+        "### UtilityLOD ablation",
+        "",
+        _ablation_table(mapping),
         "",
         "### Perception benchmark",
         "",

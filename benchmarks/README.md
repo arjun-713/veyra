@@ -23,12 +23,21 @@ default. JSON records runtime hardware/config provenance, scoped stage timing,
 logical versus allocated-map memory availability, current/peak process RSS,
 per-level cells, topology churn, and stream late/drop accounting.
 
+Pass
+`--policies ablation_distance,ablation_geometry,ablation_semantics,ablation_motion,utility_lod`
+to run the complete UtilityLOD signal experiment. Its structured result,
+delta directions, CSV behavior, and compatibility rules are defined in
+[`docs/benchmark-contract.md`](../docs/benchmark-contract.md). Scheduled CI
+runs this full matrix; pull requests retain the four-policy comparison.
+
 ## Legacy standalone scan harness
 
 `benchmarks/regression.py` remains available for debugging a single raw scan,
 but it is not part of CI's primary validation path. CI uses the official
 SemanticPOSS archive and runs the adapter, real perception stages, map policies,
-and correctness/performance reporting together.
+and correctness/performance reporting together. Older four-policy schema-v2
+artifacts remain valid regression baselines; comparisons use policy keys
+present in both artifacts.
 
 ## SemanticPOSS CI benchmark
 

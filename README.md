@@ -33,7 +33,11 @@ ctest --test-dir build --output-on-failure
 python -m venv .venv && source .venv/bin/activate
 ```
 
-Core needs only C++20/CMake; CUDA optional. See `docs/development.md`.
+Core needs only C++20/CMake; CUDA optional. The long-running runtime and
+Electron application are documented in `docs/product-runtime.md`; engineering
+rules remain in `docs/development.md`.
+The shared benchmark artifact contract is documented in
+`docs/benchmark-contract.md`.
 
 ## How it works
 
@@ -69,8 +73,10 @@ reported separately. Details: `docs/datasets-benchmarks.md`.
 
 ## Status
 
-Initial setup stage — no published FPS/accuracy/RAM claims until
-reproducible benchmarks on named hardware exist. Scope excludes SLAM,
-planning, control, camera fusion, LLMs. Pose is external.
+The repository includes the four map policies, long-running replay runtime,
+resource governor, measured telemetry, binary observation transport and an
+Electron/Svelte operator application. No FPS/accuracy/RAM claim is published
+until a reproducible benchmark on named hardware supports it. Scope excludes
+SLAM, planning, control, camera fusion and LLMs. Pose is external.
 
 See `AGENTS.md` for contributor constraints.

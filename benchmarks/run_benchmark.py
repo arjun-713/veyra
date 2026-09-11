@@ -26,6 +26,8 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from benchmarks.protocol import PROTOCOL_VERSION, stream_bytes
 from datasets.rellis import Rellis3DDataset
+from datasets.generic import ManifestDataset
+from datasets.semantickitti import SemanticKITTIDataset
 from datasets.semanticposs import SemanticPOSSDataset
 from perception.pipeline import load_perception_pipeline
 
@@ -38,6 +40,9 @@ class PolicyAdapter:
     cpp_policy: str | None
     available: bool
     integration_note: str
+    utility_config: str = "utility_lod.yaml"
+    suite: str = "public"
+    signals: tuple[str, ...] = ()
 
 
 POLICY_ADAPTERS = {
@@ -53,8 +58,54 @@ POLICY_ADAPTERS = {
         "utility_lod",
         True,
         "stateful public map/policy adapter available",
+        signals=("geometry", "semantics", "motion", "traversability", "uncertainty"),
+    ),
+    "ablation_distance": PolicyAdapter(
+        "ablation_distance",
+        "distance_lod",
+        True,
+        "distance-only control",
+        suite="utility_ablation",
+    ),
+    "ablation_geometry": PolicyAdapter(
+        "ablation_geometry",
+        "utility_lod",
+        True,
+        "distance plus geometry",
+        "utility_lod-geometry.yaml",
+        "utility_ablation",
+        ("geometry",),
+    ),
+    "ablation_semantics": PolicyAdapter(
+        "ablation_semantics",
+        "utility_lod",
+        True,
+        "distance plus semantic evidence",
+        "utility_lod-semantics.yaml",
+        "utility_ablation",
+        ("semantics", "uncertainty"),
+    ),
+    "ablation_motion": PolicyAdapter(
+        "ablation_motion",
+        "utility_lod",
+        True,
+        "distance plus motion",
+        "utility_lod-motion.yaml",
+        "utility_ablation",
+        ("motion",),
     ),
 }
+
+PUBLIC_POLICY_NAMES = tuple(
+    name for name, adapter in POLICY_ADAPTERS.items() if adapter.suite == "public"
+)
+UTILITY_ABLATION_POLICY_NAMES = (
+    "ablation_distance",
+    "ablation_geometry",
+    "ablation_semantics",
+    "ablation_motion",
+    "utility_lod",
+)
 
 
 def nearest_rank_summary(samples: list[int | float]) -> dict[str, int | float]:
@@ -150,17 +201,20 @@ def mapping_quality_report(
     split_merge = leaf_count + nonspatial == point_count
     errors: list[float] = []
     reference = fine_reference["mean_z_by_cell"]
-    for leaf in snapshot.get("leaves", []):
-        level = int(leaf["level"])
-        span = 1 << level
-        values = [
-            value
-            for (ix, iy), value in reference.items()
-            if int(leaf["ix"]) * span <= ix < (int(leaf["ix"]) + 1) * span
-            and int(leaf["iy"]) * span <= iy < (int(leaf["iy"]) + 1) * span
-        ]
-        if values:
-            errors.append(float(leaf["mean_z"]) - sum(values) / len(values))
+    # Reconstruct each observed fine bin from its active owner. Averaging the
+    # reference inside a coarse leaf hides precisely the detail LOD discards.
+    # Four lookups per reference bin also avoid leaf_count * reference_count.
+    owners = {
+        (int(leaf["level"]), int(leaf["ix"]), int(leaf["iy"])): float(leaf["mean_z"])
+        for leaf in snapshot.get("leaves", [])
+        if int(leaf["count"]) > 0
+    }
+    for (ix, iy), value in reference.items():
+        for level in range(4):
+            estimate = owners.get((level, ix >> level, iy >> level))
+            if estimate is not None:
+                errors.append(estimate - value)
+                break
     rmse = (
         math.sqrt(sum(error * error for error in errors) / len(errors))
         if errors
@@ -188,20 +242,22 @@ def mapping_quality_report(
             "sample_count": len(errors),
             "rmse_m": rmse,
             "reference": "5cm input-point bins",
+            "reference_bins": len(reference),
+            "coverage": len(errors) / len(reference) if reference else None,
+            "scope": "observed reference bins covered by final active leaves; excludes evicted/uncovered bins",
         },
     }
 
 
 def _fine_reference(frames: list[Any]) -> dict[str, Any]:
-    bins: dict[tuple[int, int], list[float]] = {}
+    bins: dict[tuple[int, int], tuple[float, int]] = {}
     for frame in frames:
         for x, y, z, _intensity in frame.points:
-            key = (math.floor(float(x) / 0.05), math.floor(float(y) / 0.05))
-            bins.setdefault(key, []).append(float(z))
+            key = (math.floor(float(x) * 20), math.floor(float(y) * 20))
+            total, count = bins.get(key, (0.0, 0))
+            bins[key] = (total + float(z), count + 1)
     return {
-        "mean_z_by_cell": {
-            key: sum(values) / len(values) for key, values in bins.items()
-        }
+        "mean_z_by_cell": {key: total / count for key, (total, count) in bins.items()}
     }
 
 
@@ -342,6 +398,7 @@ def load_selection(
     *,
     run_perception: bool = True,
     perception_config: Path | None = None,
+    dataset_root: Path | None = None,
 ):
     dataset_config = yaml.safe_load((repo / "configs/datasets.yaml").read_text())
     raw_distance_config = yaml.safe_load(
@@ -356,18 +413,31 @@ def load_selection(
     validate_configs(dataset_config, raw_distance_config)
     distance_config = _normalized_distance_config(raw_distance_config)
     entry = dataset_config.get(dataset)
+    if dataset == "generic" and dataset_root is not None:
+        entry = {"root": str(dataset_root), "min_range_m": 0.0, "max_range_m": 100.0}
     if entry is None:
         raise ValueError(f"unknown dataset: {dataset}")
-    root = repo / entry["root"]
+    root = (
+        Path(dataset_root).resolve()
+        if dataset_root is not None
+        else repo / entry["root"]
+    )
     if not root.is_dir():
         raise FileNotFoundError(f"configured dataset root does not exist: {root}")
-    adapter_type = SemanticPOSSDataset if dataset == "semanticposs" else Rellis3DDataset
-    adapter = adapter_type(
-        root,
-        sequences=entry["sequences"],
-        scan_dir=entry["scan_dir"],
-        label_dir=entry["label_dir"],
-    )
+    if dataset == "generic":
+        adapter = ManifestDataset(root)
+    else:
+        adapter_type = {
+            "semanticposs": SemanticPOSSDataset,
+            "semantickitti": SemanticKITTIDataset,
+            "rellis3d": Rellis3DDataset,
+        }[dataset]
+        adapter = adapter_type(
+            root,
+            sequences=[sequence] if dataset_root is not None else entry["sequences"],
+            scan_dir=entry["scan_dir"],
+            label_dir=entry["label_dir"],
+        )
     if sequence not in adapter.list_sequences():
         raise ValueError(f"sequence {sequence} is not configured for {dataset}")
     source_frames = list(
@@ -422,7 +492,7 @@ def _command(
         "--warmup-frames",
         str(warmup_frames),
         "--utility-config",
-        str(repo / "configs" / "utility_lod.yaml"),
+        str(repo / "configs" / adapter.utility_config),
         "--governor-config",
         str(repo / "configs" / "resource_governor.yaml"),
         "--include-leaf-details",
@@ -433,6 +503,7 @@ def _aggregate_policy_runs(runs: list[dict[str, Any]]) -> dict[str, Any]:
     stages: dict[str, list[int]] = {}
     churn, peak_rss = [], []
     late_frames = dropped_frames = rejected = 0
+    governor_interventions = governor_actions_applied = 0
     drops_available = True
     fps = []
     for run in runs:
@@ -453,6 +524,8 @@ def _aggregate_policy_runs(runs: list[dict[str, Any]]) -> dict[str, Any]:
             dropped_frames += stream["dropped_frames"]
         for frame in run["frame_metrics"]:
             churn.append(frame["topology_churn"])
+            governor_interventions += int(frame.get("governor_interventions", 0))
+            governor_actions_applied += int(frame.get("governor_actions_applied", 0))
             for name, value in frame["stages_ns"].items():
                 stages.setdefault(name, []).append(value)
     return {
@@ -469,6 +542,129 @@ def _aggregate_policy_runs(runs: list[dict[str, Any]]) -> dict[str, Any]:
         "fps": nearest_rank_summary(fps),
         "final_leaves_per_level": runs[-1]["snapshot"]["levels"],
         "quality": [run["quality"] for run in runs],
+        "governor": {
+            "interventions": governor_interventions,
+            "actions_applied": governor_actions_applied,
+            "final_status": runs[-1].get("governor"),
+        },
+    }
+
+
+def _relative_delta(current: int | float | None, baseline: int | float | None):
+    if current is None or baseline in (None, 0):
+        return None
+    return (float(current) - float(baseline)) / float(baseline)
+
+
+def _absolute_delta(current: int | float | None, baseline: int | float | None):
+    if current is None or baseline is None:
+        return None
+    return float(current) - float(baseline)
+
+
+def utility_ablation_report(results: dict[str, Any]) -> dict[str, Any]:
+    """Build a stable, self-describing comparison without inventing a score."""
+    experiment_requested = any(
+        name in results for name in UTILITY_ABLATION_POLICY_NAMES[:-1]
+    )
+    present = (
+        [name for name in UTILITY_ABLATION_POLICY_NAMES if name in results]
+        if experiment_requested
+        else []
+    )
+    missing = [name for name in UTILITY_ABLATION_POLICY_NAMES if name not in results]
+    members: dict[str, Any] = {}
+    baseline = results.get("ablation_distance")
+
+    def measured(policy: dict[str, Any]) -> dict[str, Any]:
+        aggregate = policy["aggregate"]
+        final_run = policy["runs"][-1]
+        return {
+            "elevation_rmse_m": final_run["quality"]["elevation_vs_fine_reference"][
+                "rmse_m"
+            ],
+            "weighted_mean_level": final_run["detail_metric"]["weighted_mean_level"],
+            "map_latency_p95_ns": aggregate["stage_latency_ns"]["map_update"]["p95"],
+            "peak_rss_bytes": aggregate["peak_rss_bytes"],
+            "active_leaves": sum(aggregate["final_leaves_per_level"].values()),
+        }
+
+    baseline_metrics = measured(baseline) if baseline else None
+    for name in present:
+        metrics = measured(results[name])
+        members[name] = {
+            "signals": list(POLICY_ADAPTERS[name].signals),
+            "measurements": metrics,
+            "delta_vs_distance": {
+                "elevation_rmse_m": None
+                if baseline_metrics is None
+                else _absolute_delta(
+                    metrics["elevation_rmse_m"],
+                    baseline_metrics["elevation_rmse_m"],
+                ),
+                "weighted_mean_level": None
+                if baseline_metrics is None
+                else _absolute_delta(
+                    metrics["weighted_mean_level"],
+                    baseline_metrics["weighted_mean_level"],
+                ),
+                "map_latency_fraction": None
+                if baseline_metrics is None
+                else _relative_delta(
+                    metrics["map_latency_p95_ns"],
+                    baseline_metrics["map_latency_p95_ns"],
+                ),
+                "peak_rss_fraction": None
+                if baseline_metrics is None
+                else _relative_delta(
+                    metrics["peak_rss_bytes"], baseline_metrics["peak_rss_bytes"]
+                ),
+                "active_leaves_fraction": None
+                if baseline_metrics is None
+                else _relative_delta(
+                    metrics["active_leaves"], baseline_metrics["active_leaves"]
+                ),
+            },
+        }
+
+    assessment = "unavailable"
+    full = members.get("utility_lod", {}).get("measurements")
+    if (
+        baseline_metrics
+        and full
+        and None
+        not in (
+            baseline_metrics["elevation_rmse_m"],
+            full["elevation_rmse_m"],
+        )
+    ):
+        quality_improved = (
+            full["elevation_rmse_m"] < baseline_metrics["elevation_rmse_m"]
+        )
+        no_resource_increase = all(
+            full[key] <= baseline_metrics[key]
+            for key in ("map_latency_p95_ns", "peak_rss_bytes", "active_leaves")
+            if full[key] is not None and baseline_metrics[key] is not None
+        )
+        if quality_improved and no_resource_increase:
+            assessment = "quality_improved_without_measured_resource_increase"
+        elif quality_improved:
+            assessment = "quality_improved_with_measured_resource_increase"
+        else:
+            assessment = "no_measured_quality_improvement"
+    return {
+        "status": "complete" if not missing else "partial" if present else "not_run",
+        "baseline": "ablation_distance",
+        "required_policies": list(UTILITY_ABLATION_POLICY_NAMES),
+        "missing_policies": missing,
+        "members": members,
+        "full_vs_distance_assessment": assessment,
+        "interpretation": {
+            "elevation_rmse_m": "negative delta is better",
+            "weighted_mean_level": "negative delta means finer retained detail",
+            "resource_fractions": "negative delta uses less measured resource",
+            "assessment": "descriptive result on this selection; no cross-hardware or general quality claim",
+        },
     }
 
 
@@ -506,6 +702,7 @@ def run(args: argparse.Namespace) -> dict[str, Any]:
             args.start,
             args.count,
             run_perception=not args.skip_perception,
+            dataset_root=getattr(args, "dataset_root", None),
             perception_config=(
                 repo / args.perception_config
                 if not Path(args.perception_config).is_absolute()
@@ -549,7 +746,7 @@ def run(args: argparse.Namespace) -> dict[str, Any]:
             if (
                 result.get("schema_version") != SCHEMA_VERSION
                 or result.get("stream_digest") != digest
-                or result.get("policy") != policy
+                or result.get("policy") != adapter.cpp_policy
             ):
                 raise RuntimeError(
                     f"{policy} repetition {repetition} violated benchmark contract"
@@ -570,6 +767,9 @@ def run(args: argparse.Namespace) -> dict[str, Any]:
                 "cpp_policy": adapter.cpp_policy,
                 "available": adapter.available,
                 "integration_note": adapter.integration_note,
+                "utility_config": adapter.utility_config,
+                "suite": adapter.suite,
+                "signals": list(adapter.signals),
             },
             "runs": runs,
             "aggregate": _aggregate_policy_runs(runs),
@@ -578,7 +778,10 @@ def run(args: argparse.Namespace) -> dict[str, Any]:
         repo / args.perception_config,
         repo / "configs/datasets.yaml",
         repo / "configs/distance_lod.yaml",
-        repo / "configs/utility_lod.yaml",
+        *{
+            repo / "configs" / POLICY_ADAPTERS[policy].utility_config
+            for policy in requested
+        },
         repo / "configs/resource_governor.yaml",
         repo / "configs/benchmark.yaml",
         repo / "configs/hardware_profiles.yaml",
@@ -669,8 +872,9 @@ def run(args: argparse.Namespace) -> dict[str, Any]:
         },
         "utility_vs_distance_detail": {
             "weighted_mean_level_delta": detail_delta,
-            "interpretation": "positive means UtilityLOD retained finer leaves on the identical input",
+            "interpretation": "negative means UtilityLOD retained finer leaves on identical input; detail alone is not quality gain",
         },
+        "utility_ablation": utility_ablation_report(results),
         "policies": results,
     }
 
@@ -700,6 +904,9 @@ def _write_csv(path: Path, result: dict[str, Any]) -> None:
         "rejected_out_of_window",
         "peak_rss_bytes",
         "elevation_vs_fine_rmse_m",
+        "elevation_reference_coverage",
+        "governor_interventions",
+        "governor_actions_applied",
     )
     path.parent.mkdir(parents=True, exist_ok=True)
     with path.open("w", newline="") as file:
@@ -741,6 +948,13 @@ def _write_csv(path: Path, result: dict[str, Any]) -> None:
                     "elevation_vs_fine_rmse_m": report["runs"][-1]["quality"][
                         "elevation_vs_fine_reference"
                     ]["rmse_m"],
+                    "elevation_reference_coverage": report["runs"][-1]["quality"][
+                        "elevation_vs_fine_reference"
+                    ]["coverage"],
+                    "governor_interventions": aggregate["governor"]["interventions"],
+                    "governor_actions_applied": aggregate["governor"][
+                        "actions_applied"
+                    ],
                 }
             )
 
@@ -750,7 +964,14 @@ def main() -> int:
     parser.add_argument("--repo", default=Path(__file__).resolve().parents[1])
     parser.add_argument("--binary", required=True)
     parser.add_argument(
-        "--dataset", choices=("semanticposs", "rellis3d"), required=True
+        "--dataset",
+        choices=("semanticposs", "rellis3d", "semantickitti", "generic"),
+        required=True,
+    )
+    parser.add_argument(
+        "--dataset-root",
+        type=Path,
+        help="Explicit local dataset root; preserves repository config and provenance",
     )
     parser.add_argument("--sequence", required=True)
     parser.add_argument("--start", type=int, default=0)

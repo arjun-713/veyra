@@ -60,8 +60,8 @@ struct CellStats {
   float motion_evidence = 0.0F;
   float observation_quality = 0.0F;
 
-  void add(const Observation &observation);
-  void merge(const CellStats &other);
+  void add(const Observation& observation);
+  void merge(const CellStats& other);
   [[nodiscard]] double variance_z() const;
 };
 
@@ -95,6 +95,8 @@ struct MapSnapshot {
   std::size_t logical_bytes = 0;
   MapMemoryAccounting memory;
   std::uint64_t topology_change_count = 0;
+  std::uint64_t split_count = 0;
+  std::uint64_t merge_count = 0;
 
   [[nodiscard]] std::size_t count_at_level(int level) const;
   [[nodiscard]] bool has_no_parent_descendant_overlap() const;
@@ -120,10 +122,10 @@ class Map {
  public:
   explicit Map(ResolutionPolicy policy, MapConfig config = {});
   ~Map();
-  Map(Map &&) noexcept;
-  Map &operator=(Map &&) noexcept;
-  Map(const Map &) = delete;
-  Map &operator=(const Map &) = delete;
+  Map(Map&&) noexcept;
+  Map& operator=(Map&&) noexcept;
+  Map(const Map&) = delete;
+  Map& operator=(const Map&) = delete;
 
   [[nodiscard]] core::CellId cell_for(double x, double y) const;
   [[nodiscard]] int level_for(double x, double y) const;
@@ -131,11 +133,11 @@ class Map {
   // and throws outside the window; ingestors pre-check with accepts() and
   // count documented rejections instead of aborting whole frames.
   [[nodiscard]] bool accepts(double x, double y) const;
-  void update(const Observation &observation);
+  void update(const Observation& observation);
   // Applies an externally selected dyadic level after validating it. This is
   // the single seam used by a stateful policy; uniform and distance wrappers
   // continue to select their level internally.
-  void update_at_level(const Observation &observation, int level);
+  void update_at_level(const Observation& observation, int level);
   void set_window_center(double x, double y);
   // Drops cells whose newest evidence predates `minimum_timestamp`.
   void evict_stale_before(std::uint64_t minimum_timestamp);
@@ -154,13 +156,13 @@ class Uniform5Map {
  public:
   explicit Uniform5Map(MapConfig config = {});
   ~Uniform5Map();
-  Uniform5Map(Uniform5Map &&) noexcept;
-  Uniform5Map &operator=(Uniform5Map &&) noexcept;
-  Uniform5Map(const Uniform5Map &) = delete;
-  Uniform5Map &operator=(const Uniform5Map &) = delete;
+  Uniform5Map(Uniform5Map&&) noexcept;
+  Uniform5Map& operator=(Uniform5Map&&) noexcept;
+  Uniform5Map(const Uniform5Map&) = delete;
+  Uniform5Map& operator=(const Uniform5Map&) = delete;
   [[nodiscard]] core::CellId cell_for(double x, double y) const;
   [[nodiscard]] bool accepts(double x, double y) const;
-  void update(const Observation &observation);
+  void update(const Observation& observation);
   void set_window_center(double x, double y);
   void evict_stale_before(std::uint64_t minimum_timestamp);
   [[nodiscard]] MapSnapshot snapshot() const;
@@ -173,13 +175,13 @@ class Uniform40Map {
  public:
   explicit Uniform40Map(MapConfig config = {});
   ~Uniform40Map();
-  Uniform40Map(Uniform40Map &&) noexcept;
-  Uniform40Map &operator=(Uniform40Map &&) noexcept;
-  Uniform40Map(const Uniform40Map &) = delete;
-  Uniform40Map &operator=(const Uniform40Map &) = delete;
+  Uniform40Map(Uniform40Map&&) noexcept;
+  Uniform40Map& operator=(Uniform40Map&&) noexcept;
+  Uniform40Map(const Uniform40Map&) = delete;
+  Uniform40Map& operator=(const Uniform40Map&) = delete;
   [[nodiscard]] core::CellId cell_for(double x, double y) const;
   [[nodiscard]] bool accepts(double x, double y) const;
-  void update(const Observation &observation);
+  void update(const Observation& observation);
   void set_window_center(double x, double y);
   void evict_stale_before(std::uint64_t minimum_timestamp);
   [[nodiscard]] MapSnapshot snapshot() const;
@@ -192,14 +194,14 @@ class DistanceLodMap {
  public:
   explicit DistanceLodMap(MapConfig config = {});
   ~DistanceLodMap();
-  DistanceLodMap(DistanceLodMap &&) noexcept;
-  DistanceLodMap &operator=(DistanceLodMap &&) noexcept;
-  DistanceLodMap(const DistanceLodMap &) = delete;
-  DistanceLodMap &operator=(const DistanceLodMap &) = delete;
+  DistanceLodMap(DistanceLodMap&&) noexcept;
+  DistanceLodMap& operator=(DistanceLodMap&&) noexcept;
+  DistanceLodMap(const DistanceLodMap&) = delete;
+  DistanceLodMap& operator=(const DistanceLodMap&) = delete;
   [[nodiscard]] core::CellId cell_for(double x, double y) const;
   [[nodiscard]] int level_for(double x, double y) const;
   [[nodiscard]] bool accepts(double x, double y) const;
-  void update(const Observation &observation);
+  void update(const Observation& observation);
   void set_window_center(double x, double y);
   void evict_stale_before(std::uint64_t minimum_timestamp);
   void split(core::CellId id);

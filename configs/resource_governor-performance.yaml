@@ -1,0 +1,12 @@
+# Performance starting budget; tune on named hardware, not a measured capacity.
+# Budgets are compared to caller-supplied runtime telemetry, never static readings.
+max_active_cells: 100000
+max_logical_bytes: 67108864
+near_field_radius_m: 10.0
+max_actions_per_frame: 64
+max_rss_bytes: 1073741824
+target_frame_time_ms: 50.0
+pressure_ratio: 0.90
+recovery_ratio: 0.75
+overload_consecutive_frames: 3
+recovery_consecutive_frames: 5
