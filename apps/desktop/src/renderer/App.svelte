@@ -1,13 +1,13 @@
 <script lang="ts">
  import {onMount} from 'svelte';
- import MapCanvas from './MapCanvas.svelte';import Chart from './Chart.svelte';import Dashboard from './Dashboard.svelte';import Icon from './Icon.svelte';import {datasetFormats,layerUnavailable,mapActivity,profileConfig,recordEvent,type DashboardEvent} from './dashboard';
+ import MapCanvas from './MapCanvas.svelte';import Chart from './Chart.svelte';import Dashboard from './Dashboard.svelte';import Icon from './Icon.svelte';import {datasetFormats,governorEvent,layerUnavailable,mapActivity,profileConfig,recordEvent,type DashboardEvent} from './dashboard';
  import {policies,type Json,type WireFrame} from '../core';import type {} from '../api';
  let workspace=$state('Dashboard'),status=$state<Json>({state:'unconfigured',index:0,frames:0,policy:'distance_lod',speed:1}),telemetry=$state<Json>({}),desktop=$state<Json>({}),render=$state<Json>({}),info=$state<Json>({});
  let frame=$state.raw<WireFrame|null>(null),samples=$state<Json[]>([]),error=$state(''),notice=$state(''),busy=$state(false),catalog=$state<Json|null>(null),inspector=$state<Json|null>(null);
  let dataset=$state('generic'),sequence=$state(''),config=$state<Json>({dataset:'generic',dataset_root:'',sequence:'',pipeline:{semantic:{mode:'ground_truth'}},map:{policy:'distance_lod',window_radius_m:100.001,resource_profile:'balanced',governor_override:'automatic'},playback:{fps:10,speed:1},visualization:{point_budget:50000,cell_budget:20000,update_hz:15}});
  let configText=$state(''),mode=$state('semantic'),showPoints=$state(true),showCells=$state(true),boundaries=$state(false),view=$state('orbit'),follow=$state(false),seekIndex=$state(0),preset=$state('Balanced');
  let report=$state<Json|null>(null),previousReport=$state<Json|null>(null),benchmarkState=$state('idle'),benchmarkCount=$state(100);
- let events=$state<DashboardEvent[]>([]);
+ let events=$state<DashboardEvent[]>([]),lastGovernor=$state<Json|null>(null);
  const labels:Record<string,string>={uniform5:'Uniform 5 cm',uniform40:'Uniform 40 cm',distance_lod:'Distance LOD',utility_lod:'Utility LOD'};
  const format=(value:any,decimals=1)=>typeof value==='number'&&Number.isFinite(value)?value.toLocaleString(undefined,{maximumFractionDigits:decimals}):'—';
  const mb=(value:any)=>typeof value==='number'?format(value/1048576)+' MB':'—';
@@ -25,7 +25,7 @@
   const off=window.veyra.onEvent(event=>{
    events=recordEvent(events,event);
    if(event.type==='status'){status={...status,...event};if(event.error)error=event.error.process+': '+event.error.message;}
-   if(event.type==='telemetry'){telemetry=event;const latency=event.latency_ms??{};samples=[...samples,{timestamp:event.timestamp,fps:event.fps,p95:latency.end_to_end?.p95,rss:(event.processes??[]).reduce((sum:number,p:Json)=>sum+(p.rss_bytes??0),0)/1048576,mapping:latency.mapping,perception:latency.perception}].slice(-300);status={...status,index:event.index,frames:event.frames,state:event.state};}
+   if(event.type==='telemetry'){telemetry=event;const latency=event.latency_ms??{},processes=event.processes??[],governor=governorEvent(lastGovernor,event.governor);if(governor)events=recordEvent(events,governor);lastGovernor=event.governor??null;samples=[...samples,{timestamp:event.timestamp,fps:event.fps,p95:latency.end_to_end?.p95,rss:processes.some((p:Json)=>typeof p.rss_bytes==='number')?processes.reduce((sum:number,p:Json)=>sum+(p.rss_bytes??0),0)/1048576:null,activeCells:event.map?.active_cells,mapping:latency.mapping,perception:latency.perception}].slice(-300);status={...status,index:event.index,frames:event.frames,state:event.state};}
    if(event.type==='desktop_telemetry')desktop=event;
    if(event.type==='benchmark'){benchmarkState=event.state;if(event.report)report=event.report;if(event.error)error=String(event.error.message??event.error);}
   });
@@ -45,7 +45,7 @@
   {#if error}<div class="alert" role="alert"><span>{error}</span><button onclick={()=>action(async()=>{const r=await window.veyra.restart();status=r.status??status;error='';})}>Restart runtime</button><button aria-label="Dismiss error" onclick={()=>error=''}>×</button></div>{/if}
   {#if notice}<div class="notice" role="status">{notice}</div>{/if}
   {#if workspace==='Dashboard'}
-   <Dashboard {status} {telemetry} {frame} {report} {events} openDataset={()=>workspace='Datasets'} openPerformance={()=>workspace='Performance'} runCommand={(name,args)=>{void command(name,args);}}/>
+   <Dashboard {status} {telemetry} {frame} {report} {events} {samples} openDataset={()=>workspace='Datasets'} openPerformance={()=>workspace='Performance'} runCommand={(name,args)=>{void command(name,args);}}/>
   {:else if workspace==='Map'}
    <div class="map-workspace">
     <aside class="layer-panel"><div class="panel-heading">LAYERS <span>DISPLAY</span></div>

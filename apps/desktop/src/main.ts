@@ -55,7 +55,7 @@ function registerIPC(){
  ipcMain.on('veyra:visualization-ack',event=>{if(window&&event.sender===window.webContents&&event.senderFrame===window.webContents.mainFrame){visualBusy=false;flushVisual();}});
 }
 function createWindow(){
- window=new BrowserWindow({width:1480,height:940,minWidth:1050,minHeight:700,backgroundColor:'#0c1218',title:'Veyra',webPreferences:{preload:path.join(__dirname,'preload.js'),contextIsolation:true,nodeIntegration:false,sandbox:true,webSecurity:true}});
+ window=new BrowserWindow({width:1600,height:1000,minWidth:1050,minHeight:700,backgroundColor:'#f7f9fc',title:'Veyra',webPreferences:{preload:path.join(__dirname,'preload.js'),contextIsolation:true,nodeIntegration:false,sandbox:true,webSecurity:true}});
  window.webContents.setWindowOpenHandler(()=>({action:'deny'}));window.webContents.on('will-navigate',event=>event.preventDefault());
  window.webContents.session.setPermissionRequestHandler((_wc,_permission,callback)=>callback(false));
  window.webContents.on('render-process-gone',()=>{visualBusy=false;latestVisual=null;void log('Renderer exited; mapping continues.\n');});

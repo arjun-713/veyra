@@ -1,0 +1,44 @@
+button:focus-visible,
+a:focus-visible,
+input:focus-visible,
+select:focus-visible,
+textarea:focus-visible {
+  outline: 3px solid #8cb5ff;
+  outline-offset: 2px;
+}
+
+.dashboard-metric p.good {
+  color: #20ad6a;
+  font-weight: 600;
+}
+
+.dashboard-metric p.bad {
+  color: #d96861;
+  font-weight: 600;
+}
+
+/* Keep the full information hierarchy at the default desktop window size. */
+@media (min-width: 1380px) and (max-width: 1500px) {
+  .rail { width: 210px; }
+  .header-title h1 { font-size: 23px; }
+  .header-title p { font-size: 11px; }
+  .dashboard { padding: 0 22px 22px; }
+  .dashboard-metric { padding: 19px 16px 18px; gap: 13px; min-height: 135px; }
+  .metric-symbol { width: 41px; height: 44px; }
+  .dashboard-metric h2 { font-size: 12px; min-height: 33px; }
+  .metric-number { font-size: 29px; }
+  .dashboard-metric p { font-size: 9px; }
+  .dashboard-panel-title h2 { font-size: 14px; }
+  .dashboard-map { min-height: 325px; }
+  .dashboard-map-grid { grid-template-columns: 1.15fr 1.15fr 1.2fr .92fr; gap: 12px; }
+  .dashboard-bottom-grid { grid-template-columns: 1.35fr 1fr 1fr; gap: 14px; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    scroll-behavior: auto !important;
+    animation-duration: .01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: .01ms !important;
+  }
+}
