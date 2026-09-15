@@ -95,8 +95,12 @@ def main() -> int:
         choices=("semanticposs", "rellis", "all"),
         default="all",
     )
-    parser.add_argument("--semanticposs-root", type=Path, default=Path("data/raw/semanticposs/dataset"))
-    parser.add_argument("--rellis-root", type=Path, default=Path("data/raw/rellis3d/Rellis-3D"))
+    parser.add_argument(
+        "--semanticposs-root", type=Path, default=Path("data/raw/semanticposs/dataset")
+    )
+    parser.add_argument(
+        "--rellis-root", type=Path, default=Path("data/raw/rellis3d/Rellis-3D")
+    )
     parser.add_argument("--semanticposs-sequence", default="00")
     parser.add_argument("--rellis-sequence", default="00000")
     parser.add_argument("--frames", type=int, default=3)
@@ -112,7 +116,9 @@ def main() -> int:
         _profile_dataset(
             name,
             args.semanticposs_root if name == "semanticposs" else args.rellis_root,
-            args.semanticposs_sequence if name == "semanticposs" else args.rellis_sequence,
+            args.semanticposs_sequence
+            if name == "semanticposs"
+            else args.rellis_sequence,
             args.frames,
             args.max_range_m,
         )
