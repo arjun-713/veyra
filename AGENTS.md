@@ -79,4 +79,4 @@ Standards, DoD, checklists: `docs/development.md`.
 
 `architecture.md`, `map-correctness.md`, `resolution-policies.md`,
 `perception-terrain-temporal.md`, `datasets-benchmarks.md`,
-`development.md`.
+`development.md`, `desktop-electron-audit.md` (Tauri migration reference).
