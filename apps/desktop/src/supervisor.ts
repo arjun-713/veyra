@@ -14,6 +14,7 @@ export class RuntimeSupervisor extends EventEmitter {
  private child:ChildProcessWithoutNullStreams|null=null;
  private pending=new Map<string,{resolve:(v:Json)=>void,reject:(e:Error)=>void,timer:ReturnType<typeof setTimeout>}>();
  private sequence=0; private stopping=false; private fatalReported=false; private launch:Launch;
+ private stopPromise:Promise<void>|null=null;
  private stderr='';
  constructor(launch:Launch){super();this.launch=launch;}
  get running(){return this.child!==null;}
@@ -23,6 +24,7 @@ export class RuntimeSupervisor extends EventEmitter {
   if(this.child)return;
   this.stopping=false;this.fatalReported=false;this.stderr='';const decoder=new FrameDecoder();
   const child=spawn(this.launch.executable,this.launch.args,{cwd:this.launch.cwd,stdio:'pipe',windowsHide:true,shell:false,detached:process.platform!=='win32'});this.child=child;
+  child.stdin.on('error',error=>{if(!this.stopping)this.fail(error);});
   child.stderr.on('data',(chunk:Buffer)=>{this.stderr=(this.stderr+chunk.toString()).slice(-65536);this.emit('log',chunk.toString().slice(-4096));});
   child.stdout.on('data',(chunk:Buffer)=>{
    try{for(const frame of decoder.push(chunk)){
@@ -54,13 +56,27 @@ export class RuntimeSupervisor extends EventEmitter {
   });
  }
  async stop(){
+  if(this.stopPromise)return this.stopPromise;
   const child=this.child;if(!child)return;this.stopping=true;
-  try{child.stdin.write(JSON.stringify({id:'shutdown',command:'shutdown',args:{}})+'\n');child.stdin.end();}catch{}
-  await new Promise<void>(resolve=>{
-   let timer:ReturnType<typeof setTimeout>;
-   const done=()=>{clearTimeout(timer);resolve();};
-   child.once('exit',done);timer=setTimeout(()=>{killTree(child);setTimeout(()=>{if(this.child===child)killTree(child,'SIGKILL');},1000).unref();},1000);
-   if(child.exitCode!==null)done();
-  });this.child=null;
+  this.fail(new Error('Runtime stopped'),true);
+  const operation=(async()=>{
+   try{if(child.stdin.writable&&!child.stdin.writableEnded)child.stdin.end(JSON.stringify({id:'shutdown',command:'shutdown',args:{}})+'\n');}catch{}
+   await new Promise<void>(resolve=>{
+    let terminateTimer:ReturnType<typeof setTimeout>|null=null,killTimer:ReturnType<typeof setTimeout>|null=null,settled=false;
+    const done=()=>{
+     if(settled)return;settled=true;
+     if(terminateTimer)clearTimeout(terminateTimer);if(killTimer)clearTimeout(killTimer);
+     child.removeListener('exit',done);child.removeListener('close',done);resolve();
+    };
+    child.once('exit',done);child.once('close',done);
+    terminateTimer=setTimeout(()=>{
+     killTree(child);
+     killTimer=setTimeout(()=>{if(this.child===child)killTree(child,'SIGKILL');},1000);killTimer.unref();
+    },1000);
+    if(child.exitCode!==null)done();
+   });
+  })();
+  this.stopPromise=operation;
+  try{await operation;}finally{if(this.child===child)this.child=null;if(this.stopPromise===operation)this.stopPromise=null;}
  }
 }

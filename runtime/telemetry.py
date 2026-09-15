@@ -2,6 +2,7 @@
 
 import math
 import os
+import sys
 import time
 from collections import deque
 
@@ -19,27 +20,57 @@ def summary(values):
     }
 
 
+def _valid_pid(pid):
+    return isinstance(pid, int) and not isinstance(pid, bool) and pid > 0
+
+
 def rss_bytes(pid):
-    if pid is None:
+    """Return current resident bytes when the platform exposes them safely.
+
+    Linux provides current per-process RSS through procfs. The Python standard
+    library exposes only peak RSS on macOS and no portable current-process RSS
+    on Windows, so those platforms deliberately report unavailable instead of
+    relabelling a different measurement.
+    """
+
+    if not _valid_pid(pid) or not sys.platform.startswith("linux"):
+        return None
+    try:
+        with open(f"/proc/{pid}/statm", encoding="ascii") as stream:
+            fields = stream.read(256).split()
+        resident_pages = int(fields[1])
+        page_size = int(os.sysconf("SC_PAGE_SIZE"))
+        if resident_pages < 0 or page_size <= 0:
+            return None
+        return resident_pages * page_size
+    except (OSError, ValueError, IndexError, TypeError, AttributeError):
         return None
 
 
 def cpu_seconds(pid):
-    if pid is None:
+    """Return consumed process CPU seconds, or ``None`` when unavailable.
+
+    The current process is portable via ``time.process_time``. Per-PID CPU time
+    is read from Linux procfs; macOS and Windows intentionally stay unavailable
+    without an external process-inspection dependency.
+    """
+
+    if not _valid_pid(pid):
         return None
     if pid == os.getpid():
         return time.process_time()
-    try:
-        with open(f"/proc/{pid}/stat") as stream:
-            stat = stream.read(4096)
-        fields = stat[stat.rfind(")") + 2 :].split()
-        return (int(fields[11]) + int(fields[12])) / os.sysconf("SC_CLK_TCK")
-    except (OSError, ValueError, IndexError, AttributeError):
+    if not sys.platform.startswith("linux"):
         return None
     try:
-        with open(f"/proc/{pid}/statm") as stream:
-            return int(stream.read(256).split()[1]) * os.sysconf("SC_PAGE_SIZE")
-    except (OSError, ValueError, AttributeError):
+        with open(f"/proc/{pid}/stat", encoding="ascii") as stream:
+            stat = stream.read(4096)
+        fields = stat[stat.rfind(")") + 2 :].split()
+        consumed_ticks = int(fields[11]) + int(fields[12])
+        clock_ticks = int(os.sysconf("SC_CLK_TCK"))
+        if consumed_ticks < 0 or clock_ticks <= 0:
+            return None
+        return consumed_ticks / clock_ticks
+    except (OSError, ValueError, IndexError, TypeError, AttributeError):
         return None
 
 
