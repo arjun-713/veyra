@@ -408,8 +408,10 @@ def mixed_resolution_topology_report(
     duplicate_leaf_ids = len(ids) - len(id_set)
     parent_descendant_conflicts = 0
     for level, ix, iy in id_set:
-        for ancestor_level in range(level):
-            shift = level - ancestor_level
+        # L0 is finest and L3 is coarsest.  A finer leaf's active ancestors
+        # therefore have larger numeric levels, exactly like CellId::parent.
+        for ancestor_level in range(level + 1, 4):
+            shift = ancestor_level - level
             if (ancestor_level, ix >> shift, iy >> shift) in id_set:
                 parent_descendant_conflicts += 1
                 break

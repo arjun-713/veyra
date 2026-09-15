@@ -44,11 +44,11 @@ class ProductBenchmarkTests(unittest.TestCase):
         report = mixed_resolution_topology_report(
             {
                 "leaves": [
-                    {"level": 1, "ix": 0, "iy": 0, "count": 2},
-                    {"level": 0, "ix": 2, "iy": 0, "count": 1},
+                    {"level": 1, "ix": 1, "iy": 0, "count": 2},
+                    {"level": 0, "ix": 0, "iy": 0, "count": 1},
                 ],
             },
-            {(0, 0), (1, 0), (2, 0)},
+            {(0, 0), (2, 0), (3, 0)},
         )
         self.assertEqual(report["status"], "valid")
         self.assertTrue(report["parent_descendant_exclusive"])
