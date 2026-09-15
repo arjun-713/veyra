@@ -116,7 +116,7 @@ benchmark_args=(
   --policies "$policies" \
   --output "$json_output" \
   --csv-output "$csv_output" \
-  --build-type "$build_type"
+  --build-type "$build_type" \
   --perception-config "$perception_config"
 )
 if [[ -n "$dataset_sha256" ]]; then

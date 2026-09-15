@@ -120,12 +120,15 @@ class RuntimePlayerTests(unittest.TestCase):
         self.assertEqual(payload["source"], "ManifestDataset")
         self.assertEqual(payload["timestamp"], 12.5)
         self.assertEqual(payload["pose"]["available"], True)
-        self.assertEqual(payload["pose"]["provenance"], {
-            "coordinate_frame": "world",
-            "timestamp_source": "dataset",
-            "pose_source": "dataset",
-            "calibration_source": "identity_absent",
-        })
+        self.assertEqual(
+            payload["pose"]["provenance"],
+            {
+                "coordinate_frame": "world",
+                "timestamp_source": "dataset",
+                "pose_source": "dataset",
+                "calibration_source": "identity_absent",
+            },
+        )
 
     def test_controls_replay_real_adapter_frames_and_reset_temporal_state(self):
         with tempfile.TemporaryDirectory() as raw:

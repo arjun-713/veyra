@@ -18,14 +18,18 @@ class SemanticKITTIAdapterTests(unittest.TestCase):
                 np.array([[1.0, 0.0, 0.0, 0.5]], dtype=np.float32).tofile(
                     sequence / "velodyne" / f"{frame_id}.bin"
                 )
-                np.array([10], dtype=np.uint32).tofile(sequence / "labels" / f"{frame_id}.label")
+                np.array([10], dtype=np.uint32).tofile(
+                    sequence / "labels" / f"{frame_id}.label"
+                )
             adapter = SemanticKITTIDataset(root)
             refs = adapter.list_frames("00")
             (root / "sequences" / "00" / "velodyne" / "99.bin").write_bytes(
                 (root / "sequences" / "00" / "velodyne" / "10.bin").read_bytes()
             )
 
-            self.assertEqual([ref.frame_id for ref in adapter.list_frames("00")], ["2", "10"])
+            self.assertEqual(
+                [ref.frame_id for ref in adapter.list_frames("00")], ["2", "10"]
+            )
             self.assertIs(adapter.list_frames("00"), refs)
 
     def test_rejects_nonfinite_pose_values(self):
@@ -34,7 +38,9 @@ class SemanticKITTIAdapterTests(unittest.TestCase):
             sequence = root / "sequences" / "00"
             (sequence / "velodyne").mkdir(parents=True)
             (sequence / "labels").mkdir()
-            np.array([[1.0, 0.0, 0.0, 0.5]], dtype=np.float32).tofile(sequence / "velodyne" / "000000.bin")
+            np.array([[1.0, 0.0, 0.0, 0.5]], dtype=np.float32).tofile(
+                sequence / "velodyne" / "000000.bin"
+            )
             np.array([10], dtype=np.uint32).tofile(sequence / "labels" / "000000.label")
             (sequence / "poses.txt").write_text("nan 0 0 0 0 1 0 0 0 0 1 0\n")
 

@@ -46,7 +46,9 @@ class Rellis3DDataset:
         if not isinstance(require_labels, bool):
             raise TypeError("require_labels must be boolean")
         self.require_labels = require_labels
-        self.metadata_root = Path(metadata_root) if metadata_root is not None else self.root
+        self.metadata_root = (
+            Path(metadata_root) if metadata_root is not None else self.root
+        )
         if max_cached_sequences <= 0:
             raise ValueError("max_cached_sequences must be positive")
         self.max_cached_sequences = max_cached_sequences

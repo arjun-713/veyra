@@ -41,7 +41,9 @@ class RuntimeTelemetryTests(unittest.TestCase):
         )
         self.assertEqual(report["perception"]["backend"], "model")
         self.assertEqual(report["perception"]["status"]["terrain"], "skipped")
-        self.assertEqual(report["perception"]["provenance"]["timestamp_source"], "absent")
+        self.assertEqual(
+            report["perception"]["provenance"]["timestamp_source"], "absent"
+        )
 
 
 if __name__ == "__main__":

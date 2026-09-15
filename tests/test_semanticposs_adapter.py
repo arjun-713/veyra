@@ -50,7 +50,11 @@ class SemanticPOSSAdapterTests(unittest.TestCase):
             root = Path(raw)
             write_frame(root, "00", "0", [1.0])
             adapter = SemanticPOSSDataset(root)
-            for kwargs in ({"min_range_m": -1.0}, {"min_range_m": float("nan")}, {"max_range_m": 0.5, "min_range_m": 1.0}):
+            for kwargs in (
+                {"min_range_m": -1.0},
+                {"min_range_m": float("nan")},
+                {"max_range_m": 0.5, "min_range_m": 1.0},
+            ):
                 with self.assertRaises(ValueError):
                     adapter.load_frame("00", "0", **kwargs)
 
@@ -89,9 +93,7 @@ class SemanticPOSSAdapterTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as raw:
             root = Path(raw)
             write_frame(root, "00", "0", [1.0])
-            (root / "00" / "poses.txt").write_text(
-                "1 0 0 10 0 1 0 20 0 0 1 30\n"
-            )
+            (root / "00" / "poses.txt").write_text("1 0 0 10 0 1 0 20 0 0 1 30\n")
             (root / "00" / "timestamps.txt").write_text("4.25\n")
 
             frame = SemanticPOSSDataset(root).load_frame("00", "0")
@@ -150,7 +152,9 @@ class SemanticPOSSAdapterTests(unittest.TestCase):
             write_frame(root, "00", "0", [1.0])
             (root / "00" / "labels" / "0.label").unlink()
 
-            frame = SemanticPOSSDataset(root, require_labels=False).load_frame("00", "0")
+            frame = SemanticPOSSDataset(root, require_labels=False).load_frame(
+                "00", "0"
+            )
 
         np.testing.assert_array_equal(frame.semantic_class, [0])
         np.testing.assert_array_equal(frame.semantic_confidence, [0.0])
@@ -160,9 +164,7 @@ class SemanticPOSSAdapterTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as raw:
             root = Path(raw)
             write_frame(root, "00", "0", [1.0])
-            (root / "00" / "calib.txt").write_text(
-                "Tr: 2 0 0 0 0 1 0 0 0 0 1 0\n"
-            )
+            (root / "00" / "calib.txt").write_text("Tr: 2 0 0 0 0 1 0 0 0 0 1 0\n")
 
             with self.assertRaisesRegex(ValueError, "not a rigid"):
                 SemanticPOSSDataset(root).load_frame("00", "0")

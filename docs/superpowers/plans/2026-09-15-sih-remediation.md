@@ -133,4 +133,3 @@
 - [ ] Run the full affordable validation command set.
 - [ ] Check `git diff --check`, tracked files, generated artifacts and `git status`.
 - [ ] Commit each completed phase separately with a descriptive message; never commit the unrelated `site/` directory.
-

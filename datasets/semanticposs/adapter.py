@@ -279,7 +279,9 @@ class SemanticPOSSDataset:
             ),
             None,
         )
-        calibration, has_calibration = self._calibration_matrix(calibration_path, metadata)
+        calibration, has_calibration = self._calibration_matrix(
+            calibration_path, metadata
+        )
         # SemanticKITTI-compatible poses are published in the camera frame.
         # Convert the camera-frame pose to the LiDAR frame before exposing the
         # sensor-to-world transform consumed by ObservationFrame.
@@ -320,7 +322,9 @@ class SemanticPOSSDataset:
         return PoseSE3(matrix, timestamp=timestamp), True
 
     @staticmethod
-    def _calibration_matrix(path: Path | None, metadata: dict[str, object]) -> tuple[np.ndarray, bool]:
+    def _calibration_matrix(
+        path: Path | None, metadata: dict[str, object]
+    ) -> tuple[np.ndarray, bool]:
         if path is None:
             return np.eye(4, dtype=np.float64), False
         lines = SemanticPOSSDataset._cached_lines(metadata, path)
