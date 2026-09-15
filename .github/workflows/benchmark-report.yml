@@ -17,7 +17,6 @@ jobs:
     steps:
       - name: Download benchmark artifact from completed run
         uses: actions/download-artifact@v4
-        continue-on-error: true
         with:
           name: veyra-semanticposs-benchmark
           path: artifacts
@@ -43,19 +42,21 @@ jobs:
               core.info('No open PR is associated with this benchmark run.');
               return;
             }
-            const findJson = (directory, name) => {
+            const findJson = (directory) => {
               if (!fs.existsSync(directory)) return null;
               for (const entry of fs.readdirSync(directory, { withFileTypes: true })) {
                 const full = path.join(directory, entry.name);
-                if (entry.isDirectory()) { const found = findJson(full, name); if (found) return found; }
-                else if (entry.name === name || (name === 'map' && entry.name.endsWith('.json'))) return full;
+                if (entry.isDirectory()) { const found = findJson(full); if (found) return found; }
+                else if (entry.name.endsWith('.json')) return full;
               }
               return null;
             };
-            const mapPath = findJson('artifacts', 'map');
-            const perceptionPath = findJson('artifacts', 'semanticposs-perception.json');
+            const mapPath = findJson('artifacts/map');
+            const perceptionPath = 'artifacts/semanticposs-perception.json';
+            const baselinePath = findJson('artifacts/baseline');
             const map = mapPath ? JSON.parse(fs.readFileSync(mapPath, 'utf8')) : null;
-            const perception = perceptionPath ? JSON.parse(fs.readFileSync(perceptionPath, 'utf8')) : null;
+            const perception = fs.existsSync(perceptionPath) ? JSON.parse(fs.readFileSync(perceptionPath, 'utf8')) : null;
+            const baseline = baselinePath ? JSON.parse(fs.readFileSync(baselinePath, 'utf8')) : null;
             const ms = (v) => v == null ? 'n/a' : `${(Number(v) / 1e6).toFixed(2)} ms`;
             const mb = (v) => v == null ? 'n/a' : `${(Number(v) / 1048576).toFixed(1)} MB`;
             const aliases = {uniform5: 'Uniform5', uniform40: 'Uniform40', distance_lod: 'DistanceLOD', utility_lod: 'UtilityLOD'};
@@ -67,6 +68,10 @@ jobs:
               ['FPS', a => a.fps?.p50 == null ? 'n/a' : Number(a.fps.p50).toFixed(2)],
               ['Peak RSS', a => mb(a.peak_rss_bytes)],
               ['Topology churn p95', a => a.topology_churn_per_frame?.p95 ?? 'n/a'],
+              ['Logical bytes', (a, r) => r.runs?.at(-1)?.metrics?.memory?.logical_map_bytes ?? 'n/a'],
+              ['Allocated bytes', (a, r) => r.runs?.at(-1)?.metrics?.memory?.allocated_map_bytes ?? 'n/a'],
+              ['Point conservation', (a) => a.quality?.every((q) => q.point_conservation?.holds) ? 'PASS' : 'FAIL'],
+              ['Duplicate ownership', (a) => a.quality?.every((q) => q.duplicate_ownership?.holds) ? 'PASS' : 'FAIL'],
             ]) {
               mapTable += `| ${label} | ${['uniform5','uniform40','distance_lod','utility_lod'].map(p => map?.policies?.[p] ? getter(map.policies[p].aggregate) : 'n/a').join(' | ')} |\n`;
             }
@@ -74,6 +79,19 @@ jobs:
             for (const [stage, values] of Object.entries(perception?.timings || {})) {
               perceptionTable += `| ${stage} | ${values.p50_ms.toFixed(2)} ms | ${values.p95_ms.toFixed(2)} ms | ${values.p99_ms.toFixed(2)} ms |\n`;
             }
+            const semanticQuality = map?.semantic_quality;
+            const qualityTable = semanticQuality?.status === 'measured'
+              ? `| Metric | Value |\n| --- | ---: |\n| Overall accuracy | ${(Number(semanticQuality.overall.accuracy) * 100).toFixed(1)}% |\n| Overall mIoU | ${(Number(semanticQuality.overall.miou) * 100).toFixed(1)}% |`
+              : '| Metric | Value |\n| --- | ---: |\n| Range-binned semantic quality | unavailable |';
+            const regressionWarnings = [];
+            for (const policy of ['uniform5', 'uniform40', 'distance_lod', 'utility_lod']) {
+              const current = map?.policies?.[policy]?.aggregate;
+              const previous = baseline?.policies?.[policy]?.aggregate;
+              if (!current || !previous) continue;
+              if (current.stage_latency_ns?.map_update?.p95 != null && previous.stage_latency_ns?.map_update?.p95 != null && current.stage_latency_ns.map_update.p95 > previous.stage_latency_ns.map_update.p95 * 1.2) regressionWarnings.push(`${aliases[policy]} p95 latency +20%`);
+              if (current.peak_rss_bytes != null && previous.peak_rss_bytes != null && current.peak_rss_bytes > previous.peak_rss_bytes * 1.2) regressionWarnings.push(`${aliases[policy]} RSS +20%`);
+            }
+            const regression = regressionWarnings.length ? `WARNING: ${regressionWarnings.join('; ')}` : (baseline ? 'UNCHANGED/IMPROVED within 20% hosted-runner tolerance' : 'WARNING: no trusted main baseline artifact');
             const prov = map?.provenance || perception?.reproducibility || {};
             const body = [
               '<!-- veyra-semanticposs-benchmark -->',
@@ -85,10 +103,13 @@ jobs:
               `**Dataset:** SemanticPOSS / sequence \`${map?.sequence || perception?.sequence || 'n/a'}\``,
               '', '### Map policies', '', mapTable,
               '### Perception', '', perceptionTable,
+              `Points processed: ${perception?.points_processed ?? 'n/a'}; failures: ${perception?.failures ?? 'n/a'}; ground ratio: ${perception?.ground_ratio == null ? 'n/a' : `${(Number(perception.ground_ratio) * 100).toFixed(1)}%`}`,
+              '', '### Semantic quality', '', qualityTable,
+              '', `**Regression:** ${regression}`,
               '### Provenance', '',
               `Dataset SHA-256: \`${prov.dataset_sha256 || 'n/a'}\`  `,
               `Config digest: \`${prov.config_digest || 'see artifact'}\``,
-              '', 'Artifacts are attached to the workflow run.',
+              '', `[Artifacts](${process.env.RUN_URL}#artifacts) are attached to the workflow run.`,
             ].join('\n');
             const comments = await github.paginate(github.rest.issues.listComments, {owner: repo.owner, repo: repo.repo, issue_number: pull.number});
             const existing = comments.find((comment) => comment.body?.includes('<!-- veyra-semanticposs-benchmark -->'));

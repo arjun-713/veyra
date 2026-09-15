@@ -11,6 +11,7 @@ import os
 import platform
 import subprocess
 import sys
+import tempfile
 import time
 from dataclasses import dataclass
 from datetime import datetime, timezone
@@ -24,7 +25,7 @@ import yaml
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 
-from benchmarks.protocol import PROTOCOL_VERSION, stream_bytes
+from benchmarks.protocol import PROTOCOL_VERSION, stream_file
 from datasets.generic import ManifestDataset
 from datasets.rellis import Rellis3DDataset
 from datasets.semantickitti import SemanticKITTIDataset
@@ -187,7 +188,11 @@ def hardware_metadata(profile: str) -> dict[str, Any]:
 
 
 def summarize_perception(
-    dataset: str, sequence: str, records: list[dict[str, Any]]
+    dataset: str,
+    sequence: str,
+    records: list[dict[str, Any]],
+    *,
+    bridge_samples_ns: list[int] | None = None,
 ) -> dict[str, Any]:
     """Summarize the exact perception pass shared by every map policy.
 
@@ -216,6 +221,21 @@ def summarize_perception(
             "samples": int(summary["count"]),
         }
 
+    timing_reports = {
+        name: latency([float(record["timings_ms"][name]) for record in records])
+        for name in timing_names
+    }
+    load_values = [
+        float(record["dataset_load_ms"])
+        for record in records
+        if record.get("dataset_load_ms") is not None
+    ]
+    if load_values:
+        timing_reports["dataset_load"] = latency(load_values)
+    if bridge_samples_ns:
+        timing_reports["bridge"] = latency(
+            [float(value) / 1_000_000.0 for value in bridge_samples_ns]
+        )
     return {
         "dataset": dataset,
         "sequence": sequence,
@@ -233,10 +253,106 @@ def summarize_perception(
             float(record["known_motion_fraction"]) for record in records
         )
         / len(records),
-        "timings": {
-            name: latency([float(record["timings_ms"][name]) for record in records])
-            for name in timing_names
-        },
+        "timings": timing_reports,
+        "bridge_scope": (
+            "C++ protocol_parse_and_validate across measured policy streams"
+            if bridge_samples_ns
+            else "not measured"
+        ),
+    }
+
+
+def analytical_3d_reference(points: np.ndarray) -> dict[str, Any]:
+    """Describe a dense 5 cm 3D reference without executing it as a policy.
+
+    The reference is deliberately analytical: materializing a dense 3D grid
+    would be an unfair and potentially unbounded comparison for this sparse
+    2.5D engine. Its estimate is still useful for showing the scale of the
+    conventional representation, while the explicit status prevents it from
+    being mistaken for measured runtime or RSS.
+    """
+    values = np.asarray(points)
+    if values.ndim != 2 or values.shape[1] < 3 or values.shape[0] == 0:
+        raise ValueError("3D reference requires a non-empty array with XYZ columns")
+    xyz = values[:, :3].astype(np.float64, copy=False)
+    if not np.isfinite(xyz).all():
+        raise ValueError("3D reference points must be finite")
+    voxel_size = 0.05
+    minimum = xyz.min(axis=0)
+    maximum = xyz.max(axis=0)
+    dimensions = np.maximum(
+        1, np.ceil((maximum - minimum) / voxel_size).astype(np.int64) + 1
+    )
+    dense_voxel_count = int(np.prod(dimensions, dtype=object))
+    return {
+        "status": "analytical_only",
+        "executed_through_map_engine": False,
+        "representation": "dense_uniform_3d_voxels",
+        "voxel_size_m": voxel_size,
+        "bounds_min_m": minimum.tolist(),
+        "bounds_max_m": maximum.tolist(),
+        "dimensions": dimensions.tolist(),
+        "dense_voxel_count": dense_voxel_count,
+        "estimated_bytes_per_voxel": 16,
+        "estimated_dense_bytes": dense_voxel_count * 16,
+        "warning": "memory estimate only; no dense grid was allocated or timed",
+    }
+
+
+def semantic_range_quality_report(
+    reference_frames: list[Any], predicted_frames: list[Any]
+) -> dict[str, Any]:
+    """Compare mapped semantic IDs against adapter labels in distance bins."""
+    if len(reference_frames) != len(predicted_frames) or not reference_frames:
+        raise ValueError(
+            "semantic quality requires equally sized non-empty frame lists"
+        )
+    bins = ((0.0, 10.0), (10.0, 30.0), (30.0, 60.0), (60.0, 100.0))
+    accumulated: list[tuple[list[int], list[int]]] = [([], []) for _ in bins]
+    all_truth: list[int] = []
+    all_prediction: list[int] = []
+    for reference, prediction in zip(reference_frames, predicted_frames):
+        if reference.points.shape != prediction.points.shape:
+            raise ValueError("semantic quality requires point-aligned frames")
+        ranges = np.linalg.norm(reference.points[:, :3], axis=1)
+        truth = np.asarray(reference.semantic_class, dtype=np.int32)
+        predicted = np.asarray(prediction.semantic_class, dtype=np.int32)
+        for index, (lower, upper) in enumerate(bins):
+            mask = (ranges >= lower) & (ranges < upper)
+            accumulated[index][0].extend(truth[mask].tolist())
+            accumulated[index][1].extend(predicted[mask].tolist())
+        all_truth.extend(truth.tolist())
+        all_prediction.extend(predicted.tolist())
+
+    def score(truth: list[int], prediction: list[int]) -> dict[str, Any]:
+        if not truth:
+            return {"points": 0, "accuracy": None, "miou": None, "classes": {}}
+        truth_array = np.asarray(truth, dtype=np.int32)
+        prediction_array = np.asarray(prediction, dtype=np.int32)
+        classes = sorted(set(truth) | set(prediction))
+        class_iou: dict[str, float] = {}
+        for class_id in classes:
+            truth_mask = truth_array == class_id
+            prediction_mask = prediction_array == class_id
+            union = int(np.count_nonzero(truth_mask | prediction_mask))
+            intersection = int(np.count_nonzero(truth_mask & prediction_mask))
+            class_iou[str(class_id)] = intersection / union if union else 1.0
+        return {
+            "points": len(truth),
+            "accuracy": float(np.mean(truth_array == prediction_array)),
+            "miou": float(np.mean(list(class_iou.values()))),
+            "classes": class_iou,
+        }
+
+    return {
+        "status": "measured",
+        "reference": "adapter semantic_class labels",
+        "prediction": "perception output semantic_class",
+        "overall": score(all_truth, all_prediction),
+        "range_bins": [
+            {"min_m": lower, "max_m": upper, **score(*values)}
+            for (lower, upper), values in zip(bins, accumulated)
+        ],
     }
 
 
@@ -454,6 +570,7 @@ def load_selection(
     perception_config: Path | None = None,
     dataset_root: Path | None = None,
     perception_records: list[dict[str, Any]] | None = None,
+    reference_frames: list[Any] | None = None,
 ):
     dataset_config = yaml.safe_load((repo / "configs/datasets.yaml").read_text())
     raw_distance_config = yaml.safe_load(
@@ -495,24 +612,33 @@ def load_selection(
         )
     if sequence not in adapter.list_sequences():
         raise ValueError(f"sequence {sequence} is not configured for {dataset}")
-    source_frames = list(
-        adapter.replay(
-            sequence,
-            start=start,
-            end=start + count,
-            min_range_m=float(entry.get("min_range_m", 0.0)),
-            max_range_m=float(entry["max_range_m"]),
-        )
+    source_frames = []
+    load_durations_ms: list[float] = []
+    replay = adapter.replay(
+        sequence,
+        start=start,
+        end=start + count,
+        min_range_m=float(entry.get("min_range_m", 0.0)),
+        max_range_m=float(entry["max_range_m"]),
     )
+    while True:
+        started = time.perf_counter_ns()
+        try:
+            source_frames.append(next(replay))
+        except StopIteration:
+            break
+        load_durations_ms.append((time.perf_counter_ns() - started) / 1_000_000.0)
     if not source_frames:
         raise ValueError("frame selection is empty")
+    if reference_frames is not None:
+        reference_frames.extend(source_frames)
     processed, durations_ns = source_frames, []
     if run_perception:
         pipeline = load_perception_pipeline(
             perception_config or repo / "configs" / "perception.yaml"
         )
         processed = []
-        for source_frame in source_frames:
+        for source_frame, load_duration_ms in zip(source_frames, load_durations_ms):
             started = time.perf_counter_ns()
             output = pipeline.process(source_frame)
             processed.append(output.frame)
@@ -521,6 +647,7 @@ def load_selection(
                 perception_records.append(
                     {
                         "points": len(source_frame.points),
+                        "dataset_load_ms": load_duration_ms,
                         "timings_ms": output.timings_ms,
                         "status": {
                             "semantic": output.status.semantic,
@@ -771,6 +898,7 @@ def run(args: argparse.Namespace) -> dict[str, Any]:
     )
     validate_hardware_profile(hardware_config, args.hardware_profile)
     perception_records: list[dict[str, Any]] = []
+    reference_frames: list[Any] = []
     frames, distance_config, _dataset_entry, perception_ns, window_radius_m = (
         load_selection(
             repo,
@@ -786,14 +914,19 @@ def run(args: argparse.Namespace) -> dict[str, Any]:
                 else Path(args.perception_config)
             ),
             perception_records=perception_records if not args.skip_perception else None,
+            reference_frames=reference_frames,
         )
     )
-    stream, digest = stream_bytes(frames)
+    stream_directory = tempfile.TemporaryDirectory(prefix="veyra-benchmark-stream-")
+    stream_path = Path(stream_directory.name) / "observations.stream"
+    digest = stream_file(frames, stream_path)
     all_points = np.concatenate([frame.points[:, :3] for frame in frames], axis=0)
     fine_reference = _fine_reference(frames)
+    three_d_reference = analytical_3d_reference(all_points)
     runs_by_policy: dict[str, list[dict[str, Any]]] = {
         policy: [] for policy in requested
     }
+    bridge_samples_ns: list[int] = []
     execution_order: list[list[str]] = []
     for repetition in range(args.repetitions):
         order = (
@@ -803,19 +936,20 @@ def run(args: argparse.Namespace) -> dict[str, Any]:
         execution_order.append(order)
         for policy in order:
             adapter = POLICY_ADAPTERS[policy]
-            completed = subprocess.run(
-                _command(
-                    args.binary,
-                    adapter,
-                    distance_config,
-                    window_radius_m,
-                    args.warmup_frames,
-                    repo,
-                ),
-                input=stream,
-                capture_output=True,
-                check=False,
-            )
+            with stream_path.open("rb") as stream_input:
+                completed = subprocess.run(
+                    _command(
+                        args.binary,
+                        adapter,
+                        distance_config,
+                        window_radius_m,
+                        args.warmup_frames,
+                        repo,
+                    ),
+                    stdin=stream_input,
+                    capture_output=True,
+                    check=False,
+                )
             if completed.returncode != 0:
                 raise RuntimeError(
                     f"{policy} repetition {repetition} failed: {completed.stderr.decode(errors='replace').strip()}"
@@ -836,7 +970,12 @@ def run(args: argparse.Namespace) -> dict[str, Any]:
                 fine_reference,
             )
             result["detail_metric"] = _detail_metric(result["snapshot"])
+            bridge_samples_ns.extend(
+                int(frame["stages_ns"]["protocol_parse_and_validate"])
+                for frame in result["frame_metrics"]
+            )
             runs_by_policy[policy].append(result)
+    stream_directory.cleanup()
     results: dict[str, Any] = {}
     for policy in requested:
         adapter, runs = POLICY_ADAPTERS[policy], runs_by_policy[policy]
@@ -901,9 +1040,23 @@ def run(args: argparse.Namespace) -> dict[str, Any]:
     )
     checkpoint = repo / model_value if isinstance(model_value, str) else None
     perception_report = (
-        summarize_perception(args.dataset, args.sequence, perception_records)
+        summarize_perception(
+            args.dataset,
+            args.sequence,
+            perception_records,
+            bridge_samples_ns=bridge_samples_ns,
+        )
         if perception_records
         else None
+    )
+    semantic_quality = (
+        semantic_range_quality_report(reference_frames, frames)
+        if args.dataset in {"semanticposs", "rellis3d", "semantickitti"}
+        and not args.skip_perception
+        else {
+            "status": "unavailable",
+            "reason": "paired adapter labels are unavailable for this selection",
+        }
     )
     return {
         "schema_version": SCHEMA_VERSION,
@@ -954,6 +1107,16 @@ def run(args: argparse.Namespace) -> dict[str, Any]:
             "perception": nearest_rank_summary(perception_ns) if perception_ns else None
         },
         "perception": perception_report,
+        "semantic_quality": semantic_quality,
+        "reference_baselines": {
+            "uniform_5cm_3d": three_d_reference,
+            "uniform_5cm_2d": {
+                "status": "executed_as_fine_reference",
+                "reference_bins": len(fine_reference["mean_z_by_cell"]),
+                "representation": "sparse_2d_elevation_bins",
+                "voxel_size_m": 0.05,
+            },
+        },
         "utility_vs_distance_detail": {
             "weighted_mean_level_delta": detail_delta,
             "interpretation": "negative means UtilityLOD retained finer leaves on identical input; detail alone is not quality gain",
@@ -991,6 +1154,15 @@ def _write_csv(path: Path, result: dict[str, Any]) -> None:
         "elevation_reference_coverage",
         "governor_interventions",
         "governor_actions_applied",
+        "point_conservation",
+        "duplicate_ownership",
+        "semantic_miou",
+        "semantic_miou_0_10m",
+        "semantic_miou_10_30m",
+        "semantic_miou_30_60m",
+        "semantic_miou_60_100m",
+        "analytical_3d_dense_voxels",
+        "analytical_3d_estimated_bytes",
     )
     path.parent.mkdir(parents=True, exist_ok=True)
     with path.open("w", newline="") as file:
@@ -1039,6 +1211,29 @@ def _write_csv(path: Path, result: dict[str, Any]) -> None:
                     "governor_actions_applied": aggregate["governor"][
                         "actions_applied"
                     ],
+                    "point_conservation": all(
+                        item["point_conservation"]["holds"]
+                        for item in aggregate["quality"]
+                    ),
+                    "duplicate_ownership": all(
+                        item["duplicate_ownership"]["holds"]
+                        for item in aggregate["quality"]
+                    ),
+                    "semantic_miou": result["semantic_quality"]
+                    .get("overall", {})
+                    .get("miou"),
+                    **{
+                        f"semantic_miou_{int(item['min_m'])}_{int(item['max_m'])}m": item.get(
+                            "miou"
+                        )
+                        for item in result["semantic_quality"].get("range_bins", [])
+                    },
+                    "analytical_3d_dense_voxels": result["reference_baselines"][
+                        "uniform_5cm_3d"
+                    ]["dense_voxel_count"],
+                    "analytical_3d_estimated_bytes": result["reference_baselines"][
+                        "uniform_5cm_3d"
+                    ]["estimated_dense_bytes"],
                 }
             )
 

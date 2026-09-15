@@ -13,7 +13,7 @@ from pathlib import Path
 
 import numpy as np
 
-from benchmarks.protocol import stream_bytes
+from benchmarks.protocol import stream_bytes, stream_file
 from benchmarks.run_benchmark import (
     POLICY_ADAPTERS,
     PUBLIC_POLICY_NAMES,
@@ -73,6 +73,13 @@ def frame(
 
 
 class RuntimeTests(unittest.TestCase):
+    def test_stream_file_is_byte_identical_to_in_memory_protocol_stream(self):
+        expected, digest = stream_bytes([frame()])
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "stream.bin"
+            self.assertEqual(stream_file([frame()], path), digest)
+            self.assertEqual(path.read_bytes(), expected)
+
     def test_dataset_selection_uses_checked_in_perception_pipeline(self):
         repo = Path(__file__).resolve().parents[1]
         dataset_root = repo / "data" / "raw" / "rellis3d" / "Rellis-3D"

@@ -4,6 +4,7 @@ import subprocess
 import sys
 import tempfile
 import unittest
+from dataclasses import replace
 from pathlib import Path
 
 import numpy as np
@@ -11,14 +12,115 @@ import numpy as np
 from benchmarks.run_benchmark import (
     POLICY_ADAPTERS,
     UTILITY_ABLATION_POLICY_NAMES,
+    analytical_3d_reference,
     load_selection,
     mapping_quality_report,
+    semantic_range_quality_report,
     summarize_perception,
     utility_ablation_report,
 )
 
 
 class ProductBenchmarkTests(unittest.TestCase):
+    def test_sih_validation_entrypoint_has_explicit_real_data_gate(self):
+        repo = Path(__file__).resolve().parents[1]
+        validator = repo / "scripts/validate_sih.sh"
+        self.assertTrue(validator.is_file())
+        content = validator.read_text()
+        self.assertIn("--full", content)
+        self.assertIn("SemanticPOSS", content)
+        self.assertIn("benchmarks/run_local.sh", content)
+        self.assertNotIn("|| true", content)
+
+    def test_benchmark_workflows_do_not_hide_failed_evidence(self):
+        repo = Path(__file__).resolve().parents[1]
+        benchmark_workflow = (repo / ".github/workflows/benchmark.yml").read_text()
+        report_workflow = (repo / ".github/workflows/benchmark-report.yml").read_text()
+        self.assertIn(
+            "Run shared perception and four-policy map benchmark", benchmark_workflow
+        )
+        self.assertNotIn("--output artifacts/summary.md || true", benchmark_workflow)
+        self.assertNotIn("continue-on-error: true", report_workflow)
+        self.assertIn("--fail-on-correctness", benchmark_workflow)
+        self.assertIn("Overall mIoU", report_workflow)
+        self.assertIn("Point conservation", report_workflow)
+        self.assertIn("--skip-build", benchmark_workflow)
+        self.assertIn("findJson('artifacts/map')", report_workflow)
+        self.assertIn("findJson('artifacts/baseline')", report_workflow)
+
+    def test_semantic_quality_is_reported_per_distance_bin(self):
+        from benchmarks.test_runtime import frame
+
+        reference = frame()
+        prediction = replace(reference, semantic_class=reference.semantic_class.copy())
+        report = semantic_range_quality_report([reference], [prediction])
+        self.assertEqual(report["status"], "measured")
+        self.assertEqual(report["overall"]["accuracy"], 1.0)
+        self.assertEqual(report["overall"]["miou"], 1.0)
+        self.assertEqual(report["range_bins"][0]["points"], 2)
+        self.assertEqual(report["range_bins"][0]["miou"], 1.0)
+
+    def test_perception_summary_reports_load_and_bridge_as_distinct_stages(self):
+        report = summarize_perception(
+            "semanticposs",
+            "00",
+            [
+                {
+                    "points": 3,
+                    "dataset_load_ms": 4.0,
+                    "timings_ms": {
+                        "semantic": 10.0,
+                        "ground": 2.0,
+                        "terrain": 3.0,
+                        "temporal": 0.0,
+                        "total": 15.0,
+                    },
+                    "status": {
+                        "semantic": "model",
+                        "ground": "patchworkpp",
+                        "terrain": "available",
+                        "temporal": "disabled",
+                    },
+                    "ground_fraction": 0.5,
+                    "known_terrain_fraction": 1.0,
+                    "known_motion_fraction": 0.0,
+                },
+                {
+                    "points": 4,
+                    "dataset_load_ms": 6.0,
+                    "timings_ms": {
+                        "semantic": 20.0,
+                        "ground": 4.0,
+                        "terrain": 6.0,
+                        "temporal": 1.0,
+                        "total": 31.0,
+                    },
+                    "status": {
+                        "semantic": "model",
+                        "ground": "patchworkpp",
+                        "terrain": "available",
+                        "temporal": "disabled",
+                    },
+                    "ground_fraction": 0.75,
+                    "known_terrain_fraction": 1.0,
+                    "known_motion_fraction": 0.0,
+                },
+            ],
+            bridge_samples_ns=[1_000_000, 3_000_000],
+        )
+        self.assertEqual(report["timings"]["dataset_load"]["p50_ms"], 4.0)
+        self.assertEqual(report["timings"]["bridge"]["p95_ms"], 3.0)
+        self.assertEqual(report["timings"]["semantic"]["samples"], 2)
+
+    def test_analytical_3d_reference_is_explicitly_not_an_executed_policy(self):
+        reference = analytical_3d_reference(
+            np.array([[0.0, 0.0, 0.0, 0.0], [0.1, 0.2, 0.3, 0.0]], dtype=np.float32)
+        )
+        self.assertEqual(reference["status"], "analytical_only")
+        self.assertFalse(reference["executed_through_map_engine"])
+        self.assertEqual(reference["voxel_size_m"], 0.05)
+        self.assertGreater(reference["dense_voxel_count"], 0)
+
     def test_perception_summary_preserves_stage_tails_and_statuses(self):
         report = summarize_perception(
             "semanticposs",
@@ -174,6 +276,7 @@ class ProductBenchmarkTests(unittest.TestCase):
                 )
             )
             output = root / "result.json"
+            csv_output = root / "result.csv"
             completed = subprocess.run(
                 [
                     sys.executable,
@@ -199,6 +302,8 @@ class ProductBenchmarkTests(unittest.TestCase):
                     ",".join(UTILITY_ABLATION_POLICY_NAMES),
                     "--output",
                     str(output),
+                    "--csv-output",
+                    str(csv_output),
                 ],
                 capture_output=True,
                 text=True,
@@ -207,6 +312,9 @@ class ProductBenchmarkTests(unittest.TestCase):
             self.assertEqual(completed.returncode, 0, completed.stderr)
             result = json.loads(output.read_text())
             self.assertEqual(result["utility_ablation"]["status"], "complete")
+            csv_header = csv_output.read_text().splitlines()[0]
+            self.assertIn("semantic_miou", csv_header)
+            self.assertIn("analytical_3d_estimated_bytes", csv_header)
             self.assertEqual(
                 set(result["utility_ablation"]["members"]),
                 set(UTILITY_ABLATION_POLICY_NAMES),

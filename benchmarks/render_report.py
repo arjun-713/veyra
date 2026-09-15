@@ -14,15 +14,15 @@ def _json(path: Path | None) -> dict[str, Any] | None:
     return json.loads(path.read_text())
 
 
-def _ms(value: int | float | None) -> str:
+def _ms(value: float | None) -> str:
     return "n/a" if value is None else f"{float(value) / 1e6:.2f} ms"
 
 
-def _mb(value: int | float | None) -> str:
+def _mb(value: float | None) -> str:
     return "n/a" if value is None else f"{float(value) / 1048576:.1f} MB"
 
 
-def _metres(value: int | float | None) -> str:
+def _metres(value: float | None) -> str:
     return "n/a" if value is None else f"{float(value):.4f} m"
 
 
@@ -47,9 +47,9 @@ def _map_table(report: dict[str, Any] | None) -> str:
         ),
         (
             "Active leaves",
-            lambda a, r: f'{sum(a["final_leaves_per_level"].values()):,}',
+            lambda a, r: f"{sum(a['final_leaves_per_level'].values()):,}",
         ),
-        ("Topology churn", lambda a, r: f'{a["topology_churn_per_frame"]["p95"]:.1f}'),
+        ("Topology churn", lambda a, r: f"{a['topology_churn_per_frame']['p95']:.1f}"),
         (
             "Elevation error",
             lambda a, r: _metres(
@@ -62,14 +62,16 @@ def _map_table(report: dict[str, Any] | None) -> str:
                 "n/a"
                 if a["quality"][-1]["elevation_vs_fine_reference"].get("coverage")
                 is None
-                else f'{a["quality"][-1]["elevation_vs_fine_reference"]["coverage"]:.1%}'
+                else f"{a['quality'][-1]['elevation_vs_fine_reference']['coverage']:.1%}"
             ),
         ),
         (
             "Point conservation",
-            lambda a, r: "PASS"
-            if all(q["point_conservation"]["holds"] for q in a["quality"])
-            else "FAIL",
+            lambda a, r: (
+                "PASS"
+                if all(q["point_conservation"]["holds"] for q in a["quality"])
+                else "FAIL"
+            ),
         ),
         (
             "Governor interventions",
@@ -77,9 +79,11 @@ def _map_table(report: dict[str, Any] | None) -> str:
         ),
         (
             "Duplicate ownership",
-            lambda a, r: "PASS"
-            if all(q["duplicate_ownership"]["holds"] for q in a["quality"])
-            else "FAIL",
+            lambda a, r: (
+                "PASS"
+                if all(q["duplicate_ownership"]["holds"] for q in a["quality"])
+                else "FAIL"
+            ),
         ),
     ]
     lines = ["| " + " | ".join(headers) + " |", "| --- | ---: | ---: | ---: | ---: |"]
@@ -110,6 +114,7 @@ def _perception_table(report: dict[str, Any] | None) -> str:
     if not report:
         return "\n".join(lines + ["| unavailable | n/a | n/a | n/a |"])
     aliases = {
+        "dataset_load": "Dataset load",
         "load": "Dataset load",
         "semantic": "SalsaNext",
         "ground": "Patchwork++",
@@ -124,6 +129,17 @@ def _perception_table(report: dict[str, Any] | None) -> str:
             f"| {aliases.get(key, key)} | {values['p50_ms']:.2f} ms | {values['p95_ms']:.2f} ms | {values['p99_ms']:.2f} ms |"
         )
     return "\n".join(lines)
+
+
+def _perception_status_summary(report: dict[str, Any] | None) -> str:
+    statuses = (report or {}).get("status", {})
+    if not statuses:
+        return "Backend status: unavailable."
+    return (
+        "Backend status: "
+        + ", ".join(f"{name}=`{statuses[name]}`" for name in sorted(statuses))
+        + "."
+    )
 
 
 def _ablation_table(report: dict[str, Any] | None) -> str:
@@ -160,10 +176,34 @@ def _ablation_table(report: dict[str, Any] | None) -> str:
     lines.extend(
         [
             "",
-            f"Status: **{ablation.get('status', 'unknown')}**. Full vs distance: "
-            f"`{ablation.get('full_vs_distance_assessment', 'unavailable')}`.",
+            (
+                f"Status: **{ablation.get('status', 'unknown')}**. Full vs distance: "
+                f"`{ablation.get('full_vs_distance_assessment', 'unavailable')}`."
+            ),
         ]
     )
+    return "\n".join(lines)
+
+
+def _semantic_quality_summary(report: dict[str, Any] | None) -> str:
+    quality = (report or {}).get("semantic_quality")
+    if not quality or quality.get("status") != "measured":
+        return "Range-binned semantic quality: unavailable (no paired labels)."
+    overall = quality.get("overall", {})
+    bins = quality.get("range_bins", [])
+    lines = [
+        "| Range | Points | Accuracy | mIoU |",
+        "| --- | ---: | ---: | ---: |",
+        f"| Overall | {overall.get('points', 0):,} | {overall.get('accuracy', 0):.1%} | {overall.get('miou', 0):.1%} |",
+    ]
+    for item in bins:
+        accuracy = item.get("accuracy")
+        miou = item.get("miou")
+        lines.append(
+            f"| {item['min_m']:.0f}–{item['max_m']:.0f} m | {item.get('points', 0):,} | "
+            f"{'n/a' if accuracy is None else f'{accuracy:.1%}'} | "
+            f"{'n/a' if miou is None else f'{miou:.1%}'} |"
+        )
     return "\n".join(lines)
 
 
@@ -172,12 +212,30 @@ def _hard_failure(
 ) -> bool:
     if mapping is None or perception is None:
         return True
-    return any(
+    if not mapping.get("policies") or not perception.get("timings"):
+        return True
+    if any(
         not quality["point_conservation"]["holds"]
         or not quality["duplicate_ownership"]["holds"]
         for policy in mapping.get("policies", {}).values()
         for quality in policy.get("aggregate", {}).get("quality", [])
-    )
+    ):
+        return True
+    semantic = mapping.get("semantic_quality", {})
+    if semantic.get("status") == "measured":
+        scores = [
+            semantic.get("overall", {}).get("accuracy"),
+            semantic.get("overall", {}).get("miou"),
+        ]
+        scores.extend(item.get("accuracy") for item in semantic.get("range_bins", []))
+        scores.extend(item.get("miou") for item in semantic.get("range_bins", []))
+        if any(
+            value is not None
+            and (not isinstance(value, (int, float)) or not 0.0 <= value <= 1.0)
+            for value in scores
+        ):
+            return True
+    return False
 
 
 def _performance_warnings(
@@ -228,6 +286,10 @@ def render(
         "",
         _map_table(mapping),
         "",
+        "### Reference baseline",
+        "",
+        _reference_summary(mapping),
+        "",
         "### UtilityLOD ablation",
         "",
         _ablation_table(mapping),
@@ -235,6 +297,12 @@ def render(
         "### Perception benchmark",
         "",
         _perception_table(perception),
+        "",
+        _perception_status_summary(perception),
+        "",
+        "### Range-binned semantic quality",
+        "",
+        _semantic_quality_summary(mapping),
         "",
         "### Regression status",
         "",
@@ -253,6 +321,18 @@ def render(
         )
     lines.append(f"Correctness gate: **{'HARD FAILURE' if hard_fail else 'PASS'}**")
     return "\n".join(lines) + "\n"
+
+
+def _reference_summary(report: dict[str, Any] | None) -> str:
+    reference = (report or {}).get("reference_baselines", {}).get("uniform_5cm_3d")
+    if not reference:
+        return "Analytical 5 cm 3D reference: unavailable."
+    return (
+        "Analytical 5 cm 3D reference: "
+        f"{reference.get('dense_voxel_count', 'n/a'):,} dense voxels, "
+        f"{_mb(reference.get('estimated_dense_bytes'))}; "
+        "not executed through the map engine and not a measured RSS value."
+    )
 
 
 def main() -> int:

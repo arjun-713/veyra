@@ -5,6 +5,7 @@ from __future__ import annotations
 import hashlib
 import math
 import struct
+from pathlib import Path
 
 import numpy as np
 
@@ -193,3 +194,30 @@ def stream_bytes(frames: list[ObservationFrame]) -> tuple[bytes, str]:
     checksum = digest.hexdigest()
     payload = f"VEYRA_STREAM {PROTOCOL_VERSION}\nH {checksum}\n" + "".join(records)
     return (f"{payload}D {checksum}\n".encode("ascii"), checksum)
+
+
+def stream_file(frames: list[ObservationFrame], path: str | Path) -> str:
+    """Write the canonical stream incrementally and return its digest.
+
+    Unlike :func:`stream_bytes`, this avoids retaining the serialized stream
+    alongside all source frames. The fixed-width header digest is backfilled
+    after records are written, then the trailer is appended. The resulting
+    bytes are intentionally identical to ``stream_bytes(frames)[0]``.
+    """
+    output_path = Path(path)
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+    prefix = f"VEYRA_STREAM {PROTOCOL_VERSION}\nH ".encode("ascii")
+    digest = hashlib.sha256()
+    with output_path.open("wb+") as output:
+        output.write(prefix + b"0" * 64 + b"\n")
+        for frame in frames:
+            for record in frame_records(frame):
+                encoded = record.encode("ascii")
+                output.write(encoded)
+                digest.update(encoded)
+        checksum = digest.hexdigest().encode("ascii")
+        output.seek(len(prefix))
+        output.write(checksum)
+        output.seek(0, 2)
+        output.write(b"D " + checksum + b"\n")
+    return digest.hexdigest()

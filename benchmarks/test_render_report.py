@@ -5,15 +5,36 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from benchmarks.render_report import render
+from benchmarks.render_report import _hard_failure, render
 
 
 class RenderReportTests(unittest.TestCase):
+    def test_invalid_measured_semantic_quality_is_a_hard_failure(self):
+        self.assertTrue(
+            _hard_failure(
+                {"semantic_quality": {"status": "measured", "overall": {"miou": 1.1}}},
+                {"timings": {}},
+            )
+        )
+
     def test_report_renders_all_policy_and_perception_sections(self):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
             map_report = {
                 "dataset": "semanticposs",
+                "semantic_quality": {
+                    "status": "measured",
+                    "overall": {"points": 2, "accuracy": 1.0, "miou": 1.0},
+                    "range_bins": [
+                        {
+                            "min_m": 0.0,
+                            "max_m": 10.0,
+                            "points": 2,
+                            "accuracy": 1.0,
+                            "miou": 1.0,
+                        }
+                    ],
+                },
                 "provenance": {
                     "git_sha": "abc",
                     "dataset_sha256": "def",
@@ -65,8 +86,11 @@ class RenderReportTests(unittest.TestCase):
             }
             perception = {
                 "reproducibility": {"git_sha": "abc"},
+                "status": {"semantic": "model", "ground": "patchworkpp"},
                 "timings": {
-                    "semantic": {"mean_ms": 1, "p50_ms": 1, "p95_ms": 2, "p99_ms": 3}
+                    "dataset_load": {"p50_ms": 4, "p95_ms": 5, "p99_ms": 6},
+                    "semantic": {"mean_ms": 1, "p50_ms": 1, "p95_ms": 2, "p99_ms": 3},
+                    "bridge": {"p50_ms": 0.1, "p95_ms": 0.2, "p99_ms": 0.3},
                 },
             }
             map_path, perception_path = root / "map.json", root / "perception.json"
@@ -76,6 +100,12 @@ class RenderReportTests(unittest.TestCase):
         self.assertIn("Uniform5", report)
         self.assertIn("UtilityLOD", report)
         self.assertIn("SalsaNext", report)
+        self.assertIn("Dataset load", report)
+        self.assertIn("Bridge", report)
+        self.assertIn("Backend status", report)
+        self.assertIn("Analytical 5 cm 3D reference", report)
+        self.assertIn("Range-binned semantic quality", report)
+        self.assertIn("100.0%", report)
         self.assertIn("Correctness gate: **PASS**", report)
         self.assertIn("Elevation coverage", report)
         self.assertIn("100.0%", report)

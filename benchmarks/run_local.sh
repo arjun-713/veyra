@@ -21,6 +21,7 @@ dataset_sha256=""
 build_type="Release"
 perception_config="configs/perception.yaml"
 perception_output=""
+skip_build="false"
 python_bin="${VEYRA_PYTHON:-python3}"
 
 usage() {
@@ -48,6 +49,7 @@ Options:
   --build-dir PATH     local CMake build directory
   --output-dir PATH    JSON/CSV output directory
   --perception-output PATH  JSON report from the shared perception pass
+  --skip-build          use an already configured and built benchmark binary
   -h, --help           show this help
 
 Environment:
@@ -71,6 +73,7 @@ while (($#)); do
     --build-type) build_type="${2:?missing value for --build-type}"; shift 2 ;;
     --perception-config) perception_config="${2:?missing value for --perception-config}"; shift 2 ;;
     --perception-output) perception_output="${2:?missing value for --perception-output}"; shift 2 ;;
+    --skip-build) skip_build="true"; shift ;;
     --python) python_bin="${2:?missing value for --python}"; shift 2 ;;
     --build-dir) build_dir="${2:?missing value for --build-dir}"; shift 2 ;;
     --output-dir) output_dir="${2:?missing value for --output-dir}"; shift 2 ;;
@@ -88,11 +91,13 @@ if [[ "$dataset" == "generic" && -z "$dataset_root" ]]; then
   exit 2
 fi
 
-cmake -S "$repo_dir" -B "$build_dir" \
-  -DCMAKE_BUILD_TYPE="$build_type" \
-  -DBUILD_TESTING=ON \
-  -DVEYRA_BUILD_APPS=ON
-cmake --build "$build_dir" --target veyra_benchmark -j
+if [[ "$skip_build" != "true" ]]; then
+  cmake -S "$repo_dir" -B "$build_dir" \
+    -DCMAKE_BUILD_TYPE="$build_type" \
+    -DBUILD_TESTING=ON \
+    -DVEYRA_BUILD_APPS=ON
+  cmake --build "$build_dir" --target veyra_benchmark -j
+fi
 
 mkdir -p "$output_dir"
 json_output="${output_dir}/${dataset}-${sequence}-${start}-${count}.json"
