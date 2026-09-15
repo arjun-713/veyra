@@ -17,6 +17,45 @@ from perception.semantic.semantic_provider import SemanticResult
 
 _MEANS = np.array([12.12, 10.88, 0.23, -1.04, 0.21], np.float32)[:, None, None]
 _STDS = np.array([12.32, 11.47, 6.91, 0.86, 0.16], np.float32)[:, None, None]
+_IMAGE_HEIGHT = 64
+_IMAGE_WIDTH = 2048
+_FOV_UP_DEGREES = 3.0
+_FOV_DOWN_DEGREES = -25.0
+_LEARNING_CLASSES = (
+    "unlabeled",
+    "car",
+    "bicycle",
+    "motorcycle",
+    "truck",
+    "other-vehicle",
+    "person",
+    "bicyclist",
+    "motorcyclist",
+    "road",
+    "parking",
+    "sidewalk",
+    "other-ground",
+    "building",
+    "fence",
+    "vegetation",
+    "trunk",
+    "terrain",
+    "pole",
+    "traffic-sign",
+)
+
+
+def model_contract() -> dict[str, object]:
+    """Return the pinned export contract mirrored from upstream configuration."""
+    return {
+        "image_shape": (_IMAGE_HEIGHT, _IMAGE_WIDTH),
+        "channels": ("range", "x", "y", "z", "remission"),
+        "fov_degrees": {"up": _FOV_UP_DEGREES, "down": _FOV_DOWN_DEGREES},
+        "normalization_means": tuple(float(value) for value in _MEANS[:, 0, 0]),
+        "normalization_stds": tuple(float(value) for value in _STDS[:, 0, 0]),
+        "learning_classes": _LEARNING_CLASSES,
+        "postprocessing": "nearest_return_projection_without_knn",
+    }
 
 
 def project_scan(
@@ -41,14 +80,18 @@ def project_scan(
             1,
         )
     )
-    up, down = np.deg2rad(3.0), np.deg2rad(-25.0)
+    up, down = np.deg2rad(_FOV_UP_DEGREES), np.deg2rad(_FOV_DOWN_DEGREES)
     valid = (depth > 0) & (pitch >= down) & (pitch <= up)
     yaw = -np.arctan2(points[:, 1], points[:, 0])
-    cols = np.clip(np.floor(0.5 * (yaw / np.pi + 1) * 2048), 0, 2047).astype(np.intp)
-    rows = np.clip(np.floor((1 - (pitch - down) / (up - down)) * 64), 0, 63).astype(
-        np.intp
-    )
-    image = np.zeros((5, 64, 2048), np.float32)
+    cols = np.clip(
+        np.floor(0.5 * (yaw / np.pi + 1) * _IMAGE_WIDTH), 0, _IMAGE_WIDTH - 1
+    ).astype(np.intp)
+    rows = np.clip(
+        np.floor((1 - (pitch - down) / (up - down)) * _IMAGE_HEIGHT),
+        0,
+        _IMAGE_HEIGHT - 1,
+    ).astype(np.intp)
+    image = np.zeros((5, _IMAGE_HEIGHT, _IMAGE_WIDTH), np.float32)
     # Stable ties use the first input return. Selecting unique pixels avoids
     # relying on NumPy's ordering of repeated fancy-index assignments.
     ordered = np.flatnonzero(valid)
@@ -57,7 +100,7 @@ def project_scan(
     selected = ordered[first]
     image[0, rows[selected], cols[selected]] = depth[selected]
     image[1:, rows[selected], cols[selected]] = points[selected].T
-    occupied = np.zeros((64, 2048), bool)
+    occupied = np.zeros((_IMAGE_HEIGHT, _IMAGE_WIDTH), bool)
     occupied[rows[selected], cols[selected]] = True
     image = ((image - _MEANS) / _STDS) * occupied[None]
     return image[None], rows, cols, valid
@@ -67,8 +110,11 @@ def unproject_scores(
     scores: np.ndarray, rows: np.ndarray, cols: np.ndarray, valid: np.ndarray
 ) -> SemanticResult:
     scores = np.asarray(scores)
-    if scores.shape != (1, 20, 64, 2048):
-        raise ValueError("SalsaNext output must be (1, 20, 64, 2048)")
+    if scores.shape != (1, len(_LEARNING_CLASSES), _IMAGE_HEIGHT, _IMAGE_WIDTH):
+        raise ValueError(
+            "SalsaNext output must be "
+            f"(1, {len(_LEARNING_CLASSES)}, {_IMAGE_HEIGHT}, {_IMAGE_WIDTH})"
+        )
     if not np.isfinite(scores).all() or np.any((scores < 0) | (scores > 1)):
         raise ValueError("SalsaNext output must contain finite probabilities in [0, 1]")
     # Only pixels assigned to actual returns need normalization validation.
@@ -112,10 +158,11 @@ class SalsaNextSemanticProvider:
         inputs, outputs = self.session.get_inputs(), self.session.get_outputs()
         if (
             len(inputs) != 1
-            or inputs[0].shape != [1, 5, 64, 2048]
+            or inputs[0].shape != [1, 5, _IMAGE_HEIGHT, _IMAGE_WIDTH]
             or inputs[0].type != "tensor(float)"
             or len(outputs) != 1
-            or outputs[0].shape != [1, 20, 64, 2048]
+            or outputs[0].shape
+            != [1, len(_LEARNING_CLASSES), _IMAGE_HEIGHT, _IMAGE_WIDTH]
         ):
             raise ValueError(
                 "model is incompatible with the SalsaNext range-image contract"

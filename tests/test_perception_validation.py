@@ -12,10 +12,28 @@ from scripts.validate_perception import (
     confusion_report,
     latency_summary,
     reproducibility_metadata,
+    semantic_evaluation_report,
 )
 
 
 class PerceptionValidationTests(unittest.TestCase):
+    def test_semantic_evaluation_separates_model_fov_from_all_return_quality(self):
+        all_confusion = np.zeros((20, 20), np.int64)
+        supported_confusion = np.zeros((20, 20), np.int64)
+        all_confusion[1, 1] = 3
+        all_confusion[1, 0] = 1
+        supported_confusion[1, 1] = 3
+        report = semantic_evaluation_report(
+            all_confusion,
+            supported_confusion,
+            total_points=5,
+            supported_points=4,
+        )
+        self.assertEqual(report["coverage_fraction"], 0.8)
+        self.assertEqual(report["all_returns"]["evaluated_points"], 4)
+        self.assertEqual(report["model_fov_only"]["evaluated_points"], 3)
+        self.assertAlmostEqual(report["model_fov_only"]["accuracy"], 1.0)
+
     def test_reproducibility_metadata_records_selection_and_digests(self):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)

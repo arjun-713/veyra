@@ -1,5 +1,5 @@
-import os
 import importlib.util
+import os
 import tempfile
 import unittest
 from pathlib import Path
@@ -8,12 +8,21 @@ import numpy as np
 
 from perception.semantic.salsanext import (
     SalsaNextSemanticProvider,
+    model_contract,
     project_scan,
     unproject_scores,
 )
 
 
 class SalsaNextTests(unittest.TestCase):
+    def test_pinned_contract_matches_upstream_salsanext_sensor_and_learning_ids(self):
+        contract = model_contract()
+        self.assertEqual(contract["image_shape"], (64, 2048))
+        self.assertEqual(contract["fov_degrees"], {"up": 3.0, "down": -25.0})
+        self.assertEqual(len(contract["learning_classes"]), 20)
+        self.assertEqual(contract["learning_classes"][1], "car")
+        self.assertEqual(contract["learning_classes"][18], "pole")
+
     def test_projection_uses_nearest_return_and_keeps_first_point(self):
         points = np.array(
             [[10, 0, 0, 0.2], [20, 0, 0, 0.8], [0, 10, 0, 0.4]], np.float32

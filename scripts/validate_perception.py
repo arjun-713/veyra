@@ -8,30 +8,31 @@ configs/perception-salsanext.yaml --output benchmark-results/poss-perception.jso
 from __future__ import annotations
 
 import argparse
-from dataclasses import asdict
-from datetime import datetime, timezone
 import hashlib
 import json
 import os
-from pathlib import Path
 import platform
 import resource
 import subprocess
+from dataclasses import asdict
+from datetime import datetime, timezone
+from pathlib import Path
 from time import perf_counter
 
 import numpy as np
 import yaml
 
-from datasets.rellis import Rellis3DDataset
-from datasets.generic import ManifestDataset
-from datasets.semanticposs import SemanticPOSSDataset
-from datasets.semantickitti import SemanticKITTIDataset
 from benchmarks.protocol import frame_records
-from perception.pipeline import PerceptionPipeline
+from datasets.generic import ManifestDataset
+from datasets.rellis import Rellis3DDataset
+from datasets.semantickitti import SemanticKITTIDataset
+from datasets.semanticposs import SemanticPOSSDataset
 from perception.ground.quality import (
     aggregate_ground_quality_reports,
     ground_quality_report,
 )
+from perception.pipeline import PerceptionPipeline
+from perception.semantic.salsanext import SalsaNextSemanticProvider, project_scan
 
 
 def _sha256_file(path: Path) -> str | None:
@@ -178,6 +179,34 @@ def confusion_report(confusion):
     }
 
 
+def semantic_evaluation_report(
+    all_confusion: np.ndarray,
+    model_fov_confusion: np.ndarray,
+    *,
+    total_points: int,
+    supported_points: int,
+) -> dict:
+    """Report model quality without hiding returns outside its sensor contract.
+
+    SalsaNext's published checkpoint is trained for a fixed HDL-64 vertical
+    field of view.  Veyra intentionally emits unknown for returns outside
+    that FOV; reporting only the FOV score would hide operational coverage,
+    while reporting only the all-return score conflates coverage with model
+    quality.  Keep both views explicit.
+    """
+    if not isinstance(total_points, int) or not isinstance(supported_points, int):
+        raise TypeError("point counts must be integers")
+    if total_points < 0 or supported_points < 0 or supported_points > total_points:
+        raise ValueError("point counts must satisfy 0 <= supported <= total")
+    return {
+        "coverage_fraction": (
+            float(supported_points / total_points) if total_points else None
+        ),
+        "all_returns": confusion_report(all_confusion),
+        "model_fov_only": confusion_report(model_fov_confusion),
+    }
+
+
 def validate(args):
     adapters = {
         "generic": ManifestDataset,
@@ -206,6 +235,10 @@ def validate(args):
     boundaries = [(0, 10), (10, 30), (30, 60), (60, 100.0001)]
     confusion = [np.zeros((20, 20), np.int64) for _ in boundaries]
     overall_confusion = np.zeros((20, 20), np.int64)
+    supported_confusion = [np.zeros((20, 20), np.int64) for _ in boundaries]
+    supported_overall_confusion = np.zeros((20, 20), np.int64)
+    total_points = 0
+    supported_points = 0
     ground_reports = []
     ground_by_range = [[] for _ in boundaries]
     while True:
@@ -227,6 +260,16 @@ def validate(args):
         sensor = frame.points[:, :3]
         if frame.provenance.coordinate_frame in {"world", "calibrated_lidar"}:
             sensor = (sensor - frame.pose.matrix[:3, 3]) @ frame.pose.matrix[:3, :3]
+        if isinstance(pipeline.semantic_provider, SalsaNextSemanticProvider):
+            sensor_xyzi = np.column_stack((sensor, frame.points[:, 3]))
+            _, _, _, model_fov = project_scan(
+                sensor_xyzi,
+                intensity_scale=pipeline.semantic_provider.intensity_scale,
+            )
+        else:
+            model_fov = np.ones(frame.points.shape[0], dtype=bool)
+        total_points += frame.points.shape[0]
+        supported_points += int(model_fov.sum())
         distances = np.linalg.norm(sensor, axis=1)
         if args.dataset == "semanticposs":
             reference_ground = frame.raw_semantic_class == 22
@@ -242,16 +285,26 @@ def validate(args):
                     )
                 )
         gt, pred = frame.semantic_class, output.frame.semantic_class
-        for matrix, (lower, upper) in zip(confusion, boundaries):
+        for range_index, (matrix, (lower, upper)) in enumerate(
+            zip(confusion, boundaries)
+        ):
             keep = (distances >= lower) & (distances < upper) & (gt > 0) & (gt < 20)
             if np.any((pred < 0) | (pred >= 20)):
                 raise RuntimeError("output class outside canonical taxonomy")
             matrix += np.bincount(gt[keep] * 20 + pred[keep], minlength=400).reshape(
                 20, 20
             )
+            supported_keep = keep & model_fov
+            supported_confusion[range_index] += np.bincount(
+                gt[supported_keep] * 20 + pred[supported_keep], minlength=400
+            ).reshape(20, 20)
         keep = (gt > 0) & (gt < 20)
         overall_confusion += np.bincount(
             gt[keep] * 20 + pred[keep], minlength=400
+        ).reshape(20, 20)
+        supported_keep = keep & model_fov
+        supported_overall_confusion += np.bincount(
+            gt[supported_keep] * 20 + pred[supported_keep], minlength=400
         ).reshape(20, 20)
         bridge_started = perf_counter()
         bridge_records = frame_records(output.frame)
@@ -278,6 +331,7 @@ def validate(args):
                 "known_motion_fraction": float(
                     (output.frame.motion_state != "unknown").mean()
                 ),
+                "semantic_model_fov_fraction": float(model_fov.mean()),
                 "semantic_classes": np.unique(pred).tolist(),
             }
         )
@@ -325,6 +379,16 @@ def validate(args):
                 for (a, b), c in zip(boundaries, confusion)
             ],
             "overall": confusion_report(overall_confusion),
+            "model_fov": semantic_evaluation_report(
+                overall_confusion,
+                supported_overall_confusion,
+                total_points=total_points,
+                supported_points=supported_points,
+            ),
+            "model_fov_by_range": [
+                {"range_m": [a, min(b, 100)], **confusion_report(c)}
+                for (a, b), c in zip(boundaries, supported_confusion)
+            ],
         },
         "ground_evaluation": {
             "reference": (
