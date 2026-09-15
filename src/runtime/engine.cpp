@@ -38,6 +38,7 @@ struct Options {
   std::array<double, 3> boundaries{10.0, 30.0, 60.0};
   std::uint64_t warmup_frames = 0;
   bool engine = false;
+  bool binary_input = false;
   bool include_leaf_details = false;
   std::string utility_config = VEYRA_SOURCE_DIR "/configs/utility_lod.yaml";
   std::string governor_config = VEYRA_SOURCE_DIR "/configs/resource_governor.yaml";
@@ -77,6 +78,9 @@ struct InputSummary {
 struct FrameMetric {
   InputSummary input;
   std::map<std::string, std::int64_t> stages_ns;
+  std::uint64_t accepted_points = 0;
+  std::uint64_t map_point_count_before_update = 0;
+  bool point_conservation = false;
   std::uint64_t topology_churn = 0;
   std::uint64_t splits = 0;
   std::uint64_t merges = 0;
@@ -370,6 +374,8 @@ Options parse_options(int argc, char** argv) {
       options.warmup_frames = uint_value(argv[++index], "warmup frames");
     } else if (arg == "--engine") {
       options.engine = true;
+    } else if (arg == "--binary-input") {
+      options.binary_input = true;
     } else if (arg == "--include-leaf-details") {
       options.include_leaf_details = true;
     } else if (arg == "--utility-config") {
@@ -609,6 +615,8 @@ Result run(const Options& options) {
   int stream_version = 0;
   std::uint64_t expected_points = 0;
   std::uint64_t points = 0;
+  std::uint64_t frame_rejected_before = 0;
+  std::uint64_t map_point_count_before_update = 0;
   std::optional<std::uint64_t> previous_timestamp;
   std::optional<std::uint64_t> previous_source_index;
   std::uint64_t previous_topology_changes = 0;
@@ -709,6 +717,8 @@ Result run(const Options& options) {
       parse_duration = std::chrono::nanoseconds{duration_ns(started)};
       const auto window_started = Clock::now();
       map.set_window_center(pose[3], pose[7]);
+      map_point_count_before_update = map.snapshot().point_count;
+      frame_rejected_before = result.rejected_out_of_window;
       window_duration = std::chrono::nanoseconds{duration_ns(window_started)};
       update_duration = std::chrono::nanoseconds{0};
       open = true;
@@ -755,6 +765,10 @@ Result run(const Options& options) {
       previous_splits = snapshot.split_count;
       previous_merges = snapshot.merge_count;
       const auto rss = veyra::metrics::read_process_rss_bytes();
+      const auto frame_rejected = result.rejected_out_of_window - frame_rejected_before;
+      const auto accepted_points = points - frame_rejected;
+      const bool point_conservation =
+          snapshot.point_count == map_point_count_before_update + accepted_points;
       metrics.observe_rss_bytes(rss);
       const bool is_warmup = result.input_frames < options.warmup_frames;
       ++result.input_frames;
@@ -788,6 +802,9 @@ Result run(const Options& options) {
                           {"map_update", update_duration.count()},
                           {"snapshot_and_topology", snapshot_duration.count()},
                           {"frame_pipeline", frame_pipeline.count()}},
+            .accepted_points = accepted_points,
+            .map_point_count_before_update = map_point_count_before_update,
+            .point_conservation = point_conservation,
             .topology_churn = topology_churn,
             .splits = splits,
             .merges = merges,
@@ -1030,7 +1047,12 @@ std::string render(const Result& result) {
       }
       out << '"' << escape(name) << "\":" << duration;
     }
-    out << "},\"topology_churn\":" << frame.topology_churn << ",\"splits\":" << frame.splits
+    out << "},\"accepted_points\":" << frame.accepted_points
+        << ",\"map_point_count_before_update\":" << frame.map_point_count_before_update
+        << ",\"point_conservation\":{\"holds\":"
+        << (frame.point_conservation ? "true" : "false")
+        << ",\"scope\":\"active_window_after_frame\"}"
+        << ",\"topology_churn\":" << frame.topology_churn << ",\"splits\":" << frame.splits
         << ",\"merges\":" << frame.merges
         << ",\"governor_interventions\":" << frame.governor_interventions
         << ",\"governor_actions_applied\":" << frame.governor_actions_applied
@@ -1116,6 +1138,8 @@ class PersistentEngineSession {
     previous_governor_actions_ = 0;
     measured_elapsed_ = std::chrono::nanoseconds{0};
     parse_duration_ = window_duration_ = update_duration_ = std::chrono::nanoseconds{0};
+    frame_rejected_before_ = 0;
+    map_point_count_before_update_ = 0;
     input_summary_ = InputSummary{};
   }
 
@@ -1135,6 +1159,7 @@ class PersistentEngineSession {
   }
 
   [[nodiscard]] const Result& result() const noexcept { return result_; }
+  void set_digest(std::string digest) { result_.digest = std::move(digest); }
   [[nodiscard]] std::uint64_t frame_count() const noexcept { return result_.input_frames; }
   [[nodiscard]] bool frame_open() const noexcept { return open_; }
   [[nodiscard]] const veyra::policy::UtilityConfig& display_utility() const noexcept {
@@ -1229,6 +1254,8 @@ class PersistentEngineSession {
     parse_duration_ = std::chrono::nanoseconds{duration_ns(started)};
     const auto window_started = Clock::now();
     map_->set_window_center(pose[3], pose[7]);
+    map_point_count_before_update_ = map_->snapshot().point_count;
+    frame_rejected_before_ = result_.rejected_out_of_window;
     window_duration_ = std::chrono::nanoseconds{duration_ns(window_started)};
     update_duration_ = std::chrono::nanoseconds{0};
     open_ = true;
@@ -1279,6 +1306,10 @@ class PersistentEngineSession {
     previous_splits_ = snapshot.split_count;
     previous_merges_ = snapshot.merge_count;
     const auto rss = veyra::metrics::read_process_rss_bytes();
+    const auto frame_rejected = result_.rejected_out_of_window - frame_rejected_before_;
+    const auto accepted_points = points_ - frame_rejected;
+    const bool point_conservation =
+        snapshot.point_count == map_point_count_before_update_ + accepted_points;
     metrics_->observe_rss_bytes(rss);
     result_.last_input = input_summary_;
     const bool is_warmup = result_.input_frames < options_.warmup_frames;
@@ -1306,8 +1337,10 @@ class PersistentEngineSession {
                                static_cast<std::int64_t>(snapshot.count_at_level(level)));
       }
       metrics_->record_frame();
-      result_.frame_metrics
-          .clear();  // Live reports expose only the latest frame; percentiles roll over 600.
+      if (!options_.binary_input) {
+        result_.frame_metrics
+            .clear();  // Live reports expose only the latest frame; percentiles roll over 600.
+      }
       result_.frame_metrics.push_back(
           FrameMetric{.input = std::move(input_summary_),
                       .stages_ns = {{"protocol_parse_and_validate", parse_duration_.count()},
@@ -1315,6 +1348,9 @@ class PersistentEngineSession {
                                     {"map_update", update_duration_.count()},
                                     {"snapshot_and_topology", snapshot_duration.count()},
                                     {"frame_pipeline", frame_pipeline.count()}},
+                      .accepted_points = accepted_points,
+                      .map_point_count_before_update = map_point_count_before_update_,
+                      .point_conservation = point_conservation,
                       .topology_churn = topology_churn,
                       .splits = splits,
                       .merges = merges,
@@ -1350,12 +1386,68 @@ class PersistentEngineSession {
   std::uint64_t previous_merges_ = 0;
   std::uint64_t previous_governor_interventions_ = 0;
   std::uint64_t previous_governor_actions_ = 0;
+  std::uint64_t frame_rejected_before_ = 0;
+  std::uint64_t map_point_count_before_update_ = 0;
   std::chrono::nanoseconds measured_elapsed_{0};
   std::chrono::nanoseconds parse_duration_{0};
   std::chrono::nanoseconds window_duration_{0};
   std::chrono::nanoseconds update_duration_{0};
   InputSummary input_summary_;
 };
+
+// Batch counterpart to run() for compact binary streams. It uses the same
+// persistent session as the supervised engine, but retains every measured
+// frame metric so the JSON report has the same benchmark contract as text V2.
+int run_binary(const Options& options) {
+  PersistentEngineSession session(options);
+  bool header = false;
+  bool metadata = false;
+  bool trailer = false;
+  std::string digest;
+  std::string line;
+  while (std::getline(std::cin, line)) {
+    if (line.empty()) continue;
+    std::istringstream input(line);
+    std::string kind;
+    input >> kind;
+    if (kind == "VEYRA_STREAM") {
+      std::string version;
+      input >> version;
+      require_end(input, "stream header");
+      if (header || version != "2") throw std::invalid_argument("binary stream requires V2");
+      header = true;
+    } else if (kind == "H") {
+      if (!header || metadata || trailer || !(input >> digest) || digest.empty()) {
+        throw std::invalid_argument("invalid stream metadata");
+      }
+      require_end(input, "stream metadata");
+      session.set_digest(digest);
+      metadata = true;
+    } else if (kind == "B") {
+      if (!header || !metadata || trailer) throw std::invalid_argument("invalid binary frame");
+      std::string count;
+      if (!(input >> count)) throw std::invalid_argument("malformed binary frame marker");
+      require_end(input, "binary frame marker");
+      session.ingest_binary(std::cin, uint_value(count, "binary point count"));
+    } else if (kind == "D") {
+      std::string trailer_digest;
+      input >> trailer_digest;
+      require_end(input, "stream trailer");
+      if (!header || !metadata || trailer || trailer_digest != digest) {
+        throw std::invalid_argument("invalid stream trailer");
+      }
+      trailer = true;
+    } else {
+      throw std::invalid_argument("binary stream accepts only header, metadata, frames, and trailer");
+    }
+  }
+  if (!header || !metadata || !trailer || session.frame_count() == 0 ||
+      session.result().frame_metrics.empty()) {
+    throw std::invalid_argument("incomplete, empty, or fully warmed-up binary stream");
+  }
+  std::cout << render(session.result());
+  return 0;
+}
 
 // Decimated leaf dump for map-layer rendering. Coordinates and the common
 // compact fields retain the original viewer contract; the descriptive
@@ -1530,6 +1622,7 @@ int veyra::runtime::engine_main(int argc, char** argv) {
   std::cin.tie(nullptr);
   try {
     const auto options = parse_options(argc, argv);
+    if (options.binary_input) return run_binary(options);
     if (options.engine) return run_engine(options);
     const auto output = render(run(options));
     if (options.output.empty()) {

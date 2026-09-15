@@ -17,7 +17,7 @@
  async function command(name:string,args:Json={}){return action(async()=>{const r=await window.veyra.command(name,args);if(r.status)status=r.status;return r;});}
  function refreshText(){configText=JSON.stringify(config,null,2);}
  async function chooseDataset(){await action(async()=>{const response=await window.veyra.chooseDataset(dataset);if(!response)return;catalog=response.result??response;const first=catalog!.sequences?.find((s:Json)=>s.frames>0);sequence=first?.id??'';config={...config,dataset,dataset_root:catalog!.root,sequence};refreshText();notice='Dataset inspected. Configure the runtime to begin.';});}
- async function configure(){await action(async()=>{const next=JSON.parse(configText||JSON.stringify(config));const response=await window.veyra.configure(next);config=next;if(response.status)status=response.status;frame=null;notice='Runtime configured. Start playback or step one frame.';});}
+ async function configure(){await action(async()=>{const next=JSON.parse(configText||JSON.stringify(config));const response=await window.veyra.configure(next);config=next;if(response.status)status=response.status;frame=null;notice='Runtime configured. Loading the first frame…';const first=await window.veyra.command('step');if(first.status)status={...status,...first.status};notice='First frame loaded. Start playback or step through the sequence.';});}
  function applyPreset(){config=profileConfig(config,preset);refreshText();}
  onMount(()=>{
   refreshText();if(!window.veyra){error='Open Veyra through Electron to connect to the runtime.';return;}

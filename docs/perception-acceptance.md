@@ -47,6 +47,12 @@ motion, and the reported stale-track/ego-motion regression results. Do not
 download or redistribute the dataset through ordinary PR CI without confirming
 its license and storage budget.
 
+The local SemanticPOSS replay was profiled in `cluster-only` mode because its
+poses are not accompanied by timestamps. On three real sequence-00 frames
+(66,021/66,049/66,035 points, 100 m crop), the temporal clustering path measured
+p50 335 ms, p95 383 ms and p99 387 ms after the CSR/edge-storage optimization.
+This is a spatial performance measurement, not temporal motion validation.
+
 ASan/UBSan is a host-toolchain checkpoint: the installed GCC links against
 `/usr/lib64/libasan.so.8.0.0`, which is absent on this host. The exact retry is:
 
@@ -58,6 +64,11 @@ cmake -S . -B /tmp/veyra-asan -DCMAKE_BUILD_TYPE=Debug \
 cmake --build /tmp/veyra-asan --parallel
 ctest --test-dir /tmp/veyra-asan --output-on-failure
 ```
+
+The command was also validated on 2026-09-15 using the matching Fedora GCC
+runtime packages unpacked into a temporary, non-system directory: the
+instrumented Debug build completed and CTest passed 16/16 tests. Installing
+those runtimes system-wide still requires administrator access on this host.
 
 ## Boundaries for other contributors
 

@@ -39,8 +39,8 @@ Observation obs(double x, double y, float z) {
   o.x = x;
   o.y = y;
   o.z = z;
-  o.cls = 1;
-  o.confidence = 1.0F;
+  o.semantic_class = 1;
+  o.semantic_confidence = 1.0F;
   return o;
 }
 
@@ -257,8 +257,8 @@ void checkLastSeenStamping() {
 
 Observation labelled(double x, double y, std::uint8_t cls, float conf) {
   Observation o = obs(x, y, 1.0F);
-  o.cls = cls;
-  o.confidence = conf;
+  o.semantic_class = cls;
+  o.semantic_confidence = conf;
   return o;
 }
 
@@ -311,7 +311,25 @@ void checkSemanticAccumulation() {
   CHECK(quiet.find(id)->count == 2);
 }
 
-// 10. Batch equivalence: integrating N points in one call leaves the grid in
+// 10. A canonical 16-bit semantic id must not be silently narrowed by the
+// legacy TileGrid's compact 8-bit class slot. Geometry remains accepted, but
+// the unsupported semantic evidence is reported explicitly.
+void checkSemanticLabelDoesNotNarrow() {
+  TileGrid grid;
+  Observation point = obs(0.01, 0.01, 2.0F);
+  point.semantic_class = 300;
+  point.semantic_confidence = 1.0F;
+  const FusionStats stats = integrate(grid, std::vector<Observation>{point}, 0);
+
+  CHECK(stats.accepted == 1);
+  CHECK(stats.semantic_labels_unrepresentable == 1);
+  const auto* cell = grid.find(veyra::core::CellId{0, 0, 0});
+  CHECK(cell != nullptr);
+  CHECK(cell->count == 1);
+  CHECK(cell->confidence == 0);
+}
+
+// 11. Batch equivalence: integrating N points in one call leaves the grid in
 //     the same state as integrating them one at a time, and the summed
 //     statistics agree.
 //     Catches: state carried between points within a batch -- a running
@@ -380,6 +398,7 @@ int main() {
   checkNonFiniteRejection();
   checkLastSeenStamping();
   checkSemanticAccumulation();
+  checkSemanticLabelDoesNotNarrow();
   checkBatchEquivalence();
   return 0;
 }

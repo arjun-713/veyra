@@ -3,6 +3,7 @@
 import json
 import os
 import subprocess
+import tempfile
 import unittest
 from pathlib import Path
 
@@ -86,6 +87,63 @@ class EngineServiceTests(unittest.TestCase):
             self.assertLessEqual(messages[2]["cells"][0]["u"], 1)
             reports.append((messages[1]["input"], messages[1]["snapshot"], messages[2]))
         self.assertEqual(reports[0], reports[1])
+
+    def test_batch_binary_stream_preserves_full_report_contract(self):
+        from benchmarks.protocol import binary_stream_file
+        from benchmarks.test_runtime import frame as make_frame
+
+        with self.subTest("native batch path"):
+            with tempfile.TemporaryDirectory(prefix="veyra-binary-batch-") as directory:
+                stream_path = Path(directory) / "observations.stream"
+                digest = binary_stream_file(
+                    (make_frame(frame_id=f"{index:06d}") for index in range(2)),
+                    stream_path,
+                )
+                with stream_path.open("rb") as stream_input:
+                    result = subprocess.run(
+                        [str(self.binary), "--binary-input", "--policy", "uniform5"],
+                        stdin=stream_input,
+                        capture_output=True,
+                        timeout=10,
+                    )
+                self.assertEqual(result.returncode, 0, result.stderr.decode())
+                report = json.loads(result.stdout)
+                self.assertEqual(report["stream_digest"], digest)
+                self.assertEqual(report["input_frames"], 2)
+                self.assertEqual(report["metrics"]["frame_count"], 2)
+                self.assertEqual(len(report["frame_metrics"]), 2)
+
+    def test_batch_binary_stream_reports_frame_scoped_conservation_after_eviction(self):
+        from benchmarks.protocol import binary_stream_file
+        from benchmarks.test_runtime import frame as make_frame
+
+        with tempfile.TemporaryDirectory(
+            prefix="veyra-window-conservation-"
+        ) as directory:
+            stream_path = Path(directory) / "observations.stream"
+            binary_stream_file(
+                (
+                    make_frame(
+                        frame_id=f"{index:06d}",
+                        pose_x=index * 250.0,
+                        world_points_follow_pose=True,
+                    )
+                    for index in range(2)
+                ),
+                stream_path,
+            )
+            with stream_path.open("rb") as stream_input:
+                result = subprocess.run(
+                    [str(self.binary), "--binary-input", "--policy", "uniform5"],
+                    stdin=stream_input,
+                    capture_output=True,
+                    timeout=10,
+                )
+            self.assertEqual(result.returncode, 0, result.stderr.decode())
+            report = json.loads(result.stdout)
+            conservation = report["frame_metrics"][-1]["point_conservation"]
+            self.assertTrue(conservation["holds"])
+            self.assertEqual(conservation["scope"], "active_window_after_frame")
 
     def test_dedicated_engine_retains_bounded_history_across_1000_frames(self):
         binary = self.binary

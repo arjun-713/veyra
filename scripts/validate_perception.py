@@ -5,6 +5,8 @@ data/raw/semanticposs/dataset --sequence 00 --count 10 --config
 configs/perception-salsanext.yaml --output benchmark-results/poss-perception.json
 """
 
+# ruff: noqa: E402 - the bootstrap below intentionally precedes repository imports
+
 from __future__ import annotations
 
 import argparse
@@ -14,10 +16,19 @@ import os
 import platform
 import resource
 import subprocess
+import sys
 from dataclasses import asdict
 from datetime import datetime, timezone
 from pathlib import Path
 from time import perf_counter
+
+# Keep the documented module invocation and the direct script invocation
+# equivalent.  When Python executes a file under ``scripts/``, it places that
+# directory—not the repository root—on sys.path, which otherwise prevents the
+# sibling ``benchmarks`` and ``datasets`` packages from being imported.
+_REPO_ROOT = Path(__file__).resolve().parents[1]
+if str(_REPO_ROOT) not in sys.path:
+    sys.path.insert(0, str(_REPO_ROOT))
 
 import numpy as np
 import yaml

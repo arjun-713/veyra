@@ -5,6 +5,7 @@ from __future__ import annotations
 import hashlib
 import math
 import struct
+from collections.abc import Iterable
 from pathlib import Path
 
 import numpy as np
@@ -196,13 +197,15 @@ def stream_bytes(frames: list[ObservationFrame]) -> tuple[bytes, str]:
     return (f"{payload}D {checksum}\n".encode("ascii"), checksum)
 
 
-def stream_file(frames: list[ObservationFrame], path: str | Path) -> str:
+def stream_file(frames: Iterable[ObservationFrame], path: str | Path) -> str:
     """Write the canonical stream incrementally and return its digest.
 
     Unlike :func:`stream_bytes`, this avoids retaining the serialized stream
-    alongside all source frames. The fixed-width header digest is backfilled
-    after records are written, then the trailer is appended. The resulting
-    bytes are intentionally identical to ``stream_bytes(frames)[0]``.
+    alongside source frames. ``frames`` may be a one-shot generator, allowing
+    dataset and perception stages to stream without materialising a sequence.
+    The fixed-width header digest is backfilled after records are written, then
+    the trailer is appended. The resulting bytes are intentionally identical
+    to ``stream_bytes(list(frames))[0]``.
     """
     output_path = Path(path)
     output_path.parent.mkdir(parents=True, exist_ok=True)
@@ -215,6 +218,32 @@ def stream_file(frames: list[ObservationFrame], path: str | Path) -> str:
                 encoded = record.encode("ascii")
                 output.write(encoded)
                 digest.update(encoded)
+        checksum = digest.hexdigest().encode("ascii")
+        output.seek(len(prefix))
+        output.write(checksum)
+        output.seek(0, 2)
+        output.write(b"D " + checksum + b"\n")
+    return digest.hexdigest()
+
+
+def binary_stream_file(frames: Iterable[ObservationFrame], path: str | Path) -> str:
+    """Write a compact binary V2 stream without retaining the frame sequence.
+
+    The digest covers the exact binary records written after the ``H`` line:
+    each ``B <count>`` marker and its packed frame payload.  This is a distinct
+    representation from the canonical text stream, so callers must pass the
+    matching ``--binary-input`` mode to the native batch executable.
+    """
+    output_path = Path(path)
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+    prefix = f"VEYRA_STREAM {PROTOCOL_VERSION}\nH ".encode("ascii")
+    digest = hashlib.sha256()
+    with output_path.open("wb+") as output:
+        output.write(prefix + b"0" * 64 + b"\n")
+        for frame in frames:
+            encoded = binary_frame_bytes(frame)
+            output.write(encoded)
+            digest.update(encoded)
         checksum = digest.hexdigest().encode("ascii")
         output.seek(len(prefix))
         output.write(checksum)

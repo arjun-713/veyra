@@ -339,8 +339,8 @@ void checkSplitThenIntegrate() {
   o.x = 0.5 * (e.min_x + e.max_x);
   o.y = 0.5 * (e.min_y + e.max_y);
   o.z = 9.0F;
-  o.cls = before.cls;
-  o.confidence = 1.0F;
+  o.semantic_class = before.cls;
+  o.semantic_confidence = 1.0F;
   const veyra::map::FusionStats fs =
       veyra::map::integrate(grid, std::vector<veyra::map::Observation>{o}, 77);
   CHECK(fs.accepted == 1);

@@ -7,36 +7,9 @@
 #include <vector>
 
 #include "veyra/core/types.hpp"
+#include "veyra/map/observation.hpp"
 
 namespace veyra::map {
-
-struct Observation {
-  double x = 0.0;
-  double y = 0.0;
-  double z = 0.0;
-  std::uint64_t timestamp = 0;
-  std::uint16_t semantic_class = 0;
-  // Preserve the dataset/model identifier alongside the unified class. A
-  // downstream consumer may need the source taxonomy for diagnostics or
-  // evaluation; it is not used as the map's canonical class key.
-  std::int32_t raw_semantic_class = 0;
-  float semantic_confidence = 0.0F;
-  // 0=unknown, 1=drivable, 2=non-drivable. Evidence fields are point-local
-  // inputs; only their sufficient aggregates are retained in CellStats.
-  std::uint8_t drivable = 0;
-  std::uint8_t ground = 0;
-  float terrain_confidence = 0.0F;
-  float geometry_complexity = 0.0F;
-  float motion_probability = 0.0F;
-  // 0=static, 1=possibly moving, 2=moving, 3=unknown.
-  std::uint8_t motion_state = 3;
-  float observation_quality = 0.0F;
-  // Transient per-point policy input for predictive refinement. Velocity is
-  // consumed as an instantaneous radial range rate and is never retained in
-  // map cells (see parse_observation_record mapping and radial_range_rate_mps).
-  float velocity_x = 0.0F;
-  float velocity_y = 0.0F;
-};
 
 // Sufficient elevation statistics only. No observation coordinates or raw
 // point history are retained by the map.
