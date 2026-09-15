@@ -19,7 +19,7 @@ struct TileKey {
   std::int32_t ix = 0;
   std::int32_t iy = 0;
 
-  constexpr bool operator==(const TileKey &) const = default;
+  constexpr bool operator==(const TileKey&) const = default;
 };
 
 [[nodiscard]] std::size_t mix(std::uint64_t value) noexcept {
@@ -40,27 +40,23 @@ struct StoredCell {
   CellStats stats;
 };
 
-[[nodiscard]] bool less_id(const core::CellId &left,
-                           const core::CellId &right) noexcept {
+[[nodiscard]] bool less_id(const core::CellId& left, const core::CellId& right) noexcept {
   if (left.level != right.level) return left.level < right.level;
   if (left.ix != right.ix) return left.ix < right.ix;
   return left.iy < right.iy;
 }
 
-[[nodiscard]] bool less_entry(const StoredCell &left,
-                              const core::CellId &right) noexcept {
+[[nodiscard]] bool less_entry(const StoredCell& left, const core::CellId& right) noexcept {
   return less_id(left.id, right);
 }
 
 using CellArray = std::vector<StoredCell>;
 
-[[nodiscard]] CellArray::iterator find_entry(CellArray &cells,
-                                              core::CellId id) {
+[[nodiscard]] CellArray::iterator find_entry(CellArray& cells, core::CellId id) {
   return std::lower_bound(cells.begin(), cells.end(), id, less_entry);
 }
 
-[[nodiscard]] CellArray::const_iterator find_entry(const CellArray &cells,
-                                                    core::CellId id) {
+[[nodiscard]] CellArray::const_iterator find_entry(const CellArray& cells, core::CellId id) {
   return std::lower_bound(cells.begin(), cells.end(), id, less_entry);
 }
 
@@ -92,26 +88,26 @@ class SparseTileStore {
  public:
   SparseTileStore() : slots_(kInitialSlotCount) {}
 
-  [[nodiscard]] Tile *find(TileKey key) {
+  [[nodiscard]] Tile* find(TileKey key) {
     const auto index = find_slot(key);
     return index.has_value() ? &slots_[*index].tile : nullptr;
   }
 
-  [[nodiscard]] const Tile *find(TileKey key) const {
+  [[nodiscard]] const Tile* find(TileKey key) const {
     const auto index = find_slot(key);
     return index.has_value() ? &slots_[*index].tile : nullptr;
   }
 
-  Tile &find_or_create(TileKey key) {
+  Tile& find_or_create(TileKey key) {
     ensure_insert_capacity();
     const std::size_t mask = slots_.size() - 1U;
     std::size_t position = hash_tile(key) & mask;
     std::optional<std::size_t> first_tombstone;
     for (;;) {
-      TileSlot &slot = slots_[position];
+      TileSlot& slot = slots_[position];
       if (slot.state == SlotState::Empty) {
         const std::size_t destination = first_tombstone.value_or(position);
-        TileSlot &created = slots_[destination];
+        TileSlot& created = slots_[destination];
         if (created.state == SlotState::Tombstone) --tombstones_;
         created.key = key;
         created.tile = Tile{};
@@ -131,7 +127,7 @@ class SparseTileStore {
   void erase_if_empty(TileKey key) {
     const auto index = find_slot(key);
     if (!index.has_value()) return;
-    TileSlot &slot = slots_[*index];
+    TileSlot& slot = slots_[*index];
     if (!slot.tile.empty()) return;
     slot.tile = Tile{};
     slot.state = SlotState::Tombstone;
@@ -140,15 +136,15 @@ class SparseTileStore {
   }
 
   template <typename Function>
-  void for_each_tile(Function &&function) {
-    for (TileSlot &slot : slots_) {
+  void for_each_tile(Function&& function) {
+    for (TileSlot& slot : slots_) {
       if (slot.state == SlotState::Occupied) function(slot.key, slot.tile);
     }
   }
 
   template <typename Function>
-  void for_each_tile(Function &&function) const {
-    for (const TileSlot &slot : slots_) {
+  void for_each_tile(Function&& function) const {
+    for (const TileSlot& slot : slots_) {
       if (slot.state == SlotState::Occupied) function(slot.key, slot.tile);
     }
   }
@@ -166,7 +162,7 @@ class SparseTileStore {
     const std::size_t mask = slots_.size() - 1U;
     std::size_t position = hash_tile(key) & mask;
     for (std::size_t probes = 0; probes < slots_.size(); ++probes) {
-      const TileSlot &slot = slots_[position];
+      const TileSlot& slot = slots_[position];
       if (slot.state == SlotState::Empty) return std::nullopt;
       if (slot.state == SlotState::Occupied && slot.key == key) return position;
       position = (position + 1U) & mask;
@@ -187,7 +183,7 @@ class SparseTileStore {
     size_ = 0;
     tombstones_ = 0;
     const std::size_t mask = slots_.size() - 1U;
-    for (TileSlot &old : old_slots) {
+    for (TileSlot& old : old_slots) {
       if (old.state != SlotState::Occupied) continue;
       std::size_t position = hash_tile(old.key) & mask;
       while (slots_[position].state == SlotState::Occupied) {
@@ -205,8 +201,7 @@ class SparseTileStore {
   std::size_t tombstones_ = 0;
 };
 
-[[nodiscard]] std::int32_t checked_floor_to_i32(double value,
-                                                 const char *message) {
+[[nodiscard]] std::int32_t checked_floor_to_i32(double value, const char* message) {
   if (!std::isfinite(value) ||
       value < static_cast<double>(std::numeric_limits<std::int32_t>::min()) ||
       value > static_cast<double>(std::numeric_limits<std::int32_t>::max())) {
@@ -218,8 +213,7 @@ class SparseTileStore {
 [[nodiscard]] core::CellId index(double x, double y, int level) {
   core::validate_level(level);
   const double resolution = core::resolution_m(level);
-  return {level,
-          checked_floor_to_i32(x / resolution, "x coordinate exceeds map lattice"),
+  return {level, checked_floor_to_i32(x / resolution, "x coordinate exceeds map lattice"),
           checked_floor_to_i32(y / resolution, "y coordinate exceeds map lattice")};
 }
 
@@ -244,8 +238,7 @@ class SparseTileStore {
       child_y > std::numeric_limits<std::int32_t>::max()) {
     throw std::out_of_range("dyadic child exceeds map lattice");
   }
-  return {parent.level - 1, static_cast<std::int32_t>(child_x),
-          static_cast<std::int32_t>(child_y)};
+  return {parent.level - 1, static_cast<std::int32_t>(child_x), static_cast<std::int32_t>(child_y)};
 }
 
 }  // namespace
@@ -260,7 +253,7 @@ struct Map::Impl {
       throw std::invalid_argument("tile size must be finite and positive");
     }
     if (policy == ResolutionPolicy::DistanceLod) {
-      const auto &boundaries = config.distance_boundaries_m;
+      const auto& boundaries = config.distance_boundaries_m;
       if (!std::isfinite(boundaries[0]) || !std::isfinite(boundaries[1]) ||
           !std::isfinite(boundaries[2]) || !(boundaries[0] > 0.0) ||
           !(boundaries[0] < boundaries[1]) || !(boundaries[1] < boundaries[2]) ||
@@ -272,11 +265,9 @@ struct Map::Impl {
 
   [[nodiscard]] TileKey tile_key_for(core::CellId id) const {
     const double resolution = core::resolution_m(id.level);
-    return {checked_floor_to_i32(static_cast<double>(id.ix) * resolution /
-                                     config.tile_size_m,
+    return {checked_floor_to_i32(static_cast<double>(id.ix) * resolution / config.tile_size_m,
                                  "x tile index exceeds map lattice"),
-            checked_floor_to_i32(static_cast<double>(id.iy) * resolution /
-                                     config.tile_size_m,
+            checked_floor_to_i32(static_cast<double>(id.iy) * resolution / config.tile_size_m,
                                  "y tile index exceeds map lattice")};
   }
 
@@ -287,7 +278,7 @@ struct Map::Impl {
     return dx * dx + dy * dy <= config.window_radius_m * config.window_radius_m;
   }
 
-  void validate_observation(const Observation &observation) const {
+  void validate_observation(const Observation& observation) const {
     if (!std::isfinite(observation.x) || !std::isfinite(observation.y) ||
         !std::isfinite(observation.z)) {
       throw std::invalid_argument("observation coordinates must be finite");
@@ -308,7 +299,7 @@ struct Map::Impl {
         return 3;
       case ResolutionPolicy::DistanceLod: {
         const double distance = std::hypot(x - center_x, y - center_y);
-        const auto &boundaries = config.distance_boundaries_m;
+        const auto& boundaries = config.distance_boundaries_m;
         if (distance < boundaries[0]) return 0;
         if (distance < boundaries[1]) return 1;
         if (distance < boundaries[2]) return 2;
@@ -320,17 +311,17 @@ struct Map::Impl {
   }
 
   [[nodiscard]] std::optional<CellStats> leaf(core::CellId id) const {
-    const Tile *tile = tiles.find(tile_key_for(id));
+    const Tile* tile = tiles.find(tile_key_for(id));
     if (tile == nullptr) return std::nullopt;
-    const CellArray &entries = tile->leaves[id.level];
+    const CellArray& entries = tile->leaves[id.level];
     const auto entry = find_entry(entries, id);
     if (entry == entries.end() || entry->id != id) return std::nullopt;
     return entry->stats;
   }
 
-  void merge_leaf(core::CellId id, const CellStats &stats) {
-    Tile &tile = tiles.find_or_create(tile_key_for(id));
-    CellArray &entries = tile.leaves[id.level];
+  void merge_leaf(core::CellId id, const CellStats& stats) {
+    Tile& tile = tiles.find_or_create(tile_key_for(id));
+    CellArray& entries = tile.leaves[id.level];
     const auto entry = find_entry(entries, id);
     if (entry != entries.end() && entry->id == id) {
       entry->stats.merge(stats);
@@ -341,9 +332,9 @@ struct Map::Impl {
 
   [[nodiscard]] std::optional<CellStats> take_leaf(core::CellId id) {
     const TileKey key = tile_key_for(id);
-    Tile *tile = tiles.find(key);
+    Tile* tile = tiles.find(key);
     if (tile == nullptr) return std::nullopt;
-    CellArray &entries = tile->leaves[id.level];
+    CellArray& entries = tile->leaves[id.level];
     const auto entry = find_entry(entries, id);
     if (entry == entries.end() || entry->id != id) return std::nullopt;
     CellStats stats = entry->stats;
@@ -352,10 +343,10 @@ struct Map::Impl {
     return stats;
   }
 
-  void merge_prior(core::CellId id, const CellStats &stats) {
+  void merge_prior(core::CellId id, const CellStats& stats) {
     if (stats.count == 0) return;
-    Tile &tile = tiles.find_or_create(tile_key_for(id));
-    CellArray &entries = tile.priors[id.level];
+    Tile& tile = tiles.find_or_create(tile_key_for(id));
+    CellArray& entries = tile.priors[id.level];
     const auto entry = find_entry(entries, id);
     if (entry != entries.end() && entry->id == id) {
       entry->stats.merge(stats);
@@ -366,9 +357,9 @@ struct Map::Impl {
 
   [[nodiscard]] std::optional<CellStats> take_prior(core::CellId id) {
     const TileKey key = tile_key_for(id);
-    Tile *tile = tiles.find(key);
+    Tile* tile = tiles.find(key);
     if (tile == nullptr) return std::nullopt;
-    CellArray &entries = tile->priors[id.level];
+    CellArray& entries = tile->priors[id.level];
     const auto entry = find_entry(entries, id);
     if (entry == entries.end() || entry->id != id) return std::nullopt;
     CellStats stats = entry->stats;
@@ -389,6 +380,7 @@ struct Map::Impl {
       for (int dx = 0; dx < 2; ++dx) merge_leaf(child_at(id, dx, dy), {});
     }
     ++topology_changes;
+    ++split_count;
     return true;
   }
 
@@ -432,7 +424,10 @@ struct Map::Impl {
       }
     }
     if (merged.count != 0) merge_leaf(target, merged);
-    if (found_active_descendant) ++topology_changes;
+    if (found_active_descendant) {
+      ++topology_changes;
+      ++merge_count;
+    }
     return found_active_descendant;
   }
 
@@ -450,13 +445,12 @@ struct Map::Impl {
   }
 
   template <typename Predicate>
-  void erase_entries_if(Predicate &&predicate) {
+  void erase_entries_if(Predicate&& predicate) {
     std::vector<TileKey> empty_tiles;
-    tiles.for_each_tile([&](TileKey key, Tile &tile) {
+    tiles.for_each_tile([&](TileKey key, Tile& tile) {
       for (int level = 0; level <= kMaxLevel; ++level) {
-        auto remove = [&](CellArray &entries) {
-          entries.erase(std::remove_if(entries.begin(), entries.end(), predicate),
-                        entries.end());
+        auto remove = [&](CellArray& entries) {
+          entries.erase(std::remove_if(entries.begin(), entries.end(), predicate), entries.end());
         };
         remove(tile.leaves[level]);
         remove(tile.priors[level]);
@@ -472,9 +466,11 @@ struct Map::Impl {
   double center_y = 0.0;
   SparseTileStore tiles;
   std::uint64_t topology_changes = 0;
+  std::uint64_t split_count = 0;
+  std::uint64_t merge_count = 0;
 };
 
-void CellStats::add(const Observation &observation) {
+void CellStats::add(const Observation& observation) {
   if (!std::isfinite(observation.z)) {
     throw std::invalid_argument("elevation must be finite");
   }
@@ -482,13 +478,13 @@ void CellStats::add(const Observation &observation) {
       !std::isfinite(observation.terrain_confidence) ||
       !std::isfinite(observation.geometry_complexity) ||
       !std::isfinite(observation.motion_probability) ||
-      !std::isfinite(observation.observation_quality) ||
-      observation.semantic_confidence < 0.0F || observation.semantic_confidence > 1.0F ||
-      observation.terrain_confidence < 0.0F || observation.terrain_confidence > 1.0F ||
-      observation.geometry_complexity < 0.0F || observation.geometry_complexity > 1.0F ||
-      observation.motion_probability < 0.0F || observation.motion_probability > 1.0F ||
-      observation.observation_quality < 0.0F || observation.observation_quality > 1.0F ||
-      observation.ground > 1 || observation.drivable > 2) {
+      !std::isfinite(observation.observation_quality) || observation.semantic_confidence < 0.0F ||
+      observation.semantic_confidence > 1.0F || observation.terrain_confidence < 0.0F ||
+      observation.terrain_confidence > 1.0F || observation.geometry_complexity < 0.0F ||
+      observation.geometry_complexity > 1.0F || observation.motion_probability < 0.0F ||
+      observation.motion_probability > 1.0F || observation.observation_quality < 0.0F ||
+      observation.observation_quality > 1.0F || observation.ground > 1 ||
+      observation.drivable > 2) {
     throw std::invalid_argument("observation evidence is out of range");
   }
   const double previous_count = static_cast<double>(count);
@@ -497,9 +493,9 @@ void CellStats::add(const Observation &observation) {
     semantic_class = observation.semantic_class;
     semantic_evidence = observation.semantic_confidence;
     semantic_confidence = observation.semantic_confidence;
-    drivable_evidence = observation.drivable == 1 ? observation.terrain_confidence
-                       : observation.drivable == 2 ? -observation.terrain_confidence
-                                                   : 0.0F;
+    drivable_evidence = observation.drivable == 1   ? observation.terrain_confidence
+                        : observation.drivable == 2 ? -observation.terrain_confidence
+                                                    : 0.0F;
     ground_evidence = observation.ground == 1 ? observation.terrain_confidence : 0.0F;
     terrain_confidence = observation.terrain_confidence;
     geometry_complexity = observation.geometry_complexity;
@@ -511,21 +507,23 @@ void CellStats::add(const Observation &observation) {
       semantic_class = observation.semantic_class;
       semantic_evidence = observation.semantic_confidence;
     }
-    semantic_confidence = static_cast<float>((semantic_confidence * previous_count +
-                                               observation.semantic_confidence) / next_count);
-    const float drivable = observation.drivable == 1 ? observation.terrain_confidence
-                          : observation.drivable == 2 ? -observation.terrain_confidence : 0.0F;
+    semantic_confidence = static_cast<float>(
+        (semantic_confidence * previous_count + observation.semantic_confidence) / next_count);
+    const float drivable = observation.drivable == 1   ? observation.terrain_confidence
+                           : observation.drivable == 2 ? -observation.terrain_confidence
+                                                       : 0.0F;
     const float ground = observation.ground == 1 ? observation.terrain_confidence : 0.0F;
-    drivable_evidence = static_cast<float>((drivable_evidence * previous_count + drivable) / next_count);
+    drivable_evidence =
+        static_cast<float>((drivable_evidence * previous_count + drivable) / next_count);
     ground_evidence = static_cast<float>((ground_evidence * previous_count + ground) / next_count);
-    terrain_confidence = static_cast<float>((terrain_confidence * previous_count +
-                                              observation.terrain_confidence) / next_count);
-    geometry_complexity = static_cast<float>((geometry_complexity * previous_count +
-                                               observation.geometry_complexity) / next_count);
-    motion_evidence = static_cast<float>((motion_evidence * previous_count +
-                                           observation.motion_probability) / next_count);
-    observation_quality = static_cast<float>((observation_quality * previous_count +
-                                               observation.observation_quality) / next_count);
+    terrain_confidence = static_cast<float>(
+        (terrain_confidence * previous_count + observation.terrain_confidence) / next_count);
+    geometry_complexity = static_cast<float>(
+        (geometry_complexity * previous_count + observation.geometry_complexity) / next_count);
+    motion_evidence = static_cast<float>(
+        (motion_evidence * previous_count + observation.motion_probability) / next_count);
+    observation_quality = static_cast<float>(
+        (observation_quality * previous_count + observation.observation_quality) / next_count);
   }
   ++count;
   const double delta = observation.z - mean_z;
@@ -536,7 +534,7 @@ void CellStats::add(const Observation &observation) {
   last_seen = std::max(last_seen, observation.timestamp);
 }
 
-void CellStats::merge(const CellStats &other) {
+void CellStats::merge(const CellStats& other) {
   if (other.count == 0) return;
   if (count == 0) {
     *this = other;
@@ -545,10 +543,8 @@ void CellStats::merge(const CellStats &other) {
   const double left_count = static_cast<double>(count);
   const double right_count = static_cast<double>(other.count);
   const double delta = other.mean_z - mean_z;
-  m2_z += other.m2_z + delta * delta * left_count * right_count /
-                            (left_count + right_count);
-  mean_z = (left_count * mean_z + right_count * other.mean_z) /
-           (left_count + right_count);
+  m2_z += other.m2_z + delta * delta * left_count * right_count / (left_count + right_count);
+  mean_z = (left_count * mean_z + right_count * other.mean_z) / (left_count + right_count);
   count += other.count;
   min_z = std::min(min_z, other.min_z);
   max_z = std::max(max_z, other.max_z);
@@ -558,20 +554,20 @@ void CellStats::merge(const CellStats &other) {
     semantic_evidence = other.semantic_evidence;
   }
   const double total = left_count + right_count;
-  semantic_confidence = static_cast<float>((semantic_confidence * left_count +
-                                             other.semantic_confidence * right_count) / total);
-  drivable_evidence = static_cast<float>((drivable_evidence * left_count +
-                                           other.drivable_evidence * right_count) / total);
-  ground_evidence = static_cast<float>((ground_evidence * left_count +
-                                        other.ground_evidence * right_count) / total);
-  terrain_confidence = static_cast<float>((terrain_confidence * left_count +
-                                            other.terrain_confidence * right_count) / total);
-  geometry_complexity = static_cast<float>((geometry_complexity * left_count +
-                                             other.geometry_complexity * right_count) / total);
-  motion_evidence = static_cast<float>((motion_evidence * left_count +
-                                         other.motion_evidence * right_count) / total);
-  observation_quality = static_cast<float>((observation_quality * left_count +
-                                             other.observation_quality * right_count) / total);
+  semantic_confidence = static_cast<float>(
+      (semantic_confidence * left_count + other.semantic_confidence * right_count) / total);
+  drivable_evidence = static_cast<float>(
+      (drivable_evidence * left_count + other.drivable_evidence * right_count) / total);
+  ground_evidence = static_cast<float>(
+      (ground_evidence * left_count + other.ground_evidence * right_count) / total);
+  terrain_confidence = static_cast<float>(
+      (terrain_confidence * left_count + other.terrain_confidence * right_count) / total);
+  geometry_complexity = static_cast<float>(
+      (geometry_complexity * left_count + other.geometry_complexity * right_count) / total);
+  motion_evidence = static_cast<float>(
+      (motion_evidence * left_count + other.motion_evidence * right_count) / total);
+  observation_quality = static_cast<float>(
+      (observation_quality * left_count + other.observation_quality * right_count) / total);
 }
 
 double CellStats::variance_z() const {
@@ -581,15 +577,13 @@ double CellStats::variance_z() const {
 std::size_t MapSnapshot::count_at_level(int level) const {
   core::validate_level(level);
   return static_cast<std::size_t>(std::count_if(
-      leaves.begin(), leaves.end(), [level](const Leaf &leaf) {
-        return leaf.id.level == level;
-      }));
+      leaves.begin(), leaves.end(), [level](const Leaf& leaf) { return leaf.id.level == level; }));
 }
 
 bool MapSnapshot::has_no_parent_descendant_overlap() const {
   std::vector<core::CellId> ids;
   ids.reserve(leaves.size());
-  for (const Leaf &leaf : leaves) ids.push_back(leaf.id);
+  for (const Leaf& leaf : leaves) ids.push_back(leaf.id);
   std::sort(ids.begin(), ids.end(), less_id);
   if (std::adjacent_find(ids.begin(), ids.end()) != ids.end()) return false;
   for (const core::CellId id : ids) {
@@ -605,8 +599,8 @@ bool MapSnapshot::has_no_parent_descendant_overlap() const {
 Map::Map(ResolutionPolicy policy, MapConfig config)
     : impl_(std::make_unique<Impl>(policy, config)) {}
 Map::~Map() = default;
-Map::Map(Map &&) noexcept = default;
-Map &Map::operator=(Map &&) noexcept = default;
+Map::Map(Map&&) noexcept = default;
+Map& Map::operator=(Map&&) noexcept = default;
 
 core::CellId Map::cell_for(double x, double y) const {
   const int level = level_for(x, y);
@@ -618,14 +612,14 @@ int Map::level_for(double x, double y) const { return impl_->level_for(x, y); }
 
 bool Map::accepts(double x, double y) const { return impl_->accepts(x, y); }
 
-void Map::update(const Observation &observation) {
+void Map::update(const Observation& observation) {
   impl_->validate_observation(observation);
   const int level = impl_->level_for(observation.x, observation.y);
   if (level < 0) throw std::out_of_range("observation is outside DistanceLOD range");
   update_at_level(observation, level);
 }
 
-void Map::update_at_level(const Observation &observation, int level) {
+void Map::update_at_level(const Observation& observation, int level) {
   impl_->validate_observation(observation);
   core::validate_level(level);
   const core::CellId id = index(observation.x, observation.y, level);
@@ -642,13 +636,12 @@ void Map::set_window_center(double x, double y) {
   }
   impl_->center_x = x;
   impl_->center_y = y;
-  impl_->erase_entries_if([&](const StoredCell &entry) {
-    return !impl_->cell_intersects_window(entry.id);
-  });
+  impl_->erase_entries_if(
+      [&](const StoredCell& entry) { return !impl_->cell_intersects_window(entry.id); });
 }
 
 void Map::evict_stale_before(std::uint64_t minimum_timestamp) {
-  impl_->erase_entries_if([minimum_timestamp](const StoredCell &entry) {
+  impl_->erase_entries_if([minimum_timestamp](const StoredCell& entry) {
     return entry.stats.last_seen < minimum_timestamp;
   });
 }
@@ -679,78 +672,85 @@ void Map::merge_children(core::CellId parent) {
   for (const core::CellId child : children) (void)impl_->take_leaf(child);
   impl_->merge_leaf(parent, merged);
   ++impl_->topology_changes;
+  ++impl_->merge_count;
 }
 
 MapSnapshot Map::snapshot() const {
   MapSnapshot snapshot;
-  impl_->tiles.for_each_tile([&](TileKey, const Tile &tile) {
+  impl_->tiles.for_each_tile([&](TileKey, const Tile& tile) {
     snapshot.memory.allocated_tile_bytes += sizeof(Tile);
     for (int level = 0; level <= kMaxLevel; ++level) {
       snapshot.memory.allocated_cell_array_bytes +=
           tile.leaves[level].capacity() * sizeof(StoredCell);
       snapshot.memory.allocated_cell_array_bytes +=
           tile.priors[level].capacity() * sizeof(StoredCell);
-      snapshot.memory.logical_payload_bytes +=
-          tile.leaves[level].size() * sizeof(Leaf);
-      snapshot.memory.retained_prior_payload_bytes +=
-          tile.priors[level].size() * sizeof(Leaf);
-      for (const StoredCell &entry : tile.leaves[level]) {
+      snapshot.memory.logical_payload_bytes += tile.leaves[level].size() * sizeof(Leaf);
+      snapshot.memory.retained_prior_payload_bytes += tile.priors[level].size() * sizeof(Leaf);
+      for (const StoredCell& entry : tile.leaves[level]) {
         snapshot.leaves.push_back({entry.id, entry.stats});
         snapshot.point_count += entry.stats.count;
       }
-      for (const StoredCell &entry : tile.priors[level]) {
+      for (const StoredCell& entry : tile.priors[level]) {
         snapshot.point_count += entry.stats.count;
         snapshot.nonspatial_prior_point_count += entry.stats.count;
       }
     }
   });
   std::sort(snapshot.leaves.begin(), snapshot.leaves.end(),
-            [](const Leaf &left, const Leaf &right) { return less_id(left.id, right.id); });
+            [](const Leaf& left, const Leaf& right) { return less_id(left.id, right.id); });
   snapshot.active_leaf_count = snapshot.leaves.size();
   snapshot.tile_count = impl_->tiles.size();
   snapshot.memory.allocated_index_bytes = impl_->tiles.allocated_index_bytes();
-  snapshot.memory.allocated_bytes = snapshot.memory.allocated_index_bytes +
-                                    snapshot.memory.allocated_cell_array_bytes;
+  snapshot.memory.allocated_bytes =
+      snapshot.memory.allocated_index_bytes + snapshot.memory.allocated_cell_array_bytes;
   snapshot.memory.allocated_overhead_bytes =
       snapshot.memory.allocated_bytes - snapshot.memory.allocated_cell_array_bytes;
-  snapshot.logical_bytes = snapshot.memory.logical_payload_bytes +
-                           snapshot.memory.retained_prior_payload_bytes;
+  snapshot.logical_bytes =
+      snapshot.memory.logical_payload_bytes + snapshot.memory.retained_prior_payload_bytes;
   snapshot.topology_change_count = impl_->topology_changes;
+  snapshot.split_count = impl_->split_count;
+  snapshot.merge_count = impl_->merge_count;
   return snapshot;
 }
 
 Uniform5Map::Uniform5Map(MapConfig config) : map_(ResolutionPolicy::Uniform5, config) {}
 Uniform5Map::~Uniform5Map() = default;
-Uniform5Map::Uniform5Map(Uniform5Map &&) noexcept = default;
-Uniform5Map &Uniform5Map::operator=(Uniform5Map &&) noexcept = default;
+Uniform5Map::Uniform5Map(Uniform5Map&&) noexcept = default;
+Uniform5Map& Uniform5Map::operator=(Uniform5Map&&) noexcept = default;
 core::CellId Uniform5Map::cell_for(double x, double y) const { return map_.cell_for(x, y); }
 bool Uniform5Map::accepts(double x, double y) const { return map_.accepts(x, y); }
-void Uniform5Map::update(const Observation &observation) { map_.update(observation); }
+void Uniform5Map::update(const Observation& observation) { map_.update(observation); }
 void Uniform5Map::set_window_center(double x, double y) { map_.set_window_center(x, y); }
-void Uniform5Map::evict_stale_before(std::uint64_t timestamp) { map_.evict_stale_before(timestamp); }
+void Uniform5Map::evict_stale_before(std::uint64_t timestamp) {
+  map_.evict_stale_before(timestamp);
+}
 MapSnapshot Uniform5Map::snapshot() const { return map_.snapshot(); }
 
 Uniform40Map::Uniform40Map(MapConfig config) : map_(ResolutionPolicy::Uniform40, config) {}
 Uniform40Map::~Uniform40Map() = default;
-Uniform40Map::Uniform40Map(Uniform40Map &&) noexcept = default;
-Uniform40Map &Uniform40Map::operator=(Uniform40Map &&) noexcept = default;
+Uniform40Map::Uniform40Map(Uniform40Map&&) noexcept = default;
+Uniform40Map& Uniform40Map::operator=(Uniform40Map&&) noexcept = default;
 core::CellId Uniform40Map::cell_for(double x, double y) const { return map_.cell_for(x, y); }
 bool Uniform40Map::accepts(double x, double y) const { return map_.accepts(x, y); }
-void Uniform40Map::update(const Observation &observation) { map_.update(observation); }
+void Uniform40Map::update(const Observation& observation) { map_.update(observation); }
 void Uniform40Map::set_window_center(double x, double y) { map_.set_window_center(x, y); }
-void Uniform40Map::evict_stale_before(std::uint64_t timestamp) { map_.evict_stale_before(timestamp); }
+void Uniform40Map::evict_stale_before(std::uint64_t timestamp) {
+  map_.evict_stale_before(timestamp);
+}
 MapSnapshot Uniform40Map::snapshot() const { return map_.snapshot(); }
 
 DistanceLodMap::DistanceLodMap(MapConfig config) : map_(ResolutionPolicy::DistanceLod, config) {}
 DistanceLodMap::~DistanceLodMap() = default;
-DistanceLodMap::DistanceLodMap(DistanceLodMap &&) noexcept = default;
-DistanceLodMap &DistanceLodMap::operator=(DistanceLodMap &&) noexcept = default;
+DistanceLodMap::DistanceLodMap(DistanceLodMap&&) noexcept = default;
+DistanceLodMap& DistanceLodMap::operator=(DistanceLodMap&&) noexcept = default;
 core::CellId DistanceLodMap::cell_for(double x, double y) const { return map_.cell_for(x, y); }
 bool DistanceLodMap::accepts(double x, double y) const { return map_.accepts(x, y); }
 int DistanceLodMap::level_for(double x, double y) const { return map_.level_for(x, y); }
-void DistanceLodMap::update(const Observation &observation) { map_.update(observation); }
+void DistanceLodMap::update(const Observation& observation) { map_.update(observation); }
 void DistanceLodMap::set_window_center(double x, double y) { map_.set_window_center(x, y); }
-void DistanceLodMap::evict_stale_before(std::uint64_t timestamp) { map_.evict_stale_before(timestamp); }
+void DistanceLodMap::evict_stale_before(std::uint64_t timestamp) {
+  map_.evict_stale_before(timestamp);
+}
 void DistanceLodMap::split(core::CellId id) { map_.split(id); }
 void DistanceLodMap::merge_children(core::CellId parent) { map_.merge_children(parent); }
 MapSnapshot DistanceLodMap::snapshot() const { return map_.snapshot(); }

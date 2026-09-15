@@ -9,6 +9,9 @@ the browser.  Map results are optional and are surfaced only when the existing
 from __future__ import annotations
 
 import json
+import queue
+import time
+from collections import deque
 import subprocess
 import threading
 from collections.abc import Mapping
@@ -92,6 +95,10 @@ class PersistentMapEngine:
         *,
         policy: str = "distance_lod",
         window_radius_m: float = 100.001,
+        timeout_s: float = 30.0,
+        transport: str = "text",
+        utility_config: str | Path | None = None,
+        governor_config: str | Path | None = None,
     ) -> None:
         if not np.isfinite(window_radius_m) or window_radius_m <= 60.0:
             raise RuntimeConfigurationError(
@@ -100,7 +107,21 @@ class PersistentMapEngine:
         self.executable = Path(executable)
         self.policy = policy
         self.window_radius_m = float(window_radius_m)
-        self._process: subprocess.Popen[str] | None = None
+        if transport not in ("text", "binary"):
+            raise RuntimeConfigurationError("unknown engine transport")
+        self.transport = transport
+        self.utility_config = (
+            Path(utility_config) if utility_config is not None else None
+        )
+        self.governor_config = (
+            Path(governor_config) if governor_config is not None else None
+        )
+        self.timeout_s = float(timeout_s)
+        if not np.isfinite(self.timeout_s) or self.timeout_s <= 0:
+            raise RuntimeConfigurationError("timeout_s must be positive and finite")
+        self._process: subprocess.Popen[bytes] | None = None
+        self._responses = queue.Queue(maxsize=2)
+        self._stderr_tail = deque(maxlen=16)
         self._lock = threading.RLock()
 
     def _start(self) -> dict[str, Any] | None:
@@ -110,25 +131,37 @@ class PersistentMapEngine:
                 "reason": f"map executable does not exist: {self.executable}",
             }
         try:
+            command = [
+                str(self.executable),
+                "--policy",
+                self.policy,
+                "--window-radius",
+                f"{self.window_radius_m:.9g}",
+                "--engine",
+            ]
+            if self.utility_config is not None:
+                command.extend(("--utility-config", str(self.utility_config)))
+            if self.governor_config is not None:
+                command.extend(("--governor-config", str(self.governor_config)))
             self._process = subprocess.Popen(
-                [
-                    str(self.executable),
-                    "--policy",
-                    self.policy,
-                    "--window-radius",
-                    f"{self.window_radius_m:.9g}",
-                    "--engine",
-                ],
+                command,
                 stdin=subprocess.PIPE,
                 stdout=subprocess.PIPE,
                 stderr=subprocess.PIPE,
-                text=True,
-                bufsize=1,
+                bufsize=0,
             )
             assert self._process.stdin is not None
-            self._process.stdin.write("VEYRA_ENGINE 2\n")
-            self._process.stdin.flush()
-            ready = self._read_response()
+            self._responses = queue.Queue(maxsize=2)
+            self._stderr_tail.clear()
+            threading.Thread(
+                target=self._read_stdout,
+                args=(self._process, self._responses),
+                daemon=True,
+            ).start()
+            threading.Thread(
+                target=self._drain_stderr, args=(self._process,), daemon=True
+            ).start()
+            ready = self._exchange("VEYRA_ENGINE 2\n")
         except OSError as error:
             self._process = None
             return {"status": "unavailable", "reason": f"map engine failed: {error}"}
@@ -137,50 +170,113 @@ class PersistentMapEngine:
             return ready
         return None
 
-    def _read_response(self) -> dict[str, Any]:
-        if self._process is None or self._process.stdout is None:
+    @property
+    def pid(self):
+        return self._process.pid if self._process is not None else None
+
+    def _read_stdout(self, process, responses):
+        try:
+            while True:
+                line = process.stdout.readline(32 * 1024 * 1024 + 1)
+                if len(line) > 32 * 1024 * 1024:
+                    responses.put_nowait(
+                        {
+                            "status": "unavailable",
+                            "reason": "map engine response exceeds size limit",
+                        }
+                    )
+                    process.kill()
+                    return
+                if not line:
+                    responses.put_nowait(
+                        {
+                            "status": "unavailable",
+                            "reason": "map engine closed its output",
+                        }
+                    )
+                    return
+                try:
+                    response = json.loads(line)
+                    if not isinstance(response, dict):
+                        raise ValueError("expected object")
+                except (ValueError, UnicodeDecodeError):
+                    response = {
+                        "status": "unavailable",
+                        "reason": "map engine returned invalid JSON",
+                    }
+                responses.put_nowait(response)
+        except (OSError, ValueError, queue.Full):
+            if process.poll() is None:
+                process.kill()
+
+    def _drain_stderr(self, process):
+        try:
+            while chunk := process.stderr.read(4096):
+                self._stderr_tail.append(chunk.decode("utf-8", errors="replace"))
+        except (OSError, ValueError):
+            pass
+
+    def _exchange(self, command):
+        process = self._process
+        if process is None:
             return {"status": "unavailable", "reason": "map engine is not running"}
-        line = self._process.stdout.readline()
-        if not line:
-            stderr = self._process.stderr.read().strip() if self._process.stderr else ""
+        error = []
+
+        def write():
+            try:
+                data = memoryview(
+                    command.encode("ascii") if isinstance(command, str) else command
+                )
+                while data:
+                    written = process.stdin.write(data)
+                    if not written:
+                        raise BrokenPipeError("map engine input closed")
+                    data = data[written:]
+            except (OSError, ValueError) as exc:
+                error.append(str(exc))
+
+        writer = threading.Thread(target=write, daemon=True)
+        deadline = time.monotonic() + self.timeout_s
+        writer.start()
+        writer.join(self.timeout_s)
+        if writer.is_alive():
+            self.close()
+            return {"status": "unavailable", "reason": "map engine write timed out"}
+        if error:
+            self.close()
             return {
                 "status": "unavailable",
-                "reason": stderr or "map engine closed its output",
+                "reason": "map engine write failed: " + error[0],
             }
         try:
-            response = json.loads(line)
-        except json.JSONDecodeError:
-            return {
-                "status": "unavailable",
-                "reason": "map engine returned invalid JSON",
-            }
-        if not isinstance(response, dict):
-            return {
-                "status": "unavailable",
-                "reason": "map engine returned an invalid response",
-            }
+            response = self._responses.get(
+                timeout=max(0.001, deadline - time.monotonic())
+            )
+        except queue.Empty:
+            self.close()
+            return {"status": "unavailable", "reason": "map engine response timed out"}
+        if response.get("status") == "unavailable":
+            detail = "".join(self._stderr_tail).strip()
+            if detail:
+                response["reason"] += ": " + detail[-4096:]
+            self.close()
         return response
 
     def _command(self, command: str) -> dict[str, Any]:
         unavailable = self._start() if self._process is None else None
-        if unavailable is not None:
-            return unavailable
-        assert self._process is not None and self._process.stdin is not None
-        try:
-            self._process.stdin.write(command)
-            self._process.stdin.flush()
-        except OSError as error:
-            return {
-                "status": "unavailable",
-                "reason": f"map engine write failed: {error}",
-            }
-        return self._read_response()
+        return unavailable if unavailable is not None else self._exchange(command)
 
     def process_frame(self, frame: Any) -> dict[str, Any]:
         """Process one canonical V2 frame without restarting map/policy state."""
 
         with self._lock:
-            response = self._command("".join(frame_records(frame)))
+            if self.transport == "binary":
+                from benchmarks.protocol import binary_frame_bytes
+
+                command = binary_frame_bytes(frame)
+            else:
+                command = "".join(frame_records(frame))
+            response = self._command(command)
         if response.get("status") == "unavailable":
             return response
         known = np.isin(frame.drivable, ("drivable", "non_drivable"))
@@ -194,6 +290,7 @@ class PersistentMapEngine:
             "input": response.get("input", {}),
             "snapshot": response.get("snapshot", {}),
             "metrics": _viewer_metrics(response.get("metrics", {})),
+            "governor": response.get("governor"),
         }
 
     def reset(self) -> dict[str, Any]:
@@ -213,6 +310,14 @@ class PersistentMapEngine:
             }
         return response
 
+    def set_governor_override(self, mode: str) -> dict[str, Any]:
+        if mode not in {"automatic", "disabled", "conserve"}:
+            raise ValueError(
+                "governor override must be automatic, disabled, or conserve"
+            )
+        with self._lock:
+            return self._command(f"G {mode}\n")
+
     def status(self) -> dict[str, Any]:
         with self._lock:
             response = self._command("S\n")
@@ -225,23 +330,36 @@ class PersistentMapEngine:
             "frames": response.get("input_frames", 0),
             "snapshot": response.get("snapshot", {}),
             "metrics": _viewer_metrics(response.get("metrics", {})),
+            "governor": response.get("governor"),
         }
 
     def close(self) -> None:
+        if not hasattr(self, "_lock"):
+            return
         with self._lock:
             process, self._process = self._process, None
             if process is None:
                 return
             try:
-                if process.stdin is not None and process.poll() is None:
-                    process.stdin.write("C\n")
-                    process.stdin.flush()
-                    if process.stdout is not None:
-                        process.stdout.readline()
-                process.wait(timeout=3)
-            except (OSError, subprocess.TimeoutExpired):
+                if process.poll() is None:
+                    try:
+                        process.stdin.write(b"C\n")
+                        response = self._responses.get(timeout=0.25)
+                        if response.get("status") == "closed":
+                            process.wait(timeout=0.25)
+                    except (
+                        OSError,
+                        ValueError,
+                        queue.Empty,
+                        subprocess.TimeoutExpired,
+                    ):
+                        pass
+                if process.poll() is None:
+                    process.terminate()
+                    process.wait(timeout=0.5)
+            except subprocess.TimeoutExpired:
                 process.kill()
-                process.wait()
+                process.wait(timeout=2)
             finally:
                 for stream in (process.stdin, process.stdout, process.stderr):
                     if stream is not None:
@@ -250,7 +368,7 @@ class PersistentMapEngine:
     def __del__(self) -> None:
         try:
             self.close()
-        except (OSError, RuntimeError):
+        except (OSError, RuntimeError, AttributeError):
             pass
 
 
@@ -484,8 +602,9 @@ class RuntimeSession:
 
     def select_sequence(self, sequence: str, *, budget: int) -> dict[str, Any]:
         with self._lock:
+            frames = self._require_frames(str(sequence))
             self.sequence = str(sequence)
-            self._frames = self._require_frames(self.sequence)
+            self._frames = frames
             self._reset_locked()
             return self._payload_locked(0, budget)
 
@@ -499,18 +618,22 @@ class RuntimeSession:
         with self._lock:
             return self._payload_locked(max(self.index - 1, 0), budget)
 
-    def frame_payload(self, index: int, *, budget: int) -> dict[str, Any]:
+    def frame_payload(
+        self, index: int, *, budget: int, binary: bool = False
+    ) -> dict[str, Any]:
         with self._lock:
-            return self._payload_locked(index, budget)
+            return self._payload_locked(index, budget, binary=binary)
 
-    def _payload_locked(self, requested_index: int, budget: int) -> dict[str, Any]:
+    def _payload_locked(
+        self, requested_index: int, budget: int, binary: bool = False
+    ) -> dict[str, Any]:
         if budget <= 0:
             raise ValueError("point budget must be positive")
         target = max(0, min(int(requested_index), len(self._frames) - 1))
         if self._last_output is not None and target == self.index:
             assert self._last_map_payload is not None
             return self._serialize(
-                self._last_output, target, budget, self._last_map_payload
+                self._last_output, target, budget, self._last_map_payload, binary=binary
             )
         if self._last_output is not None and target < self.index:
             self._reset_locked()
@@ -525,11 +648,13 @@ class RuntimeSession:
                 max_range_m=self.max_range_m,
             )
             output = self.pipeline.process(observation)
+            self._last_map_payload = self._map_payload(output.frame)
         self.index = target
         assert output is not None
         self._last_output = output
-        self._last_map_payload = self._map_payload(output.frame)
-        return self._serialize(output, target, budget, self._last_map_payload)
+        return self._serialize(
+            output, target, budget, self._last_map_payload, binary=binary
+        )
 
     def _map_payload(self, frame: Any) -> dict[str, Any]:
         if self.map_runner is None:
@@ -545,7 +670,12 @@ class RuntimeSession:
                 self.map_runner.close()
 
     def _serialize(
-        self, output: Any, index: int, budget: int, map_payload: dict[str, Any]
+        self,
+        output: Any,
+        index: int,
+        budget: int,
+        map_payload: dict[str, Any],
+        binary: bool = False,
     ) -> dict[str, Any]:
         frame = output.frame
         count = int(frame.points.shape[0])
@@ -573,12 +703,16 @@ class RuntimeSession:
             "n_points": count,
             "shown": int(sampled.shape[0]),
             "stride": stride,
-            "points": [
-                [round(float(value), 3) for value in row[:3]] for row in sampled
-            ],
-            "intensity": [round(float(value), 3) for value in sampled[:, 3]],
-            "labels": labels.astype(int, copy=False).tolist(),
-            "semantic_labels": semantic.astype(int, copy=False).tolist(),
+            "points": sampled[:, :3]
+            if binary
+            else [[round(float(value), 3) for value in row[:3]] for row in sampled],
+            "intensity": sampled[:, 3]
+            if binary
+            else [round(float(value), 3) for value in sampled[:, 3]],
+            "labels": labels if binary else labels.astype(int, copy=False).tolist(),
+            "semantic_labels": semantic
+            if binary
+            else semantic.astype(int, copy=False).tolist(),
             "paired": frame.raw_semantic_class is not None,
             "hist": histogram,
             "source": type(self.adapter).__name__,
@@ -589,19 +723,31 @@ class RuntimeSession:
             },
             "cropped": self.max_range_m is not None or self.min_range_m > 0,
             "range_m": self.max_range_m,
-            "ground": frame.ground[sample].tolist(),
-            "drivable": frame.drivable[sample].tolist(),
-            "slope": _nullable_floats(frame.slope[sample]),
-            "roughness": _nullable_floats(frame.roughness[sample]),
-            "height_complexity": _nullable_floats(frame.height_complexity[sample]),
+            "ground": frame.ground[sample] if binary else frame.ground[sample].tolist(),
+            "drivable": frame.drivable[sample]
+            if binary
+            else frame.drivable[sample].tolist(),
+            "slope": frame.slope[sample]
+            if binary
+            else _nullable_floats(frame.slope[sample]),
+            "roughness": frame.roughness[sample]
+            if binary
+            else _nullable_floats(frame.roughness[sample]),
+            "height_complexity": frame.height_complexity[sample]
+            if binary
+            else _nullable_floats(frame.height_complexity[sample]),
             "motion_probability": frame.motion_probability[sample]
-            .astype(float)
-            .tolist(),
+            if binary
+            else frame.motion_probability[sample].astype(float).tolist(),
             "semantic_confidence": frame.semantic_confidence[sample]
-            .astype(float)
-            .tolist(),
-            "velocity_xy": frame.velocity_xy[sample].astype(float).tolist(),
-            "motion_state": frame.motion_state[sample].tolist(),
+            if binary
+            else frame.semantic_confidence[sample].astype(float).tolist(),
+            "velocity_xy": frame.velocity_xy[sample]
+            if binary
+            else frame.velocity_xy[sample].astype(float).tolist(),
+            "motion_state": frame.motion_state[sample]
+            if binary
+            else frame.motion_state[sample].tolist(),
             "pipeline_status": {
                 "semantic": status.semantic,
                 "ground": status.ground,
@@ -638,4 +784,5 @@ def _viewer_metrics(metrics: Mapping[str, Any]) -> dict[str, Any]:
         "allocated_map_bytes": memory.get("allocated_map_bytes"),
         "allocated_map_bytes_available": memory.get("allocated_map_bytes_available"),
         "topology": metrics.get("topology"),
+        "stream": metrics.get("stream"),
     }

@@ -1,0 +1,331 @@
+"""Product boundaries: bounded transport, validated controls and real replay."""
+
+import importlib.util
+import io
+import struct
+import subprocess
+import sys
+import tempfile
+import time
+import unittest
+from pathlib import Path
+
+from tests.test_engine_service import require_binary
+
+BENCHMARK_RELATIVE = "build/apps/benchmark/veyra_benchmark"
+
+
+class ProductProtocolTests(unittest.TestCase):
+    def test_protocol_package_exists(self):
+        self.assertIsNotNone(importlib.util.find_spec("runtime"))
+
+    def test_visualization_frame_preserves_binary_payload(self):
+        from runtime.protocol import encode_message, read_message
+
+        payload = struct.pack("<8f", 1, 2, 3, 0.5, 7, 1, 0, 0.2)
+        packet = encode_message({"type": "visualization", "index": 4}, payload)
+        self.assertEqual(packet[:8], b"VYRA\x01\x00\x02\x00")
+        metadata, output = read_message(io.BytesIO(packet))
+        self.assertEqual(metadata["index"], 4)
+        self.assertEqual(output, payload)
+
+    def test_oversized_header_rejected_before_reading_body(self):
+        from runtime.protocol import read_message
+
+        with self.assertRaisesRegex(ValueError, "size"):
+            read_message(io.BytesIO(struct.pack("<4sHHII", b"VYRA", 1, 1, 2**31, 0)))
+
+    def test_latest_visualization_replaces_pending_frame(self):
+        from runtime.protocol import Outbox
+
+        box = Outbox(capacity=2)
+        box.publish({"type": "visualization", "index": 1}, b"a")
+        box.publish({"type": "visualization", "index": 2}, b"b")
+        box.publish({"type": "response", "id": "control"})
+        self.assertEqual(box.take()[0]["id"], "control")
+        self.assertEqual(box.take()[0]["index"], 2)
+        self.assertEqual(box.visualization_dropped, 1)
+
+    def test_cli_responds_to_status_and_shuts_down_on_eof(self):
+        process = subprocess.run(
+            [sys.executable, "-m", "runtime"],
+            input=b'{"id":"s","command":"status","args":{}}\n',
+            capture_output=True,
+            timeout=10,
+        )
+        self.assertEqual(process.returncode, 0, process.stderr.decode())
+        from runtime.protocol import read_message
+
+        stream = io.BytesIO(process.stdout)
+        messages = []
+        while stream.tell() < len(process.stdout):
+            messages.append(read_message(stream)[0])
+        response = next(message for message in messages if message.get("id") == "s")
+        self.assertEqual(response["status"]["state"], "unconfigured")
+
+
+class ProductConfigTests(unittest.TestCase):
+    def test_rejects_unsafe_and_nonfinite_configuration(self):
+        from runtime.config import validate_config
+
+        for changed in (
+            {"map": {"policy": "shell"}},
+            {"playback": {"fps": float("nan")}},
+            {"visualization": {"point_budget": 100001}},
+        ):
+            config = {
+                "dataset": "generic",
+                "dataset_root": "/tmp",
+                "sequence": "00",
+                **changed,
+            }
+            with self.assertRaises(ValueError):
+                validate_config(config, Path.cwd(), check_paths=False)
+
+    def test_unknown_configuration_fields_are_rejected(self):
+        from runtime.config import validate_config
+
+        with self.assertRaisesRegex(ValueError, "unknown"):
+            validate_config(
+                {
+                    "dataset": "generic",
+                    "dataset_root": "/tmp",
+                    "sequence": "00",
+                    "shell": "rm",
+                },
+                Path.cwd(),
+                check_paths=False,
+            )
+
+    def test_imported_config_cannot_launch_an_arbitrary_executable(self):
+        from runtime.config import validate_config
+
+        with self.assertRaisesRegex(ValueError, "installed Veyra backend"):
+            validate_config(
+                {
+                    "dataset": "generic",
+                    "dataset_root": "/tmp",
+                    "sequence": "00",
+                    "map": {"executable": "/tmp/evil", "policy": "distance_lod"},
+                },
+                Path.cwd(),
+                check_paths=False,
+            )
+
+    def test_resource_profile_and_governor_override_are_validated(self):
+        from runtime.config import validate_config
+
+        base = {"dataset": "generic", "dataset_root": "/tmp", "sequence": "00"}
+        config = validate_config(
+            {
+                **base,
+                "map": {
+                    "resource_profile": "performance",
+                    "governor_override": "conserve",
+                },
+            },
+            Path.cwd(),
+            check_paths=False,
+        )
+        self.assertEqual(config["map"]["resource_profile"], "performance")
+        self.assertEqual(config["map"]["governor_override"], "conserve")
+        for field, value in (
+            ("resource_profile", "extreme"),
+            ("governor_override", "shell"),
+        ):
+            with self.assertRaises(ValueError):
+                validate_config(
+                    {**base, "map": {field: value}}, Path.cwd(), check_paths=False
+                )
+
+
+class ProductTelemetryTests(unittest.TestCase):
+    def test_map_counts_governor_and_topology_rates_use_engine_schema(self):
+        from runtime.telemetry import Telemetry
+
+        report = Telemetry().report(
+            {
+                "state": "running",
+                "index": 0,
+                "frames": 1,
+                "queue_depth": 0,
+                "dropped_frames": 2,
+                "visualization_dropped": 0,
+            },
+            {
+                "map": {
+                    "snapshot": {
+                        "active_leaf_count": 7,
+                        "topology_change_count": 3,
+                        "levels": {"0": 4, "1": 3},
+                    },
+                    "metrics": {
+                        "topology": {
+                            "per_frame": {
+                                "splits": {"mean": 1.5},
+                                "merges": {"mean": 0.5},
+                            }
+                        }
+                    },
+                    "governor": {"state": "approaching_budget"},
+                }
+            },
+            None,
+            None,
+        )
+        self.assertEqual(report["map"]["active_cells"], 7)
+        self.assertEqual(report["map"]["splits_per_frame"], 1.5)
+        self.assertEqual(report["map"]["merges_per_frame"], 0.5)
+        self.assertEqual(report["governor"]["state"], "approaching_budget")
+
+
+if __name__ == "__main__":
+    unittest.main()
+
+
+class ReplayRegressionTests(unittest.TestCase):
+    def test_seek_maps_each_intermediate_observation(self):
+        from tests.test_runtime_player import _write_frame, RuntimePlayerTests
+
+        class Counter:
+            def __init__(self):
+                self.points = 0
+
+            def process_frame(self, frame):
+                self.points += len(frame.points)
+                return {"status": "available", "point_count": self.points}
+
+            def reset(self):
+                self.points = 0
+
+            def close(self):
+                pass
+
+        with tempfile.TemporaryDirectory() as raw:
+            root = Path(raw)
+            for index in range(3):
+                _write_frame(root, "00000", f"{index:06d}", index)
+            _write_frame(root, "00001", "000000", 0)
+            session = RuntimePlayerTests()._runtime(root)
+            session.map_runner = Counter()
+            frame = session.frame_payload(2, budget=10)
+            self.assertEqual(frame["map"]["point_count"], 6)
+            self.assertEqual(
+                session.frame_payload(1, budget=10)["map"]["point_count"], 4
+            )
+            session.close()
+
+    def test_invalid_sequence_preserves_session(self):
+        from tests.test_runtime_player import _write_frame, RuntimePlayerTests
+
+        with tempfile.TemporaryDirectory() as raw:
+            root = Path(raw)
+            _write_frame(root, "00000", "000000", 0)
+            _write_frame(root, "00001", "000000", 0)
+            session = RuntimePlayerTests()._runtime(root)
+            with self.assertRaises((ValueError, FileNotFoundError, KeyError)):
+                session.select_sequence("missing", budget=10)
+            self.assertEqual(session.status()["sequence"], "00000")
+
+    def test_binary_frame_keeps_numpy_arrays(self):
+        import numpy as np
+        from tests.test_runtime_player import _write_frame, RuntimePlayerTests
+
+        with tempfile.TemporaryDirectory() as raw:
+            root = Path(raw)
+            _write_frame(root, "00000", "000000", 0)
+            _write_frame(root, "00001", "000000", 0)
+            session = RuntimePlayerTests()._runtime(root)
+            frame = session.frame_payload(0, budget=10, binary=True)
+            self.assertIsInstance(frame["points"], np.ndarray)
+            self.assertEqual(frame["points"].shape, (2, 3))
+
+
+class BridgeLifecycleTests(unittest.TestCase):
+    def test_hung_child_has_bounded_response_timeout_and_close(self):
+        from viewer.runtime import PersistentMapEngine
+
+        with tempfile.TemporaryDirectory() as raw:
+            executable = Path(raw) / "hung.py"
+            executable.write_text(
+                "#!" + sys.executable + "\nimport time\ntime.sleep(60)\n"
+            )
+            executable.chmod(0o755)
+            started = time.monotonic()
+            engine = PersistentMapEngine(executable, timeout_s=0.1)
+            result = engine.status()
+            engine.close()
+            self.assertEqual(result["status"], "unavailable")
+            self.assertLess(time.monotonic() - started, 3)
+
+
+class ProductServiceTests(unittest.TestCase):
+    def test_unknown_command_does_not_change_runtime_state(self):
+        from runtime.service import ProductRuntime
+
+        service = ProductRuntime(Path.cwd())
+        response = service.handle({"id": "bad", "command": "shell", "args": {}})
+        self.assertFalse(response["ok"])
+        self.assertEqual(response["status"]["state"], "unconfigured")
+        service.close()
+
+    def test_real_dataset_playback_seek_policy_reset_and_visualization(self):
+        from runtime.service import ProductRuntime
+        from tests.test_runtime_player import _write_frame
+
+        mapper = require_binary(self, "VEYRA_BENCHMARK_BINARY", BENCHMARK_RELATIVE)
+        with tempfile.TemporaryDirectory() as raw:
+            root = Path(raw)
+            for index in range(3):
+                _write_frame(root, "00000", f"{index:06d}", index)
+            service = ProductRuntime(Path.cwd())
+            config = {
+                "dataset": "rellis3d",
+                "dataset_root": str(root),
+                "sequence": "00000",
+                "map": {
+                    "executable": str(mapper),
+                    "policy": "distance_lod",
+                },
+                "pipeline": {"semantic": {"mode": "ground_truth"}},
+            }
+
+            def call(command, **args):
+                result = service.handle(
+                    {"id": command, "command": command, "args": args}
+                )
+                self.assertTrue(result["ok"], result)
+                return result
+
+            try:
+                self.assertEqual(
+                    call("configure", config=config)["status"]["state"], "ready"
+                )
+                call("seek", index=2)
+                self.assertEqual(service.status()["index"], 2)
+                events = []
+                while (event := service.outbox.take(timeout=0)) is not None:
+                    events.append(event)
+                visual = next(
+                    event for event in events if event[0]["type"] == "visualization"
+                )
+                self.assertEqual(visual[0]["points"]["count"], 2)
+                self.assertGreater(len(visual[1]), 0)
+                self.assertEqual(visual[0]["layers"]["utility"], "available")
+                self.assertEqual(visual[0]["cells"]["stride"], 36)
+                call("policy", policy="uniform40")
+                self.assertEqual(service.status()["policy"], "uniform40")
+                self.assertEqual(service.status()["index"], -1)
+                call("policy", policy="utility_lod")
+                governor = call("governor", mode="disabled")["result"]["governor"]
+                self.assertEqual(governor["state"], "disabled")
+                call("step")
+                self.assertEqual(service.status()["index"], 0)
+                call("reset")
+                self.assertEqual(service.status()["index"], -1)
+                call("start")
+                service.tick()
+                call("pause")
+                self.assertEqual(service.status()["state"], "paused")
+            finally:
+                service.close()

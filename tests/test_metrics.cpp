@@ -1,5 +1,3 @@
-#include "veyra/metrics/metrics.hpp"
-
 #include <cassert>
 #include <chrono>
 #include <cmath>
@@ -7,6 +5,8 @@
 #include <optional>
 #include <stdexcept>
 #include <string>
+
+#include "veyra/metrics/metrics.hpp"
 
 namespace {
 
@@ -34,7 +34,7 @@ void duration_statistics_use_nearest_rank_percentiles() {
   collector.record_duration("map", 2ms);
 
   const auto report = collector.report(start + 2s);
-  const auto &stats = report.durations.at("map");
+  const auto& stats = report.durations.at("map");
   assert(stats.count == 4);
   assert(stats.min_ns == 1'000'000);
   assert(stats.max_ns == 4'000'000);
@@ -78,7 +78,7 @@ void value_statistics_use_the_same_nearest_rank_definition() {
   collector.record_value("topology_churn", 2);
 
   const auto report = collector.report(start + 1s);
-  const auto &stats = report.values.at("topology_churn");
+  const auto& stats = report.values.at("topology_churn");
   assert(stats.count == 4);
   assert(stats.mean == 2.5);
   assert(stats.min == 1);
@@ -93,7 +93,7 @@ void invalid_inputs_are_rejected() {
   bool threw = false;
   try {
     collector.record_duration("bad", -1ns);
-  } catch (const std::invalid_argument &) {
+  } catch (const std::invalid_argument&) {
     threw = true;
   }
   assert(threw);
@@ -101,7 +101,7 @@ void invalid_inputs_are_rejected() {
   threw = false;
   try {
     collector.record_duration("", 1ns);
-  } catch (const std::invalid_argument &) {
+  } catch (const std::invalid_argument&) {
     threw = true;
   }
   assert(threw);
@@ -109,7 +109,7 @@ void invalid_inputs_are_rejected() {
   threw = false;
   try {
     collector.add_counter("bad", -1);
-  } catch (const std::invalid_argument &) {
+  } catch (const std::invalid_argument&) {
     threw = true;
   }
   assert(threw);
@@ -117,7 +117,7 @@ void invalid_inputs_are_rejected() {
   threw = false;
   try {
     collector.report(MetricsCollector::Clock::time_point{} - 1ns);
-  } catch (const std::invalid_argument &) {
+  } catch (const std::invalid_argument&) {
     threw = true;
   }
   assert(threw);
@@ -143,9 +143,28 @@ void rss_sampler_is_measured_or_unavailable() {
   }
 }
 
-} // namespace
+void rolling_samples_discard_old_latency_without_losing_frame_totals() {
+  const auto start = MetricsCollector::Clock::time_point{};
+  MetricsCollector collector{start, 3};
+  collector.reserve_duration_samples("map", 10000);
+  for (int value : {1000, 2000, 10, 20, 30}) {
+    collector.record_duration("map", std::chrono::nanoseconds{value});
+    collector.record_value("cells", value);
+    collector.record_frame();
+  }
+  const auto report = collector.report(start + 1s);
+  assert(report.frame_count == 5);
+  assert(report.durations.at("map").count == 3);
+  assert(report.durations.at("map").p50_ns == 20);
+  assert(report.durations.at("map").p99_ns == 30);
+  assert(report.values.at("cells").count == 3);
+  assert(report.values.at("cells").mean == 20.0);
+}
+
+}  // namespace
 
 int main() {
+  rolling_samples_discard_old_latency_without_losing_frame_totals();
   empty_report_has_no_measurements();
   duration_statistics_use_nearest_rank_percentiles();
   counters_and_fps_are_aggregated_from_real_inputs();

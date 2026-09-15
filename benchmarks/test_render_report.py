@@ -37,7 +37,10 @@ class RenderReportTests(unittest.TestCase):
                                 {
                                     "point_conservation": {"holds": True},
                                     "duplicate_ownership": {"holds": True},
-                                    "elevation_vs_fine_reference": {"rmse_m": 0.1},
+                                    "elevation_vs_fine_reference": {
+                                        "rmse_m": 0.1,
+                                        "coverage": 1.0,
+                                    },
                                 }
                             ],
                         },
@@ -74,6 +77,44 @@ class RenderReportTests(unittest.TestCase):
         self.assertIn("UtilityLOD", report)
         self.assertIn("SalsaNext", report)
         self.assertIn("Correctness gate: **PASS**", report)
+        self.assertIn("Elevation coverage", report)
+        self.assertIn("100.0%", report)
+        self.assertIn("Ablation matrix was not included", report)
+
+    def test_report_renders_partial_ablation_without_breaking_old_baselines(self):
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "map.json"
+            path.write_text(
+                json.dumps(
+                    {
+                        "utility_ablation": {
+                            "status": "partial",
+                            "required_policies": [
+                                "ablation_distance",
+                                "ablation_geometry",
+                            ],
+                            "full_vs_distance_assessment": "unavailable",
+                            "members": {
+                                "ablation_distance": {
+                                    "signals": [],
+                                    "measurements": {
+                                        "elevation_rmse_m": 0.2,
+                                        "map_latency_p95_ns": 2_000_000,
+                                    },
+                                    "delta_vs_distance": {
+                                        "elevation_rmse_m": 0.0,
+                                        "peak_rss_fraction": 0.0,
+                                    },
+                                }
+                            },
+                        }
+                    }
+                )
+            )
+            report = render(path, None)
+        self.assertIn("distance only", report)
+        self.assertIn("ablation_geometry | not run", report)
+        self.assertIn("Status: **partial**", report)
 
 
 if __name__ == "__main__":

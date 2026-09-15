@@ -11,7 +11,7 @@
 
 namespace veyra::metrics {
 
-inline const char *domain() noexcept { return "Metrics"; }
+inline const char* domain() noexcept { return "Metrics"; }
 
 struct DurationStatistics {
   std::uint64_t count = 0;
@@ -56,10 +56,12 @@ struct MetricsReport {
 std::optional<std::uint64_t> read_process_rss_bytes() noexcept;
 
 class MetricsCollector {
-public:
+ public:
   using Clock = std::chrono::steady_clock;
 
-  explicit MetricsCollector(Clock::time_point start = Clock::now());
+  // Zero keeps all samples for finite offline runs; live runtimes supply a
+  // positive rolling limit. Frame/counter totals remain lifetime totals.
+  explicit MetricsCollector(Clock::time_point start = Clock::now(), std::size_t sample_limit = 0);
 
   // Call during setup when sample volume is known to avoid vector growth in
   // the recording path. The first use of a new name still inserts its map key.
@@ -68,8 +70,7 @@ public:
   // Durations are recorded in nanoseconds. Percentiles use nearest-rank:
   // sort ascending, select ceil(p * count) with one-based rank, and clamp the
   // rank to [1, count]. Thus p50 of four samples is the second sample.
-  void record_duration(std::string_view name,
-                       std::chrono::nanoseconds duration);
+  void record_duration(std::string_view name, std::chrono::nanoseconds duration);
   void add_counter(std::string_view name, std::int64_t delta = 1);
   void record_value(std::string_view name, std::int64_t value);
   void record_frame();
@@ -83,9 +84,15 @@ public:
 
   MetricsReport report(Clock::time_point now = Clock::now()) const;
 
-private:
-  std::unordered_map<std::string, std::vector<std::int64_t>> durations_;
-  std::unordered_map<std::string, std::vector<std::int64_t>> values_;
+ private:
+  struct Samples {
+    std::vector<std::int64_t> values;
+    std::size_t next = 0;
+    void add(std::int64_t value, std::size_t limit);
+  };
+  std::unordered_map<std::string, Samples> durations_;
+  std::unordered_map<std::string, Samples> values_;
+  std::size_t sample_limit_ = 0;
   std::unordered_map<std::string, std::uint64_t> counters_;
   Clock::time_point start_;
   std::uint64_t frame_count_ = 0;
@@ -95,4 +102,4 @@ private:
   std::optional<std::uint64_t> peak_rss_bytes_;
 };
 
-} // namespace veyra::metrics
+}  // namespace veyra::metrics

@@ -9,6 +9,7 @@ repo_dir="$(cd -- "${script_dir}/.." && pwd -P)"
 build_dir="${VEYRA_BUILD_DIR:-${TMPDIR:-/tmp}/veyra-build-local}"
 output_dir="${VEYRA_OUTPUT_DIR:-${TMPDIR:-/tmp}/veyra-benchmark-results}"
 dataset="semanticposs"
+dataset_root=""
 sequence="00"
 start="0"
 count="10"
@@ -30,7 +31,8 @@ benchmark. Use --skip-perception for a map-only run. No network access or
 dataset download is performed.
 
 Options:
-  --dataset NAME       semanticposs or rellis3d (default: semanticposs)
+  --dataset NAME       semanticposs, rellis3d, semantickitti, or generic
+  --dataset-root PATH  explicit local dataset root (required for generic)
   --sequence ID        dataset sequence (default: 00)
   --start N            first frame index (default: 0)
   --count N            number of input frames (default: 10)
@@ -55,6 +57,7 @@ EOF
 while (($#)); do
   case "$1" in
     --dataset) dataset="${2:?missing value for --dataset}"; shift 2 ;;
+    --dataset-root) dataset_root="${2:?missing value for --dataset-root}"; shift 2 ;;
     --sequence) sequence="${2:?missing value for --sequence}"; shift 2 ;;
     --start) start="${2:?missing value for --start}"; shift 2 ;;
     --count) count="${2:?missing value for --count}"; shift 2 ;;
@@ -74,9 +77,13 @@ while (($#)); do
 done
 
 case "$dataset" in
-  semanticposs|rellis3d) ;;
-  *) echo "dataset must be semanticposs or rellis3d" >&2; exit 2 ;;
+  semanticposs|rellis3d|semantickitti|generic) ;;
+  *) echo "unsupported dataset: $dataset" >&2; exit 2 ;;
 esac
+if [[ "$dataset" == "generic" && -z "$dataset_root" ]]; then
+  echo "--dataset-root is required for generic datasets" >&2
+  exit 2
+fi
 
 cmake -S "$repo_dir" -B "$build_dir" \
   -DCMAKE_BUILD_TYPE="$build_type" \
@@ -106,6 +113,9 @@ benchmark_args=(
 )
 if [[ -n "$dataset_sha256" ]]; then
   benchmark_args+=(--dataset-sha256 "$dataset_sha256")
+fi
+if [[ -n "$dataset_root" ]]; then
+  benchmark_args+=(--dataset-root "$dataset_root")
 fi
 if [[ "$skip_perception" == "true" ]]; then
   benchmark_args+=(--skip-perception)

@@ -1,0 +1,2 @@
+add_executable(veyra_runtime main.cpp)
+target_link_libraries(veyra_runtime PRIVATE veyra_runtime_engine)

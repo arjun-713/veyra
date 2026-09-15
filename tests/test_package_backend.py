@@ -1,0 +1,155 @@
+import json
+import tempfile
+import unittest
+from pathlib import Path
+
+
+class PackageBackendTests(unittest.TestCase):
+    def _repo(self, root: Path) -> Path:
+        repo = root / "repo"
+        for name in ("runtime", "viewer", "benchmarks", "perception", "datasets"):
+            package = repo / name
+            package.mkdir(parents=True)
+            (package / "__init__.py").write_text("\n")
+            (package / "module.py").write_text("VALUE = 1\n")
+        (repo / "runtime" / "__main__.py").write_text("\n")
+        (repo / "configs").mkdir()
+        (repo / "configs" / "utility_lod.yaml").write_text("enabled: true\n")
+        (repo / "runtime" / "__pycache__").mkdir()
+        (repo / "runtime" / "__pycache__" / "ignored.pyc").write_bytes(b"compiled")
+        return repo
+
+    def test_stages_only_runtime_code_and_emits_verified_manifest(self):
+        from scripts.package_backend import stage_backend, verify_backend
+
+        with tempfile.TemporaryDirectory() as raw:
+            root = Path(raw)
+            repo = self._repo(root)
+            mapper = repo / "build" / "apps" / "runtime" / "veyra_runtime"
+            mapper.parent.mkdir(parents=True)
+            mapper.write_bytes(b"native mapper")
+            mapper.chmod(0o755)
+            python = root / "python-runtime"
+            (python / "bin").mkdir(parents=True)
+            (python / "bin" / "python3").write_bytes(b"python")
+
+            output = stage_backend(repo, root / "stage", mapper, python, "linux", "x64")
+            manifest = verify_backend(output, "linux")
+
+            self.assertEqual(manifest["schema_version"], 1)
+            self.assertEqual(manifest["platform"], "linux")
+            self.assertEqual(manifest["arch"], "x64")
+            self.assertTrue((output / "bin" / "veyra_runtime").is_file())
+            self.assertTrue((output / "runtime" / "module.py").is_file())
+            self.assertFalse((output / "runtime" / "__pycache__").exists())
+            self.assertGreater(len(manifest["files"]), 5)
+            self.assertEqual(
+                json.loads((output / "manifest.json").read_text()), manifest
+            )
+
+    def test_rejects_symlinks_and_mapper_outside_repository(self):
+        from scripts.package_backend import stage_backend
+
+        with tempfile.TemporaryDirectory() as raw:
+            root = Path(raw)
+            repo = self._repo(root)
+            mapper = root / "untrusted-mapper"
+            mapper.write_bytes(b"bad")
+            python = root / "python-runtime"
+            python.mkdir()
+            with self.assertRaisesRegex(ValueError, "mapper"):
+                stage_backend(repo, root / "stage", mapper, python, "linux", "x64")
+
+    def test_materializes_internal_python_links_but_rejects_escaping_links(self):
+        from scripts.package_backend import stage_backend
+
+        with tempfile.TemporaryDirectory() as raw:
+            root = Path(raw)
+            repo = self._repo(root)
+            mapper = repo / "build/apps/runtime/veyra_runtime"
+            mapper.parent.mkdir(parents=True)
+            mapper.write_bytes(b"mapper")
+            python = root / "python-runtime"
+            (python / "bin").mkdir(parents=True)
+            (python / "bin/python").write_bytes(b"python")
+            (python / "bin/python3").symlink_to("python")
+            output = stage_backend(repo, root / "stage", mapper, python, "linux", "x64")
+            self.assertFalse((output / "python/bin/python3").is_symlink())
+            self.assertEqual((output / "python/bin/python3").read_bytes(), b"python")
+
+            (python / "escape").symlink_to(root / "outside")
+            (root / "outside").write_bytes(b"outside")
+            with self.assertRaisesRegex(ValueError, "escapes"):
+                stage_backend(repo, root / "stage-2", mapper, python, "linux", "x64")
+
+    def test_virtual_environment_is_flattened_with_its_base_interpreter(self):
+        from scripts.package_backend import stage_backend
+
+        with tempfile.TemporaryDirectory() as raw:
+            root = Path(raw)
+            repo = self._repo(root)
+            mapper = repo / "build/apps/runtime/veyra_runtime"
+            mapper.parent.mkdir(parents=True)
+            mapper.write_bytes(b"mapper")
+
+            base = root / "base-python"
+            (base / "bin").mkdir(parents=True)
+            (base / "bin/python3").write_bytes(b"base executable")
+            (base / "lib/python3.13").mkdir(parents=True)
+            (base / "lib/python3.13/encodings.py").write_text("# stdlib\n")
+
+            venv = root / "venv"
+            (venv / "bin").mkdir(parents=True)
+            (venv / "bin/python3").write_bytes(b"venv executable")
+            (venv / "lib/python3.13/site-packages/numpy").mkdir(parents=True)
+            (venv / "lib/python3.13/site-packages/numpy/__init__.py").write_text(
+                "# installed dependency\n"
+            )
+            (venv / "pyvenv.cfg").write_text(
+                f"home = {base / 'bin'}\nversion = 3.13.0\n"
+            )
+
+            output = stage_backend(repo, root / "stage", mapper, venv, "linux", "x64")
+
+            self.assertEqual(
+                (output / "python/bin/python3").read_bytes(), b"base executable"
+            )
+            self.assertTrue(
+                output.joinpath("python/lib/python3.13/encodings.py").is_file()
+            )
+            self.assertTrue(
+                output.joinpath(
+                    "python/lib/python3.13/site-packages/numpy/__init__.py"
+                ).is_file()
+            )
+            self.assertFalse((output / "python/pyvenv.cfg").exists())
+
+    def test_release_checksums_are_stable_and_exclude_checksum_file(self):
+        from scripts.release_checksums import write_checksums
+
+        with tempfile.TemporaryDirectory() as raw:
+            root = Path(raw)
+            (root / "b.zip").write_bytes(b"b")
+            (root / "a.deb").write_bytes(b"a")
+            output = write_checksums(root)
+            lines = output.read_text().splitlines()
+            self.assertEqual(
+                [line.split("  ")[1] for line in lines], ["a.deb", "b.zip"]
+            )
+            self.assertNotIn("SHA256SUMS", output.read_text())
+
+    def test_staging_rejects_dataset_or_model_assets(self):
+        from scripts.package_backend import stage_backend
+
+        with tempfile.TemporaryDirectory() as raw:
+            root = Path(raw)
+            repo = self._repo(root)
+            (repo / "datasets" / "scan.bin").write_bytes(b"dataset")
+            mapper = repo / "build" / "apps" / "runtime" / "veyra_runtime"
+            mapper.parent.mkdir(parents=True)
+            mapper.write_bytes(b"mapper")
+            python = root / "python-runtime"
+            (python / "bin").mkdir(parents=True)
+            (python / "bin" / "python3").write_bytes(b"python")
+            with self.assertRaisesRegex(ValueError, "asset"):
+                stage_backend(repo, root / "stage", mapper, python, "linux", "x64")

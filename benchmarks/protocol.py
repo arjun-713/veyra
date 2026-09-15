@@ -4,12 +4,90 @@ from __future__ import annotations
 
 import hashlib
 import math
+import struct
+
+import numpy as np
 
 from datasets.common.observation import ObservationFrame
 
 PROTOCOL_VERSION = 2
 _DRIVABLE = {"unknown": 0, "drivable": 1, "non_drivable": 2}
 _MOTION_STATE = {"static": 0, "possibly_moving": 1, "moving": 2, "unknown": 3}
+
+# No alignment padding; C++ decodes little-endian scalars without pointer casts.
+_BINARY_POINT = np.dtype(
+    [
+        ("xyzi", "<f4", (4,)),
+        ("semantic", "<u4"),
+        ("confidence", "<f4"),
+        ("ground", "u1"),
+        ("drivable", "u1"),
+        ("slope", "<f4"),
+        ("roughness", "<f4"),
+        ("complexity", "<f4"),
+        ("terrain", "<f4"),
+        ("step", "<f4"),
+        ("motion", "<f4"),
+        ("state", "u1"),
+        ("velocity", "<f4", (2,)),
+        ("quality", "<f4"),
+        ("raw", "<i4"),
+    ]
+)
+
+
+def binary_frame_bytes(frame: ObservationFrame) -> bytes:
+    """Encode full aligned evidence, 67 bytes/point; no point text conversion.
+
+    Handshake is VEYRA_ENGINE 2. B count is followed by a 152-byte frame header
+    and packed rows; the engine responds after consuming the complete frame.
+    """
+    count = len(frame.points)
+    if count > 2_000_000:
+        raise ValueError("binary frame exceeds point limit")
+    missing = (1 << 64) - 1
+
+    def stamp(value):
+        result = missing if value is None else round(float(value) * 1_000_000)
+        if result < 0 or result > missing:
+            raise ValueError("timestamp outside binary range")
+        return result
+
+    source = int(frame.frame_id) if frame.frame_id.isdecimal() else missing
+    if source >= missing and source != missing:
+        raise ValueError("frame index outside binary range")
+    header = struct.pack(
+        "<QQQ16d",
+        stamp(frame.timestamp),
+        stamp(frame.pose.timestamp),
+        source,
+        *frame.pose.matrix.reshape(-1),
+    )
+    points = np.empty(count, dtype=_BINARY_POINT)
+    for destination, value in (
+        ("xyzi", frame.points),
+        ("semantic", frame.semantic_class),
+        ("confidence", frame.semantic_confidence),
+        ("ground", frame.ground),
+        ("slope", frame.slope),
+        ("roughness", frame.roughness),
+        ("complexity", frame.height_complexity),
+        ("terrain", frame.terrain_confidence),
+        ("step", frame.step),
+        ("motion", frame.motion_probability),
+        ("velocity", frame.velocity_xy),
+        ("quality", frame.observation_quality),
+        ("raw", frame.raw_semantic_class),
+    ):
+        points[destination] = value
+    for field, values, mapping in (
+        ("drivable", frame.drivable, _DRIVABLE),
+        ("state", frame.motion_state, _MOTION_STATE),
+    ):
+        points[field] = np.select(
+            [values == key for key in mapping], list(mapping.values()), default=255
+        )
+    return f"B {count}\n".encode("ascii") + header + points.tobytes()
 
 
 def _number(value: float) -> str:

@@ -19,3 +19,6 @@ utility:
   cooldown_frames: 4
   max_level_changes_per_decision: 1
   prediction_horizon_s: 1.0
+  max_promotion_depth: 1
+  max_state_cells: 65536
+  state_ttl_frames: 120

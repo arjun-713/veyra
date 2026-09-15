@@ -1,0 +1,22 @@
+mode: utility_lod
+distance_boundaries_m: [10.0, 30.0, 60.0]
+max_range_m: 100.0
+utility:
+  geometry_weight: 0.0
+  semantic_weight: 0.75
+  motion_weight: 0.0
+  traversability_risk_weight: 0.0
+  uncertainty_weight: 0.25
+  min_observation_quality: 0.50
+  min_point_density: 0.50
+  ema_alpha: 0.35
+  split_threshold: 0.55
+  merge_threshold: 0.30
+  split_consecutive_frames: 2
+  merge_consecutive_frames: 3
+  cooldown_frames: 4
+  max_level_changes_per_decision: 1
+  prediction_horizon_s: 0.0
+  max_promotion_depth: 1
+  max_state_cells: 65536
+  state_ttl_frames: 120

@@ -57,7 +57,7 @@ jobs:
       SEMANTIC_POSS_COUNT: ${{ inputs.semanticposs_count || (github.event_name == 'pull_request' && '64' || '488') }}
       SEMANTIC_POSS_PERCEPTION_COUNT: ${{ inputs.semanticposs_perception_count || (github.event_name == 'pull_request' && '64' || '488') }}
       PERCEPTION_MODE: ${{ inputs.perception_mode || 'salsanext' }}
-      BENCHMARK_POLICIES: ${{ inputs.policies || 'uniform5,uniform40,distance_lod,utility_lod' }}
+      BENCHMARK_POLICIES: ${{ inputs.policies || (github.event_name == 'schedule' && 'uniform5,uniform40,distance_lod,ablation_distance,ablation_geometry,ablation_semantics,ablation_motion,utility_lod') || 'uniform5,uniform40,distance_lod,utility_lod' }}
       BENCHMARK_REPETITIONS: ${{ inputs.repetitions || '1' }}
     steps:
       - uses: actions/checkout@v4
@@ -139,7 +139,7 @@ jobs:
             --sequence "$SEMANTIC_POSS_SEQUENCE" --count "$SEMANTIC_POSS_PERCEPTION_COUNT" \
             --config "$config" --dataset-sha256 "$SEMANTIC_POSS_ARCHIVE_SHA256" \
             --output artifacts/semanticposs-perception.json
-      - name: Run four-policy map benchmark on shared perception output
+      - name: Run policy map benchmark on shared perception output
         run: |
           config=configs/perception.yaml
           if [[ "$PERCEPTION_MODE" == "salsanext" ]]; then config=configs/perception-salsanext.yaml; fi
