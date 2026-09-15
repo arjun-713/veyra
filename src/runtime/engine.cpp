@@ -1357,11 +1357,12 @@ class PersistentEngineSession {
   InputSummary input_summary_;
 };
 
-// Decimated leaf dump for map-layer rendering. Keys are compact by design:
-// l=level, ix/iy=cell indices, z=mean elevation, c=semantic class,
-// m=motion evidence, q=observation quality, d=signed drivable evidence.
-// Sampling strides the snapshot order; cell_count reports what is actually
-// returned so the caller can distinguish a decimated view from the map.
+// Decimated leaf dump for map-layer rendering. Coordinates and the common
+// compact fields retain the original viewer contract; the descriptive
+// evidence fields make the Python/desktop boundary lossless for the state
+// that CellStats actually stores. Sampling strides the snapshot order;
+// cell_count reports what is actually returned so the caller can distinguish
+// a decimated view from the map.
 std::string render_cells(const veyra::map::MapSnapshot& snapshot, std::size_t budget,
                          const veyra::policy::UtilityConfig& config) {
   const std::size_t total = snapshot.leaves.size();
@@ -1394,8 +1395,12 @@ std::string render_cells(const veyra::map::MapSnapshot& snapshot, std::size_t bu
     if (!std::exchange(first, false)) out << ',';
     out << "{\"l\":" << leaf.id.level << ",\"ix\":" << leaf.id.ix << ",\"iy\":" << leaf.id.iy
         << ",\"z\":" << leaf.stats.mean_z << ",\"c\":" << leaf.stats.semantic_class
+        << ",\"semantic_confidence\":" << leaf.stats.semantic_confidence
+        << ",\"ground_evidence\":" << leaf.stats.ground_evidence
+        << ",\"terrain_confidence\":" << leaf.stats.terrain_confidence
+        << ",\"geometry_complexity\":" << leaf.stats.geometry_complexity
         << ",\"m\":" << leaf.stats.motion_evidence << ",\"q\":" << leaf.stats.observation_quality
-        << ",\"d\":" << leaf.stats.drivable_evidence << ",\"u\":" << utility << '}';
+        << ",\"drivable_evidence\":" << leaf.stats.drivable_evidence << ",\"u\":" << utility << '}';
   }
   out << "]}";
   return out.str();

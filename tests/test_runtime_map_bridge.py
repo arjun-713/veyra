@@ -120,8 +120,28 @@ class RuntimeMapBridgeTests(unittest.TestCase):
         self.assertGreater(cells["cell_count"], 1)
         for cell in cells["cells"]:
             self.assertIn(cell["l"], (0, 1, 2, 3))
-            for key in ("ix", "iy", "z", "c", "m", "q"):
+            for key in (
+                "ix",
+                "iy",
+                "z",
+                "c",
+                "semantic_confidence",
+                "ground_evidence",
+                "terrain_confidence",
+                "geometry_complexity",
+                "m",
+                "q",
+                "drivable_evidence",
+            ):
                 self.assertIn(key, cell)
+            self.assertEqual(cell["c"], 7)
+            self.assertAlmostEqual(cell["semantic_confidence"], 1.0)
+            self.assertAlmostEqual(cell["ground_evidence"], 0.9)
+            self.assertAlmostEqual(cell["terrain_confidence"], 0.9)
+            self.assertAlmostEqual(cell["geometry_complexity"], 0.03)
+            self.assertAlmostEqual(cell["m"], 0.0)
+            self.assertAlmostEqual(cell["q"], 0.9)
+            self.assertAlmostEqual(cell["drivable_evidence"], 0.9)
         self.assertEqual(cleared["cell_count"], 0)
 
     def test_malformed_record_aborts_frame_with_single_response(self):
