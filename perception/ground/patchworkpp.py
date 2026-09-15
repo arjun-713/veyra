@@ -155,7 +155,9 @@ class PatchworkPPGroundSegmenter:
             if not hasattr(parameters, name):
                 raise ValueError(f"Patchwork++ parameter is not supported: {name}")
             if isinstance(value, bool):
-                raise ValueError(f"Patchwork++ parameter must not be boolean: {name}")
+                raise ValueError(  # noqa: TRY004 - config validation has one stable error type
+                    f"Patchwork++ parameter must not be boolean: {name}"
+                )
             if isinstance(value, (int, float)) and not np.isfinite(value):
                 raise ValueError(f"Patchwork++ parameter must be finite: {name}")
             try:

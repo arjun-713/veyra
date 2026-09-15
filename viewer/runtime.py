@@ -198,7 +198,9 @@ class PersistentMapEngine:
                 try:
                     response = json.loads(line)
                     if not isinstance(response, dict):
-                        raise ValueError("expected object")
+                        raise ValueError(  # noqa: TRY004 - malformed protocol uses one error path
+                            "expected object"
+                        )
                 except (ValueError, UnicodeDecodeError):
                     response = {
                         "status": "unavailable",

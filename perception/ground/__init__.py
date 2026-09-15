@@ -13,6 +13,6 @@ __all__ = [
     "GroundEvidence",
     "PatchworkPPGroundSegmenter",
     "PatchworkPPUnavailableError",
-    "ground_quality_report",
     "aggregate_ground_quality_reports",
+    "ground_quality_report",
 ]

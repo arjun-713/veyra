@@ -38,15 +38,21 @@ class ManifestDataset:
         if point_schema.get("coordinate_frame") != "sensor":
             raise ValueError("manifest point_schema.coordinate_frame must be sensor")
         if not isinstance(point_schema.get("intensity_semantics"), str):
-            raise ValueError("manifest must declare intensity_semantics")
+            raise ValueError(  # noqa: TRY004 - malformed manifests use one public error type
+                "manifest must declare intensity_semantics"
+            )
         taxonomy = data.get("taxonomy")
         if not isinstance(taxonomy, dict) or not isinstance(
             taxonomy.get("version"), str
         ):
-            raise ValueError("manifest must declare taxonomy.version")
+            raise ValueError(  # noqa: TRY004 - malformed manifests use one public error type
+                "manifest must declare taxonomy.version"
+            )
         mapping = taxonomy.get("mapping")
         if not isinstance(mapping, dict):
-            raise ValueError("manifest taxonomy.mapping must be an object")
+            raise ValueError(  # noqa: TRY004 - malformed manifests use one public error type
+                "manifest taxonomy.mapping must be an object"
+            )
         self._mapping = self._parse_mapping(mapping)
         frames = data.get("frames")
         if not isinstance(frames, list) or not frames:
@@ -56,7 +62,9 @@ class ManifestDataset:
         self._frames: dict[tuple[str, str], dict[str, object]] = {}
         for item in frames:
             if not isinstance(item, dict):
-                raise ValueError("manifest frame entries must be objects")
+                raise ValueError(  # noqa: TRY004 - malformed manifests use one public error type
+                    "manifest frame entries must be objects"
+                )
             sequence, frame_id = item.get("sequence"), item.get("frame_id")
             if (
                 not isinstance(sequence, str)
