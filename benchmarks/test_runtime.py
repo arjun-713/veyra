@@ -103,7 +103,7 @@ class RuntimeTests(unittest.TestCase):
                 "point_count": 2,
                 "nonspatial_prior_point_count": 0,
                 "invariant_no_parent_descendant_overlap": True,
-                "leaves": [{"level": 0, "ix": 0, "iy": 0, "count": 2, "mean_z": 1.1}],
+                "leaves": [{"level": 1, "ix": 0, "iy": 0, "count": 2, "mean_z": 1.1}],
             },
             fine_reference={"mean_z_by_cell": {(0, 0): 1.1}},
         )
@@ -111,6 +111,8 @@ class RuntimeTests(unittest.TestCase):
         self.assertTrue(report["point_conservation"]["holds"])
         self.assertTrue(report["duplicate_ownership"]["holds"])
         self.assertTrue(report["split_merge_conservation"]["holds"])
+        self.assertEqual(report["mixed_resolution_topology"]["status"], "valid")
+        self.assertEqual(report["field_retention"]["status"], "unavailable")
         self.assertEqual(report["elevation_vs_fine_reference"]["sample_count"], 1)
 
     def test_config_validation_rejects_non_odom_distance_config(self):

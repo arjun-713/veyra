@@ -356,11 +356,175 @@ def semantic_range_quality_report(
     }
 
 
+def _fine_cell_owners(
+    snapshot: dict[str, Any], fine_bins: set[tuple[int, int]]
+) -> dict[tuple[int, int], list[dict[str, Any]]]:
+    """Return active leaves covering each observed L0 (5 cm) bin.
+
+    The map emits integer dyadic IDs.  Testing ownership from those IDs is
+    independent of the mapper's aggregate invariant flag and is bounded by
+    four level checks per observed bin.  Bins outside the observed input are
+    deliberately not considered: a sparse map is allowed to have no leaf in
+    unobserved space.
+    """
+    by_id: dict[tuple[int, int, int], list[dict[str, Any]]] = {}
+    for leaf in snapshot.get("leaves", []):
+        try:
+            level = int(leaf["level"])
+            ix = int(leaf["ix"])
+            iy = int(leaf["iy"])
+        except (KeyError, TypeError, ValueError) as error:
+            raise ValueError("leaf details must contain integer level/ix/iy") from error
+        if not 0 <= level <= 3:
+            raise ValueError("leaf level must be in [0,3]")
+        by_id.setdefault((level, ix, iy), []).append(leaf)
+    owners = {key: [] for key in fine_bins}
+    for key in fine_bins:
+        for level in range(4):
+            owners[key].extend(by_id.get((level, key[0] >> level, key[1] >> level), []))
+    return owners
+
+
+def mixed_resolution_topology_report(
+    snapshot: dict[str, Any], fine_bins: set[tuple[int, int]]
+) -> dict[str, Any]:
+    """Check leaf geometry over the observed input domain.
+
+    This checks duplicate IDs, parent/descendant exclusivity, and exactly-one
+    ownership for every observed fine bin.  It does not claim that a sparse
+    map covers unobserved world space.
+    """
+    leaves = snapshot.get("leaves", [])
+    ids: list[tuple[int, int, int]] = []
+    for leaf in leaves:
+        try:
+            identifier = (int(leaf["level"]), int(leaf["ix"]), int(leaf["iy"]))
+        except (KeyError, TypeError, ValueError) as error:
+            raise ValueError("leaf details must contain integer level/ix/iy") from error
+        if not 0 <= identifier[0] <= 3:
+            raise ValueError("leaf level must be in [0,3]")
+        ids.append(identifier)
+    id_set = set(ids)
+    duplicate_leaf_ids = len(ids) - len(id_set)
+    parent_descendant_conflicts = 0
+    for level, ix, iy in id_set:
+        for ancestor_level in range(level):
+            shift = level - ancestor_level
+            if (ancestor_level, ix >> shift, iy >> shift) in id_set:
+                parent_descendant_conflicts += 1
+                break
+    owners = _fine_cell_owners(snapshot, fine_bins)
+    gap = sum(not values for values in owners.values())
+    overlap = sum(len(values) > 1 for values in owners.values())
+    covered = len(fine_bins) - gap
+    valid = (
+        not duplicate_leaf_ids
+        and not parent_descendant_conflicts
+        and not gap
+        and not overlap
+    )
+    return {
+        "status": "valid" if valid else "invalid",
+        "scope": "observed 5cm reference bins only; unobserved sparse space is excluded",
+        "leaf_count": len(ids),
+        "duplicate_leaf_ids": duplicate_leaf_ids,
+        "parent_descendant_exclusive": parent_descendant_conflicts == 0,
+        "parent_descendant_conflicts": parent_descendant_conflicts,
+        "observed_bins": {
+            "total": len(fine_bins),
+            "covered": covered,
+            "gap": gap,
+            "overlap": overlap,
+            "exactly_one_owner": gap == 0 and overlap == 0,
+        },
+    }
+
+
+def field_retention_report(
+    frames: list[Any], snapshot: dict[str, Any]
+) -> dict[str, Any]:
+    """Compare retained leaf evidence with fine-bin source evidence.
+
+    The current public C++ benchmark snapshot may omit semantic/drivable leaf
+    fields.  In that case each field is explicitly unavailable rather than
+    inferred from topology or elevation.
+    """
+    fine: dict[tuple[int, int], dict[str, Any]] = {}
+    for frame in frames:
+        for index, point in enumerate(frame.points):
+            key = (math.floor(float(point[0]) * 20), math.floor(float(point[1]) * 20))
+            item = fine.setdefault(key, {"classes": {}, "hazard": False})
+            semantic = int(np.asarray(frame.semantic_class)[index])
+            if semantic != 0:
+                item["classes"][semantic] = item["classes"].get(semantic, 0) + 1
+            item["hazard"] = (
+                item["hazard"]
+                or str(np.asarray(frame.drivable)[index]) == "non_drivable"
+            )
+    owners = _fine_cell_owners(snapshot, set(fine))
+
+    semantic = {
+        "status": "unavailable",
+        "reason": "snapshot leaves omit semantic_class",
+    }
+    hazard = {
+        "status": "unavailable",
+        "reason": "snapshot leaves omit drivable_evidence",
+    }
+    if all("semantic_class" in leaf for leaf in snapshot.get("leaves", [])):
+        relevant = [item for item in fine.values() if item["classes"]]
+        retained = 0
+        for key, item in fine.items():
+            if not item["classes"] or len(owners[key]) != 1:
+                continue
+            expected = max(item["classes"], key=item["classes"].get)
+            retained += int(int(owners[key][0]["semantic_class"]) == expected)
+        semantic = {
+            "status": "measured",
+            "reference_bins": len(relevant),
+            "covered_bins": sum(
+                bool(item["classes"]) and len(owners[key]) == 1
+                for key, item in fine.items()
+            ),
+            "retained_bins": retained,
+            "retention_fraction": retained / len(relevant) if relevant else None,
+            "reference": "dominant nonzero semantic class per observed 5cm bin",
+        }
+    if all("drivable_evidence" in leaf for leaf in snapshot.get("leaves", [])):
+        relevant = [item for item in fine.values() if item["hazard"]]
+        retained = sum(
+            int(owners[key][0]["drivable_evidence"] < 0)
+            for key, item in fine.items()
+            if item["hazard"] and len(owners[key]) == 1
+        )
+        hazard = {
+            "status": "measured",
+            "reference_bins": len(relevant),
+            "covered_bins": sum(
+                item["hazard"] and len(owners[key]) == 1 for key, item in fine.items()
+            ),
+            "retained_bins": retained,
+            "retention_fraction": retained / len(relevant) if relevant else None,
+            "reference": "any non-drivable evidence per observed 5cm bin",
+        }
+    field_statuses = {semantic["status"], hazard["status"]}
+    status = (
+        "measured"
+        if field_statuses == {"measured"}
+        else "partial"
+        if "measured" in field_statuses
+        else "unavailable"
+    )
+    return {"status": status, "semantic": semantic, "terrain_hazard": hazard}
+
+
 def mapping_quality_report(
     input_points: np.ndarray,
     rejected_out_of_window: int,
     snapshot: dict[str, Any],
     fine_reference: dict[str, Any],
+    *,
+    frames: list[Any] | None = None,
 ) -> dict[str, Any]:
     """Measure only conservation/topology/elevation evidence exposed by the map."""
     point_count = int(snapshot["point_count"])
@@ -390,6 +554,15 @@ def mapping_quality_report(
         if errors
         else None
     )
+    topology = mixed_resolution_topology_report(snapshot, set(reference))
+    retention = (
+        field_retention_report(frames, snapshot)
+        if frames is not None
+        else {
+            "status": "unavailable",
+            "reason": "source ObservationFrames were not supplied",
+        }
+    )
     return {
         "point_conservation": {
             "holds": conservation,
@@ -398,9 +571,12 @@ def mapping_quality_report(
         },
         "duplicate_ownership": {
             "holds": bool(
-                snapshot.get("invariant_no_parent_descendant_overlap", False)
+                topology["duplicate_leaf_ids"] == 0
+                and topology["observed_bins"]["overlap"] == 0
+                and topology["parent_descendant_exclusive"]
             ),
-            "source": "MapSnapshot.has_no_parent_descendant_overlap",
+            "source": "independent active-leaf ID and observed-bin ownership check",
+            "map_reported_flag": snapshot.get("invariant_no_parent_descendant_overlap"),
         },
         "split_merge_conservation": {
             "holds": split_merge,
@@ -416,6 +592,8 @@ def mapping_quality_report(
             "coverage": len(errors) / len(reference) if reference else None,
             "scope": "observed reference bins covered by final active leaves; excludes evicted/uncovered bins",
         },
+        "mixed_resolution_topology": topology,
+        "field_retention": retention,
     }
 
 
@@ -704,7 +882,7 @@ def _command(
 
 def _aggregate_policy_runs(runs: list[dict[str, Any]]) -> dict[str, Any]:
     stages: dict[str, list[int]] = {}
-    churn, peak_rss = [], []
+    churn, splits, merges, peak_rss = [], [], [], []
     late_frames = dropped_frames = rejected = 0
     governor_interventions = governor_actions_applied = 0
     drops_available = True
@@ -727,6 +905,8 @@ def _aggregate_policy_runs(runs: list[dict[str, Any]]) -> dict[str, Any]:
             dropped_frames += stream["dropped_frames"]
         for frame in run["frame_metrics"]:
             churn.append(frame["topology_churn"])
+            splits.append(frame["splits"])
+            merges.append(frame["merges"])
             governor_interventions += int(frame.get("governor_interventions", 0))
             governor_actions_applied += int(frame.get("governor_actions_applied", 0))
             for name, value in frame["stages_ns"].items():
@@ -737,6 +917,8 @@ def _aggregate_policy_runs(runs: list[dict[str, Any]]) -> dict[str, Any]:
             for name, values in sorted(stages.items())
         },
         "topology_churn_per_frame": nearest_rank_summary(churn),
+        "splits_per_frame": nearest_rank_summary(splits),
+        "merges_per_frame": nearest_rank_summary(merges),
         "late_frames": late_frames,
         "rejected_out_of_window": rejected,
         "dropped_frames": dropped_frames if drops_available else None,
@@ -782,6 +964,13 @@ def utility_ablation_report(results: dict[str, Any]) -> dict[str, Any]:
     def measured(policy: dict[str, Any]) -> dict[str, Any]:
         aggregate = policy["aggregate"]
         final_run = policy["runs"][-1]
+        retention = final_run["quality"].get("field_retention", {})
+
+        def retention_fraction(name: str) -> float | None:
+            value = retention.get(name, {})
+            fraction = value.get("retention_fraction")
+            return None if fraction is None else float(fraction)
+
         return {
             "elevation_rmse_m": final_run["quality"]["elevation_vs_fine_reference"][
                 "rmse_m"
@@ -790,6 +979,8 @@ def utility_ablation_report(results: dict[str, Any]) -> dict[str, Any]:
             "map_latency_p95_ns": aggregate["stage_latency_ns"]["map_update"]["p95"],
             "peak_rss_bytes": aggregate["peak_rss_bytes"],
             "active_leaves": sum(aggregate["final_leaves_per_level"].values()),
+            "semantic_retention_fraction": retention_fraction("semantic"),
+            "terrain_hazard_retention_fraction": retention_fraction("terrain_hazard"),
         }
 
     baseline_metrics = measured(baseline) if baseline else None
@@ -826,6 +1017,18 @@ def utility_ablation_report(results: dict[str, Any]) -> dict[str, Any]:
                 if baseline_metrics is None
                 else _relative_delta(
                     metrics["active_leaves"], baseline_metrics["active_leaves"]
+                ),
+                "semantic_retention_delta": None
+                if baseline_metrics is None
+                else _absolute_delta(
+                    metrics["semantic_retention_fraction"],
+                    baseline_metrics["semantic_retention_fraction"],
+                ),
+                "terrain_hazard_retention_delta": None
+                if baseline_metrics is None
+                else _absolute_delta(
+                    metrics["terrain_hazard_retention_fraction"],
+                    baseline_metrics["terrain_hazard_retention_fraction"],
                 ),
             },
         }
@@ -968,6 +1171,7 @@ def run(args: argparse.Namespace) -> dict[str, Any]:
                 result["metrics"]["stream"]["rejected_out_of_window"],
                 result["snapshot"],
                 fine_reference,
+                frames=frames,
             )
             result["detail_metric"] = _detail_metric(result["snapshot"])
             bridge_samples_ns.extend(
@@ -1141,6 +1345,8 @@ def _write_csv(path: Path, result: dict[str, Any]) -> None:
         "map_update_p99_ns",
         "map_update_max_ns",
         "topology_churn_p95",
+        "splits_p95",
+        "merges_p95",
         "fps_p50",
         "fps_p95",
         "fps_p99",
@@ -1156,6 +1362,11 @@ def _write_csv(path: Path, result: dict[str, Any]) -> None:
         "governor_actions_applied",
         "point_conservation",
         "duplicate_ownership",
+        "seam_boundary_status",
+        "seam_gap_bins",
+        "seam_overlap_bins",
+        "semantic_retention_fraction",
+        "terrain_hazard_retention_fraction",
         "semantic_miou",
         "semantic_miou_0_10m",
         "semantic_miou_10_30m",
@@ -1188,6 +1399,8 @@ def _write_csv(path: Path, result: dict[str, Any]) -> None:
                     "map_update_p99_ns": map_update["p99"],
                     "map_update_max_ns": map_update["max"],
                     "topology_churn_p95": aggregate["topology_churn_per_frame"]["p95"],
+                    "splits_p95": aggregate["splits_per_frame"]["p95"],
+                    "merges_p95": aggregate["merges_per_frame"]["p95"],
                     "fps_p50": aggregate["fps"]["p50"],
                     "fps_p95": aggregate["fps"]["p95"],
                     "fps_p99": aggregate["fps"]["p99"],
@@ -1219,6 +1432,21 @@ def _write_csv(path: Path, result: dict[str, Any]) -> None:
                         item["duplicate_ownership"]["holds"]
                         for item in aggregate["quality"]
                     ),
+                    "seam_boundary_status": aggregate["quality"][-1][
+                        "mixed_resolution_topology"
+                    ]["status"],
+                    "seam_gap_bins": aggregate["quality"][-1][
+                        "mixed_resolution_topology"
+                    ]["observed_bins"]["gap"],
+                    "seam_overlap_bins": aggregate["quality"][-1][
+                        "mixed_resolution_topology"
+                    ]["observed_bins"]["overlap"],
+                    "semantic_retention_fraction": aggregate["quality"][-1][
+                        "field_retention"
+                    ]["semantic"].get("retention_fraction"),
+                    "terrain_hazard_retention_fraction": aggregate["quality"][-1][
+                        "field_retention"
+                    ]["terrain_hazard"].get("retention_fraction"),
                     "semantic_miou": result["semantic_quality"]
                     .get("overall", {})
                     .get("miou"),

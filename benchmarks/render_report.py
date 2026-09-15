@@ -26,6 +26,14 @@ def _metres(value: float | None) -> str:
     return "n/a" if value is None else f"{float(value):.4f} m"
 
 
+def _retention(quality: dict[str, Any], field: str) -> str:
+    value = quality.get("field_retention", {}).get(field, {})
+    fraction = value.get("retention_fraction")
+    if value.get("status") != "measured":
+        return "n/a"
+    return "n/a" if fraction is None else f"{float(fraction):.1%}"
+
+
 def _map_table(report: dict[str, Any] | None) -> str:
     headers = ["Metric", "Uniform5", "Uniform40", "DistanceLOD", "UtilityLOD"]
     metrics = [
@@ -51,6 +59,14 @@ def _map_table(report: dict[str, Any] | None) -> str:
         ),
         ("Topology churn", lambda a, r: f"{a['topology_churn_per_frame']['p95']:.1f}"),
         (
+            "Splits/frame",
+            lambda a, r: f"{a.get('splits_per_frame', {}).get('p95', 'n/a')}",
+        ),
+        (
+            "Merges/frame",
+            lambda a, r: f"{a.get('merges_per_frame', {}).get('p95', 'n/a')}",
+        ),
+        (
             "Elevation error",
             lambda a, r: _metres(
                 a["quality"][-1]["elevation_vs_fine_reference"]["rmse_m"]
@@ -63,6 +79,15 @@ def _map_table(report: dict[str, Any] | None) -> str:
                 if a["quality"][-1]["elevation_vs_fine_reference"].get("coverage")
                 is None
                 else f"{a['quality'][-1]['elevation_vs_fine_reference']['coverage']:.1%}"
+            ),
+        ),
+        (
+            "Seam/boundary ownership",
+            lambda a, r: (
+                "PASS"
+                if a["quality"][-1].get("mixed_resolution_topology", {}).get("status")
+                == "valid"
+                else "FAIL"
             ),
         ),
         (
@@ -84,6 +109,14 @@ def _map_table(report: dict[str, Any] | None) -> str:
                 if all(q["duplicate_ownership"]["holds"] for q in a["quality"])
                 else "FAIL"
             ),
+        ),
+        (
+            "Semantic retention",
+            lambda a, r: _retention(a["quality"][-1], "semantic"),
+        ),
+        (
+            "Terrain hazard retention",
+            lambda a, r: _retention(a["quality"][-1], "terrain_hazard"),
         ),
     ]
     lines = ["| " + " | ".join(headers) + " |", "| --- | ---: | ---: | ---: | ---: |"]
@@ -148,17 +181,21 @@ def _ablation_table(report: dict[str, Any] | None) -> str:
         return "Ablation matrix was not included in this artifact."
     members = ablation.get("members", {})
     lines = [
-        "| Variant | Signals | RMSE | Δ RMSE | p95 map | Δ RSS |",
-        "| --- | --- | ---: | ---: | ---: | ---: |",
+        "| Variant | Signals | RMSE | Δ RMSE | Sem. retain | Hazard retain | p95 map | Δ RSS |",
+        "| --- | --- | ---: | ---: | ---: | ---: | ---: | ---: |",
     ]
     for name in ablation.get("required_policies", []):
         member = members.get(name)
         if not member:
-            lines.append(f"| {name} | not run | n/a | n/a | n/a | n/a |")
+            lines.append(f"| {name} | not run | n/a | n/a | n/a | n/a | n/a | n/a |")
             continue
         measured = member["measurements"]
         delta = member["delta_vs_distance"]
         rss_delta = delta["peak_rss_fraction"]
+
+        def percentage(value: float | None) -> str:
+            return "n/a" if value is None else f"{float(value):.1%}"
+
         lines.append(
             "| "
             + " | ".join(
@@ -167,6 +204,8 @@ def _ablation_table(report: dict[str, Any] | None) -> str:
                     ", ".join(member["signals"]) or "distance only",
                     _metres(measured["elevation_rmse_m"]),
                     _metres(delta["elevation_rmse_m"]),
+                    percentage(measured.get("semantic_retention_fraction")),
+                    percentage(measured.get("terrain_hazard_retention_fraction")),
                     _ms(measured["map_latency_p95_ns"]),
                     "n/a" if rss_delta is None else f"{rss_delta:+.1%}",
                 ]
@@ -207,6 +246,24 @@ def _semantic_quality_summary(report: dict[str, Any] | None) -> str:
     return "\n".join(lines)
 
 
+def _field_retention_summary(report: dict[str, Any] | None) -> str:
+    quality = (report or {}).get("policies", {})
+    unavailable: set[str] = set()
+    seen = False
+    for policy in quality.values():
+        for item in policy.get("aggregate", {}).get("quality", []):
+            for name, value in item.get("field_retention", {}).items():
+                if name != "status" and value.get("status") != "measured":
+                    unavailable.add(f"{name}: {value.get('reason', 'unavailable')}")
+                if name != "status":
+                    seen = True
+    return (
+        "Field retention: unavailable (" + "; ".join(sorted(unavailable)) + ")."
+        if unavailable or not seen
+        else "Field retention: measured for semantic and terrain hazard evidence."
+    )
+
+
 def _hard_failure(
     mapping: dict[str, Any] | None, perception: dict[str, Any] | None
 ) -> bool:
@@ -217,6 +274,7 @@ def _hard_failure(
     if any(
         not quality["point_conservation"]["holds"]
         or not quality["duplicate_ownership"]["holds"]
+        or quality.get("mixed_resolution_topology", {}).get("status") == "invalid"
         for policy in mapping.get("policies", {}).values()
         for quality in policy.get("aggregate", {}).get("quality", [])
     ):
@@ -303,6 +361,8 @@ def render(
         "### Range-binned semantic quality",
         "",
         _semantic_quality_summary(mapping),
+        "",
+        _field_retention_summary(mapping),
         "",
         "### Regression status",
         "",

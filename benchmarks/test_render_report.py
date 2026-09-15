@@ -17,6 +17,30 @@ class RenderReportTests(unittest.TestCase):
             )
         )
 
+    def test_invalid_observed_mixed_resolution_topology_is_a_hard_failure(self):
+        self.assertTrue(
+            _hard_failure(
+                {
+                    "policies": {
+                        "uniform5": {
+                            "aggregate": {
+                                "quality": [
+                                    {
+                                        "point_conservation": {"holds": True},
+                                        "duplicate_ownership": {"holds": True},
+                                        "mixed_resolution_topology": {
+                                            "status": "invalid"
+                                        },
+                                    }
+                                ]
+                            }
+                        }
+                    },
+                },
+                {"timings": {"semantic": {}}},
+            )
+        )
+
     def test_report_renders_all_policy_and_perception_sections(self):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)

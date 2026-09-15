@@ -15,6 +15,8 @@ from benchmarks.run_benchmark import (
     analytical_3d_reference,
     load_selection,
     mapping_quality_report,
+    mixed_resolution_topology_report,
+    field_retention_report,
     semantic_range_quality_report,
     summarize_perception,
     utility_ablation_report,
@@ -22,6 +24,69 @@ from benchmarks.run_benchmark import (
 
 
 class ProductBenchmarkTests(unittest.TestCase):
+    def test_mixed_resolution_topology_checks_observed_bins_independently(self):
+        report = mixed_resolution_topology_report(
+            {
+                "leaves": [
+                    {"level": 1, "ix": 0, "iy": 0, "count": 2},
+                    {"level": 0, "ix": 0, "iy": 0, "count": 1},
+                ],
+            },
+            {(0, 0), (1, 0), (2, 0)},
+        )
+        self.assertEqual(report["status"], "invalid")
+        self.assertFalse(report["parent_descendant_exclusive"])
+        self.assertEqual(report["duplicate_leaf_ids"], 0)
+        self.assertEqual(report["observed_bins"]["overlap"], 1)
+        self.assertEqual(report["observed_bins"]["gap"], 1)
+
+    def test_mixed_resolution_boundary_with_adjacent_leaves_has_one_owner(self):
+        report = mixed_resolution_topology_report(
+            {
+                "leaves": [
+                    {"level": 1, "ix": 0, "iy": 0, "count": 2},
+                    {"level": 0, "ix": 2, "iy": 0, "count": 1},
+                ],
+            },
+            {(0, 0), (1, 0), (2, 0)},
+        )
+        self.assertEqual(report["status"], "valid")
+        self.assertTrue(report["parent_descendant_exclusive"])
+        self.assertTrue(report["observed_bins"]["exactly_one_owner"])
+
+    def test_field_retention_reports_semantic_and_hazard_preservation(self):
+        from benchmarks.test_runtime import frame
+
+        source = frame()
+        snapshot = {
+            "leaves": [
+                {
+                    "level": 1,
+                    "ix": 0,
+                    "iy": 0,
+                    "count": 2,
+                    "mean_z": 1.0,
+                    "semantic_class": 1,
+                    "drivable_evidence": -1.0,
+                },
+                {
+                    "level": 1,
+                    "ix": -1,
+                    "iy": 0,
+                    "count": 2,
+                    "mean_z": 1.0,
+                    "semantic_class": 2,
+                    "drivable_evidence": -1.0,
+                },
+            ]
+        }
+        report = field_retention_report([source], snapshot)
+        self.assertEqual(report["status"], "measured")
+        self.assertEqual(report["semantic"]["reference_bins"], 2)
+        self.assertEqual(report["semantic"]["retained_bins"], 2)
+        self.assertEqual(report["terrain_hazard"]["reference_bins"], 1)
+        self.assertEqual(report["terrain_hazard"]["retained_bins"], 1)
+
     def test_sih_validation_entrypoint_has_explicit_real_data_gate(self):
         repo = Path(__file__).resolve().parents[1]
         validator = repo / "scripts/validate_sih.sh"

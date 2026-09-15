@@ -42,11 +42,15 @@ weighted mean level means finer retained detail, and negative resource
 fractions mean lower measured use. `full_vs_distance_assessment` describes
 only the selected data and host. It is never a general quality claim.
 
-The quality block evaluates point conservation, parent/descendant exclusivity,
-split/merge sufficient-statistic conservation, and elevation reconstruction
-against observed 5 cm bins. `coverage` states what fraction of reference bins
-had a final active owner. Consumers show coverage beside RMSE and do not treat
-finer detail alone as quality improvement.
+The quality block evaluates point conservation, independently reconstructs
+active-leaf ownership over observed 5 cm bins, checks parent/descendant
+exclusivity and seam gaps/overlaps, checks split/merge sufficient-statistic
+conservation, and measures elevation reconstruction against the observed fine
+reference. `coverage` states what fraction of reference bins had a final active
+owner. Semantic-class and non-drivable-hazard retention are measured only when
+the map snapshot emits the corresponding leaf fields; otherwise the artifact
+records `unavailable` with a reason. Consumers show coverage beside RMSE and
+do not treat finer detail alone as quality improvement.
 
 ## CSV and compatibility
 
