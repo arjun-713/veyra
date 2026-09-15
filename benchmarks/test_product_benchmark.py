@@ -13,11 +13,74 @@ from benchmarks.run_benchmark import (
     UTILITY_ABLATION_POLICY_NAMES,
     load_selection,
     mapping_quality_report,
+    summarize_perception,
     utility_ablation_report,
 )
 
 
 class ProductBenchmarkTests(unittest.TestCase):
+    def test_perception_summary_preserves_stage_tails_and_statuses(self):
+        report = summarize_perception(
+            "semanticposs",
+            "00",
+            [
+                {
+                    "points": 12,
+                    "timings_ms": {
+                        "semantic": 10.0,
+                        "ground": 2.0,
+                        "terrain": 3.0,
+                        "temporal": 0.0,
+                        "total": 15.0,
+                    },
+                    "status": {
+                        "semantic": "model",
+                        "ground": "patchworkpp",
+                        "terrain": "available",
+                        "temporal": "disabled",
+                    },
+                    "ground_fraction": 0.5,
+                    "known_terrain_fraction": 0.25,
+                    "known_motion_fraction": 0.0,
+                },
+                {
+                    "points": 20,
+                    "timings_ms": {
+                        "semantic": 20.0,
+                        "ground": 4.0,
+                        "terrain": 6.0,
+                        "temporal": 1.0,
+                        "total": 31.0,
+                    },
+                    "status": {
+                        "semantic": "model",
+                        "ground": "patchworkpp",
+                        "terrain": "available",
+                        "temporal": "disabled",
+                    },
+                    "ground_fraction": 0.75,
+                    "known_terrain_fraction": 0.5,
+                    "known_motion_fraction": 0.0,
+                },
+            ],
+        )
+        self.assertEqual(report["dataset"], "semanticposs")
+        self.assertEqual(report["sequence"], "00")
+        self.assertEqual(report["points_processed"], 32)
+        self.assertEqual(report["timings"]["semantic"]["p50_ms"], 10.0)
+        self.assertEqual(report["timings"]["semantic"]["p95_ms"], 20.0)
+        self.assertEqual(
+            report["status"],
+            {
+                "semantic": "model",
+                "ground": "patchworkpp",
+                "terrain": "available",
+                "temporal": "disabled",
+            },
+        )
+        self.assertAlmostEqual(report["ground_ratio"], 0.625)
+        self.assertAlmostEqual(report["known_terrain_fraction"], 0.375)
+
     def test_utility_ablation_matrix_has_distance_components_and_full_policy(self):
         expected = {
             "ablation_distance",

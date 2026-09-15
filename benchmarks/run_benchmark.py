@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import argparse
 import csv
-from datetime import datetime, timezone
 import hashlib
 import json
 import math
@@ -14,6 +13,7 @@ import subprocess
 import sys
 import time
 from dataclasses import dataclass
+from datetime import datetime, timezone
 from itertools import pairwise
 from pathlib import Path
 from typing import Any
@@ -25,8 +25,8 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 
 from benchmarks.protocol import PROTOCOL_VERSION, stream_bytes
-from datasets.rellis import Rellis3DDataset
 from datasets.generic import ManifestDataset
+from datasets.rellis import Rellis3DDataset
 from datasets.semantickitti import SemanticKITTIDataset
 from datasets.semanticposs import SemanticPOSSDataset
 from perception.pipeline import load_perception_pipeline
@@ -183,6 +183,60 @@ def hardware_metadata(profile: str) -> dict[str, Any]:
         "processor": cpu_model or platform.processor() or None,
         "logical_cpu_count": os.cpu_count(),
         "physical_memory_bytes": _host_memory_bytes(),
+    }
+
+
+def summarize_perception(
+    dataset: str, sequence: str, records: list[dict[str, Any]]
+) -> dict[str, Any]:
+    """Summarize the exact perception pass shared by every map policy.
+
+    The benchmark keeps the detailed per-frame records out of the map report,
+    but exports this compact artifact so CI can display stage tails without
+    running the neural pipeline a second time.
+    """
+    if not records:
+        raise ValueError("cannot summarize an empty perception selection")
+    timing_names = tuple(records[0]["timings_ms"])
+    if any(tuple(record["timings_ms"]) != timing_names for record in records):
+        raise ValueError("perception timing stages must be consistent")
+    statuses: dict[str, str] = {}
+    for name in records[0]["status"]:
+        values = {str(record["status"].get(name, "unavailable")) for record in records}
+        statuses[name] = next(iter(values)) if len(values) == 1 else "mixed"
+
+    def latency(values: list[float]) -> dict[str, float | int]:
+        summary = nearest_rank_summary(values)
+        return {
+            "p50_ms": float(summary["p50"]),
+            "p95_ms": float(summary["p95"]),
+            "p99_ms": float(summary["p99"]),
+            "mean_ms": float(summary["mean"]),
+            "max_ms": float(summary["max"]),
+            "samples": int(summary["count"]),
+        }
+
+    return {
+        "dataset": dataset,
+        "sequence": sequence,
+        "frames": len(records),
+        "points_processed": sum(int(record["points"]) for record in records),
+        "failures": 0,
+        "status": statuses,
+        "ground_ratio": sum(float(record["ground_fraction"]) for record in records)
+        / len(records),
+        "known_terrain_fraction": sum(
+            float(record["known_terrain_fraction"]) for record in records
+        )
+        / len(records),
+        "known_motion_fraction": sum(
+            float(record["known_motion_fraction"]) for record in records
+        )
+        / len(records),
+        "timings": {
+            name: latency([float(record["timings_ms"][name]) for record in records])
+            for name in timing_names
+        },
     }
 
 
@@ -399,6 +453,7 @@ def load_selection(
     run_perception: bool = True,
     perception_config: Path | None = None,
     dataset_root: Path | None = None,
+    perception_records: list[dict[str, Any]] | None = None,
 ):
     dataset_config = yaml.safe_load((repo / "configs/datasets.yaml").read_text())
     raw_distance_config = yaml.safe_load(
@@ -459,8 +514,29 @@ def load_selection(
         processed = []
         for source_frame in source_frames:
             started = time.perf_counter_ns()
-            processed.append(pipeline.process(source_frame).frame)
+            output = pipeline.process(source_frame)
+            processed.append(output.frame)
             durations_ns.append(time.perf_counter_ns() - started)
+            if perception_records is not None:
+                perception_records.append(
+                    {
+                        "points": len(source_frame.points),
+                        "timings_ms": output.timings_ms,
+                        "status": {
+                            "semantic": output.status.semantic,
+                            "ground": output.status.ground,
+                            "terrain": output.status.terrain,
+                            "temporal": output.status.temporal,
+                        },
+                        "ground_fraction": float(output.frame.ground.mean()),
+                        "known_terrain_fraction": float(
+                            (output.frame.drivable != "unknown").mean()
+                        ),
+                        "known_motion_fraction": float(
+                            (output.frame.motion_state != "unknown").mean()
+                        ),
+                    }
+                )
     return (
         processed,
         distance_config,
@@ -550,13 +626,13 @@ def _aggregate_policy_runs(runs: list[dict[str, Any]]) -> dict[str, Any]:
     }
 
 
-def _relative_delta(current: int | float | None, baseline: int | float | None):
+def _relative_delta(current: float | None, baseline: float | None):
     if current is None or baseline in (None, 0):
         return None
     return (float(current) - float(baseline)) / float(baseline)
 
 
-def _absolute_delta(current: int | float | None, baseline: int | float | None):
+def _absolute_delta(current: float | None, baseline: float | None):
     if current is None or baseline is None:
         return None
     return float(current) - float(baseline)
@@ -694,6 +770,7 @@ def run(args: argparse.Namespace) -> dict[str, Any]:
         (repo / "configs/hardware_profiles.yaml").read_text()
     )
     validate_hardware_profile(hardware_config, args.hardware_profile)
+    perception_records: list[dict[str, Any]] = []
     frames, distance_config, _dataset_entry, perception_ns, window_radius_m = (
         load_selection(
             repo,
@@ -708,6 +785,7 @@ def run(args: argparse.Namespace) -> dict[str, Any]:
                 if not Path(args.perception_config).is_absolute()
                 else Path(args.perception_config)
             ),
+            perception_records=perception_records if not args.skip_perception else None,
         )
     )
     stream, digest = stream_bytes(frames)
@@ -822,6 +900,11 @@ def run(args: argparse.Namespace) -> dict[str, Any]:
         else None
     )
     checkpoint = repo / model_value if isinstance(model_value, str) else None
+    perception_report = (
+        summarize_perception(args.dataset, args.sequence, perception_records)
+        if perception_records
+        else None
+    )
     return {
         "schema_version": SCHEMA_VERSION,
         "provenance": {
@@ -870,6 +953,7 @@ def run(args: argparse.Namespace) -> dict[str, Any]:
         "shared_stage_latency_ns": {
             "perception": nearest_rank_summary(perception_ns) if perception_ns else None
         },
+        "perception": perception_report,
         "utility_vs_distance_detail": {
             "weighted_mean_level_delta": detail_delta,
             "interpretation": "negative means UtilityLOD retained finer leaves on identical input; detail alone is not quality gain",
@@ -988,6 +1072,11 @@ def main() -> int:
     parser.add_argument("--dataset-sha256")
     parser.add_argument("--build-type", default="Release")
     parser.add_argument("--perception-config", default="configs/perception.yaml")
+    parser.add_argument(
+        "--perception-output",
+        type=Path,
+        help="Write the shared perception report from this run to JSON",
+    )
     args = parser.parse_args()
     try:
         result = run(args)
@@ -1008,6 +1097,21 @@ def main() -> int:
         args.output.write_text(rendered)
     if args.csv_output:
         _write_csv(args.csv_output, result)
+    if args.perception_output:
+        if result["perception"] is None:
+            raise ValueError("perception output requested for a map-only run")
+        args.perception_output.parent.mkdir(parents=True, exist_ok=True)
+        args.perception_output.write_text(
+            json.dumps(
+                {
+                    **result["perception"],
+                    "reproducibility": result["provenance"],
+                },
+                indent=2,
+                sort_keys=True,
+            )
+            + "\n"
+        )
     if not args.output:
         print(rendered, end="")
     return 0

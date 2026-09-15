@@ -20,6 +20,7 @@ skip_perception="false"
 dataset_sha256=""
 build_type="Release"
 perception_config="configs/perception.yaml"
+perception_output=""
 python_bin="${VEYRA_PYTHON:-python3}"
 
 usage() {
@@ -46,6 +47,7 @@ Options:
   --python PATH         Python interpreter for the benchmark harness
   --build-dir PATH     local CMake build directory
   --output-dir PATH    JSON/CSV output directory
+  --perception-output PATH  JSON report from the shared perception pass
   -h, --help           show this help
 
 Environment:
@@ -68,6 +70,7 @@ while (($#)); do
     --dataset-sha256) dataset_sha256="${2:?missing value for --dataset-sha256}"; shift 2 ;;
     --build-type) build_type="${2:?missing value for --build-type}"; shift 2 ;;
     --perception-config) perception_config="${2:?missing value for --perception-config}"; shift 2 ;;
+    --perception-output) perception_output="${2:?missing value for --perception-output}"; shift 2 ;;
     --python) python_bin="${2:?missing value for --python}"; shift 2 ;;
     --build-dir) build_dir="${2:?missing value for --build-dir}"; shift 2 ;;
     --output-dir) output_dir="${2:?missing value for --output-dir}"; shift 2 ;;
@@ -119,6 +122,9 @@ if [[ -n "$dataset_root" ]]; then
 fi
 if [[ "$skip_perception" == "true" ]]; then
   benchmark_args+=(--skip-perception)
+fi
+if [[ -n "${perception_output:-}" ]]; then
+  benchmark_args+=(--perception-output "$perception_output")
 fi
 "${benchmark_args[@]}"
 
