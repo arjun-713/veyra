@@ -1,10 +1,8 @@
 # Repository Structure — Veyra
 
-Snapshot of `arjun-713/veyra` (SIH26053) as it exists on disk.
-
-Read on branch `feat/cell-statistics` at commit `da739dd`, 2026-09-10.
-Excludes `.git/`, `.venv/`, `.ruff_cache/` and the two build trees
-(`build/`, `build-debug/`).
+Current orientation guide for the SIH26053 repository. Generated datasets,
+model weights, build trees, and local environments are intentionally excluded
+from version control.
 
 ---
 
@@ -27,18 +25,9 @@ veyra/
 ├── .github/                           dependabot.yml, PULL_REQUEST_TEMPLATE.md,
 │                                      ISSUE_TEMPLATE/{bug_report,config,feature_request,task}.yml
 │
-├── include/veyra/
-│   ├── core/types.hpp                 CellId, resolution_m
-│   ├── map/{cell.hpp, fwd.hpp}
-│   ├── metrics/fwd.hpp
-│   ├── policy/fwd.hpp
-│   ├── temporal/fwd.hpp
-│   └── terrain/fwd.hpp
-│
-├── src/                               CMakeLists.txt + map/ metrics/ policy/ temporal/ terrain/
-│                                      each: CMakeLists.txt + stub.cpp
-├── apps/                              CMakeLists.txt + benchmark/ live/ player/
-│                                      each: CMakeLists.txt + main.cpp
+├── include/veyra/                     Public C++20 map, policy, runtime and metrics APIs
+├── src/                               C++ map, policy, runtime and metrics implementations
+├── apps/                              Native benchmark/live/player/runtime entry points
 ├── tests/
 │   ├── CMakeLists.txt
 │   ├── check.hpp
@@ -54,61 +43,49 @@ veyra/
 ├── data/                              cache/ processed/ raw/  (all .gitkeep only)
 ├── datasets/                          README.md, download_semantickitti.sh,
 │                                      common/ great_outdoors/ rellis/ semantickitti/ semanticposs/
-├── perception/                        README.md, ground/, semantic/semantic_provider.hpp
-├── benchmarks/README.md
-├── ros2/README.md
-└── viewer/README.md
+├── perception/                        Semantic, Patchwork++, terrain and temporal stages
+├── benchmarks/                        Four-policy reports and regression checks
+├── apps/desktop/                      Electron + Svelte desktop application
+├── ros2/README.md                     Integration notes
+└── viewer/                            Python HTTP viewer and static Three.js client
 ```
 
 ---
 
 ## Where the code actually is
 
-**All real C++ is header-only under `include/veyra/`.** Every module under
-`src/` is still a `stub.cpp` with a `CMakeLists.txt` beside it — the directory
-layout for the five subsystems exists, but none of them has an implementation.
-The same is true of `apps/`: three `main.cpp` files, all placeholders.
+The native map and policy implementations are under `src/` and are compiled
+through the root CMake project. Python replay, perception, protocol and
+telemetry run under `runtime/`, `datasets/` and `perception/`. Benchmark and
+product entry points are wired through `apps/`, `benchmarks/`, `viewer/` and
+`apps/desktop/`; these are not placeholder-only directories.
 
-| Header | Contents |
-| --- | --- |
-| `core/types.hpp` | `CellId`, `resolution_m`. Shared ground across all three domains. |
-| `map/cell.hpp` | `Cell`, `updateCell`, `mergeCells`, `varianceOf`. |
-| `map/fwd.hpp`, `metrics/fwd.hpp`, `policy/fwd.hpp`, `temporal/fwd.hpp`, `terrain/fwd.hpp` | one-line forward-declaration markers |
+The primary runtime path is:
 
-Note this snapshot is taken on `feat/cell-statistics`, which branches from
-`main`. `core/types.hpp` here is the original short version; the expanded one
-— `parentOf`, `childrenOf`, `worldToKey`, `extentOf`, the tile helpers — lives
-on `feat/strengthen-index-alignment` and is not in this working tree.
+```text
+dataset adapter → ObservationFrame → Python perception → V2 protocol
+→ C++ mapper/policy → snapshot/telemetry → viewer or Electron renderer
+```
 
 ## Tests
 
-`docs/map-correctness.md` mandates eight invariant tests. **Two exist:**
+`docs/map-correctness.md` defines the map invariants. Native CTest and Python
+tests cover indexing, split/merge, ownership, rolling windows, memory and
+runtime/protocol integration; inspect the current test files for exact
+coverage rather than relying on an old snapshot.
 
-| Test | File | State |
-| --- | --- | --- |
-| `test_index_alignment` | `tests/test_index_alignment.cpp` | exists |
-| `test_split_merge` | `tests/test_split_merge.cpp` | exists, statistics half only |
-| `test_point_conservation` | — | no file |
-| `test_parent_child_exclusivity` | — | no file |
-| `test_boundary_neighbors` | — | no file |
-| `test_rolling_window` | — | no file |
-| `test_memory_accounting` | — | no file |
-| `test_near_field_protection` | — | no file |
+| Area | Representative tests |
+| --- | --- |
+| indexing and boundaries | `tests/test_index_alignment.cpp`, `tests/test_boundary_neighbors.cpp` |
+| split/merge and ownership | `tests/test_split_merge.cpp`, `tests/test_parent_child_exclusivity.cpp` |
+| conservation and rolling window | `tests/test_point_conservation.cpp`, `tests/test_rolling_window.cpp` |
+| memory and safety floor | `tests/test_memory_accounting.cpp`, `tests/test_near_field_protection.cpp` |
 
 `tests/check.hpp` is the assertion macro all of them use; it survives
 `-DNDEBUG`, which `assert()` does not.
 
-## Files that are not part of the repository
+## Data and generated artifacts
 
-- `prompt.md`, `rule.md`, `structure.md` — untracked, personal, at the repo
-  root. They stay out of every branch and every PR.
-- `observation.md` — one level up at `~/SIH'26/`, entirely outside the
-  repository, which is why it has never appeared in a commit.
-- `scripts/check_docs_links.py` — tracked, but currently carries uncommitted
-  local changes (ruff formatting) that belong in their own PR.
-
-## Directories that are deliberately empty
-
-`data/{raw,processed,cache}` and the five `datasets/*` subdirectories contain
-only `.gitkeep`. `AGENTS.md` forbids committing datasets, weights, maps, dumps,
-engines and bags; these are mount points, not content.
+`data/{raw,processed,cache}` is a local mount for original datasets, models and
+derived artifacts. `AGENTS.md` forbids committing datasets, weights, maps,
+dumps, engines and bags; the corresponding paths remain ignored.
