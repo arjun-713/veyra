@@ -10,9 +10,45 @@ from perception.ground.patchworkpp import (
     PatchworkPPGroundSegmenter,
     PatchworkPPUnavailableError,
 )
+from perception.ground.quality import (
+    aggregate_ground_quality_reports,
+    ground_quality_report,
+)
 
 
 class GroundEvidenceTests(unittest.TestCase):
+    def test_ground_quality_report_is_explicit_for_binary_predictions(self):
+        report = ground_quality_report(
+            np.array([True, True, False, False]),
+            np.array([True, False, False, True]),
+        )
+
+        self.assertEqual(report["evaluated_points"], 4)
+        self.assertEqual(report["true_positive"], 1)
+        self.assertEqual(report["false_positive"], 1)
+        self.assertEqual(report["false_negative"], 1)
+        self.assertAlmostEqual(report["precision"], 0.5)
+        self.assertAlmostEqual(report["recall"], 0.5)
+        self.assertAlmostEqual(report["f1"], 0.5)
+        self.assertAlmostEqual(report["iou"], 1 / 3)
+
+    def test_ground_quality_rejects_misaligned_masks(self):
+        with self.assertRaises(ValueError):
+            ground_quality_report(np.array([True]), np.array([True, False]))
+
+    def test_ground_quality_aggregation_uses_micro_counts(self):
+        report = aggregate_ground_quality_reports(
+            [
+                ground_quality_report([True, False], [True, False]),
+                ground_quality_report([False, False, True], [True, False, False]),
+            ]
+        )
+
+        self.assertEqual(report["evaluated_points"], 5)
+        self.assertEqual(report["true_positive"], 1)
+        self.assertEqual(report["false_negative"], 1)
+        self.assertAlmostEqual(report["recall"], 0.5)
+
     def test_evidence_is_point_aligned_and_preserves_backend_metadata(self):
         evidence = GroundEvidence(
             mask=np.array([True, False, True]),
@@ -57,6 +93,66 @@ class GroundEvidenceTests(unittest.TestCase):
         sys.modules["fake"] = module
         evidence = segmenter.segment(np.zeros((3, 4), dtype=np.float32))
         np.testing.assert_array_equal(evidence.mask, [True, False, True])
+
+    def test_parameter_overrides_are_applied_to_official_binding(self):
+        class Parameters:
+            max_range = 80.0
+            min_range = 2.7
+
+        class Backend:
+            def __init__(self, params):
+                self.params = params
+
+            def estimateGround(self, points):
+                del points
+
+            def getGroundIndices(self):
+                return [0]
+
+        import sys
+        import types
+
+        module = types.ModuleType("fake_parameters")
+        module.Parameters = Parameters
+        module.patchworkpp = Backend
+        sys.modules["fake_parameters"] = module
+        segmenter = PatchworkPPGroundSegmenter(
+            module_names=("fake_parameters",),
+            parameter_overrides={"max_range": 100.0, "min_range": 0.0},
+        )
+
+        segmenter.segment(np.zeros((1, 4), dtype=np.float32))
+
+        self.assertEqual(segmenter._binding.params.max_range, 100.0)
+        self.assertEqual(segmenter._binding.params.min_range, 0.0)
+
+    def test_unknown_parameter_is_a_configuration_error(self):
+        class Parameters:
+            max_range = 80.0
+
+        class Backend:
+            def __init__(self, params):
+                del params
+
+            def estimateGround(self, points):
+                del points
+
+            def getGroundIndices(self):
+                return []
+
+        import sys
+        import types
+
+        module = types.ModuleType("fake_invalid_parameters")
+        module.Parameters = Parameters
+        module.patchworkpp = Backend
+        sys.modules["fake_invalid_parameters"] = module
+
+        with self.assertRaisesRegex(ValueError, "not supported"):
+            PatchworkPPGroundSegmenter(
+                module_names=("fake_invalid_parameters",),
+                parameter_overrides={"not_a_parameter": 1},
+            ).segment(np.zeros((1, 4), dtype=np.float32))
 
 
 class PatchworkPPGroundSegmenterTests(unittest.TestCase):
@@ -125,6 +221,41 @@ class PatchworkPPGroundSegmenterTests(unittest.TestCase):
             "real RELLIS Patchwork++: "
             f"points={frame.points.shape[0]} ground_ratio={ground_ratio:.4f} "
             f"elapsed_s={elapsed_s:.6f}"
+        )
+
+    def test_real_semanticposs_ground_quality_is_measurable(self):
+        if not importlib.util.find_spec("pypatchworkpp"):
+            self.skipTest("requires pypatchworkpp for real SemanticPOSS validation")
+        dataset_root = Path("data/raw/semanticposs/dataset")
+        if not dataset_root.is_dir():
+            self.skipTest("original local SemanticPOSS data is unavailable")
+
+        from datasets.semanticposs import SemanticPOSSDataset
+
+        reports = []
+        dataset = SemanticPOSSDataset(dataset_root, sequences=["00"])
+        segmenter = PatchworkPPGroundSegmenter(
+            parameter_overrides={"min_range": 0.0, "max_range": 100.0}
+        )
+        for frame in dataset.replay("00", end=3, max_range_m=100.0):
+            sensor = frame.points.copy()
+            sensor[:, :3] = (
+                sensor[:, :3] - frame.pose.matrix[:3, 3]
+            ) @ frame.pose.matrix[:3, :3]
+            evidence = segmenter.segment(sensor)
+            reports.append(
+                ground_quality_report(evidence.mask, frame.raw_semantic_class == 22)
+            )
+
+        aggregate = aggregate_ground_quality_reports(reports)
+        self.assertGreater(aggregate["recall"], 0.85)
+        self.assertGreater(aggregate["precision"], 0.65)
+        self.assertGreater(aggregate["f1"], 0.75)
+        print(
+            "real SemanticPOSS Patchwork++ ground quality: "
+            f"frames={aggregate['frames']} precision={aggregate['precision']:.4f} "
+            f"recall={aggregate['recall']:.4f} f1={aggregate['f1']:.4f} "
+            f"iou={aggregate['iou']:.4f}"
         )
 
 

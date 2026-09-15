@@ -51,6 +51,10 @@ class PerceptionValidationTests(unittest.TestCase):
         self.assertEqual(report["evaluated_points"], 6)
         self.assertAlmostEqual(report["accuracy"], 4 / 6)
         self.assertAlmostEqual(report["mean_iou"], (2 / 4 + 2 / 3) / 2)
+        self.assertEqual(report["confusion_matrix"], matrix.tolist())
+        self.assertAlmostEqual(report["per_class"]["1"]["precision"], 2 / 3)
+        self.assertAlmostEqual(report["per_class"]["1"]["recall"], 2 / 3)
+        self.assertAlmostEqual(report["per_class"]["1"]["iou"], 0.5)
         self.assertIsNone(confusion_report(np.zeros((20, 20)))["accuracy"])
 
     def test_latency_tails_and_invalid_samples(self):

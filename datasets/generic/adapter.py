@@ -216,8 +216,10 @@ class ManifestDataset:
             raise ValueError("invalid range bounds")
         points = self._read_points(item["points"])
         labels = np.zeros(len(points), dtype=np.int64)
+        label_source = "absent"
         if item.get("labels") is not None:
             labels = self._read_labels(item["labels"], len(points))
+            label_source = "dataset"
         keep = np.linalg.norm(points[:, :3], axis=1) >= min_range_m
         if max_range_m is not None:
             keep &= np.linalg.norm(points[:, :3], axis=1) <= max_range_m
@@ -240,6 +242,7 @@ class ManifestDataset:
                 timestamp_source="dataset" if timestamp is not None else "absent",
                 pose_source="dataset",
                 calibration_source="identity_absent",
+                label_source=label_source,
             )
         else:
             pose = PoseSE3.identity(timestamp)
@@ -248,6 +251,7 @@ class ManifestDataset:
                 timestamp_source="dataset" if timestamp is not None else "absent",
                 pose_source="identity_absent",
                 calibration_source="identity_absent",
+                label_source=label_source,
             )
         unknown = np.full(len(points), "unknown")
         nan = np.full(len(points), np.nan, dtype=np.float32)

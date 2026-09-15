@@ -10,6 +10,11 @@ data/raw/semanticposs/dataset/sequences/{00..05}/{velodyne,labels,calib.txt,...}
 the direct `<root>/<sequence>/` fixture layout and the canonical
 `<root>/sequences/<sequence>/` KITTI layout.
 
+Labels are strict by default. For scans without labels, callers may opt into
+replay with `require_labels=False`; those frames carry class `0`, confidence
+`0`, and `provenance.label_source == "absent"` rather than being presented as
+ground truth.
+
 Example:
 
 ```python

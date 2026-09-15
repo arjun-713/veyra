@@ -144,6 +144,18 @@ class SemanticPOSSAdapterTests(unittest.TestCase):
             np.testing.assert_array_equal(frame.semantic_class, [1, 2, 0])
             np.testing.assert_array_equal(frame.semantic_confidence, [1.0, 1.0, 0.0])
 
+    def test_optional_labels_are_explicitly_unknown(self):
+        with tempfile.TemporaryDirectory() as raw:
+            root = Path(raw)
+            write_frame(root, "00", "0", [1.0])
+            (root / "00" / "labels" / "0.label").unlink()
+
+            frame = SemanticPOSSDataset(root, require_labels=False).load_frame("00", "0")
+
+        np.testing.assert_array_equal(frame.semantic_class, [0])
+        np.testing.assert_array_equal(frame.semantic_confidence, [0.0])
+        self.assertEqual(frame.provenance.label_source, "absent")
+
     def test_rejects_nonrigid_calibration_even_when_pose_is_identity(self):
         with tempfile.TemporaryDirectory() as raw:
             root = Path(raw)

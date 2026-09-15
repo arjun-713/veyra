@@ -28,6 +28,10 @@ from datasets.semanticposs import SemanticPOSSDataset
 from datasets.semantickitti import SemanticKITTIDataset
 from benchmarks.protocol import frame_records
 from perception.pipeline import PerceptionPipeline
+from perception.ground.quality import (
+    aggregate_ground_quality_reports,
+    ground_quality_report,
+)
 
 
 def _sha256_file(path: Path) -> str | None:
@@ -127,10 +131,41 @@ def latency_summary(values):
 
 
 def confusion_report(confusion):
+    confusion = np.asarray(confusion)
+    if confusion.shape != (20, 20) or confusion.dtype.kind not in "iuf":
+        raise ValueError("confusion must be a 20x20 integer matrix")
+    if confusion.dtype.kind == "f":
+        if not np.isfinite(confusion).all() or np.any(confusion != np.floor(confusion)):
+            raise ValueError("confusion must be a 20x20 integer matrix")
+        confusion = confusion.astype(np.int64)
+    if np.any(confusion < 0):
+        raise ValueError("confusion counts must be non-negative")
     total = int(confusion.sum())
     intersection = np.diag(confusion)
     union = confusion.sum(0) + confusion.sum(1) - intersection
     valid = (union > 0) & (np.arange(20) != 0)
+    per_class = {}
+    for class_id in np.flatnonzero(valid):
+        true_positive = int(intersection[class_id])
+        false_positive = int(confusion[:, class_id].sum() - true_positive)
+        false_negative = int(confusion[class_id, :].sum() - true_positive)
+        denominator = 2 * true_positive + false_positive + false_negative
+        per_class[str(int(class_id))] = {
+            "support": int(confusion[class_id, :].sum()),
+            "true_positive": true_positive,
+            "precision": (
+                true_positive / (true_positive + false_positive)
+                if true_positive + false_positive
+                else None
+            ),
+            "recall": (
+                true_positive / (true_positive + false_negative)
+                if true_positive + false_negative
+                else None
+            ),
+            "f1": true_positive * 2 / denominator if denominator else None,
+            "iou": float(intersection[class_id] / union[class_id]),
+        }
     return {
         "evaluated_points": total,
         "accuracy": float(intersection.sum() / total) if total else None,
@@ -138,6 +173,8 @@ def confusion_report(confusion):
         if valid.any()
         else None,
         "classes_in_iou": np.flatnonzero(valid).tolist(),
+        "confusion_matrix": confusion.tolist(),
+        "per_class": per_class,
     }
 
 
@@ -168,6 +205,9 @@ def validate(args):
     records = []
     boundaries = [(0, 10), (10, 30), (30, 60), (60, 100.0001)]
     confusion = [np.zeros((20, 20), np.int64) for _ in boundaries]
+    overall_confusion = np.zeros((20, 20), np.int64)
+    ground_reports = []
+    ground_by_range = [[] for _ in boundaries]
     while True:
         started = perf_counter()
         try:
@@ -188,6 +228,19 @@ def validate(args):
         if frame.provenance.coordinate_frame in {"world", "calibrated_lidar"}:
             sensor = (sensor - frame.pose.matrix[:3, 3]) @ frame.pose.matrix[:3, :3]
         distances = np.linalg.norm(sensor, axis=1)
+        if args.dataset == "semanticposs":
+            reference_ground = frame.raw_semantic_class == 22
+            ground_reports.append(
+                ground_quality_report(output.frame.ground, reference_ground)
+            )
+            for report, (lower, upper) in zip(ground_by_range, boundaries):
+                report.append(
+                    ground_quality_report(
+                        output.frame.ground,
+                        reference_ground,
+                        valid=(distances >= lower) & (distances < upper),
+                    )
+                )
         gt, pred = frame.semantic_class, output.frame.semantic_class
         for matrix, (lower, upper) in zip(confusion, boundaries):
             keep = (distances >= lower) & (distances < upper) & (gt > 0) & (gt < 20)
@@ -196,6 +249,10 @@ def validate(args):
             matrix += np.bincount(gt[keep] * 20 + pred[keep], minlength=400).reshape(
                 20, 20
             )
+        keep = (gt > 0) & (gt < 20)
+        overall_confusion += np.bincount(
+            gt[keep] * 20 + pred[keep], minlength=400
+        ).reshape(20, 20)
         bridge_started = perf_counter()
         bridge_records = frame_records(output.frame)
         bridge_ms = (perf_counter() - bridge_started) * 1000
@@ -266,6 +323,22 @@ def validate(args):
             "by_range": [
                 {"range_m": [a, min(b, 100)], **confusion_report(c)}
                 for (a, b), c in zip(boundaries, confusion)
+            ],
+            "overall": confusion_report(overall_confusion),
+        },
+        "ground_evaluation": {
+            "reference": (
+                "SemanticPOSS raw semantic label 22 (ground)"
+                if args.dataset == "semanticposs"
+                else None
+            ),
+            "overall": aggregate_ground_quality_reports(ground_reports),
+            "by_range": [
+                {
+                    "range_m": [a, min(b, 100)],
+                    "metrics": aggregate_ground_quality_reports(reports),
+                }
+                for (a, b), reports in zip(boundaries, ground_by_range)
             ],
         },
         "temporal_proven": all(

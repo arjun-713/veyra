@@ -23,6 +23,18 @@ def write_frame(root: Path, sequence: str, frame_id: str, xs: list[float]) -> No
 
 
 class Rellis3DAdapterTests(unittest.TestCase):
+    def test_optional_labels_are_explicitly_unknown(self):
+        with tempfile.TemporaryDirectory() as raw:
+            root = Path(raw)
+            write_frame(root, "00000", "0", [1.0])
+            (root / "00000" / "vel_cloud_node_semantickitti_label_id" / "0.label").unlink()
+
+            frame = Rellis3DDataset(root, require_labels=False).load_frame("00000", "0")
+
+        np.testing.assert_array_equal(frame.semantic_class, [0])
+        np.testing.assert_array_equal(frame.semantic_confidence, [0.0])
+        self.assertEqual(frame.provenance.label_source, "absent")
+
     def test_reuses_one_explicit_sequence_index_for_frame_selection(self):
         with tempfile.TemporaryDirectory() as raw:
             root = Path(raw)
