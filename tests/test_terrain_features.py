@@ -159,9 +159,8 @@ class TerrainAnalyzerTests(unittest.TestCase):
             "max_roughness",
             "max_step",
         ):
-            with self.subTest(keyword=keyword):
-                with self.assertRaises(ValueError):
-                    TerrainAnalyzer(**{keyword: np.nan})
+            with self.subTest(keyword=keyword), self.assertRaises(ValueError):
+                TerrainAnalyzer(**{keyword: np.nan})
 
         with self.assertRaises(ValueError):
             TerrainAnalyzer(min_ground_neighbors=2.5)

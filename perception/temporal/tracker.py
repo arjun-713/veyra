@@ -152,8 +152,12 @@ class TemporalTracker:
         track_bucket_size = self.association_distance_m / np.sqrt(2.0)
         tracks_by_bucket: dict[tuple[int, int], list[_Track]] = {}
         for track in self._tracks.values():
-            bucket = tuple(np.floor(track.centroid / track_bucket_size).astype(np.int64))
-            tracks_by_bucket.setdefault((int(bucket[0]), int(bucket[1])), []).append(track)
+            bucket = tuple(
+                np.floor(track.centroid / track_bucket_size).astype(np.int64)
+            )
+            tracks_by_bucket.setdefault((int(bucket[0]), int(bucket[1])), []).append(
+                track
+            )
         for indices in clusters:
             centroid = world[indices].mean(axis=0)[:2]
             label = int(labels[indices[0]])
@@ -280,14 +284,20 @@ class TemporalTracker:
             return TemporalTracker._expand_components(
                 np.arange(unique_count, dtype=np.intp), inverse
             )
+        # Delaunay is useful for small, sparse clusters, but its triangulation
+        # cost and temporary memory become a poor fit for dense LiDAR scans.
+        # Once a class contains a substantial number of returns, use a
+        # compiled spatial radius query instead of a global triangulation.
+        if unique_count >= 512:
+            return TemporalTracker._spatial_radius_components(
+                unique_points, inverse, tolerance
+            )
         edges: np.ndarray
         if TemporalTracker._is_collinear(unique_points):
             order = TemporalTracker._dominant_axis_order(unique_points)
             consecutive = np.column_stack((order[:-1], order[1:]))
             deltas = unique_points[consecutive[:, 0]] - unique_points[consecutive[:, 1]]
-            edges = consecutive[
-                np.einsum("ij,ij->i", deltas, deltas) <= radius_squared
-            ]
+            edges = consecutive[np.einsum("ij,ij->i", deltas, deltas) <= radius_squared]
         else:
             try:
                 triangulation = Delaunay(unique_points)
@@ -304,9 +314,7 @@ class TemporalTracker:
                 )
                 edges = np.unique(np.sort(candidate_edges, axis=1), axis=0)
                 deltas = unique_points[edges[:, 0]] - unique_points[edges[:, 1]]
-                edges = edges[
-                    np.einsum("ij,ij->i", deltas, deltas) <= radius_squared
-                ]
+                edges = edges[np.einsum("ij,ij->i", deltas, deltas) <= radius_squared]
             except QhullError:
                 # query_ball_point visits one source point at a time, so its
                 # temporary neighbor list is bounded by one local query and
@@ -349,6 +357,40 @@ class TemporalTracker:
         return TemporalTracker._expand_components(component_labels, inverse)
 
     @staticmethod
+    def _spatial_radius_components(
+        unique_points: np.ndarray, inverse: np.ndarray, tolerance: float
+    ) -> list[np.ndarray]:
+        """Compute exact components with SciPy's compiled spatial index.
+
+        Delaunay triangulation is a poor dense-scan primitive: it creates a
+        global triangulation for every semantic class even though temporal
+        association only needs radius connectivity. ``query_pairs`` performs
+        the exact radius search in compiled code and returns only qualifying
+        edges; connected components then preserve the same semantics without
+        Python point-by-point neighbour work.
+        """
+
+        from scipy.sparse import coo_matrix
+        from scipy.sparse.csgraph import connected_components
+        from scipy.spatial import cKDTree
+
+        edges = np.asarray(
+            cKDTree(unique_points).query_pairs(float(tolerance), output_type="ndarray"),
+            dtype=np.intp,
+        )
+        if edges.size == 0:
+            component_labels = np.arange(unique_points.shape[0], dtype=np.intp)
+        else:
+            rows = np.concatenate((edges[:, 0], edges[:, 1]))
+            columns = np.concatenate((edges[:, 1], edges[:, 0]))
+            graph = coo_matrix(
+                (np.ones(rows.size, dtype=np.uint8), (rows, columns)),
+                shape=(unique_points.shape[0], unique_points.shape[0]),
+            )
+            _, component_labels = connected_components(graph, directed=False)
+        return TemporalTracker._expand_components(component_labels, inverse)
+
+    @staticmethod
     def _is_collinear(points_xy: np.ndarray) -> bool:
         if points_xy.shape[0] <= 2:
             return True
@@ -362,7 +404,9 @@ class TemporalTracker:
     def _dominant_axis_order(points_xy: np.ndarray) -> np.ndarray:
         axis = int(np.argmax(np.ptp(points_xy, axis=0)))
         other = 1 - axis
-        return np.lexsort((np.arange(points_xy.shape[0]), points_xy[:, other], points_xy[:, axis]))
+        return np.lexsort(
+            (np.arange(points_xy.shape[0]), points_xy[:, other], points_xy[:, axis])
+        )
 
     @staticmethod
     def _expand_components(
@@ -370,7 +414,9 @@ class TemporalTracker:
     ) -> list[np.ndarray]:
         groups: dict[int, list[int]] = {}
         for local_index, unique_index in enumerate(inverse):
-            groups.setdefault(int(component_labels[unique_index]), []).append(local_index)
+            groups.setdefault(int(component_labels[unique_index]), []).append(
+                local_index
+            )
         return [
             np.asarray(members, dtype=np.intp)
             for _, members in sorted(groups.items(), key=lambda item: item[1][0])
