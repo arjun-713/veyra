@@ -9,9 +9,9 @@ function semantic(id:number):[number,number,number]{
 export function pointColor(mode:string,p:ArrayLike<number>,layers:Record<string,string>):[number,number,number]{
  if(mode==='semantic')return layers.semantic&&layers.semantic!=='unavailable'?semantic(p[4]):neutral;
  if(mode==='elevation')return elevation(p[2]);
- if(mode==='ground')return layers.ground==='available'?(p[5]>.5?[.3,.8,.5]:[.8,.55,.3]):neutral;
- if(mode==='terrain')return layers.terrain==='available'?(p[6]===1?[.2,.85,.5]:p[6]===2?[.95,.3,.35]:neutral):neutral;
- if(mode==='motion')return layers.motion==='available'?[Math.max(.2,p[7]),.4,.7*(1-p[7])]:neutral;
+ if(mode==='ground')return layers.ground==='available'?(p[6]>.5?[.3,.8,.5]:[.8,.55,.3]):neutral;
+ if(mode==='terrain')return layers.terrain==='available'?(p[7]===1?[.2,.85,.5]:p[7]===2?[.95,.3,.35]:neutral):neutral;
+ if(mode==='motion')return layers.motion==='available'?[Math.max(.2,p[12]),.4,.7*(1-p[12])]:neutral;
  return [.72,.76,.8];
 }
 export function cellColor(mode:string,p:ArrayLike<number>):[number,number,number]{

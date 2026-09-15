@@ -34,7 +34,7 @@ class DatasetUnavailableError(FileNotFoundError):
     """The selected local dataset adapter cannot be constructed."""
 
 
-_DATASETS = frozenset({"rellis3d", "semanticposs"})
+_DATASETS = frozenset({"generic", "rellis3d", "semanticposs", "semantickitti"})
 
 
 @dataclass(frozen=True)
@@ -63,7 +63,7 @@ def load_runtime_config(path: str | Path) -> RuntimeConfig:
     sequence = raw.get("sequence")
     if dataset not in _DATASETS:
         raise RuntimeConfigurationError(
-            "runtime config dataset must be one of: rellis3d, semanticposs"
+            "runtime config dataset must be one of: generic, rellis3d, semanticposs, semantickitti"
         )
     if not isinstance(sequence, (str, int)) or not str(sequence):
         raise RuntimeConfigurationError("runtime config sequence is required")
@@ -432,7 +432,11 @@ def build_runtime_session(
     root = Path(repo_root) / str(spec.get("root", ""))
     if not root.is_dir():
         raise DatasetUnavailableError(f"dataset root does not exist: {root}")
-    if config.dataset == "rellis3d":
+    if config.dataset == "generic":
+        from datasets.generic import ManifestDataset
+
+        adapter: DatasetAdapter = ManifestDataset(root)
+    elif config.dataset == "rellis3d":
         from datasets.rellis import Rellis3DDataset
 
         adapter: DatasetAdapter = Rellis3DDataset(
@@ -443,7 +447,7 @@ def build_runtime_session(
                 spec.get("label_dir", "vel_cloud_node_semantickitti_label_id")
             ),
         )
-    else:
+    elif config.dataset == "semanticposs":
         from datasets.semanticposs import SemanticPOSSDataset
 
         adapter = SemanticPOSSDataset(
@@ -452,6 +456,17 @@ def build_runtime_session(
             scan_dir=str(spec.get("scan_dir", "velodyne")),
             label_dir=str(spec.get("label_dir", "labels")),
         )
+    elif config.dataset == "semantickitti":
+        from datasets.semantickitti import SemanticKITTIDataset
+
+        adapter = SemanticKITTIDataset(
+            root,
+            sequences=sequences,
+            scan_dir=str(spec.get("scan_dir", "velodyne")),
+            label_dir=str(spec.get("label_dir", "labels")),
+        )
+    else:
+        raise RuntimeConfigurationError(f"unsupported dataset: {config.dataset}")
     maximum = spec.get("max_range_m")
     executable = config.map.get("executable")
     map_runner = None
@@ -538,7 +553,11 @@ class RuntimeSession:
         root = Path(dataset_root)
         if not root.is_dir():
             raise DatasetUnavailableError(f"dataset root does not exist: {root}")
-        if dataset == "rellis3d":
+        if dataset == "generic":
+            from datasets.generic import ManifestDataset
+
+            adapter: DatasetAdapter = ManifestDataset(root)
+        elif dataset == "rellis3d":
             from datasets.rellis import Rellis3DDataset
 
             adapter: DatasetAdapter = Rellis3DDataset(root, sequences=sequences)
@@ -546,6 +565,10 @@ class RuntimeSession:
             from datasets.semanticposs import SemanticPOSSDataset
 
             adapter = SemanticPOSSDataset(root, sequences=sequences)
+        elif dataset == "semantickitti":
+            from datasets.semantickitti import SemanticKITTIDataset
+
+            adapter = SemanticKITTIDataset(root, sequences=sequences)
         else:
             raise RuntimeConfigurationError(f"unsupported dataset: {dataset}")
         if not sequences:
@@ -710,6 +733,9 @@ class RuntimeSession:
             if binary
             else [round(float(value), 3) for value in sampled[:, 3]],
             "labels": labels if binary else labels.astype(int, copy=False).tolist(),
+            "raw_semantic_labels": labels
+            if binary
+            else labels.astype(int, copy=False).tolist(),
             "semantic_labels": semantic
             if binary
             else semantic.astype(int, copy=False).tolist(),
@@ -720,6 +746,12 @@ class RuntimeSession:
             "pose": {
                 "available": frame.provenance.coordinate_frame == "world",
                 "matrix": frame.pose.matrix.tolist(),
+                "provenance": {
+                    "coordinate_frame": frame.provenance.coordinate_frame,
+                    "timestamp_source": frame.provenance.timestamp_source,
+                    "pose_source": frame.provenance.pose_source,
+                    "calibration_source": frame.provenance.calibration_source,
+                },
             },
             "cropped": self.max_range_m is not None or self.min_range_m > 0,
             "range_m": self.max_range_m,
@@ -748,6 +780,15 @@ class RuntimeSession:
             "motion_state": frame.motion_state[sample]
             if binary
             else frame.motion_state[sample].tolist(),
+            "terrain_confidence": frame.terrain_confidence[sample]
+            if binary
+            else frame.terrain_confidence[sample].astype(float).tolist(),
+            "step": frame.step[sample]
+            if binary
+            else _nullable_floats(frame.step[sample]),
+            "observation_quality": frame.observation_quality[sample]
+            if binary
+            else frame.observation_quality[sample].astype(float).tolist(),
             "pipeline_status": {
                 "semantic": status.semantic,
                 "ground": status.ground,
