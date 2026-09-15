@@ -47,7 +47,22 @@ class RuntimeVisualizationTests(unittest.TestCase):
             },
             "n_points": 1,
         }
-        cells = {"status": "available", "cells": []}
+        cells = {
+            "status": "available",
+            "cells": [
+                {
+                    "l": 1,
+                    "ix": -2,
+                    "iy": 3,
+                    "z": 4.5,
+                    "c": 9,
+                    "m": 0.25,
+                    "q": 0.8,
+                    "drivable_evidence": -0.4,
+                    "u": 0.7,
+                }
+            ],
+        }
 
         metadata, payload = pack_visualization(frame, cells, 1)
 
@@ -58,6 +73,11 @@ class RuntimeVisualizationTests(unittest.TestCase):
         np.testing.assert_allclose(
             values,
             [1, 2, 3, 0.4, 9, 42, 1, 2, 0.8, 0.2, 0.3, 0.4, 0.5, 1.2, -0.7, 0.6, 0.7],
+        )
+        mapped = np.frombuffer(payload, dtype="<f4", offset=17 * 4, count=9)
+        np.testing.assert_allclose(
+            mapped,
+            [-0.15, 0.35, 4.5, 0.1, 9, 0.25, 0.8, -0.4, 0.7],
         )
 
 

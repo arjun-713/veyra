@@ -30,6 +30,12 @@ def pack_visualization(frame, cells, generation):
     mapped = np.empty((len(rows), 9), dtype="<f4")
     for index, cell in enumerate(rows):
         size = 0.05 * 2 ** cell["l"]
+        # The C++ map-cell schema names this field explicitly.  ``d`` was
+        # emitted by the pre-evidence viewer contract; retain read support for
+        # an older engine, but never turn a missing field into fabricated data.
+        drivable_evidence = cell.get("drivable_evidence", cell.get("d"))
+        if drivable_evidence is None:
+            raise ValueError("map cell is missing drivable_evidence")
         mapped[index] = (
             (cell["ix"] + 0.5) * size,
             (cell["iy"] + 0.5) * size,
@@ -38,7 +44,7 @@ def pack_visualization(frame, cells, generation):
             cell["c"],
             cell["m"],
             cell["q"],
-            cell["d"],
+            drivable_evidence,
             cell["u"],
         )
     status = frame["pipeline_status"]

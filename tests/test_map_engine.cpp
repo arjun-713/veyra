@@ -6,6 +6,7 @@
 #include <vector>
 
 #include "veyra/map/map.hpp"
+#include "veyra/map/fusion.hpp"
 
 using veyra::map::DistanceLodMap;
 using veyra::map::Map;

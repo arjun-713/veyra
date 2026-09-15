@@ -25,7 +25,7 @@ import yaml
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 
-from benchmarks.protocol import PROTOCOL_VERSION, stream_file
+from benchmarks.protocol import PROTOCOL_VERSION, binary_stream_file
 from datasets.generic import ManifestDataset
 from datasets.rellis import Rellis3DDataset
 from datasets.semantickitti import SemanticKITTIDataset
@@ -277,9 +277,22 @@ def analytical_3d_reference(points: np.ndarray) -> dict[str, Any]:
     xyz = values[:, :3].astype(np.float64, copy=False)
     if not np.isfinite(xyz).all():
         raise ValueError("3D reference points must be finite")
+    return analytical_3d_reference_bounds(xyz.min(axis=0), xyz.max(axis=0))
+
+
+def analytical_3d_reference_bounds(
+    minimum: np.ndarray, maximum: np.ndarray
+) -> dict[str, Any]:
+    """Build the analytical 3D reference from streaming XYZ bounds."""
+    minimum = np.asarray(minimum, dtype=np.float64)
+    maximum = np.asarray(maximum, dtype=np.float64)
+    if minimum.shape != (3,) or maximum.shape != (3,):
+        raise ValueError("3D reference bounds must contain three coordinates")
+    if not np.isfinite(minimum).all() or not np.isfinite(maximum).all():
+        raise ValueError("3D reference bounds must be finite")
+    if np.any(maximum < minimum):
+        raise ValueError("3D reference maximum must not precede minimum")
     voxel_size = 0.05
-    minimum = xyz.min(axis=0)
-    maximum = xyz.max(axis=0)
     dimensions = np.maximum(
         1, np.ceil((maximum - minimum) / voxel_size).astype(np.int64) + 1
     )
@@ -299,6 +312,90 @@ def analytical_3d_reference(points: np.ndarray) -> dict[str, Any]:
     }
 
 
+class SemanticQualityAccumulator:
+    """Accumulate range-binned semantic confusion without retaining frames."""
+
+    _BINS = ((0.0, 10.0), (10.0, 30.0), (30.0, 60.0), (60.0, 100.0))
+
+    def __init__(self) -> None:
+        self._confusion: list[dict[tuple[int, int], int]] = [{} for _ in self._BINS]
+
+    def update(self, reference: Any, prediction: Any) -> None:
+        if reference.points.shape != prediction.points.shape:
+            raise ValueError("semantic quality requires point-aligned frames")
+        ranges = np.linalg.norm(reference.points[:, :3], axis=1)
+        truth = np.asarray(reference.semantic_class, dtype=np.int32)
+        predicted = np.asarray(prediction.semantic_class, dtype=np.int32)
+        for index, (lower, upper) in enumerate(self._BINS):
+            mask = (ranges >= lower) & (ranges < upper)
+            if not np.any(mask):
+                continue
+            pairs, counts = np.unique(
+                np.column_stack((truth[mask], predicted[mask])),
+                axis=0,
+                return_counts=True,
+            )
+            confusion = self._confusion[index]
+            for (actual, inferred), count in zip(pairs, counts, strict=True):
+                key = (int(actual), int(inferred))
+                confusion[key] = confusion.get(key, 0) + int(count)
+
+    @staticmethod
+    def _score(confusion: dict[tuple[int, int], int]) -> dict[str, Any]:
+        total = sum(confusion.values())
+        if not total:
+            return {"points": 0, "accuracy": None, "miou": None, "classes": {}}
+        classes = sorted({item for pair in confusion for item in pair})
+        class_iou: dict[str, float] = {}
+        for class_id in classes:
+            true_positive = confusion.get((class_id, class_id), 0)
+            false_positive = sum(
+                count
+                for (actual, inferred), count in confusion.items()
+                if inferred == class_id and actual != class_id
+            )
+            false_negative = sum(
+                count
+                for (actual, inferred), count in confusion.items()
+                if actual == class_id and inferred != class_id
+            )
+            union = true_positive + false_positive + false_negative
+            class_iou[str(class_id)] = true_positive / union if union else 1.0
+        correct = sum(
+            count
+            for (actual, inferred), count in confusion.items()
+            if actual == inferred
+        )
+        return {
+            "points": total,
+            "accuracy": correct / total,
+            "miou": float(np.mean(list(class_iou.values()))),
+            "classes": class_iou,
+        }
+
+    def report(self) -> dict[str, Any]:
+        combined: dict[tuple[int, int], int] = {}
+        for confusion in self._confusion:
+            for key, count in confusion.items():
+                combined[key] = combined.get(key, 0) + count
+        return {
+            "status": "measured",
+            "reference": "adapter semantic_class labels",
+            "prediction": "perception output semantic_class",
+            "overall": self._score(combined),
+            "range_bins": [
+                {
+                    "min_m": lower,
+                    "max_m": upper,
+                    **self._score(confusion),
+                }
+                for (lower, upper), confusion in zip(
+                    self._BINS, self._confusion, strict=True
+                )
+            ],
+        }
+
+
 def semantic_range_quality_report(
     reference_frames: list[Any], predicted_frames: list[Any]
 ) -> dict[str, Any]:
@@ -307,53 +404,10 @@ def semantic_range_quality_report(
         raise ValueError(
             "semantic quality requires equally sized non-empty frame lists"
         )
-    bins = ((0.0, 10.0), (10.0, 30.0), (30.0, 60.0), (60.0, 100.0))
-    accumulated: list[tuple[list[int], list[int]]] = [([], []) for _ in bins]
-    all_truth: list[int] = []
-    all_prediction: list[int] = []
+    accumulator = SemanticQualityAccumulator()
     for reference, prediction in zip(reference_frames, predicted_frames):
-        if reference.points.shape != prediction.points.shape:
-            raise ValueError("semantic quality requires point-aligned frames")
-        ranges = np.linalg.norm(reference.points[:, :3], axis=1)
-        truth = np.asarray(reference.semantic_class, dtype=np.int32)
-        predicted = np.asarray(prediction.semantic_class, dtype=np.int32)
-        for index, (lower, upper) in enumerate(bins):
-            mask = (ranges >= lower) & (ranges < upper)
-            accumulated[index][0].extend(truth[mask].tolist())
-            accumulated[index][1].extend(predicted[mask].tolist())
-        all_truth.extend(truth.tolist())
-        all_prediction.extend(predicted.tolist())
-
-    def score(truth: list[int], prediction: list[int]) -> dict[str, Any]:
-        if not truth:
-            return {"points": 0, "accuracy": None, "miou": None, "classes": {}}
-        truth_array = np.asarray(truth, dtype=np.int32)
-        prediction_array = np.asarray(prediction, dtype=np.int32)
-        classes = sorted(set(truth) | set(prediction))
-        class_iou: dict[str, float] = {}
-        for class_id in classes:
-            truth_mask = truth_array == class_id
-            prediction_mask = prediction_array == class_id
-            union = int(np.count_nonzero(truth_mask | prediction_mask))
-            intersection = int(np.count_nonzero(truth_mask & prediction_mask))
-            class_iou[str(class_id)] = intersection / union if union else 1.0
-        return {
-            "points": len(truth),
-            "accuracy": float(np.mean(truth_array == prediction_array)),
-            "miou": float(np.mean(list(class_iou.values()))),
-            "classes": class_iou,
-        }
-
-    return {
-        "status": "measured",
-        "reference": "adapter semantic_class labels",
-        "prediction": "perception output semantic_class",
-        "overall": score(all_truth, all_prediction),
-        "range_bins": [
-            {"min_m": lower, "max_m": upper, **score(*values)}
-            for (lower, upper), values in zip(bins, accumulated)
-        ],
-    }
+        accumulator.update(reference, prediction)
+    return accumulator.report()
 
 
 def _fine_cell_owners(
@@ -521,7 +575,7 @@ def field_retention_report(
 
 
 def mapping_quality_report(
-    input_points: np.ndarray,
+    input_points: np.ndarray | int,
     rejected_out_of_window: int,
     snapshot: dict[str, Any],
     fine_reference: dict[str, Any],
@@ -532,7 +586,12 @@ def mapping_quality_report(
     point_count = int(snapshot["point_count"])
     nonspatial = int(snapshot.get("nonspatial_prior_point_count", 0))
     leaf_count = sum(int(leaf["count"]) for leaf in snapshot.get("leaves", []))
-    expected = len(input_points) - int(rejected_out_of_window)
+    input_count = (
+        int(input_points)
+        if isinstance(input_points, (int, np.integer))
+        else len(input_points)
+    )
+    expected = input_count - int(rejected_out_of_window)
     conservation = point_count == expected
     split_merge = leaf_count + nonspatial == point_count
     errors: list[float] = []
@@ -563,6 +622,14 @@ def mapping_quality_report(
         else {
             "status": "unavailable",
             "reason": "source ObservationFrames were not supplied",
+            "semantic": {
+                "status": "unavailable",
+                "reason": "source ObservationFrames were not supplied",
+            },
+            "terrain_hazard": {
+                "status": "unavailable",
+                "reason": "source ObservationFrames were not supplied",
+            },
         }
     )
     return {
@@ -609,6 +676,57 @@ def _fine_reference(frames: list[Any]) -> dict[str, Any]:
     return {
         "mean_z_by_cell": {key: total / count for key, (total, count) in bins.items()}
     }
+
+
+def _fine_reference_from_snapshot(snapshot: dict[str, Any]) -> dict[str, Any]:
+    """Use the executed Uniform5 map as the fine elevation reference.
+
+    Uniform5 owns the same world-aligned 5 cm bins as the source stream, so
+    its sufficient-statistic means are the exact reference needed by the
+    adaptive comparisons. This avoids rebuilding a Python dictionary from
+    every point in a long sequence.
+    """
+    return {
+        "mean_z_by_cell": {
+            (int(leaf["ix"]), int(leaf["iy"])): float(leaf["mean_z"])
+            for leaf in snapshot.get("leaves", [])
+            if int(leaf.get("level", -1)) == 0 and int(leaf.get("count", 0)) > 0
+        }
+    }
+
+
+def _compact_snapshot(snapshot: dict[str, Any]) -> dict[str, Any]:
+    """Drop optional leaf rows after quality calculations have consumed them."""
+    compact = dict(snapshot)
+    compact.pop("leaves", None)
+    return compact
+
+
+def _finalize_policy_runs(
+    runs_by_policy: dict[str, list[dict[str, Any]]], selection: dict[str, Any]
+) -> dict[str, Any]:
+    """Attach quality reports, then release long-run leaf-detail payloads."""
+    fine_reference = (
+        _fine_reference_from_snapshot(runs_by_policy["uniform5"][0]["snapshot"])
+        if runs_by_policy.get("uniform5")
+        else {"mean_z_by_cell": {}}
+    )
+    for runs in runs_by_policy.values():
+        for result in runs:
+            result["quality"] = mapping_quality_report(
+                selection["point_count"],
+                result["metrics"]["stream"]["rejected_out_of_window"],
+                result["snapshot"],
+                fine_reference,
+            )
+            if result.get("frame_metrics"):
+                frame_conservation = result["frame_metrics"][-1].get(
+                    "point_conservation"
+                )
+                if frame_conservation is not None:
+                    result["quality"]["point_conservation"] = frame_conservation
+            result["snapshot"] = _compact_snapshot(result["snapshot"])
+    return fine_reference
 
 
 def _detail_metric(snapshot: dict[str, Any]) -> dict[str, Any]:
@@ -737,6 +855,152 @@ def validate_configs(dataset_config: object, distance_config: object) -> None:
             or float(entry["max_range_m"]) != parsed_ranges[-1][1]
         ):
             raise ValueError(f"dataset range for {name} must match distance_lod.yaml")
+
+
+def stream_selection(
+    repo: Path,
+    dataset: str,
+    sequence: str,
+    start: int,
+    count: int,
+    *,
+    run_perception: bool = True,
+    perception_config: Path | None = None,
+    dataset_root: Path | None = None,
+) -> tuple[Any, dict[str, Any]]:
+    """Return a one-shot real-data frame iterator and bounded run metadata.
+
+    The iterator owns the adapter and perception pipeline and processes one
+    frame at a time. The metadata dictionary is populated as the iterator is
+    consumed; callers must finish consuming it before using ``window_radius``
+    or the aggregate bounds.
+    """
+    dataset_config = yaml.safe_load((repo / "configs/datasets.yaml").read_text())
+    raw_distance_config = yaml.safe_load(
+        (repo / "configs/distance_lod.yaml").read_text()
+    )
+    benchmark_config = yaml.safe_load((repo / "configs/benchmark.yaml").read_text())
+    if (
+        not isinstance(benchmark_config, dict)
+        or benchmark_config.get("map_frame") != "odom"
+    ):
+        raise ValueError("configs/benchmark.yaml must declare map_frame: odom")
+    validate_configs(dataset_config, raw_distance_config)
+    distance_config = _normalized_distance_config(raw_distance_config)
+    entry = dataset_config.get(dataset)
+    if dataset == "generic" and dataset_root is not None:
+        entry = {"root": str(dataset_root), "min_range_m": 0.0, "max_range_m": 100.0}
+    if entry is None:
+        raise ValueError(f"unknown dataset: {dataset}")
+    root = (
+        Path(dataset_root).resolve()
+        if dataset_root is not None
+        else repo / entry["root"]
+    )
+    if not root.is_dir():
+        raise FileNotFoundError(f"configured dataset root does not exist: {root}")
+    if dataset == "generic":
+        adapter = ManifestDataset(root)
+    else:
+        adapter_type = {
+            "semanticposs": SemanticPOSSDataset,
+            "semantickitti": SemanticKITTIDataset,
+            "rellis3d": Rellis3DDataset,
+        }[dataset]
+        adapter = adapter_type(
+            root,
+            sequences=[sequence] if dataset_root is not None else entry["sequences"],
+            scan_dir=entry["scan_dir"],
+            label_dir=entry["label_dir"],
+        )
+    if sequence not in adapter.list_sequences():
+        raise ValueError(f"sequence {sequence} is not configured for {dataset}")
+    if start < 0 or count <= 0:
+        raise ValueError("start must be non-negative and count must be positive")
+
+    state: dict[str, Any] = {
+        "distance_config": distance_config,
+        "entry": entry,
+        "frames": 0,
+        "point_count": 0,
+        "min_xyz": np.full(3, np.inf, dtype=np.float64),
+        "max_xyz": np.full(3, -np.inf, dtype=np.float64),
+        "window_radius_m": float(entry["max_range_m"]),
+        "perception_ns": [],
+        "perception_records": [],
+        "semantic_quality": SemanticQualityAccumulator() if run_perception else None,
+    }
+
+    def generate():
+        pipeline = (
+            load_perception_pipeline(
+                perception_config or repo / "configs" / "perception.yaml"
+            )
+            if run_perception
+            else None
+        )
+        replay = adapter.replay(
+            sequence,
+            start=start,
+            end=start + count,
+            min_range_m=float(entry.get("min_range_m", 0.0)),
+            max_range_m=float(entry["max_range_m"]),
+        )
+        for _ in range(count):
+            load_started = time.perf_counter_ns()
+            try:
+                source_frame = next(replay)
+            except StopIteration:
+                break
+            load_duration_ms = (time.perf_counter_ns() - load_started) / 1_000_000.0
+            output_frame = source_frame
+            timings: dict[str, float] = {}
+            if pipeline is not None:
+                started = time.perf_counter_ns()
+                output = pipeline.process(source_frame)
+                output_frame = output.frame
+                state["perception_ns"].append(time.perf_counter_ns() - started)
+                timings = output.timings_ms
+                state["perception_records"].append(
+                    {
+                        "points": len(source_frame.points),
+                        "dataset_load_ms": load_duration_ms,
+                        "timings_ms": timings,
+                        "status": {
+                            "semantic": output.status.semantic,
+                            "ground": output.status.ground,
+                            "terrain": output.status.terrain,
+                            "temporal": output.status.temporal,
+                        },
+                        "ground_fraction": float(output_frame.ground.mean()),
+                        "known_terrain_fraction": float(
+                            (output_frame.drivable != "unknown").mean()
+                        ),
+                        "known_motion_fraction": float(
+                            (output_frame.motion_state != "unknown").mean()
+                        ),
+                    }
+                )
+                state["semantic_quality"].update(source_frame, output_frame)
+            points = np.asarray(output_frame.points[:, :3], dtype=np.float64)
+            if points.size:
+                state["min_xyz"] = np.minimum(state["min_xyz"], points.min(axis=0))
+                state["max_xyz"] = np.maximum(state["max_xyz"], points.max(axis=0))
+                state["point_count"] += len(points)
+                distance = np.hypot(
+                    points[:, 0] - output_frame.pose.matrix[0, 3],
+                    points[:, 1] - output_frame.pose.matrix[1, 3],
+                )
+                if distance.size:
+                    state["window_radius_m"] = max(
+                        state["window_radius_m"], float(distance.max())
+                    )
+            state["frames"] += 1
+            yield output_frame
+        if state["frames"] == 0:
+            raise ValueError("frame selection is empty")
+
+    return generate(), state
 
 
 def load_selection(
@@ -874,12 +1138,92 @@ def _command(
         ",".join(str(float(item[1])) for item in ranges[:3]),
         "--warmup-frames",
         str(warmup_frames),
+        "--binary-input",
         "--utility-config",
         str(repo / "configs" / adapter.utility_config),
         "--governor-config",
         str(repo / "configs" / "resource_governor.yaml"),
         "--include-leaf-details",
     ]
+
+
+def _execute_policy_runs(
+    args: argparse.Namespace,
+    repo: Path,
+    requested: list[str],
+    frame_iterator: Any,
+    selection: dict[str, Any],
+) -> tuple[
+    str,
+    float,
+    dict[str, list[dict[str, Any]]],
+    list[int],
+    list[list[str]],
+]:
+    """Run policies from one staged stream and always remove the staging file."""
+    stream_directory = tempfile.TemporaryDirectory(prefix="veyra-benchmark-stream-")
+    try:
+        stream_path = Path(stream_directory.name) / "observations.stream"
+        digest = binary_stream_file(frame_iterator, stream_path)
+        if selection["frames"] == 0:
+            raise ValueError("frame selection is empty")
+        window_radius_m = selection["window_radius_m"] + 0.001
+        runs_by_policy: dict[str, list[dict[str, Any]]] = {
+            policy: [] for policy in requested
+        }
+        bridge_samples_ns: list[int] = []
+        execution_order: list[list[str]] = []
+        for repetition in range(args.repetitions):
+            order = (
+                requested[repetition % len(requested) :]
+                + requested[: repetition % len(requested)]
+            )
+            execution_order.append(order)
+            for policy in order:
+                adapter = POLICY_ADAPTERS[policy]
+                with stream_path.open("rb") as stream_input:
+                    completed = subprocess.run(
+                        _command(
+                            args.binary,
+                            adapter,
+                            selection["distance_config"],
+                            window_radius_m,
+                            args.warmup_frames,
+                            repo,
+                        ),
+                        stdin=stream_input,
+                        capture_output=True,
+                        check=False,
+                    )
+                if completed.returncode != 0:
+                    raise RuntimeError(
+                        f"{policy} repetition {repetition} failed: "
+                        f"{completed.stderr.decode(errors='replace').strip()}"
+                    )
+                result = json.loads(completed.stdout)
+                if (
+                    result.get("schema_version") != SCHEMA_VERSION
+                    or result.get("stream_digest") != digest
+                    or result.get("policy") != adapter.cpp_policy
+                ):
+                    raise RuntimeError(
+                        f"{policy} repetition {repetition} violated benchmark contract"
+                    )
+                result["detail_metric"] = _detail_metric(result["snapshot"])
+                bridge_samples_ns.extend(
+                    int(frame["stages_ns"]["protocol_parse_and_validate"])
+                    for frame in result["frame_metrics"]
+                )
+                runs_by_policy[policy].append(result)
+        return (
+            digest,
+            window_radius_m,
+            runs_by_policy,
+            bridge_samples_ns,
+            execution_order,
+        )
+    finally:
+        stream_directory.cleanup()
 
 
 def _aggregate_policy_runs(runs: list[dict[str, Any]]) -> dict[str, Any]:
@@ -1102,86 +1446,27 @@ def run(args: argparse.Namespace) -> dict[str, Any]:
         (repo / "configs/hardware_profiles.yaml").read_text()
     )
     validate_hardware_profile(hardware_config, args.hardware_profile)
-    perception_records: list[dict[str, Any]] = []
-    reference_frames: list[Any] = []
-    frames, distance_config, _dataset_entry, perception_ns, window_radius_m = (
-        load_selection(
-            repo,
-            args.dataset,
-            args.sequence,
-            args.start,
-            args.count,
-            run_perception=not args.skip_perception,
-            dataset_root=getattr(args, "dataset_root", None),
-            perception_config=(
-                repo / args.perception_config
-                if not Path(args.perception_config).is_absolute()
-                else Path(args.perception_config)
-            ),
-            perception_records=perception_records if not args.skip_perception else None,
-            reference_frames=reference_frames,
-        )
+    frame_iterator, selection = stream_selection(
+        repo,
+        args.dataset,
+        args.sequence,
+        args.start,
+        args.count,
+        run_perception=not args.skip_perception,
+        dataset_root=getattr(args, "dataset_root", None),
+        perception_config=(
+            repo / args.perception_config
+            if not Path(args.perception_config).is_absolute()
+            else Path(args.perception_config)
+        ),
     )
-    stream_directory = tempfile.TemporaryDirectory(prefix="veyra-benchmark-stream-")
-    stream_path = Path(stream_directory.name) / "observations.stream"
-    digest = stream_file(frames, stream_path)
-    all_points = np.concatenate([frame.points[:, :3] for frame in frames], axis=0)
-    fine_reference = _fine_reference(frames)
-    three_d_reference = analytical_3d_reference(all_points)
-    runs_by_policy: dict[str, list[dict[str, Any]]] = {
-        policy: [] for policy in requested
-    }
-    bridge_samples_ns: list[int] = []
-    execution_order: list[list[str]] = []
-    for repetition in range(args.repetitions):
-        order = (
-            requested[repetition % len(requested) :]
-            + requested[: repetition % len(requested)]
-        )
-        execution_order.append(order)
-        for policy in order:
-            adapter = POLICY_ADAPTERS[policy]
-            with stream_path.open("rb") as stream_input:
-                completed = subprocess.run(
-                    _command(
-                        args.binary,
-                        adapter,
-                        distance_config,
-                        window_radius_m,
-                        args.warmup_frames,
-                        repo,
-                    ),
-                    stdin=stream_input,
-                    capture_output=True,
-                    check=False,
-                )
-            if completed.returncode != 0:
-                raise RuntimeError(
-                    f"{policy} repetition {repetition} failed: {completed.stderr.decode(errors='replace').strip()}"
-                )
-            result = json.loads(completed.stdout)
-            if (
-                result.get("schema_version") != SCHEMA_VERSION
-                or result.get("stream_digest") != digest
-                or result.get("policy") != adapter.cpp_policy
-            ):
-                raise RuntimeError(
-                    f"{policy} repetition {repetition} violated benchmark contract"
-                )
-            result["quality"] = mapping_quality_report(
-                all_points,
-                result["metrics"]["stream"]["rejected_out_of_window"],
-                result["snapshot"],
-                fine_reference,
-                frames=frames,
-            )
-            result["detail_metric"] = _detail_metric(result["snapshot"])
-            bridge_samples_ns.extend(
-                int(frame["stages_ns"]["protocol_parse_and_validate"])
-                for frame in result["frame_metrics"]
-            )
-            runs_by_policy[policy].append(result)
-    stream_directory.cleanup()
+    digest, window_radius_m, runs_by_policy, bridge_samples_ns, execution_order = (
+        _execute_policy_runs(args, repo, requested, frame_iterator, selection)
+    )
+    three_d_reference = analytical_3d_reference_bounds(
+        selection["min_xyz"], selection["max_xyz"]
+    )
+    fine_reference = _finalize_policy_runs(runs_by_policy, selection)
     results: dict[str, Any] = {}
     for policy in requested:
         adapter, runs = POLICY_ADAPTERS[policy], runs_by_policy[policy]
@@ -1249,14 +1534,14 @@ def run(args: argparse.Namespace) -> dict[str, Any]:
         summarize_perception(
             args.dataset,
             args.sequence,
-            perception_records,
+            selection["perception_records"],
             bridge_samples_ns=bridge_samples_ns,
         )
-        if perception_records
+        if selection["perception_records"]
         else None
     )
     semantic_quality = (
-        semantic_range_quality_report(reference_frames, frames)
+        selection["semantic_quality"].report()
         if args.dataset in {"semanticposs", "rellis3d", "semantickitti"}
         and not args.skip_perception
         else {
@@ -1284,7 +1569,7 @@ def run(args: argparse.Namespace) -> dict[str, Any]:
                 "sequence": args.sequence,
                 "start": args.start,
                 "end_exclusive": args.start + args.count,
-                "count": len(frames),
+                "count": selection["frames"],
             },
             "compiler": compiler,
             "build_type": args.build_type,
@@ -1307,10 +1592,12 @@ def run(args: argparse.Namespace) -> dict[str, Any]:
         "dataset": args.dataset,
         "sequence": args.sequence,
         "start": args.start,
-        "input_frames": len(frames),
-        "measured_frames_per_run": len(frames) - args.warmup_frames,
+        "input_frames": selection["frames"],
+        "measured_frames_per_run": max(0, selection["frames"] - args.warmup_frames),
         "shared_stage_latency_ns": {
-            "perception": nearest_rank_summary(perception_ns) if perception_ns else None
+            "perception": nearest_rank_summary(selection["perception_ns"])
+            if selection["perception_ns"]
+            else None
         },
         "perception": perception_report,
         "semantic_quality": semantic_quality,

@@ -1,5 +1,7 @@
 import hashlib
 import json
+import subprocess
+import sys
 import tempfile
 import unittest
 import zipfile
@@ -17,6 +19,16 @@ from scripts.validate_perception import (
 
 
 class PerceptionValidationTests(unittest.TestCase):
+    def test_validate_perception_supports_direct_script_help(self):
+        result = subprocess.run(
+            [sys.executable, "scripts/validate_perception.py", "--help"],
+            check=False,
+            capture_output=True,
+            text=True,
+        )
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertIn("--dataset", result.stdout)
+
     def test_semantic_evaluation_separates_model_fov_from_all_return_quality(self):
         all_confusion = np.zeros((20, 20), np.int64)
         supported_confusion = np.zeros((20, 20), np.int64)

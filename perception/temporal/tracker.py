@@ -263,7 +263,7 @@ class TemporalTracker:
         before geometry and expanded through ``inverse`` afterward.
         """
 
-        from scipy.sparse import coo_matrix
+        from scipy.sparse import csr_matrix
         from scipy.sparse.csgraph import connected_components
         from scipy.spatial import Delaunay, QhullError, cKDTree
 
@@ -347,9 +347,12 @@ class TemporalTracker:
         if edges.size == 0:
             component_labels = np.arange(unique_count, dtype=np.intp)
         else:
-            rows = np.concatenate((edges[:, 0], edges[:, 1]))
-            columns = np.concatenate((edges[:, 1], edges[:, 0]))
-            graph = coo_matrix(
+            # ``directed=False`` makes connected_components treat each stored
+            # edge as undirected, so storing both orientations only doubles
+            # the CSR memory and sorting work for no semantic benefit.
+            rows = edges[:, 0]
+            columns = edges[:, 1]
+            graph = csr_matrix(
                 (np.ones(rows.size, dtype=np.uint8), (rows, columns)),
                 shape=(unique_count, unique_count),
             )
@@ -370,7 +373,7 @@ class TemporalTracker:
         Python point-by-point neighbour work.
         """
 
-        from scipy.sparse import coo_matrix
+        from scipy.sparse import csr_matrix
         from scipy.sparse.csgraph import connected_components
         from scipy.spatial import cKDTree
 
@@ -381,9 +384,11 @@ class TemporalTracker:
         if edges.size == 0:
             component_labels = np.arange(unique_points.shape[0], dtype=np.intp)
         else:
-            rows = np.concatenate((edges[:, 0], edges[:, 1]))
-            columns = np.concatenate((edges[:, 1], edges[:, 0]))
-            graph = coo_matrix(
+            # connected_components symmetrizes an undirected graph; retaining
+            # only query_pairs' canonical orientation halves sparse overhead.
+            rows = edges[:, 0]
+            columns = edges[:, 1]
+            graph = csr_matrix(
                 (np.ones(rows.size, dtype=np.uint8), (rows, columns)),
                 shape=(unique_points.shape[0], unique_points.shape[0]),
             )

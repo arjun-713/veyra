@@ -87,6 +87,30 @@ class TemporalTrackerTests(unittest.TestCase):
         self.assertEqual(len(components), 1)
         self.assertEqual(len(components[0]), len(points))
 
+    def test_large_radius_components_build_csr_without_coo_conversion(self):
+        """The dense path must avoid an avoidable COO-to-CSR conversion."""
+        points = np.asarray(
+            [
+                [x, y, 0.0, 1.0]
+                for x in np.linspace(-2.0, 2.0, 25)
+                for y in np.linspace(-2.0, 2.0, 25)
+            ],
+            dtype=np.float32,
+        )
+        labels = np.ones(len(points), dtype=np.int32)
+        tracker = TemporalTracker(cluster_tolerance_m=0.5)
+
+        with patch(
+            "scipy.sparse.coo_matrix",
+            side_effect=AssertionError(
+                "dense connectivity must construct CSR directly"
+            ),
+        ):
+            components = tracker._clusters(points[:, :3].astype(np.float64), labels)
+
+        self.assertEqual(len(components), 1)
+        self.assertEqual(len(components[0]), len(points))
+
     def test_large_radius_components_match_bruteforce_connectivity(self):
         """The compiled fast path must preserve exact radius semantics."""
         rng = np.random.default_rng(17)

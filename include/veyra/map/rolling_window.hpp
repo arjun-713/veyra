@@ -9,8 +9,8 @@ namespace veyra::map {
 
 // Radius of the window that follows the vehicle, in metres.
 //
-// PROPOSAL, same provenance as the constant it replaces: derived from the
-// outermost band of configs/distance_lod.yaml (0-10, 10-30, 30-60, 60-100).
+// The default is the outermost band of configs/distance_lod.yaml
+// (0-10, 10-30, 30-60, 60-100).
 //
 // Worth stating plainly: at 5 cm a 100 m radius is pi * 100^2 * 400 = 12.6
 // million cells, about 402 MB of Cell alone. Uniform5 over a full window is

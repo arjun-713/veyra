@@ -12,6 +12,8 @@ import numpy as np
 from benchmarks.run_benchmark import (
     POLICY_ADAPTERS,
     UTILITY_ABLATION_POLICY_NAMES,
+    SemanticQualityAccumulator,
+    _compact_snapshot,
     analytical_3d_reference,
     field_retention_report,
     load_selection,
@@ -24,6 +26,22 @@ from benchmarks.run_benchmark import (
 
 
 class ProductBenchmarkTests(unittest.TestCase):
+    def test_compact_snapshot_releases_optional_leaf_rows_after_quality(self):
+        snapshot = {"levels": {"0": 1}, "leaves": [{"level": 0, "count": 1}]}
+        compact = _compact_snapshot(snapshot)
+        self.assertNotIn("leaves", compact)
+        self.assertIn("leaves", snapshot)
+
+    def test_streaming_semantic_quality_matches_batch_report(self):
+        from benchmarks.test_runtime import frame
+
+        reference = replace(frame(), semantic_class=np.array([1, 2]))
+        prediction = replace(frame(), semantic_class=np.array([1, 3]))
+        batch = semantic_range_quality_report([reference], [prediction])
+        accumulator = SemanticQualityAccumulator()
+        accumulator.update(reference, prediction)
+        self.assertEqual(accumulator.report(), batch)
+
     def test_mixed_resolution_topology_checks_observed_bins_independently(self):
         report = mixed_resolution_topology_report(
             {

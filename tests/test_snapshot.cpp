@@ -77,8 +77,8 @@ veyra::map::Observation point(double x, double y, float z) {
   o.x = x;
   o.y = y;
   o.z = z;
-  o.cls = 2;
-  o.confidence = 1.0F;
+  o.semantic_class = 2;
+  o.semantic_confidence = 1.0F;
   return o;
 }
 

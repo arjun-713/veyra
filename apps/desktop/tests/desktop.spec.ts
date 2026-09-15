@@ -24,8 +24,11 @@ test('real labeled replay drives the light dashboard and every product workspace
   await expect(page.getByRole('heading',{name:'Adaptive 2.5D LiDAR Dashboard'})).toBeVisible();
   await expect(page.getByRole('heading',{name:'Raw LiDAR Point Cloud'})).toBeVisible();await expect(page.getByRole('heading',{name:'Semantic LiDAR'})).toBeVisible();await expect(page.getByRole('heading',{name:'Adaptive 2.5D Map'})).toBeVisible();
   expect(await page.evaluate(()=>typeof (window as any).require)).toBe('undefined');expect(await page.evaluate(()=>typeof (window as any).veyra.command)).toBe('function');
-  const configured=await page.evaluate(async({datasetRoot})=>window.veyra.configure({dataset:'generic',dataset_root:datasetRoot,sequence:'demo',pipeline:{semantic:{mode:'ground_truth'}},map:{policy:'utility_lod',window_radius_m:100.001},playback:{fps:10,speed:1},visualization:{point_budget:50000,cell_budget:20000,update_hz:15}}),{datasetRoot});
-  expect(configured.status.state).toBe('ready');await page.evaluate(()=>window.veyra.command('step'));
+  await page.getByRole('button',{name:'Settings'}).click();
+  await page.getByLabel('Session configuration JSON').fill(JSON.stringify({dataset:'generic',dataset_root:datasetRoot,sequence:'demo',pipeline:{semantic:{mode:'ground_truth'}},map:{policy:'utility_lod',window_radius_m:100.001},playback:{fps:10,speed:1},visualization:{point_budget:50000,cell_budget:20000,update_hz:15}}));
+  await page.getByRole('button',{name:'Configure runtime'}).click();
+  await expect(page.getByText('First frame loaded. Start playback or step through the sequence.')).toBeVisible();
+  await page.getByRole('button',{name:'Dashboard'}).click();
   await expect(page.getByText('System Online')).toBeVisible();await expect(page.locator('.visualization-caption').first()).toContainText('Points: 800');await expect(page.locator('.summary-panel')).toContainText('Road');await page.screenshot({path:'test-results/desktop-dashboard.png',fullPage:true});
   await page.getByRole('button',{name:'Live Mapping'}).click();await expect(page.getByRole('heading',{name:'Live Mapping'})).toBeVisible();await page.getByRole('button',{name:'Utility',exact:true}).click();await expect(page.getByText('Utility values are unavailable')).toHaveCount(0);await expect(page.locator('.map-stage canvas')).toBeVisible();
   await page.getByRole('button',{name:'Dashboard'}).click();await page.locator('.dashboard-metric').first().click();await expect(page.getByRole('heading',{name:'Runtime Performance'})).toBeVisible();await expect(page.getByText('Resource governor')).toBeVisible();
