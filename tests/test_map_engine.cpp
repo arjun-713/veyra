@@ -13,6 +13,19 @@ using veyra::map::Observation;
 using veyra::map::Uniform40Map;
 using veyra::map::Uniform5Map;
 
+namespace {
+
+#if defined(__SANITIZE_ADDRESS__) || defined(__SANITIZE_UNDEFINED__)
+constexpr bool kSanitizerBuild = true;
+#elif defined(__clang__)
+constexpr bool kSanitizerBuild = __has_feature(address_sanitizer) ||
+                                 __has_feature(undefined_behavior_sanitizer);
+#else
+constexpr bool kSanitizerBuild = false;
+#endif
+
+}  // namespace
+
 void test_distance_lod_dense_update_budget() {
   DistanceLodMap map({.window_radius_m = 100.0});
   constexpr int sample_count = 36000;
@@ -29,7 +42,12 @@ void test_distance_lod_dense_update_budget() {
   const auto snapshot = map.snapshot();
   assert(snapshot.point_count == sample_count);
   assert(snapshot.has_no_parent_descendant_overlap());
-  assert(elapsed < std::chrono::milliseconds(2000));
+  // Sanitizer instrumentation changes allocator and container costs enough
+  // to invalidate this release-performance gate. Correctness remains tested
+  // above; the timing gate is retained for normal Debug/Release builds.
+  if (!kSanitizerBuild) {
+    assert(elapsed < std::chrono::milliseconds(2000));
+  }
 }
 
 void test_split_merge_preserves_all_statistics() {
