@@ -64,3 +64,9 @@ correctness gate fails the benchmark job. An unavailable `main` baseline is
 the only explicitly reported comparison warning. The Actions summary and
 upserted PR comment show map/perception tables, range quality, provenance, and
 artifact links.
+
+## Wave-2 integration notes
+
+- Metadata layout rule: per-present files (`len(lines) == len(refs)`) index by refs position, while absolute files (`len(lines) > len(refs)`, e.g. official full-length KITTI `poses.txt`/`times.txt` over a subset checkout) index by numeric frame id — see `datasets/semanticposs/adapter.py:_frame_index`.
+- `provenance.sample_adequacy` is advisory, not rejecting (p95 needs n >= 20, p99 needs n >= 100; short-run tails equal max and are descriptive only) — see `reports/closure/bench/SURVEY.md`.
+- UtilityLOD-vs-DistanceLOD claim is inconclusive-under-clamp (all utility legs byte-identical under the default governor operating point); the governor rerun with the fixed operating point is pending — see `reports/closure/utility/RESULT.md` and `reports/closure/governor/SURVEY.md`.

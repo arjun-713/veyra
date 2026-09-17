@@ -64,3 +64,27 @@ section is observed tracker evidence, not object-level ground truth.
   always toward `moving`, never toward `static`.
 - Safety direction: pass-by movers→static 3/115779; ghosts ≤ 2 frames;
   stale-3 expiry measured; relocation kills all tracks.
+
+## KITTI220 real-sequential evidence (integrated, `agent/temporal2`)
+
+220 seq08 scans (files 0–99 / 400–459 / 3990–4049; windows W0/W1/W2) under
+the evidence config (`--exclude-classes 9,10,11,12,17`,
+consistency-confirmed states): pole landmarks stable to 0.038 m median,
+pass-by car 68–90% moving at 5.6–7.6 m/s with dt-invariant medians
+(stride-2/stride-1 0.902), mover→static 3/115779 on the pass-by block,
+ghosts ≤ 2 frames, stale-3 expiry measured, relocation kills all tracks.
+Detail: `reports/closure/temporal/RESULT.md` (+
+`validate_W0_evidence.json`, `validate_W1.json`, `validate_W2.json`,
+`metrics_temporal_evidence.json`).
+
+Honest limits: velocity peaks saturate at the 2 m association gate over dt
+(19.1→9.6 m/s across strides, by design — not a speed measurement); there
+is no object-level ground truth (the motion section is observed tracker
+evidence against semantic/moving labels, not tracked boxes); the W1
+zero-mover control keeps a 0.277 moving residual from extended-surface
+support slide (always toward `moving`, never `static`); POSS/RELLIS
+temporal proof stays blocked-with-reason (no timestamps). Chain of
+custody: raw data lives only under git-ignored `data/` (official label zip
+sha256-verified, calib cross-checked byte-identical across two mirrors,
+scans CRC32-verified, 220/220 count match) — only derived JSON reports are
+committed.
