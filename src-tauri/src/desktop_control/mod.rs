@@ -85,6 +85,7 @@ pub(crate) fn request_for(command: &str, args: Value) -> DesktopControlRequest {
         "configure" => "configure",
         "config_validate" => "config_validate",
         "datasets" => "datasets",
+        "open_dataset" => "open_dataset",
         "diagnostics" => "diagnostics",
         "shutdown" => "shutdown",
         _ => panic!("unsupported desktop control command"),
@@ -138,6 +139,16 @@ mod tests {
             DesktopControlRequest {
                 command: "datasets",
                 args: json!({"dataset": "generic", "root": "/data"}),
+            }
+        );
+        assert_eq!(
+            request_for(
+                "open_dataset",
+                json!({"dataset": "semanticposs", "root": "/data", "sequence": "00"}),
+            ),
+            DesktopControlRequest {
+                command: "open_dataset",
+                args: json!({"dataset": "semanticposs", "root": "/data", "sequence": "00"}),
             }
         );
         assert_eq!(

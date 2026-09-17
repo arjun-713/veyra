@@ -2,6 +2,8 @@ mod commands;
 pub mod control;
 mod control_host;
 mod desktop_control;
+#[cfg(test)]
+mod packaged_e2e;
 pub mod supervisor;
 mod telemetry;
 
@@ -72,6 +74,7 @@ pub fn run() {
             commands::runtime_configure,
             commands::runtime_validate_config,
             commands::choose_dataset,
+            commands::open_dataset,
             commands::export_diagnostics,
             commands::runtime_shutdown,
         ]);
@@ -144,9 +147,16 @@ fn forwardable_runtime_event(
 /// Tauri places configured resources beneath the application resource
 /// directory. Development fallback remains the repository root, whereas a
 /// packaged application must supervise the staged `backend` directory.
+///
+/// The staged marker (`manifest.json`, always written by
+/// `scripts/stage_tauri_backend.py`) is required: an unstaged `backend`
+/// directory (for example a bare `.gitkeep` placeholder shipped by a build
+/// that skipped staging) must never masquerade as a runnable backend.
 fn runtime_root(resource_dir: &Path) -> PathBuf {
     let staged_backend = resource_dir.join("backend");
-    if staged_backend.is_dir() {
+    if staged_backend.join("manifest.json").is_file()
+        && staged_backend.join("runtime/__main__.py").is_file()
+    {
         staged_backend
     } else {
         resource_dir.to_path_buf()
@@ -197,9 +207,26 @@ mod tests {
         let root =
             std::env::temp_dir().join(format!("veyra-resource-root-test-{}", std::process::id()));
         let backend = root.join("backend");
-        fs::create_dir_all(backend.join("bin")).unwrap();
+        fs::create_dir_all(backend.join("runtime")).unwrap();
+        fs::write(backend.join("manifest.json"), "{\"schema_version\":1}").unwrap();
+        fs::write(backend.join("runtime/__main__.py"), "# staged").unwrap();
 
         assert_eq!(super::runtime_root(&root), backend);
+
+        fs::remove_dir_all(root).unwrap();
+    }
+
+    #[test]
+    fn unstaged_backend_placeholder_never_masquerades_as_a_runnable_backend() {
+        let root = std::env::temp_dir().join(format!(
+            "veyra-resource-root-unstaged-test-{}",
+            std::process::id()
+        ));
+        let backend = root.join("backend");
+        fs::create_dir_all(&backend).unwrap();
+        fs::write(backend.join(".gitkeep"), "").unwrap();
+
+        assert_eq!(super::runtime_root(&root), root);
 
         fs::remove_dir_all(root).unwrap();
     }
