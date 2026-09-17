@@ -67,6 +67,7 @@ pub fn choose_dataset(
     if dataset.is_empty() {
         return Err("dataset format is required".to_owned());
     }
+    choose_dataset_allowlist_check(&dataset)?;
     let root = validated_dataset_root(&root)?;
     request(
         &state,
@@ -89,6 +90,17 @@ pub fn runtime_shutdown(
     request(&state, "shutdown", json!({}))
 }
 
+fn choose_dataset_allowlist_check(dataset: &str) -> Result<(), String> {
+    if matches!(
+        dataset,
+        "rellis3d" | "semanticposs" | "semantickitti" | "generic"
+    ) {
+        Ok(())
+    } else {
+        Err("unsupported dataset format".to_owned())
+    }
+}
+
 fn validated_dataset_root(root: &str) -> Result<PathBuf, String> {
     if root.is_empty() {
         return Err("dataset directory is required".to_owned());
@@ -106,6 +118,13 @@ fn validated_dataset_root(root: &str) -> Result<PathBuf, String> {
 #[cfg(test)]
 mod tests {
     use super::validated_dataset_root;
+    use super::choose_dataset_allowlist_check;
+
+    #[test]
+    fn dataset_format_is_allowlisted_before_filesystem_access() {
+        assert!(choose_dataset_allowlist_check("unsafe-format").is_err());
+        assert!(choose_dataset_allowlist_check("semanticposs").is_ok());
+    }
 
     #[test]
     fn dataset_root_rejects_a_file() {

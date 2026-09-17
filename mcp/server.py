@@ -10,6 +10,21 @@ from typing import Any
 from .control_client import ControlClient, ControlClientError
 
 
+SUPPORTED_DATASETS = frozenset(("rellis3d", "semanticposs", "semantickitti", "generic"))
+SUPPORTED_POLICIES = frozenset(("uniform5", "uniform40", "distance_lod", "utility_lod"))
+SUPPORTED_LAYERS = frozenset(
+    ("semantic", "elevation", "traversability", "motion", "lod", "utility")
+)
+# Defense-in-depth bounds before daemon contact. The daemon re-validates every
+# value; these caps keep malformed MCP input from ever becoming a request.
+MAX_DATASET_LEN = 32
+MAX_ROOT_LEN = 4096
+MAX_SEQUENCE_LEN = 64
+MAX_NAME_LEN = 32
+MAX_INDEX = 100_000_000
+MAX_BENCHMARK_COUNT = 100_000
+
+
 def _tool(
     name: str, description: str, properties: dict, required: list[str] | None = None
 ):
@@ -53,9 +68,9 @@ TOOLS = {
             "open_dataset",
             "Validate and open a supported dataset using the Veyra production defaults.",
             {
-                "dataset": {"type": "string"},
-                "root": {"type": "string"},
-                "sequence": {"type": "string"},
+                "dataset": {"type": "string", "maxLength": MAX_DATASET_LEN},
+                "root": {"type": "string", "maxLength": MAX_ROOT_LEN},
+                "sequence": {"type": "string", "maxLength": MAX_SEQUENCE_LEN},
             },
             ["dataset", "root"],
         ),
@@ -66,7 +81,10 @@ TOOLS = {
         _tool(
             "get_dataset_info",
             "Inspect a supported dataset root.",
-            {"dataset": {"type": "string"}, "root": {"type": "string"}},
+            {
+                "dataset": {"type": "string", "maxLength": MAX_DATASET_LEN},
+                "root": {"type": "string", "maxLength": MAX_ROOT_LEN},
+            },
             ["dataset", "root"],
         ),
     ),
@@ -86,7 +104,7 @@ TOOLS = {
         _tool(
             "seek",
             "Seek to a frame in the configured sequence.",
-            {"index": {"type": "integer", "minimum": 0}},
+            {"index": {"type": "integer", "minimum": 0, "maximum": MAX_INDEX}},
             ["index"],
         ),
     ),
@@ -96,7 +114,7 @@ TOOLS = {
         _tool(
             "set_policy",
             "Select a configured map policy.",
-            {"policy": {"type": "string"}},
+            {"policy": {"type": "string", "maxLength": MAX_NAME_LEN}},
             ["policy"],
         ),
     ),
@@ -106,7 +124,7 @@ TOOLS = {
         _tool(
             "set_layer",
             "Select the visual evidence layer shown by Veyra.",
-            {"layer": {"type": "string"}},
+            {"layer": {"type": "string", "maxLength": MAX_NAME_LEN}},
             ["layer"],
         ),
     ),
@@ -142,9 +160,9 @@ TOOLS = {
             "run_benchmark",
             "Run the configured reproducible benchmark.",
             {
-                "dataset": {"type": "string"},
-                "sequence": {"type": "string"},
-                "count": {"type": "integer"},
+                "dataset": {"type": "string", "maxLength": MAX_DATASET_LEN},
+                "sequence": {"type": "string", "maxLength": MAX_SEQUENCE_LEN},
+                "count": {"type": "integer", "minimum": 1, "maximum": MAX_BENCHMARK_COUNT},
             },
             ["dataset", "sequence", "count"],
         ),
@@ -164,9 +182,6 @@ TOOLS = {
         _tool("export_diagnostics", "Return bounded diagnostics for export.", {}),
     ),
 }
-
-SUPPORTED_DATASETS = frozenset(("rellis3d", "semanticposs", "semantickitti", "generic"))
-
 
 class McpServer:
     def __init__(self, repo: str | Path | None = None):
@@ -209,6 +224,10 @@ class McpServer:
                 and arguments["dataset"] not in SUPPORTED_DATASETS
             ):
                 raise ValueError("unsupported dataset format")
+            if name == "set_policy" and arguments["policy"] not in SUPPORTED_POLICIES:
+                raise ValueError("unsupported map policy")
+            if name == "set_layer" and arguments["layer"] not in SUPPORTED_LAYERS:
+                raise ValueError("unsupported layer")
             args = dict(fixed_args)
             if command == "command":
                 args["args"] = {**args.get("args", {}), **arguments}
@@ -272,8 +291,17 @@ def _validate_arguments(schema: dict, arguments: Any) -> None:
         )
         if not valid:
             raise ValueError(f"tool argument {name} must be {expected}")
-        if "minimum" in properties[name] and value < properties[name]["minimum"]:
-            raise ValueError(f"tool argument {name} is below minimum")
+        spec = properties[name]
+        if expected == "string":
+            if "maxLength" in spec and len(value) > spec["maxLength"]:
+                raise ValueError(f"tool argument {name} exceeds maximum length")
+            if "minLength" in spec and len(value) < spec["minLength"]:
+                raise ValueError(f"tool argument {name} is below minimum length")
+        if expected == "integer":
+            if "minimum" in spec and value < spec["minimum"]:
+                raise ValueError(f"tool argument {name} is below minimum")
+            if "maximum" in spec and value > spec["maximum"]:
+                raise ValueError(f"tool argument {name} exceeds maximum")
 
 
 def _error_text(error: Exception) -> str:
