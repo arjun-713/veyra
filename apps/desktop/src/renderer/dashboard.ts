@@ -9,7 +9,7 @@ export function profileConfig(current:Json,name:string):Json{
  const selected=profiles[name]??profiles.Balanced;
  return {...current,map:{...(current.map??{}),resource_profile:selected.resource_profile,governor_override:'automatic'},visualization:selected.visualization};
 }
-export function layerUnavailable(frame:WireFrame|null,mode:string){return ['ground','terrain','motion','utility'].includes(mode)&&!evidenceAvailable(frame?.metadata.layers?.[mode]);}
+export function layerUnavailable(frame:WireFrame|null,mode:string){return ['ground','terrain','motion','utility','semantic'].includes(mode)&&!evidenceAvailable(frame?.metadata.layers?.[mode]);}
 export function perceptionStages(frame:WireFrame|null){
  const status=frame?.metadata.pipeline_status??{};
  const timings=frame?.metadata.perception_timings_ms??{};
