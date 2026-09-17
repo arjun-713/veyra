@@ -4,6 +4,7 @@ from pathlib import Path
 
 import numpy as np
 
+from datasets.common.taxonomy import SEMANTICKITTI_LABELS, map_dataset_labels
 from datasets.semantickitti import SemanticKITTIDataset
 
 
@@ -89,6 +90,49 @@ class SemanticKITTIAdapterTests(unittest.TestCase):
 
             with self.assertRaises(ValueError):
                 SemanticKITTIDataset(root).load_frame("00", "000000")
+
+    def test_absent_timestamp_is_never_generated(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            sequence = root / "sequences" / "00"
+            (sequence / "velodyne").mkdir(parents=True)
+            (sequence / "labels").mkdir()
+            np.array([[1.0, 0.0, 0.0, 0.5]], dtype=np.float32).tofile(
+                sequence / "velodyne" / "000000.bin"
+            )
+            np.array([10], dtype=np.uint32).tofile(sequence / "labels" / "000000.label")
+            (sequence / "poses.txt").write_text("1 0 0 0 0 1 0 0 0 0 1 0\n")
+
+            frame = SemanticKITTIDataset(root).load_frame("00", "000000")
+
+        self.assertIsNone(frame.timestamp)
+        self.assertEqual(frame.provenance.timestamp_source, "absent")
+
+    def test_world_frame_requires_dataset_pose(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            sequence = root / "sequences" / "00"
+            (sequence / "velodyne").mkdir(parents=True)
+            (sequence / "labels").mkdir()
+            np.array([[1.0, 0.0, 0.0, 0.5]], dtype=np.float32).tofile(
+                sequence / "velodyne" / "000000.bin"
+            )
+            np.array([10], dtype=np.uint32).tofile(sequence / "labels" / "000000.label")
+
+            frame = SemanticKITTIDataset(root).load_frame("00", "000000")
+
+        self.assertEqual(frame.provenance.pose_source, "identity_absent")
+        self.assertNotEqual(frame.provenance.coordinate_frame, "world")
+
+    def test_official_v11_taxonomy_ids_map_without_error(self):
+        # Raw IDs from SemanticKITTI v1.1 `learning_map`, including the
+        # moving classes 252-259 observed in the official sequence-08 labels.
+        raw = np.array(sorted(SEMANTICKITTI_LABELS.keys()), dtype=np.uint32)
+        mapped = map_dataset_labels(raw & 0xFFFF, SEMANTICKITTI_LABELS)
+        for raw_id, veyra_id in zip(raw.tolist(), mapped.tolist()):
+            self.assertEqual(veyra_id, SEMANTICKITTI_LABELS[int(raw_id)])
+        unmapped = map_dataset_labels(np.array([2, 3, 7], dtype=np.uint32))
+        np.testing.assert_array_equal(unmapped, [0, 0, 0])
 
 
 if __name__ == "__main__":
