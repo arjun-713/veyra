@@ -35,6 +35,17 @@ add_test(
   COMMAND ${Python3_EXECUTABLE} -m unittest discover -s tests -p "test_*.py" -v
   WORKING_DIRECTORY ${PROJECT_SOURCE_DIR}
 )
+# Reuse the just-built benchmark so the suite never rebuilds per test; the
+# tests still build once standalone when the variable is unset. TIMEOUT is a
+# backstop (the post-fix suite runs in about a minute under CTest), not a
+# substitute for the in-test engine bounds.
+if(TARGET veyra_benchmark)
+  set_tests_properties(
+    python_unittest
+    PROPERTIES ENVIRONMENT "VEYRA_BENCHMARK_BINARY=$<TARGET_FILE:veyra_benchmark>"
+  )
+endif()
+set_tests_properties(python_unittest PROPERTIES TIMEOUT 600)
 
 add_executable(test_split_merge test_split_merge.cpp)
 target_include_directories(test_split_merge PRIVATE ${PROJECT_SOURCE_DIR}/include)

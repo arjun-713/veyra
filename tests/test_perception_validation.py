@@ -102,6 +102,7 @@ class PerceptionValidationTests(unittest.TestCase):
             check=False,
             capture_output=True,
             text=True,
+            timeout=120,
         )
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertIn("--dataset", result.stdout)

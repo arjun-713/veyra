@@ -56,6 +56,7 @@ class SubmissionClosureTests(unittest.TestCase):
                 capture_output=True,
                 text=True,
                 check=False,
+                timeout=120,
             )
 
     def test_validator_accepts_an_open_well_formed_row(self):
@@ -66,6 +67,7 @@ class SubmissionClosureTests(unittest.TestCase):
             capture_output=True,
             text=True,
             check=False,
+            timeout=120,
         )
         self.assertEqual(result.returncode, 0, result.stderr)
 
