@@ -319,6 +319,7 @@ class PerceptionPipeline:
             motion_state=motion.state if motion is not None else frame.motion_state,
             observation_quality=(self._quality(semantic.semantic_confidence, terrain)),
             raw_semantic_class=frame.raw_semantic_class,
+            instance_id=frame.instance_id,
             provenance=frame.provenance,
         )
         return PipelineOutput(

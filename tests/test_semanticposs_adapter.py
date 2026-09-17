@@ -65,6 +65,19 @@ class SemanticPOSSAdapterTests(unittest.TestCase):
 
         np.testing.assert_array_equal(mapped, [0, 6, 1, 16, 13, 12])
 
+    def test_preserves_packed_semanticposs_instance_bits_after_range_crop(self):
+        with tempfile.TemporaryDirectory() as raw:
+            root = Path(raw)
+            write_frame(root, "00", "0", [1.0, 200.0])
+            np.array([(12 << 16) | 10, (7 << 16) | 20], dtype=np.uint32).tofile(
+                root / "00" / "labels" / "0.label"
+            )
+
+            frame = SemanticPOSSDataset(root).load_frame("00", "0", max_range_m=100)
+
+        np.testing.assert_array_equal(frame.raw_semantic_class, [10])
+        np.testing.assert_array_equal(frame.instance_id, [12])
+
     def test_range_crop_uses_lidar_range_before_world_translation(self):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)

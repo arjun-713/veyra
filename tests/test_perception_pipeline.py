@@ -78,6 +78,7 @@ def _frame(timestamp=2.0):
         height_complexity=np.full(3, np.nan, dtype=np.float32),
         motion_probability=np.zeros(3, dtype=np.float32),
         velocity_xy=np.zeros((3, 2), dtype=np.float32),
+        instance_id=np.array([7, 8, 9], dtype=np.int32),
         dataset="synthetic-test",
         sequence="00",
         frame_id="000000",
@@ -130,6 +131,7 @@ class PerceptionPipelineTests(unittest.TestCase):
         np.testing.assert_array_equal(result.frame.semantic_class, [0, 0, 1])
         np.testing.assert_array_equal(result.frame.ground, [True, True, False])
         np.testing.assert_array_equal(result.frame.points, points)
+        np.testing.assert_array_equal(result.frame.instance_id, [7, 8, 9])
 
     def test_strict_required_ground_failure_raises(self):
         class BrokenGround:

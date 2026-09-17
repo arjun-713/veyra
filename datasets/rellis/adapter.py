@@ -155,12 +155,14 @@ class Rellis3DDataset:
             RELLIS_LABELS if label_mapping is None else label_mapping,
         )
         raw_semantic_class = (raw_labels & 0xFFFF).astype(np.int32, copy=False)
+        instance_id = (raw_labels >> 16).astype(np.int32, copy=False)
         confidence = np.where(semantic_class == 0, 0.0, 1.0).astype(np.float32)
 
         mask = self._range_mask(points, min_range_m, max_range_m)
         world_points = self._transform_points(points[mask], pose.matrix)
         semantic_class = semantic_class[mask]
         raw_semantic_class = raw_semantic_class[mask]
+        instance_id = instance_id[mask]
         confidence = confidence[mask]
         count = world_points.shape[0]
         return ObservationFrame(
@@ -177,6 +179,7 @@ class Rellis3DDataset:
             motion_probability=np.zeros(count, dtype=np.float32),
             velocity_xy=np.zeros((count, 2), dtype=np.float32),
             raw_semantic_class=raw_semantic_class,
+            instance_id=instance_id,
             dataset="rellis3d",
             sequence=str(sequence),
             frame_id=str(frame_id),

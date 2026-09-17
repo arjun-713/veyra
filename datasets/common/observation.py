@@ -165,6 +165,7 @@ class ObservationFrame:
     motion_state: np.ndarray | None = None
     observation_quality: np.ndarray | None = None
     raw_semantic_class: np.ndarray | None = None
+    instance_id: np.ndarray | None = None
     provenance: FrameProvenance = FrameProvenance()
 
     def __post_init__(self) -> None:
@@ -214,6 +215,9 @@ class ObservationFrame:
             "raw_semantic_class": arrays["semantic_class"].copy()
             if self.raw_semantic_class is None
             else _class_ids(self.raw_semantic_class, name="raw_semantic_class"),
+            "instance_id": np.zeros(count, dtype=np.int32)
+            if self.instance_id is None
+            else _class_ids(self.instance_id, name="instance_id"),
             "terrain_confidence": np.zeros(count, dtype=np.float32)
             if self.terrain_confidence is None
             else np.asarray(self.terrain_confidence, dtype=np.float32),
