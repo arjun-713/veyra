@@ -392,6 +392,90 @@ void yaml_configs_drive_the_validated_policy_contract() {
   assert(threw);
 }
 
+void utility_only_promotes_relative_to_the_distance_baseline() {
+  // UtilityLOD may refine (lower level number) but must never coarsen beyond
+  // the distance baseline, under any signal combination, quality gate state,
+  // safety flag, or hysteresis age. Safety evidence may promote without the
+  // observation-quality gate; nothing may demote below the baseline.
+  const double ranges[] = {2.0, 9.9, 10.0, 20.0, 29.9, 30.0, 45.0, 59.9, 60.0, 75.0, 99.0};
+  const double signals[] = {0.0, 0.25, 0.5, 0.75, 1.0};
+  const double qualities[] = {0.0, 0.49, 0.5, 1.0};
+  for (const double range : ranges) {
+    for (const double geometry : signals) {
+      for (const double semantic : signals) {
+        for (const double motion : signals) {
+          for (const double risk : signals) {
+            for (const double uncertainty : signals) {
+              for (const double quality : qualities) {
+                for (const bool safety : {false, true}) {
+                  for (const double range_rate : {0.0, -20.0}) {
+                    auto config = PolicyConfig::defaults().with_mode(LodMode::UtilityLod);
+                    LodPolicy policy{config};
+                    policy.begin_frame(1);
+                    DecisionInput input{};
+                    input.range_m = range;
+                    input.active_level = 3;
+                    input.state_cell = {3, 7, 7};
+                    input.safety_critical = safety;
+                    input.geometry_complexity = geometry;
+                    input.semantic_importance = semantic;
+                    input.motion = motion;
+                    input.traversability_risk = risk;
+                    input.semantic_uncertainty = uncertainty;
+                    input.observation_quality = quality;
+                    input.point_density = quality;
+                    input.range_rate_mps = range_rate;
+                    const auto decision = policy.decide(input);
+                    assert(decision.requested_level <= decision.baseline_level);
+                    const bool gate_closed = quality < 0.5;
+                    if (gate_closed && !safety && range_rate == 0.0 &&
+                        input.active_level == decision.baseline_level) {
+                      assert(decision.requested_level == decision.baseline_level);
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+  // Hysteresis-aged policies obey the same bound through promotion and decay.
+  for (const double range : {5.0, 20.0, 45.0, 75.0}) {
+    auto config = PolicyConfig::defaults().with_mode(LodMode::UtilityLod);
+    config.utility.semantic_weight = 1.0;
+    config.utility.split_consecutive_frames = 2;
+    config.utility.merge_consecutive_frames = 2;
+    LodPolicy policy{config};
+    DecisionInput high{};
+    high.range_m = range;
+    high.active_level = 3;
+    high.semantic_importance = 1.0;
+    high.observation_quality = 1.0;
+    high.point_density = 1.0;
+    DecisionInput low = high;
+    low.semantic_importance = 0.0;
+    std::uint64_t frame = 0;
+    for (int step = 0; step < 4; ++step) {
+      policy.begin_frame(++frame);
+      for (int level = 0; level <= 3; ++level) {
+        high.active_level = level;
+        const auto promoted = policy.decide(high);
+        assert(promoted.requested_level <= promoted.baseline_level);
+      }
+    }
+    for (int step = 0; step < 6; ++step) {
+      policy.begin_frame(++frame);
+      for (int level = 0; level <= 3; ++level) {
+        low.active_level = level;
+        const auto decayed = policy.decide(low);
+        assert(decayed.requested_level <= decayed.baseline_level);
+      }
+    }
+  }
+}
+
 void radial_range_rate_from_velocity_is_signed_along_the_robot_offset() {
   // Approaching movers yield a negative range rate, receding movers a
   // positive one. Degenerate or non-finite inputs fail safe to zero so no
@@ -427,6 +511,7 @@ int main() {
   uniform_and_distance_modes_have_one_consistent_level_contract();
   invalid_policy_configuration_is_rejected();
   utility_promotes_hazards_but_gates_noisy_sparse_uncertainty();
+  utility_only_promotes_relative_to_the_distance_baseline();
   utility_consumes_each_documented_signal_with_configurable_weights();
   motion_prediction_and_hysteresis_prevent_lod_thrash();
   resource_governor_uses_measured_pressure_and_preserves_near_field_and_hazards();

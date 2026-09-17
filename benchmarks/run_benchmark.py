@@ -95,6 +95,15 @@ POLICY_ADAPTERS = {
         "utility_ablation",
         ("motion",),
     ),
+    "ablation_traversability": PolicyAdapter(
+        "ablation_traversability",
+        "utility_lod",
+        True,
+        "distance plus traversability risk",
+        "utility_lod-traversability.yaml",
+        "utility_ablation",
+        ("traversability",),
+    ),
 }
 
 PUBLIC_POLICY_NAMES = tuple(
@@ -563,6 +572,44 @@ def field_retention_report(
             "retention_fraction": retained / len(relevant) if relevant else None,
             "reference": "any non-drivable evidence per observed 5cm bin",
         }
+    # Task-class retention isolates the small/thin classes UtilityLOD exists to
+    # protect at range. Groups use Veyra SemanticKITTI-learning IDs: pole 18,
+    # pedestrian person 6 / bicyclist 7, vehicle 1-5. Additive detail only: the
+    # overall semantic/hazard status contract above is unchanged.
+    task_classes: dict[str, Any] = {
+        "status": "unavailable",
+        "reason": "snapshot leaves omit semantic_class",
+    }
+    if all("semantic_class" in leaf for leaf in snapshot.get("leaves", [])):
+        groups = {
+            "pole": {18},
+            "pedestrian": {6, 7},
+            "vehicle": {1, 2, 3, 4, 5},
+        }
+        members: dict[str, Any] = {}
+        for group, classes in groups.items():
+            relevant_bins = [
+                key
+                for key, item in fine.items()
+                if item["classes"] and max(item["classes"], key=item["classes"].get) in classes
+            ]
+            retained_bins = sum(
+                int(int(owners[key][0]["semantic_class"]) in classes)
+                for key in relevant_bins
+                if len(owners[key]) == 1
+            )
+            members[group] = {
+                "status": "measured",
+                "class_ids": sorted(classes),
+                "reference_bins": len(relevant_bins),
+                "covered_bins": sum(len(owners[key]) == 1 for key in relevant_bins),
+                "retained_bins": retained_bins,
+                "retention_fraction": retained_bins / len(relevant_bins)
+                if relevant_bins
+                else None,
+                "reference": "dominant nonzero semantic class per observed 5cm bin",
+            }
+        task_classes = {"status": "measured", "members": members}
     field_statuses = {semantic["status"], hazard["status"]}
     status = (
         "measured"
@@ -571,7 +618,12 @@ def field_retention_report(
         if "measured" in field_statuses
         else "unavailable"
     )
-    return {"status": status, "semantic": semantic, "terrain_hazard": hazard}
+    return {
+        "status": status,
+        "semantic": semantic,
+        "terrain_hazard": hazard,
+        "task_classes": task_classes,
+    }
 
 
 def mapping_quality_report(
@@ -703,9 +755,18 @@ def _compact_snapshot(snapshot: dict[str, Any]) -> dict[str, Any]:
 
 
 def _finalize_policy_runs(
-    runs_by_policy: dict[str, list[dict[str, Any]]], selection: dict[str, Any]
+    runs_by_policy: dict[str, list[dict[str, Any]]],
+    selection: dict[str, Any],
+    *,
+    frames: list[Any] | None = None,
 ) -> dict[str, Any]:
-    """Attach quality reports, then release long-run leaf-detail payloads."""
+    """Attach quality reports, then release long-run leaf-detail payloads.
+
+    ``frames`` is the retained source selection. It stays ``None`` on the
+    default streaming path (bounded memory, retention unavailable); the
+    opt-in ``--retain-frames`` path supplies it so field and task-class
+    retention are measured on the identical stream every policy consumed.
+    """
     fine_reference = (
         _fine_reference_from_snapshot(runs_by_policy["uniform5"][0]["snapshot"])
         if runs_by_policy.get("uniform5")
@@ -718,6 +779,7 @@ def _finalize_policy_runs(
                 result["metrics"]["stream"]["rejected_out_of_window"],
                 result["snapshot"],
                 fine_reference,
+                frames=frames,
             )
             if result.get("frame_metrics"):
                 frame_conservation = result["frame_metrics"][-1].get(
@@ -1446,27 +1508,85 @@ def run(args: argparse.Namespace) -> dict[str, Any]:
         (repo / "configs/hardware_profiles.yaml").read_text()
     )
     validate_hardware_profile(hardware_config, args.hardware_profile)
-    frame_iterator, selection = stream_selection(
-        repo,
-        args.dataset,
-        args.sequence,
-        args.start,
-        args.count,
-        run_perception=not args.skip_perception,
-        dataset_root=getattr(args, "dataset_root", None),
-        perception_config=(
-            repo / args.perception_config
-            if not Path(args.perception_config).is_absolute()
-            else Path(args.perception_config)
-        ),
+    perception_config_path = (
+        repo / args.perception_config
+        if not Path(args.perception_config).is_absolute()
+        else Path(args.perception_config)
     )
+    retained_frames: list[Any] | None = None
+    if getattr(args, "retain_frames", False):
+        # Materialized path (opt-in): keep the source selection in memory so
+        # field and task-class retention are measured on the identical stream
+        # every policy consumed. The default streaming path is unchanged.
+        perception_records: list[dict[str, Any]] = []
+        reference_frames: list[Any] = []
+        (
+            retained_frames,
+            distance_config,
+            _entry,
+            perception_ns,
+            materialized_radius_m,
+        ) = load_selection(
+            repo,
+            args.dataset,
+            args.sequence,
+            args.start,
+            args.count,
+            run_perception=not args.skip_perception,
+            perception_config=perception_config_path,
+            dataset_root=getattr(args, "dataset_root", None),
+            perception_records=perception_records,
+            reference_frames=reference_frames,
+        )
+        semantic_quality = (
+            SemanticQualityAccumulator() if not args.skip_perception else None
+        )
+        if semantic_quality is not None:
+            for source_frame, predicted_frame in zip(
+                reference_frames, retained_frames, strict=True
+            ):
+                semantic_quality.update(source_frame, predicted_frame)
+        min_xyz = np.full(3, np.inf, dtype=np.float64)
+        max_xyz = np.full(3, -np.inf, dtype=np.float64)
+        point_count = 0
+        for output_frame in retained_frames:
+            points = np.asarray(output_frame.points[:, :3], dtype=np.float64)
+            if points.size:
+                min_xyz = np.minimum(min_xyz, points.min(axis=0))
+                max_xyz = np.maximum(max_xyz, points.max(axis=0))
+                point_count += len(points)
+        selection = {
+            "distance_config": distance_config,
+            "frames": len(retained_frames),
+            "point_count": point_count,
+            "min_xyz": min_xyz,
+            "max_xyz": max_xyz,
+            "window_radius_m": materialized_radius_m,
+            "perception_ns": perception_ns,
+            "perception_records": perception_records,
+            "semantic_quality": semantic_quality,
+        }
+        frame_iterator = iter(retained_frames)
+    else:
+        frame_iterator, selection = stream_selection(
+            repo,
+            args.dataset,
+            args.sequence,
+            args.start,
+            args.count,
+            run_perception=not args.skip_perception,
+            dataset_root=getattr(args, "dataset_root", None),
+            perception_config=perception_config_path,
+        )
     digest, window_radius_m, runs_by_policy, bridge_samples_ns, execution_order = (
         _execute_policy_runs(args, repo, requested, frame_iterator, selection)
     )
     three_d_reference = analytical_3d_reference_bounds(
         selection["min_xyz"], selection["max_xyz"]
     )
-    fine_reference = _finalize_policy_runs(runs_by_policy, selection)
+    fine_reference = _finalize_policy_runs(
+        runs_by_policy, selection, frames=retained_frames
+    )
     results: dict[str, Any] = {}
     for policy in requested:
         adapter, runs = POLICY_ADAPTERS[policy], runs_by_policy[policy]
@@ -1781,6 +1901,14 @@ def main() -> int:
     parser.add_argument("--output", type=Path)
     parser.add_argument("--csv-output", type=Path)
     parser.add_argument("--skip-perception", action="store_true")
+    parser.add_argument(
+        "--retain-frames",
+        action="store_true",
+        help="Retain the source selection in memory to measure field and "
+        "task-class retention on the identical stream every policy consumes; "
+        "default streams frames with bounded memory and reports retention "
+        "as unavailable",
+    )
     parser.add_argument("--dataset-sha256")
     parser.add_argument("--build-type", default="Release")
     parser.add_argument("--perception-config", default="configs/perception.yaml")
