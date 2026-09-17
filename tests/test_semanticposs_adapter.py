@@ -286,6 +286,16 @@ class SemanticPOSSAdapterTests(unittest.TestCase):
             self.assertEqual([frame.frame_id for frame in frames], ["400", "401"])
             self.assertEqual([frame.timestamp for frame in frames], [40.0, 40.1])
 
+    def test_frame_index_without_total_lines_keeps_historical_numeric_behavior(self):
+        with tempfile.TemporaryDirectory() as raw:
+            root = Path(raw)
+            write_frame(root, "00", "2", [2.0])
+            write_frame(root, "00", "10", [10.0])
+            adapter = SemanticPOSSDataset(root, sequences=["00"])
+
+            self.assertEqual(adapter._frame_index("00", "10", total_lines=None), 10)
+            self.assertEqual(adapter._frame_index("00", "10", total_lines=1), 1)
+
     def test_rejects_scan_and_label_count_mismatch(self):
         with tempfile.TemporaryDirectory() as raw:
             root = Path(raw)
