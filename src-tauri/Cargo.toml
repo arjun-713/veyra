@@ -1,0 +1,28 @@
+[package]
+name = "veyra"
+version = "0.1.0"
+description = "Veyra adaptive semantic LiDAR mapping desktop application"
+authors = ["Veyra contributors"]
+edition = "2021"
+rust-version = "1.77"
+build = "build.rs"
+default-run = "veyra"
+
+[lib]
+name = "veyra_lib"
+crate-type = ["lib", "cdylib", "staticlib"]
+
+[[bin]]
+name = "veyra-cli"
+path = "src/bin/veyra-cli.rs"
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[dependencies]
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+tauri = { version = "2", features = [] }
+tauri-plugin-dialog = "2"
+tauri-plugin-fs = "2"
+thiserror = "2"

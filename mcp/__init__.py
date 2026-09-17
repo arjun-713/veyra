@@ -1,0 +1,1 @@
+"""Safe Veyra MCP adapter."""

@@ -1,0 +1,497 @@
+use std::collections::{HashMap, VecDeque};
+use std::io::{self, Read, Write};
+use std::path::{Path, PathBuf};
+use std::process::{Child, ChildStderr, ChildStdin, ChildStdout, Command, Stdio};
+use std::sync::{mpsc, Arc, Mutex};
+use std::thread;
+use std::time::{Duration, Instant};
+
+use serde_json::{json, Value};
+use thiserror::Error;
+
+const HEADER_SIZE: usize = 16;
+const MAX_METADATA: usize = 1024 * 1024;
+const MAX_PAYLOAD: usize = 32 * 1024 * 1024;
+const MAX_REQUEST: usize = 64 * 1024;
+const MAX_PENDING: usize = 8;
+const MAX_EVENTS: usize = 128;
+
+#[derive(Debug, Error, Clone)]
+pub enum SupervisorError {
+    #[error("runtime is not running")]
+    NotRunning,
+    #[error("runtime command queue is full")]
+    QueueFull,
+    #[error("runtime command timed out: {0}")]
+    Timeout(String),
+    #[error("runtime protocol error: {0}")]
+    Protocol(String),
+    #[error("runtime process error: {0}")]
+    Process(String),
+    #[error("runtime response error: {0}")]
+    Response(String),
+}
+
+#[derive(Debug, Clone)]
+pub struct RuntimeEvent {
+    pub metadata: Value,
+    pub payload: Vec<u8>,
+}
+
+struct Shared {
+    stdin: Option<ChildStdin>,
+    child: Option<Child>,
+    pending: HashMap<String, mpsc::Sender<Result<Value, SupervisorError>>>,
+    events: VecDeque<RuntimeEvent>,
+    stderr: String,
+    last_error: Option<String>,
+    sequence: u64,
+    stopping: bool,
+}
+
+pub struct RuntimeSupervisor {
+    repo: PathBuf,
+    shared: Arc<Mutex<Shared>>,
+}
+
+impl RuntimeSupervisor {
+    pub fn new(repo: impl Into<PathBuf>) -> Self {
+        Self {
+            repo: repo.into(),
+            shared: Arc::new(Mutex::new(Shared {
+                stdin: None,
+                child: None,
+                pending: HashMap::new(),
+                events: VecDeque::new(),
+                stderr: String::new(),
+                last_error: None,
+                sequence: 0,
+                stopping: false,
+            })),
+        }
+    }
+
+    pub fn is_running(&self) -> bool {
+        self.shared
+            .lock()
+            .map(|shared| shared.child.is_some())
+            .unwrap_or(false)
+    }
+
+    pub fn pid(&self) -> Option<u32> {
+        self.shared
+            .lock()
+            .ok()
+            .and_then(|shared| shared.child.as_ref().map(Child::id))
+    }
+
+    pub fn start(&self) -> Result<(), SupervisorError> {
+        let mut shared = self
+            .shared
+            .lock()
+            .map_err(|_| SupervisorError::Process("supervisor lock poisoned".into()))?;
+        if shared.child.is_some() {
+            return Ok(());
+        }
+
+        let python = python_executable(&self.repo);
+        let mut command = Command::new(&python);
+        command
+            .arg("-u")
+            .arg("-m")
+            .arg("runtime")
+            .arg("--repo")
+            .arg(&self.repo)
+            .current_dir(&self.repo)
+            .stdin(Stdio::piped())
+            .stdout(Stdio::piped())
+            .stderr(Stdio::piped());
+        if self.repo.join("python").is_dir() {
+            command.env("PYTHONHOME", self.repo.join("python"));
+            command.env("PYTHONPATH", &self.repo);
+        }
+        let mut child = command.spawn().map_err(|error| {
+            SupervisorError::Process(format!("failed to start {}: {error}", python.display()))
+        })?;
+        let stdin = child
+            .stdin
+            .take()
+            .ok_or_else(|| SupervisorError::Process("runtime stdin was not piped".into()))?;
+        let stdout = child
+            .stdout
+            .take()
+            .ok_or_else(|| SupervisorError::Process("runtime stdout was not piped".into()))?;
+        let stderr = child
+            .stderr
+            .take()
+            .ok_or_else(|| SupervisorError::Process("runtime stderr was not piped".into()))?;
+
+        let shared_arc = Arc::clone(&self.shared);
+        shared.stdin = Some(stdin);
+        shared.child = Some(child);
+        shared.stopping = false;
+        shared.last_error = None;
+        drop(shared);
+
+        spawn_stdout_reader(shared_arc.clone(), stdout);
+        spawn_stderr_reader(shared_arc.clone(), stderr);
+        spawn_process_monitor(shared_arc);
+        Ok(())
+    }
+
+    pub fn request(&self, command: &str, args: Value) -> Result<Value, SupervisorError> {
+        self.start()?;
+        let (id, receiver) = {
+            let mut shared = self
+                .shared
+                .lock()
+                .map_err(|_| SupervisorError::Process("supervisor lock poisoned".into()))?;
+            if shared.pending.len() >= MAX_PENDING {
+                return Err(SupervisorError::QueueFull);
+            }
+            if shared.stdin.is_none() {
+                return Err(SupervisorError::NotRunning);
+            }
+            shared.sequence = shared.sequence.saturating_add(1);
+            let id = shared.sequence.to_string();
+            let request = serde_json::to_vec(&json!({
+                "id": id,
+                "command": command,
+                "args": args,
+            }))
+            .map_err(|error| SupervisorError::Process(error.to_string()))?;
+            if request.len() + 1 > MAX_REQUEST {
+                return Err(SupervisorError::Process(
+                    "runtime request exceeds 64 KiB".into(),
+                ));
+            }
+            let (sender, receiver) = mpsc::channel();
+            shared.pending.insert(id.clone(), sender);
+            let stdin = shared.stdin.as_mut().ok_or(SupervisorError::NotRunning)?;
+            if let Err(error) = stdin
+                .write_all(&[request.as_slice(), b"\n"].concat())
+                .and_then(|_| stdin.flush())
+            {
+                shared.pending.remove(&id);
+                return Err(SupervisorError::Process(error.to_string()));
+            }
+            (id, receiver)
+        };
+
+        let timeout = if command == "benchmark" {
+            Duration::from_secs(3600)
+        } else {
+            Duration::from_secs(120)
+        };
+        match receiver.recv_timeout(timeout) {
+            Ok(result) => result,
+            Err(mpsc::RecvTimeoutError::Timeout) => {
+                if let Ok(mut shared) = self.shared.lock() {
+                    shared.pending.remove(&id);
+                }
+                Err(SupervisorError::Timeout(command.to_owned()))
+            }
+            Err(mpsc::RecvTimeoutError::Disconnected) => Err(SupervisorError::NotRunning),
+        }
+    }
+
+    pub fn drain_events(&self) -> Vec<RuntimeEvent> {
+        self.shared
+            .lock()
+            .map(|mut shared| shared.events.drain(..).collect())
+            .unwrap_or_default()
+    }
+
+    pub fn diagnostics(&self) -> Value {
+        self.shared
+            .lock()
+            .map(|shared| {
+                json!({
+                    "running": shared.child.is_some(),
+                    "pid": shared.child.as_ref().map(Child::id),
+                    "pending": shared.pending.len(),
+                    "queued_events": shared.events.len(),
+                    "stderr": shared.stderr,
+                    "last_error": shared.last_error,
+                })
+            })
+            .unwrap_or_else(|_| json!({"error":"supervisor lock poisoned"}))
+    }
+
+    pub fn stop(&self) -> Result<(), SupervisorError> {
+        if !self.is_running() {
+            return Ok(());
+        }
+        if let Err(error) = self.request("shutdown", Value::Object(Default::default())) {
+            if !matches!(error, SupervisorError::NotRunning) {
+                self.record_error(error.to_string());
+            }
+        }
+        let deadline = Instant::now() + Duration::from_secs(2);
+        while Instant::now() < deadline && self.is_running() {
+            thread::sleep(Duration::from_millis(25));
+        }
+        if self.is_running() {
+            if let Ok(mut shared) = self.shared.lock() {
+                shared.stopping = true;
+                if let Some(child) = shared.child.as_mut() {
+                    let _ = child.kill();
+                }
+            }
+        }
+        Ok(())
+    }
+
+    fn record_error(&self, message: String) {
+        if let Ok(mut shared) = self.shared.lock() {
+            shared.last_error = Some(message.clone());
+            fail_pending(&mut shared, SupervisorError::Process(message));
+        }
+    }
+}
+
+fn python_executable(repo: &Path) -> PathBuf {
+    if let Ok(value) = std::env::var("VEYRA_PYTHON") {
+        return PathBuf::from(value);
+    }
+    let candidates = if cfg!(windows) {
+        vec![
+            repo.join("python/python.exe"),
+            repo.join(".venv/Scripts/python.exe"),
+            PathBuf::from("python"),
+        ]
+    } else {
+        vec![
+            repo.join("python/bin/python3"),
+            repo.join("python/bin/python"),
+            repo.join(".venv/bin/python"),
+            PathBuf::from("python3"),
+            PathBuf::from("python"),
+        ]
+    };
+    candidates
+        .into_iter()
+        .find(|candidate| candidate.is_absolute() && candidate.is_file())
+        .unwrap_or_else(|| {
+            if cfg!(windows) {
+                PathBuf::from("python")
+            } else {
+                PathBuf::from("python3")
+            }
+        })
+}
+
+fn spawn_stdout_reader(shared: Arc<Mutex<Shared>>, mut stdout: ChildStdout) {
+    thread::Builder::new()
+        .name("veyra-runtime-stdout".into())
+        .spawn(move || loop {
+            match read_packet(&mut stdout) {
+                Ok((metadata, payload)) => dispatch_packet(&shared, metadata, payload),
+                Err(error) if error.kind() == io::ErrorKind::UnexpectedEof => break,
+                Err(error) => {
+                    if let Ok(mut state) = shared.lock() {
+                        state.last_error = Some(error.to_string());
+                        fail_pending(&mut state, SupervisorError::Protocol(error.to_string()));
+                    }
+                    break;
+                }
+            }
+        })
+        .expect("failed to spawn runtime stdout reader");
+}
+
+fn spawn_stderr_reader(shared: Arc<Mutex<Shared>>, mut stderr: ChildStderr) {
+    thread::Builder::new()
+        .name("veyra-runtime-stderr".into())
+        .spawn(move || {
+            let mut buffer = [0_u8; 4096];
+            loop {
+                match stderr.read(&mut buffer) {
+                    Ok(0) => break,
+                    Ok(size) => {
+                        if let Ok(mut state) = shared.lock() {
+                            state
+                                .stderr
+                                .push_str(&String::from_utf8_lossy(&buffer[..size]));
+                            let excess = state.stderr.len().saturating_sub(65536);
+                            if excess > 0 {
+                                state.stderr.drain(..excess);
+                            }
+                        }
+                    }
+                    Err(_) => break,
+                }
+            }
+        })
+        .expect("failed to spawn runtime stderr reader");
+}
+
+fn spawn_process_monitor(shared: Arc<Mutex<Shared>>) {
+    thread::Builder::new()
+        .name("veyra-runtime-monitor".into())
+        .spawn(move || loop {
+            thread::sleep(Duration::from_millis(50));
+            let exited = match shared.lock() {
+                Ok(mut state) => match state.child.as_mut() {
+                    Some(child) => match child.try_wait() {
+                        Ok(Some(status)) => {
+                            state.child = None;
+                            state.stdin = None;
+                            if !state.stopping {
+                                state.last_error = Some(format!("runtime exited: {status}"));
+                                fail_pending(
+                                    &mut state,
+                                    SupervisorError::Process(format!("runtime exited: {status}")),
+                                );
+                            }
+                            true
+                        }
+                        Ok(None) => false,
+                        Err(error) => {
+                            state.last_error = Some(error.to_string());
+                            fail_pending(&mut state, SupervisorError::Process(error.to_string()));
+                            state.child = None;
+                            state.stdin = None;
+                            true
+                        }
+                    },
+                    None => true,
+                },
+                Err(_) => true,
+            };
+            if exited {
+                break;
+            }
+        })
+        .expect("failed to spawn runtime monitor");
+}
+
+fn fail_pending(shared: &mut Shared, error: SupervisorError) {
+    for (_, sender) in shared.pending.drain() {
+        let _ = sender.send(Err(error.clone()));
+    }
+}
+
+fn dispatch_packet(shared: &Arc<Mutex<Shared>>, metadata: Value, payload: Vec<u8>) {
+    let kind = metadata.get("type").and_then(Value::as_str);
+    if let Ok(mut state) = shared.lock() {
+        if kind == Some("response") {
+            if let Some(id) = metadata.get("id").and_then(Value::as_str) {
+                if let Some(sender) = state.pending.remove(id) {
+                    if metadata.get("ok").and_then(Value::as_bool).unwrap_or(false) {
+                        let _ = sender.send(Ok(metadata));
+                    } else {
+                        let message = metadata
+                            .get("error")
+                            .and_then(|value| value.get("message"))
+                            .and_then(Value::as_str)
+                            .unwrap_or("runtime request failed");
+                        let _ = sender.send(Err(SupervisorError::Response(message.to_owned())));
+                    }
+                    return;
+                }
+            }
+        }
+        if state.events.len() >= MAX_EVENTS {
+            state.events.pop_front();
+        }
+        state.events.push_back(RuntimeEvent { metadata, payload });
+    }
+}
+
+fn read_packet(reader: &mut impl Read) -> io::Result<(Value, Vec<u8>)> {
+    let mut header = [0_u8; HEADER_SIZE];
+    reader.read_exact(&mut header)?;
+    if &header[0..4] != b"VYRA" || u16::from_le_bytes([header[4], header[5]]) != 1 {
+        return Err(io::Error::new(
+            io::ErrorKind::InvalidData,
+            "invalid protocol magic/version",
+        ));
+    }
+    let kind = u16::from_le_bytes([header[6], header[7]]);
+    let metadata_size = u32::from_le_bytes([header[8], header[9], header[10], header[11]]) as usize;
+    let payload_size =
+        u32::from_le_bytes([header[12], header[13], header[14], header[15]]) as usize;
+    if !(kind == 1 || kind == 2)
+        || metadata_size > MAX_METADATA
+        || payload_size > MAX_PAYLOAD
+        || (kind == 1 && payload_size != 0)
+    {
+        return Err(io::Error::new(
+            io::ErrorKind::InvalidData,
+            "protocol length/kind limit exceeded",
+        ));
+    }
+    let mut metadata = vec![0_u8; metadata_size];
+    reader.read_exact(&mut metadata)?;
+    let metadata: Value = serde_json::from_slice(&metadata)
+        .map_err(|error| io::Error::new(io::ErrorKind::InvalidData, error.to_string()))?;
+    if !metadata.is_object() {
+        return Err(io::Error::new(
+            io::ErrorKind::InvalidData,
+            "metadata must be an object",
+        ));
+    }
+    let mut payload = vec![0_u8; payload_size];
+    reader.read_exact(&mut payload)?;
+    Ok((metadata, payload))
+}
+
+#[cfg(test)]
+fn decode_packet(packet: &[u8]) -> Result<(Value, Vec<u8>), SupervisorError> {
+    read_packet(&mut &packet[..]).map_err(|error| SupervisorError::Protocol(error.to_string()))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{decode_packet, python_executable, read_packet, RuntimeSupervisor, HEADER_SIZE};
+    use serde_json::json;
+    use std::io::Cursor;
+
+    #[test]
+    fn rejects_truncated_header() {
+        assert!(decode_packet(&[0; HEADER_SIZE]).is_err());
+    }
+
+    #[test]
+    fn decodes_a_response_packet() {
+        let metadata = serde_json::to_vec(&json!({"type":"response","id":"1","ok":true})).unwrap();
+        let mut packet = Vec::new();
+        packet.extend_from_slice(b"VYRA");
+        packet.extend_from_slice(&1_u16.to_le_bytes());
+        packet.extend_from_slice(&1_u16.to_le_bytes());
+        packet.extend_from_slice(&(metadata.len() as u32).to_le_bytes());
+        packet.extend_from_slice(&0_u32.to_le_bytes());
+        packet.extend_from_slice(&metadata);
+        let (value, payload) = read_packet(&mut Cursor::new(packet)).unwrap();
+        assert_eq!(value["id"], "1");
+        assert!(payload.is_empty());
+    }
+
+    #[test]
+    fn supervises_the_real_python_runtime_status_path() {
+        let repo = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+            .parent()
+            .unwrap()
+            .to_path_buf();
+        let supervisor = RuntimeSupervisor::new(repo);
+        let response = supervisor
+            .request("status", json!({}))
+            .expect("runtime status response");
+        assert_eq!(response["type"], "response");
+        assert_eq!(response["ok"], true);
+        supervisor.stop().unwrap();
+    }
+
+    #[test]
+    fn prefers_the_packaged_python_runtime() {
+        let root =
+            std::env::temp_dir().join(format!("veyra-supervisor-test-{}", std::process::id()));
+        let executable = root.join("python/bin/python3");
+        std::fs::create_dir_all(executable.parent().unwrap()).unwrap();
+        std::fs::write(&executable, b"python").unwrap();
+
+        assert_eq!(python_executable(&root), executable);
+        std::fs::remove_dir_all(root).unwrap();
+    }
+}

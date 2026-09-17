@@ -7,6 +7,7 @@ import argparse
 import hashlib
 import json
 import shutil
+import subprocess
 from pathlib import Path
 
 PACKAGE_ROOTS = ("runtime", "viewer", "benchmarks", "perception", "datasets", "configs")
@@ -123,6 +124,48 @@ def _copy_python_runtime(runtime: Path, destination: Path, platform: str) -> Non
     base = _venv_base_root(runtime, platform)
     if base is None:
         _copy_tree(runtime, destination, materialize_internal_links=True)
+        return
+
+    # System-created virtual environments commonly point at /usr or
+    # /usr/local. Copying that entire tree is both unsafe (it contains links
+    # outside the runtime) and needlessly enormous. Copy only the interpreter
+    # standard library plus the venv's installed site-packages; the native
+    # interpreter dependencies remain ordinary OS package dependencies.
+    if platform != "win32" and base in {Path("/usr"), Path("/usr/local")}:
+        source_python = _source_python(runtime, platform).resolve(strict=True)
+        paths = json.loads(
+            subprocess.check_output(
+                [
+                    str(source_python),
+                    "-c",
+                    (
+                        "import json,sysconfig; "
+                        "print(json.dumps({'stdlib': sysconfig.get_path('stdlib'), "
+                        "'version': f'{sysconfig.get_python_version()}', "
+                        "'platlibdir': sysconfig.get_config_var('platlibdir') or 'lib'}))"
+                    ),
+                ],
+                text=True,
+            )
+        )
+        stdlib = Path(paths["stdlib"]).resolve(strict=True)
+        python_lib = destination / paths["platlibdir"] / f"python{paths['version']}"
+        destination.mkdir(parents=True, exist_ok=True)
+        (destination / "bin").mkdir(parents=True, exist_ok=True)
+        shutil.copy2(source_python, destination / "bin" / "python3")
+        _copy_tree(
+            stdlib,
+            python_lib,
+            materialize_internal_links=True,
+        )
+        for packages in sorted(
+            path for path in runtime.rglob("site-packages") if path.is_dir()
+        ):
+            _copy_tree(
+                packages,
+                python_lib / "site-packages",
+                materialize_internal_links=True,
+            )
         return
 
     # A venv is not relocatable: pyvenv.cfg points at the machine that created
