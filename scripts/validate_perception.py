@@ -218,6 +218,60 @@ def semantic_evaluation_report(
     }
 
 
+def quality_gate_report(report: dict, gate: dict | None) -> dict:
+    """Evaluate configured real-data quality floors without discarding measurements."""
+
+    if gate is None:
+        return {
+            "status": "not_configured",
+            "thresholds": {},
+            "measured": {},
+            "failures": [],
+        }
+    if not isinstance(gate, dict):
+        raise ValueError("quality_gate must be a mapping")
+
+    metric_paths = {
+        "min_model_fov_mean_iou": (
+            "model_fov_mean_iou",
+            report["semantic_evaluation"]["model_fov"]["model_fov_only"]["mean_iou"],
+        ),
+        "min_model_fov_coverage_fraction": (
+            "model_fov_coverage_fraction",
+            report["semantic_evaluation"]["model_fov"]["coverage_fraction"],
+        ),
+        "min_ground_f1": ("ground_f1", report["ground_evaluation"]["overall"]["f1"]),
+    }
+    unknown = set(gate) - set(metric_paths)
+    if unknown:
+        raise ValueError(f"unknown quality_gate metrics: {sorted(unknown)}")
+
+    thresholds: dict[str, float] = {}
+    measured: dict[str, float | None] = {}
+    failures: list[str] = []
+    for threshold_name, value in gate.items():
+        if isinstance(value, bool) or not isinstance(value, (int, float)):
+            raise ValueError(f"{threshold_name} must be a finite number in [0, 1]")
+        threshold = float(value)
+        if not np.isfinite(threshold) or not 0 <= threshold <= 1:
+            raise ValueError(f"{threshold_name} must be a finite number in [0, 1]")
+        measured_name, measured_value = metric_paths[threshold_name]
+        measured_value = float(measured_value) if measured_value is not None else None
+        thresholds[threshold_name] = threshold
+        measured[measured_name] = measured_value
+        if measured_value is None or measured_value < threshold:
+            rendered = (
+                "unavailable" if measured_value is None else f"{measured_value:.6f}"
+            )
+            failures.append(f"{measured_name} {rendered} < {threshold:.6f}")
+    return {
+        "status": "passed" if not failures else "failed",
+        "thresholds": thresholds,
+        "measured": measured,
+        "failures": failures,
+    }
+
+
 def validate(args):
     adapters = {
         "generic": ManifestDataset,
@@ -355,7 +409,7 @@ def validate(args):
         for name in records[0]["timings_ms"]
     }
     model_mode = records[0]["status"]["semantic"] == "model"
-    return {
+    report = {
         "dataset": args.dataset,
         "sequence": args.sequence,
         "frames": records,
@@ -424,6 +478,8 @@ def validate(args):
         ),
         "point_order_preserved": True,
     }
+    report["quality_gate"] = quality_gate_report(report, config.get("quality_gate"))
+    return report
 
 
 def main():
@@ -462,6 +518,13 @@ def main():
             indent=2,
         )
     )
+    if result["quality_gate"]["status"] == "failed":
+        parser.exit(
+            1,
+            "perception quality gate failed: "
+            + "; ".join(result["quality_gate"]["failures"])
+            + "\n",
+        )
 
 
 if __name__ == "__main__":

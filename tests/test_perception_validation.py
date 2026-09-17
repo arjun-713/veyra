@@ -12,6 +12,7 @@ import numpy as np
 from scripts.fetch_semantic_model import fetch
 from scripts.validate_perception import (
     confusion_report,
+    quality_gate_report,
     latency_summary,
     reproducibility_metadata,
     semantic_evaluation_report,
@@ -19,6 +20,27 @@ from scripts.validate_perception import (
 
 
 class PerceptionValidationTests(unittest.TestCase):
+    def test_quality_gate_rejects_low_model_fov_iou_but_keeps_measurement(self):
+        report = quality_gate_report(
+            {
+                "semantic_evaluation": {
+                    "model_fov": {
+                        "coverage_fraction": 0.95,
+                        "model_fov_only": {"mean_iou": 0.087},
+                    }
+                },
+                "ground_evaluation": {"overall": {"f1": 0.86}},
+            },
+            {
+                "min_model_fov_mean_iou": 0.30,
+                "min_model_fov_coverage_fraction": 0.90,
+                "min_ground_f1": 0.75,
+            },
+        )
+        self.assertEqual(report["status"], "failed")
+        self.assertEqual(report["failures"], ["model_fov_mean_iou 0.087000 < 0.300000"])
+        self.assertEqual(report["measured"]["ground_f1"], 0.86)
+
     def test_validate_perception_supports_direct_script_help(self):
         result = subprocess.run(
             [sys.executable, "scripts/validate_perception.py", "--help"],

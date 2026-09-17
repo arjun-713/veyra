@@ -14,3 +14,10 @@ terrain:
 temporal:
   enabled: false
 required_stages: [semantic, ground, terrain]
+# A completed process is not a valid semantic-perception result by itself.
+# These conservative floors force the real-data validator to expose an
+# incompatible checkpoint or a ground-regression rather than print success.
+quality_gate:
+  min_model_fov_mean_iou: 0.30
+  min_model_fov_coverage_fraction: 0.90
+  min_ground_f1: 0.75
