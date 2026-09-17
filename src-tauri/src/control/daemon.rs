@@ -14,6 +14,7 @@ pub const PROTOCOL_VERSION: u64 = 1;
 const MAX_FRAME_BYTES: usize = 64 * 1024;
 const MAX_ID_BYTES: usize = 128;
 const MAX_COMMAND_BYTES: usize = 64;
+const CONNECTION_IO_TIMEOUT: Duration = Duration::from_millis(100);
 
 pub fn serve(repo: PathBuf, bind_addr: SocketAddr, secret: String) -> Result<(), String> {
     validate_bind_address(bind_addr)?;
@@ -83,13 +84,20 @@ fn handle_connection(
     controller: &mut RuntimeController,
     secret: &str,
 ) -> io::Result<bool> {
+    stream.set_read_timeout(Some(CONNECTION_IO_TIMEOUT))?;
+    stream.set_write_timeout(Some(CONNECTION_IO_TIMEOUT))?;
     let mut reader = BufReader::new(stream.try_clone()?);
     let mut writer = stream;
     let mut line = Vec::new();
 
     loop {
         line.clear();
-        match read_frame(&mut reader, &mut line)? {
+        let frame = match read_frame(&mut reader, &mut line) {
+            Ok(frame) => frame,
+            Err(error) if client_connection_error(&error) => return Ok(false),
+            Err(error) => return Err(error),
+        };
+        match frame {
             Frame::Eof => return Ok(false),
             Frame::TooLarge => {
                 write_response(
@@ -101,13 +109,29 @@ fn handle_connection(
             Frame::Line => {
                 let response = dispatch_line(&line, controller, secret);
                 let shutdown = response.shutdown;
-                write_response(&mut writer, &response.value)?;
+                match write_response(&mut writer, &response.value) {
+                    Ok(()) => {}
+                    Err(error) if client_connection_error(&error) => return Ok(false),
+                    Err(error) => return Err(error),
+                }
                 if shutdown {
                     return Ok(true);
                 }
             }
         }
     }
+}
+
+fn client_connection_error(error: &io::Error) -> bool {
+    matches!(
+        error.kind(),
+        io::ErrorKind::TimedOut
+            | io::ErrorKind::WouldBlock
+            | io::ErrorKind::BrokenPipe
+            | io::ErrorKind::ConnectionAborted
+            | io::ErrorKind::ConnectionReset
+            | io::ErrorKind::NotConnected
+    )
 }
 
 enum Frame {
@@ -392,10 +416,16 @@ fn write_response(writer: &mut TcpStream, response: &Value) -> io::Result<()> {
 
 #[cfg(test)]
 mod tests {
+    use std::net::{TcpListener, TcpStream};
+    use std::thread;
+    use std::time::{Duration, Instant};
+
     use serde_json::json;
 
     use super::super::RuntimeController;
-    use super::{dispatch_line, is_supported_controller_command, validate_bind_address};
+    use super::{
+        dispatch_line, handle_connection, is_supported_controller_command, validate_bind_address,
+    };
 
     const TEST_SECRET: &str = "test-control-secret-0123456789-ABCDEFGHIJKLMNOPQRSTUVWXYZ";
 
@@ -506,5 +536,26 @@ mod tests {
                 "Tauri runtime command must not be rejected by the daemon: {command}"
             );
         }
+    }
+
+    #[test]
+    fn idle_connection_cannot_stall_the_control_loop() {
+        let listener = TcpListener::bind("127.0.0.1:0").unwrap();
+        let address = listener.local_addr().unwrap();
+        let client = thread::spawn(move || {
+            let _stream = TcpStream::connect(address).unwrap();
+            thread::sleep(Duration::from_millis(350));
+        });
+        let (stream, _) = listener.accept().unwrap();
+        let mut controller = RuntimeController::new("/tmp/veyra-daemon-idle-test");
+
+        let started = Instant::now();
+        assert!(!handle_connection(stream, &mut controller, TEST_SECRET).unwrap());
+        assert!(
+            started.elapsed() < Duration::from_millis(200),
+            "idle local control connection blocked the daemon for {:?}",
+            started.elapsed()
+        );
+        client.join().unwrap();
     }
 }
