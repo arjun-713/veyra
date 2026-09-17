@@ -182,6 +182,7 @@ class PerceptionPipeline:
     def process(self, frame: ObservationFrame) -> PipelineOutput:
         started = perf_counter()
         timings: dict[str, float] = {}
+        self._require_dataset_compatibility(frame)
         if "temporal" in self.required_stages and (
             frame.timestamp is None
             or frame.provenance.coordinate_frame != "world"
@@ -333,6 +334,25 @@ class PerceptionPipeline:
             ),
             timings_ms={**timings, "total": (perf_counter() - started) * 1000},
         )
+
+    def _require_dataset_compatibility(self, frame: ObservationFrame) -> None:
+        """Fail closed when a provider declares a dataset capability boundary."""
+
+        supported = getattr(self.semantic_provider, "supported_datasets", None)
+        if supported is None:
+            return
+        try:
+            supported_datasets = frozenset(supported)
+        except TypeError as error:
+            raise PerceptionConfigurationError(
+                "semantic provider supported_datasets must be an iterable of dataset names"
+            ) from error
+        if frame.dataset not in supported_datasets:
+            supported_names = ", ".join(sorted(supported_datasets)) or "none"
+            raise PerceptionConfigurationError(
+                f"semantic provider {type(self.semantic_provider).__name__} "
+                f"supports only {supported_names}, not {frame.dataset}"
+            )
 
     @staticmethod
     def _quality(semantic_confidence: np.ndarray, terrain: Any | None) -> np.ndarray:

@@ -26,6 +26,29 @@ class _SemanticProvider:
         )
 
 
+class _DatasetAwareSemanticProvider:
+    supported_datasets = frozenset({"semanticposs"})
+
+    def __init__(self):
+        self.inference_calls = 0
+
+    def infer(self, points, labels=None):
+        self.inference_calls += 1
+        del points, labels
+        return SemanticResult(
+            semantic_class=np.array([4, 7, 7], dtype=np.int32),
+            semantic_confidence=np.array([0.9, 0.8, 0.8], dtype=np.float32),
+            mode="model",
+        )
+
+
+class _IncompatibleSemanticProvider:
+    supported_datasets = frozenset({"semantickitti"})
+
+    def infer(self, points, labels=None):
+        raise AssertionError("incompatible provider must not be called")
+
+
 class _GroundSegmenter:
     def segment(self, points):
         return GroundEvidence(
@@ -86,6 +109,25 @@ def _frame(timestamp=2.0):
 
 
 class PerceptionPipelineTests(unittest.TestCase):
+    def test_incompatible_provider_is_rejected_before_inference(self):
+        with self.assertRaisesRegex(
+            ValueError,
+            "semantic provider .* supports only semantickitti, not semanticposs",
+        ):
+            PerceptionPipeline(
+                semantic_provider=_IncompatibleSemanticProvider()
+            ).process(replace(_frame(), dataset="semanticposs"))
+
+    def test_dataset_compatible_labelled_provider_is_allowed(self):
+        provider = _DatasetAwareSemanticProvider()
+
+        output = PerceptionPipeline(semantic_provider=provider).process(
+            replace(_frame(), dataset="semanticposs")
+        )
+
+        self.assertEqual(provider.inference_calls, 1)
+        self.assertEqual(output.status.semantic, "model")
+
     def test_config_requires_explicit_semantic_mode(self):
         with self.assertRaisesRegex(Exception, "semantic.mode"):
             PerceptionPipeline.from_config({"semantic": {}, "ground": {}})

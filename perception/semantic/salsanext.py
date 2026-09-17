@@ -133,6 +133,11 @@ def unproject_scores(
 class SalsaNextSemanticProvider:
     """Load one explicit pretrained ONNX asset; reuse its bounded CPU session."""
 
+    # This export is trained and labelled for SemanticKITTI.  The production
+    # pipeline uses this capability to reject frames from another dataset
+    # before preprocessing or ONNX inference starts.
+    supported_datasets = frozenset({"semantickitti"})
+
     def __init__(
         self, model_path: str | Path, *, threads: int = 2, intensity_scale: float = 1.0
     ) -> None:

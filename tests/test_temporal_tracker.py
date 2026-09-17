@@ -390,6 +390,19 @@ class TemporalTrackerTests(unittest.TestCase):
         np.testing.assert_allclose(evidence.velocity_xy[:, 0], 1.0, atol=1e-6)
         self.assertTrue(np.all(evidence.motion_probability > 0.5))
 
+    def test_skipped_frames_use_timestamp_delta_for_velocity(self):
+        tracker = TemporalTracker(cluster_tolerance_m=0.3, moving_speed_mps=0.5)
+        first, labels = scan(10.0)
+        tracker.update(first, labels, translation(0.0), timestamp=0.0)
+
+        # The frame at t=1 is absent. The displacement is therefore 2 m over
+        # 2 s, not 2 m per assumed frame interval.
+        second, _ = scan(12.0)
+        evidence = tracker.update(second, labels, translation(0.0), timestamp=2.0)
+
+        np.testing.assert_allclose(evidence.velocity_xy[:, 0], 1.0, atol=1e-6)
+        self.assertTrue(np.all(evidence.state == "moving"))
+
     def test_semantic_vehicle_label_does_not_imply_motion(self) -> None:
         tracker = TemporalTracker(cluster_tolerance_m=0.3, moving_speed_mps=0.5)
         points, labels = scan(4.0, semantic_class=10)

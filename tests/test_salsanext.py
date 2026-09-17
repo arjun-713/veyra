@@ -29,6 +29,11 @@ class SalsaNextTests(unittest.TestCase):
         self.assertEqual(contract["learning_classes"][1], "car")
         self.assertEqual(contract["learning_classes"][18], "pole")
 
+    def test_provider_declares_semantickitti_dataset_capability(self):
+        self.assertEqual(
+            SalsaNextSemanticProvider.supported_datasets, frozenset({"semantickitti"})
+        )
+
     def test_projection_uses_nearest_return_and_keeps_first_point(self):
         points = np.array(
             [[10, 0, 0, 0.2], [20, 0, 0, 0.8], [0, 10, 0, 0.4]], np.float32
@@ -104,28 +109,8 @@ class SalsaNextTests(unittest.TestCase):
             with self.assertRaises(ValueError):
                 SalsaNextSemanticProvider(path)
 
-    @unittest.skipUnless(
-        _REAL_MODEL.is_file() and _REAL_SEMANTICPOSS.is_dir(),
-        "requires pinned local SalsaNext asset and original SemanticPOSS data",
-    )
-    def test_real_cpu_model_runs_original_semanticposs_frame(self):
-        from datasets.semanticposs import SemanticPOSSDataset
-
-        dataset = SemanticPOSSDataset(_REAL_SEMANTICPOSS)
-        frame = next(dataset.replay("00", end=1, max_range_m=100))
-        model = SalsaNextSemanticProvider(_REAL_MODEL, threads=2, intensity_scale=255)
-        sensor = frame.points.copy()
-        sensor[:, :3] = (sensor[:, :3] - frame.pose.matrix[:3, 3]) @ frame.pose.matrix[
-            :3, :3
-        ]
-        result = model.infer(sensor)
-        self.assertEqual(result.mode, "model")
-        self.assertEqual(result.semantic_class.shape, frame.semantic_class.shape)
-        self.assertGreater(np.unique(result.semantic_class).size, 3)
-        self.assertTrue(np.isfinite(result.semantic_confidence).all())
-        self.assertTrue(
-            ((result.semantic_class >= 0) & (result.semantic_class < 20)).all()
-        )
+    def test_semanticposs_is_not_presented_as_a_salsanext_quality_path(self):
+        self.assertNotIn("semanticposs", SalsaNextSemanticProvider.supported_datasets)
 
 
 if __name__ == "__main__":
