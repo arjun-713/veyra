@@ -115,6 +115,31 @@ class ProductBenchmarkTests(unittest.TestCase):
         self.assertIn("benchmarks/run_local.sh", content)
         self.assertNotIn("|| true", content)
 
+    def test_sih_validator_scales_warmup_for_short_real_data_runs(self):
+        repo = Path(__file__).resolve().parents[1]
+        content = (repo / "scripts/validate_sih.sh").read_text()
+        self.assertIn('warmup_frames="${VEYRA_SIH_WARMUP_FRAMES:-10}"', content)
+        self.assertIn("if ((warmup_frames >= frames)); then", content)
+        self.assertIn('--warmup-frames "$warmup_frames"', content)
+
+    def test_sih_validator_rejects_invalid_full_frame_count_before_build(self):
+        repo = Path(__file__).resolve().parents[1]
+        environment = {
+            **os.environ,
+            "VEYRA_SIH_FRAMES": "invalid",
+            "VEYRA_PYTHON": "/definitely/not/a/python",
+        }
+        result = subprocess.run(
+            ["bash", "scripts/validate_sih.sh", "--full"],
+            cwd=repo,
+            env=environment,
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+        self.assertEqual(result.returncode, 2)
+        self.assertIn("VEYRA_SIH_FRAMES must be a positive integer", result.stderr)
+
     def test_benchmark_workflows_do_not_hide_failed_evidence(self):
         repo = Path(__file__).resolve().parents[1]
         benchmark_workflow = (repo / ".github/workflows/benchmark.yml").read_text()

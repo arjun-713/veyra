@@ -24,6 +24,9 @@ Environment:
   VEYRA_SIH_BUILD_DIR  CMake build directory
   VEYRA_PYTHON         Python interpreter (default: repository .venv)
   VEYRA_SIH_FRAMES     Full-mode frame count (default: 488)
+  VEYRA_SIH_WARMUP_FRAMES
+                       Full-mode warmup frames (default: 10; reduced to
+                       one fewer than VEYRA_SIH_FRAMES when necessary)
 EOF
 }
 
@@ -35,6 +38,22 @@ while (($#)); do
     *) echo "unknown option: $1" >&2; usage >&2; exit 2 ;;
   esac
 done
+
+if [[ "$mode" == "full" ]]; then
+  frames="${VEYRA_SIH_FRAMES:-488}"
+  warmup_frames="${VEYRA_SIH_WARMUP_FRAMES:-10}"
+  if ! [[ "$frames" =~ ^[1-9][0-9]*$ ]]; then
+    echo "VEYRA_SIH_FRAMES must be a positive integer: $frames" >&2
+    exit 2
+  fi
+  if ! [[ "$warmup_frames" =~ ^[0-9]+$ ]]; then
+    echo "VEYRA_SIH_WARMUP_FRAMES must be a non-negative integer: $warmup_frames" >&2
+    exit 2
+  fi
+  if ((warmup_frames >= frames)); then
+    warmup_frames=$((frames - 1))
+  fi
+fi
 
 if [[ ! -x "$python_bin" ]]; then
   echo "Python interpreter is unavailable: $python_bin" >&2
@@ -87,11 +106,10 @@ if [[ ! -s "$model_path" ]]; then
   exit 2
 fi
 
-frames="${VEYRA_SIH_FRAMES:-488}"
 output_dir="${VEYRA_SIH_OUTPUT_DIR:-${TMPDIR:-/tmp}/veyra-sih-full-results}"
 benchmarks/run_local.sh \
   --python "$python_bin" \
-  --dataset semanticposs --sequence 00 --count "$frames" --warmup-frames 10 \
+  --dataset semanticposs --sequence 00 --count "$frames" --warmup-frames "$warmup_frames" \
   --repetitions "${VEYRA_SIH_REPETITIONS:-1}" \
   --policies uniform5,uniform40,distance_lod,utility_lod \
   --perception-config configs/perception-salsanext.yaml \
