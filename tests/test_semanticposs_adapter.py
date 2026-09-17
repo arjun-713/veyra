@@ -281,6 +281,17 @@ class SemanticPOSSAdapterTests(unittest.TestCase):
             with self.assertRaises(ValueError):
                 adapter.load_frame("00", "0")
 
+    def test_rejects_nonfinite_scan_values(self):
+        with tempfile.TemporaryDirectory() as raw:
+            root = Path(raw)
+            write_frame(root, "00", "0", [1.0])
+            np.array([[np.inf, 0.0, 0.0, 0.5]], dtype=np.float32).tofile(
+                root / "00" / "velodyne" / "0.bin"
+            )
+
+            with self.assertRaisesRegex(ValueError, "non-finite"):
+                SemanticPOSSDataset(root).load_frame("00", "0")
+
 
 if __name__ == "__main__":
     unittest.main()

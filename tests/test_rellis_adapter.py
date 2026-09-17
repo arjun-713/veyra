@@ -128,6 +128,31 @@ class Rellis3DAdapterTests(unittest.TestCase):
             np.testing.assert_array_equal(frame.semantic_class, [1, 2])
             np.testing.assert_array_equal(frame.raw_semantic_class, [10, 20])
 
+    def test_rejects_incomplete_scan_records_nonfinite_points_and_label_mismatch(self):
+        with tempfile.TemporaryDirectory() as raw:
+            root = Path(raw)
+            write_frame(root, "00000", "0", [1.0, 2.0])
+            scan = root / "00000" / "vel_cloud_node_kitti_bin" / "0.bin"
+            labels = (
+                root / "00000" / "vel_cloud_node_semantickitti_label_id" / "0.label"
+            )
+            scan.write_bytes(b"123")
+            labels.write_bytes(b"")
+            with self.assertRaisesRegex(ValueError, "complete XYZ/intensity"):
+                Rellis3DDataset(root).load_frame("00000", "0")
+
+            np.array([[np.nan, 0.0, 0.0, 0.5]], dtype=np.float32).tofile(scan)
+            np.array([10], dtype=np.uint32).tofile(labels)
+            with self.assertRaisesRegex(ValueError, "non-finite"):
+                Rellis3DDataset(root).load_frame("00000", "0")
+
+            np.array(
+                [[1.0, 0.0, 0.0, 0.5], [2.0, 0.0, 0.0, 0.5]], dtype=np.float32
+            ).tofile(scan)
+            np.array([10], dtype=np.uint32).tofile(labels)
+            with self.assertRaisesRegex(ValueError, "length mismatch"):
+                Rellis3DDataset(root).load_frame("00000", "0")
+
     def test_unknown_mapped_label_has_zero_semantic_confidence(self):
         with tempfile.TemporaryDirectory() as raw:
             root = Path(raw)

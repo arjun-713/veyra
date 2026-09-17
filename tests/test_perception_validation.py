@@ -12,14 +12,45 @@ import numpy as np
 from scripts.fetch_semantic_model import fetch
 from scripts.validate_perception import (
     confusion_report,
+    ground_reference_spec,
     quality_gate_report,
     latency_summary,
     reproducibility_metadata,
     semantic_evaluation_report,
+    terrain_state_report,
 )
 
 
 class PerceptionValidationTests(unittest.TestCase):
+    def test_ground_reference_is_verified_only_for_semanticposs_ground_label(self):
+        semanticposs = ground_reference_spec("semanticposs")
+        self.assertEqual(semanticposs["status"], "verified")
+        self.assertEqual(semanticposs["raw_label_id"], 22)
+        self.assertIn("ground", semanticposs["meaning"].lower())
+
+        rellis = ground_reference_spec("rellis3d")
+        self.assertEqual(rellis["status"], "unavailable")
+        self.assertIsNone(rellis["raw_label_id"])
+        self.assertIn("drivable", rellis["reason"])
+
+    def test_terrain_state_report_keeps_three_states_separate(self):
+        report = terrain_state_report(
+            np.array(["drivable", "non_drivable", "unknown", "unknown"])
+        )
+        self.assertEqual(
+            report["counts"],
+            {
+                "drivable": 1,
+                "non_drivable": 1,
+                "unknown": 2,
+            },
+        )
+        self.assertEqual(report["evaluated_points"], 4)
+        self.assertAlmostEqual(report["fractions"]["unknown"], 0.5)
+
+        with self.assertRaises(ValueError):
+            terrain_state_report(np.array(["free"]))
+
     def test_quality_gate_rejects_low_model_fov_iou_but_keeps_measurement(self):
         report = quality_gate_report(
             {
@@ -40,6 +71,22 @@ class PerceptionValidationTests(unittest.TestCase):
         self.assertEqual(report["status"], "failed")
         self.assertEqual(report["failures"], ["model_fov_mean_iou 0.087000 < 0.300000"])
         self.assertEqual(report["measured"]["ground_f1"], 0.86)
+
+    def test_quality_gate_fail_closes_when_ground_reference_is_unavailable(self):
+        report = quality_gate_report(
+            {
+                "semantic_evaluation": {
+                    "model_fov": {
+                        "coverage_fraction": 1.0,
+                        "model_fov_only": {"mean_iou": 1.0},
+                    }
+                },
+                "ground_evaluation": {"overall": None},
+            },
+            {"min_ground_f1": 0.75},
+        )
+        self.assertEqual(report["status"], "failed")
+        self.assertEqual(report["measured"]["ground_f1"], None)
 
     def test_validate_perception_supports_direct_script_help(self):
         result = subprocess.run(

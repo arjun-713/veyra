@@ -46,6 +46,61 @@ from perception.pipeline import PerceptionPipeline
 from perception.semantic.salsanext import SalsaNextSemanticProvider, project_scan
 
 
+GROUND_TERRAIN_EVALUATOR_VERSION = "ground-terrain-evaluator-v1"
+_TERRAIN_STATES = ("drivable", "non_drivable", "unknown")
+
+
+def ground_reference_spec(dataset: str) -> dict[str, object]:
+    """Describe only dataset labels whose meaning supports ground evaluation."""
+    if dataset == "semanticposs":
+        return {
+            "status": "verified",
+            "raw_label_id": 22,
+            "meaning": "SemanticPOSS v1.0 raw semantic label 22 (ground)",
+            "taxonomy_version": "SemanticPOSS-v1.0-LABEL_DICT",
+        }
+    if dataset == "rellis3d":
+        return {
+            "status": "unavailable",
+            "raw_label_id": None,
+            "meaning": None,
+            "taxonomy_version": "RELLIS-3D-v1.1-learning_map",
+            "reason": (
+                "RELLIS labels describe materials/classes, not a documented "
+                "pointwise ground-support or drivable reference"
+            ),
+        }
+    return {
+        "status": "unavailable",
+        "raw_label_id": None,
+        "meaning": None,
+        "taxonomy_version": None,
+        "reason": f"no documented ground reference mapping for dataset {dataset!r}",
+    }
+
+
+def terrain_state_report(states: np.ndarray) -> dict[str, object]:
+    """Count production terrain states without collapsing unknown into free."""
+    states = np.asarray(states)
+    if states.ndim != 1:
+        raise ValueError("terrain states must be one-dimensional")
+    values = states.astype(str, copy=False)
+    invalid = sorted(set(values.tolist()) - set(_TERRAIN_STATES))
+    if invalid:
+        raise ValueError(f"invalid terrain states: {invalid}")
+    counts = {
+        state: int(np.count_nonzero(values == state)) for state in _TERRAIN_STATES
+    }
+    total = int(values.size)
+    return {
+        "evaluated_points": total,
+        "counts": counts,
+        "fractions": {
+            state: counts[state] / total if total else None for state in _TERRAIN_STATES
+        },
+    }
+
+
 def _sha256_file(path: Path) -> str | None:
     return hashlib.sha256(path.read_bytes()).hexdigest() if path.is_file() else None
 
@@ -231,6 +286,7 @@ def quality_gate_report(report: dict, gate: dict | None) -> dict:
     if not isinstance(gate, dict):
         raise ValueError("quality_gate must be a mapping")
 
+    ground_overall = report["ground_evaluation"].get("overall") or {}
     metric_paths = {
         "min_model_fov_mean_iou": (
             "model_fov_mean_iou",
@@ -240,7 +296,10 @@ def quality_gate_report(report: dict, gate: dict | None) -> dict:
             "model_fov_coverage_fraction",
             report["semantic_evaluation"]["model_fov"]["coverage_fraction"],
         ),
-        "min_ground_f1": ("ground_f1", report["ground_evaluation"]["overall"]["f1"]),
+        "min_ground_f1": (
+            "ground_f1",
+            ground_overall.get("f1"),
+        ),
     }
     unknown = set(gate) - set(metric_paths)
     if unknown:
@@ -306,6 +365,8 @@ def validate(args):
     supported_points = 0
     ground_reports = []
     ground_by_range = [[] for _ in boundaries]
+    ground_spec = ground_reference_spec(args.dataset)
+    terrain_reports = []
     while True:
         started = perf_counter()
         try:
@@ -336,8 +397,9 @@ def validate(args):
         total_points += frame.points.shape[0]
         supported_points += int(model_fov.sum())
         distances = np.linalg.norm(sensor, axis=1)
-        if args.dataset == "semanticposs":
-            reference_ground = frame.raw_semantic_class == 22
+        terrain_reports.append(terrain_state_report(output.frame.drivable))
+        if ground_spec["status"] == "verified":
+            reference_ground = frame.raw_semantic_class == ground_spec["raw_label_id"]
             ground_reports.append(
                 ground_quality_report(output.frame.ground, reference_ground)
             )
@@ -390,6 +452,7 @@ def validate(args):
                     len(record.encode("ascii")) for record in bridge_records
                 ),
                 "ground_fraction": float(output.frame.ground.mean()),
+                "ground_ratio": float(output.frame.ground.mean()),
                 "known_terrain_fraction": float(
                     (output.frame.drivable != "unknown").mean()
                 ),
@@ -456,11 +519,16 @@ def validate(args):
             ],
         },
         "ground_evaluation": {
-            "reference": (
-                "SemanticPOSS raw semantic label 22 (ground)"
-                if args.dataset == "semanticposs"
-                else None
-            ),
+            "evaluator_version": GROUND_TERRAIN_EVALUATOR_VERSION,
+            "dataset": args.dataset,
+            "sequence": args.sequence,
+            "frame_range": {
+                "start": args.start,
+                "end_exclusive": args.start + args.count,
+                "count": args.count,
+            },
+            "config_sha256": _sha256_file(config_path),
+            "reference": ground_spec,
             "overall": aggregate_ground_quality_reports(ground_reports),
             "by_range": [
                 {
@@ -469,6 +537,35 @@ def validate(args):
                 }
                 for (a, b), reports in zip(boundaries, ground_by_range)
             ],
+        },
+        "terrain_evaluation": {
+            "evaluator_version": GROUND_TERRAIN_EVALUATOR_VERSION,
+            "dataset": args.dataset,
+            "sequence": args.sequence,
+            "frame_range": {
+                "start": args.start,
+                "end_exclusive": args.start + args.count,
+                "count": args.count,
+            },
+            "config_sha256": _sha256_file(config_path),
+            "reference": {
+                "status": "unavailable",
+                "reason": (
+                    "Neither local dataset provides documented drivable, "
+                    "non-drivable, and unknown point labels; production "
+                    "terrain output counts are reported without quality metrics"
+                ),
+            },
+            "predicted": {
+                "frames": len(terrain_reports),
+                "counts": {
+                    state: sum(report["counts"][state] for report in terrain_reports)
+                    for state in _TERRAIN_STATES
+                },
+                "evaluated_points": sum(
+                    int(report["evaluated_points"]) for report in terrain_reports
+                ),
+            },
         },
         "temporal_proven": all(
             row["status"]["temporal"] == "available"

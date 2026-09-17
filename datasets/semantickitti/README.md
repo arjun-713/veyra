@@ -1,6 +1,6 @@
 # SemanticKITTI adapter
 
-`SemanticKITTIDataset` reads the original SemanticKITTI v1.1 KITTI layout:
+`SemanticKITTIDataset` supports the original SemanticKITTI v1.1 KITTI layout:
 
 ```text
 data/raw/semantickitti/dataset/sequences/00/
@@ -20,3 +20,8 @@ or model prediction.
 Use `datasets/download_semantickitti.sh --help` to install authenticated
 official archives into the ignored local root. The real-data smoke test skips
 only when that root is absent.
+
+The adapter is **not validated on real SemanticKITTI data in this checkout**:
+`data/raw/semantickitti/dataset` is absent. Fixture tests cover the expected
+layout, deterministic ordering, calibration/pose/timestamp parsing, and
+malformed-record failures; this is not a real-data support claim.

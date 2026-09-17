@@ -126,6 +126,10 @@ class SemanticPOSSDataset:
         if ref.label_path is None and self.require_labels:
             raise FileNotFoundError(f"label file is missing for {sequence}/{frame_id}")
 
+        if ref.scan_path.stat().st_size % (4 * np.dtype(np.float32).itemsize):
+            raise ValueError(
+                f"scan does not contain complete XYZ/intensity records: {ref.scan_path}"
+            )
         raw_points = np.fromfile(ref.scan_path, dtype=np.float32)
         if raw_points.size % 4:
             raise ValueError(
