@@ -203,6 +203,62 @@ class McpServerTests(unittest.TestCase):
         with self.assertRaises(Exception):
             McpServer(".")
 
+    def test_oversized_root_is_rejected_before_daemon_contact(self):
+        self.start_server()
+        response = self.server.handle(
+            {
+                "jsonrpc": "2.0",
+                "id": 6,
+                "method": "tools/call",
+                "params": {
+                    "name": "open_dataset",
+                    "arguments": {"dataset": "generic", "root": "/data/" + "x" * 5000},
+                },
+            }
+        )
+        self.assertTrue(response["result"]["isError"])
+        self.assertIn("maximum length", response["result"]["content"][0]["text"])
+        self.assertEqual(self.daemon.requests, [])
+
+    def test_unknown_policy_and_layer_are_rejected_before_daemon_contact(self):
+        self.start_server()
+        for tool, arguments in (
+            ("set_policy", {"policy": "turbo"}),
+            ("set_layer", {"layer": "../../etc"}),
+        ):
+            response = self.server.handle(
+                {
+                    "jsonrpc": "2.0",
+                    "id": 7,
+                    "method": "tools/call",
+                    "params": {"name": tool, "arguments": arguments},
+                }
+            )
+            self.assertTrue(response["result"]["isError"], tool)
+        self.assertEqual(self.daemon.requests, [])
+
+    def test_out_of_range_seek_and_benchmark_counts_are_rejected(self):
+        self.start_server()
+        for tool, arguments in (
+            ("seek", {"index": -1}),
+            ("seek", {"index": 10**10}),
+            ("run_benchmark", {"dataset": "generic", "sequence": "00", "count": 0}),
+            (
+                "run_benchmark",
+                {"dataset": "generic", "sequence": "00", "count": 10**9},
+            ),
+        ):
+            response = self.server.handle(
+                {
+                    "jsonrpc": "2.0",
+                    "id": 8,
+                    "method": "tools/call",
+                    "params": {"name": tool, "arguments": arguments},
+                }
+            )
+            self.assertTrue(response["result"]["isError"], f"{tool} {arguments}")
+        self.assertEqual(self.daemon.requests, [])
+
 
 if __name__ == "__main__":
     unittest.main()

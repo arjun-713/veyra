@@ -53,6 +53,22 @@ fn parse_args(args: Vec<String>) -> Result<(PathBuf, SocketAddr, PathBuf), Strin
 fn read_secret(path: &PathBuf) -> Result<String, String> {
     let metadata = std::fs::metadata(path)
         .map_err(|error| format!("cannot read control token file {}: {error}", path.display()))?;
+    if !metadata.is_file() {
+        return Err(format!(
+            "control token path {} must be a regular file",
+            path.display()
+        ));
+    }
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        if metadata.permissions().mode() & 0o077 != 0 {
+            return Err(format!(
+                "control token file {} permissions must deny group and other access",
+                path.display()
+            ));
+        }
+    }
     if metadata.len() > 257 {
         return Err("control token file exceeds 257 bytes".to_owned());
     }
@@ -69,4 +85,37 @@ fn next_value(args: &mut impl Iterator<Item = String>, option: &str) -> Result<S
     args.next()
         .filter(|value| !value.starts_with('-'))
         .ok_or_else(|| format!("missing value for {option}"))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::read_secret;
+
+    #[test]
+    fn control_secret_is_rejected_without_a_bounded_token() {
+        let missing = std::env::temp_dir().join(format!(
+            "veyra-control-missing-{}",
+            std::process::id()
+        ));
+        let _ = std::fs::remove_file(&missing);
+        assert!(read_secret(&missing).is_err());
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn control_secret_rejects_group_or_world_readable_token_files() {
+        use std::os::unix::fs::PermissionsExt;
+
+        let path = std::env::temp_dir().join(format!(
+            "veyra-control-token-{}",
+            std::process::id()
+        ));
+        std::fs::write(&path, "12345678901234567890123456789012").unwrap();
+        std::fs::set_permissions(&path, std::fs::Permissions::from_mode(0o600)).unwrap();
+        assert!(read_secret(&path).is_ok());
+        std::fs::set_permissions(&path, std::fs::Permissions::from_mode(0o644)).unwrap();
+        let error = read_secret(&path).unwrap_err();
+        assert!(error.contains("permissions"));
+        std::fs::remove_file(path).unwrap();
+    }
 }

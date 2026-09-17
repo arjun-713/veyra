@@ -173,6 +173,17 @@ fn validate_layer(layer: &str) -> Result<(), ControlClientError> {
 }
 
 fn read_json(path: &str) -> Result<Value, ControlClientError> {
+    const MAX_CONFIG_FILE_BYTES: u64 = 1024 * 1024;
+    let size = fs::metadata(path)
+        .map_err(|error| {
+            ControlClientError::Configuration(format!("cannot read {path}: {error}"))
+        })?
+        .len();
+    if size > MAX_CONFIG_FILE_BYTES {
+        return Err(ControlClientError::Configuration(format!(
+            "configuration file {path} exceeds 1 MiB"
+        )));
+    }
     let text = fs::read_to_string(path).map_err(|error| {
         ControlClientError::Configuration(format!("cannot read {path}: {error}"))
     })?;
@@ -284,5 +295,14 @@ mod tests {
         assert_eq!(output["ok"], false);
         assert_eq!(output["error"]["code"], "CONTROLLER_ERROR");
         assert_eq!(output["error"]["message"], "runtime is not ready");
+    }
+
+    #[test]
+    fn oversized_config_file_is_rejected_before_parsing() {
+        let path = std::env::temp_dir().join(format!("veyra-cli-config-{}", std::process::id()));
+        std::fs::write(&path, vec![b'{'; 1024 * 1024 + 1]).unwrap();
+        let error = super::read_json(path.to_str().unwrap()).unwrap_err();
+        assert!(error.to_string().contains("exceeds 1 MiB"));
+        std::fs::remove_file(path).unwrap();
     }
 }
