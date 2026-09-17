@@ -7,6 +7,15 @@
     "stride": 1,
     "max_range_m": 100.0
   },
+  "tracker": {
+    "exclude_classes": [
+      9,
+      10,
+      11,
+      12,
+      17
+    ]
+  },
   "temporal_proven": true,
   "provenance": {
     "pose_sources": [
@@ -22,7 +31,7 @@
       "frame_id": "000400",
       "timestamp_s": 41.54063,
       "points": 126285,
-      "active_tracks": 1579,
+      "active_tracks": 888,
       "motion_samples": 0,
       "state_counts": {
         "static": 0,
@@ -31,7 +40,7 @@
         "unknown": 126285
       },
       "max_speed_mps": 0.0,
-      "temporal_latency_ms": 3135.679269999855,
+      "temporal_latency_ms": 2207.0848600001227,
       "pose_source": "dataset",
       "timestamp_source": "dataset"
     },
@@ -39,16 +48,16 @@
       "frame_id": "000401",
       "timestamp_s": 41.64489,
       "points": 126026,
-      "active_tracks": 1992,
-      "motion_samples": 122760,
+      "active_tracks": 1137,
+      "motion_samples": 49217,
       "state_counts": {
-        "static": 691,
-        "possibly_moving": 13802,
-        "moving": 108267,
-        "unknown": 3266
+        "static": 662,
+        "possibly_moving": 13760,
+        "moving": 34795,
+        "unknown": 76809
       },
-      "max_speed_mps": 19.12537384033203,
-      "temporal_latency_ms": 3102.712922000137,
+      "max_speed_mps": 19.07957649230957,
+      "temporal_latency_ms": 1573.9756400002989,
       "pose_source": "dataset",
       "timestamp_source": "dataset"
     },
@@ -56,16 +65,16 @@
       "frame_id": "000402",
       "timestamp_s": 41.74904,
       "points": 125733,
-      "active_tracks": 2274,
-      "motion_samples": 123643,
+      "active_tracks": 1322,
+      "motion_samples": 49697,
       "state_counts": {
-        "static": 2827,
-        "possibly_moving": 12978,
-        "moving": 107838,
-        "unknown": 2090
+        "static": 528,
+        "possibly_moving": 24693,
+        "moving": 24476,
+        "unknown": 76036
       },
-      "max_speed_mps": 19.193870544433594,
-      "temporal_latency_ms": 2586.825498000053,
+      "max_speed_mps": 19.072668075561523,
+      "temporal_latency_ms": 2533.4935870000663,
       "pose_source": "dataset",
       "timestamp_source": "dataset"
     },
@@ -73,16 +82,16 @@
       "frame_id": "000403",
       "timestamp_s": 41.85338,
       "points": 125336,
-      "active_tracks": 2335,
-      "motion_samples": 124398,
+      "active_tracks": 1377,
+      "motion_samples": 50305,
       "state_counts": {
-        "static": 478,
-        "possibly_moving": 14410,
-        "moving": 109510,
-        "unknown": 938
+        "static": 109,
+        "possibly_moving": 29675,
+        "moving": 20521,
+        "unknown": 75031
       },
       "max_speed_mps": 19.003807067871094,
-      "temporal_latency_ms": 2466.004186999726,
+      "temporal_latency_ms": 2862.2409039999184,
       "pose_source": "dataset",
       "timestamp_source": "dataset"
     },
@@ -90,16 +99,16 @@
       "frame_id": "000404",
       "timestamp_s": 41.95775,
       "points": 124978,
-      "active_tracks": 2410,
-      "motion_samples": 120553,
+      "active_tracks": 1423,
+      "motion_samples": 49818,
       "state_counts": {
-        "static": 1397,
-        "possibly_moving": 4206,
-        "moving": 114950,
-        "unknown": 4425
+        "static": 137,
+        "possibly_moving": 30377,
+        "moving": 19304,
+        "unknown": 75160
       },
-      "max_speed_mps": 19.12024688720703,
-      "temporal_latency_ms": 2156.1028749997604,
+      "max_speed_mps": 19.00815773010254,
+      "temporal_latency_ms": 2768.6181200001556,
       "pose_source": "dataset",
       "timestamp_source": "dataset"
     },
@@ -107,16 +116,16 @@
       "frame_id": "000405",
       "timestamp_s": 42.06191,
       "points": 125003,
-      "active_tracks": 2458,
-      "motion_samples": 123662,
+      "active_tracks": 1462,
+      "motion_samples": 50046,
       "state_counts": {
-        "static": 9608,
-        "possibly_moving": 10623,
-        "moving": 103431,
-        "unknown": 1341
+        "static": 735,
+        "possibly_moving": 32664,
+        "moving": 16647,
+        "unknown": 74957
       },
       "max_speed_mps": 19.121429443359375,
-      "temporal_latency_ms": 2092.3904179999226,
+      "temporal_latency_ms": 2402.7876909999577,
       "pose_source": "dataset",
       "timestamp_source": "dataset"
     },
@@ -124,16 +133,16 @@
       "frame_id": "000406",
       "timestamp_s": 42.16628,
       "points": 125025,
-      "active_tracks": 2489,
-      "motion_samples": 123946,
+      "active_tracks": 1468,
+      "motion_samples": 49911,
       "state_counts": {
-        "static": 9810,
-        "possibly_moving": 2751,
-        "moving": 111385,
-        "unknown": 1079
+        "static": 9340,
+        "possibly_moving": 25225,
+        "moving": 15346,
+        "unknown": 75114
       },
       "max_speed_mps": 19.133941650390625,
-      "temporal_latency_ms": 2118.7903210002332,
+      "temporal_latency_ms": 1561.9032469999183,
       "pose_source": "dataset",
       "timestamp_source": "dataset"
     },
@@ -141,16 +150,16 @@
       "frame_id": "000407",
       "timestamp_s": 42.27064,
       "points": 125018,
-      "active_tracks": 2546,
-      "motion_samples": 123459,
+      "active_tracks": 1506,
+      "motion_samples": 49017,
       "state_counts": {
-        "static": 1003,
-        "possibly_moving": 10614,
-        "moving": 111842,
-        "unknown": 1559
+        "static": 375,
+        "possibly_moving": 37435,
+        "moving": 11207,
+        "unknown": 76001
       },
-      "max_speed_mps": 19.141685485839844,
-      "temporal_latency_ms": 2423.174539000229,
+      "max_speed_mps": 19.121034622192383,
+      "temporal_latency_ms": 1328.271500000028,
       "pose_source": "dataset",
       "timestamp_source": "dataset"
     },
@@ -158,16 +167,16 @@
       "frame_id": "000408",
       "timestamp_s": 42.37488,
       "points": 125108,
-      "active_tracks": 2549,
-      "motion_samples": 120805,
+      "active_tracks": 1531,
+      "motion_samples": 49112,
       "state_counts": {
-        "static": 1447,
-        "possibly_moving": 4070,
-        "moving": 115288,
-        "unknown": 4303
+        "static": 687,
+        "possibly_moving": 27327,
+        "moving": 21098,
+        "unknown": 75996
       },
-      "max_speed_mps": 19.1716365814209,
-      "temporal_latency_ms": 3284.496004000175,
+      "max_speed_mps": 19.017215728759766,
+      "temporal_latency_ms": 1555.3496659999837,
       "pose_source": "dataset",
       "timestamp_source": "dataset"
     },
@@ -175,16 +184,16 @@
       "frame_id": "000409",
       "timestamp_s": 42.479,
       "points": 125185,
-      "active_tracks": 2597,
-      "motion_samples": 123172,
+      "active_tracks": 1554,
+      "motion_samples": 48665,
       "state_counts": {
-        "static": 3581,
-        "possibly_moving": 11545,
-        "moving": 108046,
-        "unknown": 2013
+        "static": 15,
+        "possibly_moving": 29542,
+        "moving": 19108,
+        "unknown": 76520
       },
       "max_speed_mps": 19.17517852783203,
-      "temporal_latency_ms": 2366.1259880000216,
+      "temporal_latency_ms": 1587.058479999996,
       "pose_source": "dataset",
       "timestamp_source": "dataset"
     },
@@ -192,16 +201,16 @@
       "frame_id": "000410",
       "timestamp_s": 42.58325,
       "points": 125190,
-      "active_tracks": 2604,
-      "motion_samples": 123682,
+      "active_tracks": 1562,
+      "motion_samples": 48325,
       "state_counts": {
-        "static": 844,
-        "possibly_moving": 10199,
-        "moving": 112639,
-        "unknown": 1508
+        "static": 28,
+        "possibly_moving": 30311,
+        "moving": 17986,
+        "unknown": 76865
       },
-      "max_speed_mps": 19.130563735961914,
-      "temporal_latency_ms": 2460.984978000397,
+      "max_speed_mps": 19.08481216430664,
+      "temporal_latency_ms": 1542.0405150002807,
       "pose_source": "dataset",
       "timestamp_source": "dataset"
     },
@@ -209,16 +218,16 @@
       "frame_id": "000411",
       "timestamp_s": 42.6874,
       "points": 125313,
-      "active_tracks": 2676,
-      "motion_samples": 124570,
+      "active_tracks": 1633,
+      "motion_samples": 47948,
       "state_counts": {
-        "static": 895,
-        "possibly_moving": 5699,
-        "moving": 117976,
-        "unknown": 743
+        "static": 364,
+        "possibly_moving": 26942,
+        "moving": 20642,
+        "unknown": 77365
       },
       "max_speed_mps": 19.201135635375977,
-      "temporal_latency_ms": 2387.3862959999315,
+      "temporal_latency_ms": 1208.7343789999068,
       "pose_source": "dataset",
       "timestamp_source": "dataset"
     },
@@ -226,16 +235,16 @@
       "frame_id": "000412",
       "timestamp_s": 42.79161,
       "points": 125453,
-      "active_tracks": 2738,
-      "motion_samples": 124810,
+      "active_tracks": 1665,
+      "motion_samples": 47560,
       "state_counts": {
-        "static": 927,
-        "possibly_moving": 12767,
-        "moving": 111116,
-        "unknown": 643
+        "static": 55,
+        "possibly_moving": 24379,
+        "moving": 23126,
+        "unknown": 77893
       },
-      "max_speed_mps": 19.155717849731445,
-      "temporal_latency_ms": 2218.4275659997184,
+      "max_speed_mps": 19.14511489868164,
+      "temporal_latency_ms": 1083.794841999861,
       "pose_source": "dataset",
       "timestamp_source": "dataset"
     },
@@ -243,16 +252,16 @@
       "frame_id": "000413",
       "timestamp_s": 42.89594,
       "points": 125531,
-      "active_tracks": 2698,
-      "motion_samples": 124854,
+      "active_tracks": 1632,
+      "motion_samples": 48083,
       "state_counts": {
-        "static": 346,
-        "possibly_moving": 7954,
-        "moving": 116554,
-        "unknown": 677
+        "static": 13,
+        "possibly_moving": 20361,
+        "moving": 27709,
+        "unknown": 77448
       },
       "max_speed_mps": 19.12215805053711,
-      "temporal_latency_ms": 2125.514263000241,
+      "temporal_latency_ms": 1782.330016999822,
       "pose_source": "dataset",
       "timestamp_source": "dataset"
     },
@@ -260,16 +269,16 @@
       "frame_id": "000414",
       "timestamp_s": 42.99985,
       "points": 125533,
-      "active_tracks": 2665,
-      "motion_samples": 124540,
+      "active_tracks": 1594,
+      "motion_samples": 48257,
       "state_counts": {
-        "static": 647,
-        "possibly_moving": 6709,
-        "moving": 117184,
-        "unknown": 993
+        "static": 137,
+        "possibly_moving": 16967,
+        "moving": 31153,
+        "unknown": 77276
       },
-      "max_speed_mps": 19.166248321533203,
-      "temporal_latency_ms": 2215.131159000066,
+      "max_speed_mps": 19.160001754760742,
+      "temporal_latency_ms": 1356.2944459999926,
       "pose_source": "dataset",
       "timestamp_source": "dataset"
     },
@@ -277,16 +286,16 @@
       "frame_id": "000415",
       "timestamp_s": 43.10394,
       "points": 125666,
-      "active_tracks": 2655,
-      "motion_samples": 123690,
+      "active_tracks": 1600,
+      "motion_samples": 48216,
       "state_counts": {
-        "static": 839,
-        "possibly_moving": 10772,
-        "moving": 112079,
-        "unknown": 1976
+        "static": 121,
+        "possibly_moving": 21296,
+        "moving": 26799,
+        "unknown": 77450
       },
-      "max_speed_mps": 19.214099884033203,
-      "temporal_latency_ms": 2338.6501599998155,
+      "max_speed_mps": 18.77408218383789,
+      "temporal_latency_ms": 1407.01497200007,
       "pose_source": "dataset",
       "timestamp_source": "dataset"
     },
@@ -294,16 +303,16 @@
       "frame_id": "000416",
       "timestamp_s": 43.2081,
       "points": 125759,
-      "active_tracks": 2607,
-      "motion_samples": 116329,
+      "active_tracks": 1574,
+      "motion_samples": 47205,
       "state_counts": {
-        "static": 985,
-        "possibly_moving": 7322,
-        "moving": 108022,
-        "unknown": 9430
+        "static": 4,
+        "possibly_moving": 25565,
+        "moving": 21636,
+        "unknown": 78554
       },
-      "max_speed_mps": 19.07707977294922,
-      "temporal_latency_ms": 2150.9617509996133,
+      "max_speed_mps": 19.040000915527344,
+      "temporal_latency_ms": 1541.3913669999602,
       "pose_source": "dataset",
       "timestamp_source": "dataset"
     },
@@ -311,16 +320,16 @@
       "frame_id": "000417",
       "timestamp_s": 43.31204,
       "points": 125585,
-      "active_tracks": 2656,
-      "motion_samples": 123538,
+      "active_tracks": 1576,
+      "motion_samples": 47284,
       "state_counts": {
-        "static": 104,
-        "possibly_moving": 11878,
-        "moving": 111556,
-        "unknown": 2047
+        "static": 2,
+        "possibly_moving": 23000,
+        "moving": 24282,
+        "unknown": 78301
       },
       "max_speed_mps": 19.085437774658203,
-      "temporal_latency_ms": 2237.344699999994,
+      "temporal_latency_ms": 1544.8997529997541,
       "pose_source": "dataset",
       "timestamp_source": "dataset"
     },
@@ -328,16 +337,16 @@
       "frame_id": "000418",
       "timestamp_s": 43.41601,
       "points": 125572,
-      "active_tracks": 2689,
-      "motion_samples": 124102,
+      "active_tracks": 1587,
+      "motion_samples": 47928,
       "state_counts": {
-        "static": 1233,
-        "possibly_moving": 6792,
-        "moving": 116077,
-        "unknown": 1470
+        "static": 13,
+        "possibly_moving": 20585,
+        "moving": 27330,
+        "unknown": 77644
       },
       "max_speed_mps": 19.074007034301758,
-      "temporal_latency_ms": 2116.70670400008,
+      "temporal_latency_ms": 1499.9831889999768,
       "pose_source": "dataset",
       "timestamp_source": "dataset"
     },
@@ -345,16 +354,16 @@
       "frame_id": "000419",
       "timestamp_s": 43.52009,
       "points": 125523,
-      "active_tracks": 2734,
-      "motion_samples": 124505,
+      "active_tracks": 1605,
+      "motion_samples": 48588,
       "state_counts": {
-        "static": 570,
-        "possibly_moving": 9106,
-        "moving": 114829,
-        "unknown": 1018
+        "static": 18,
+        "possibly_moving": 28765,
+        "moving": 19805,
+        "unknown": 76935
       },
-      "max_speed_mps": 19.211389541625977,
-      "temporal_latency_ms": 2678.557109999929,
+      "max_speed_mps": 19.102218627929688,
+      "temporal_latency_ms": 1380.2628249995905,
       "pose_source": "dataset",
       "timestamp_source": "dataset"
     },
@@ -362,16 +371,16 @@
       "frame_id": "000420",
       "timestamp_s": 43.62413,
       "points": 125621,
-      "active_tracks": 2789,
-      "motion_samples": 123457,
+      "active_tracks": 1628,
+      "motion_samples": 49243,
       "state_counts": {
-        "static": 905,
-        "possibly_moving": 7358,
-        "moving": 115194,
-        "unknown": 2164
+        "static": 263,
+        "possibly_moving": 32596,
+        "moving": 16384,
+        "unknown": 76378
       },
-      "max_speed_mps": 19.218830108642578,
-      "temporal_latency_ms": 2848.7122139999883,
+      "max_speed_mps": 19.09606170654297,
+      "temporal_latency_ms": 1254.3364150001253,
       "pose_source": "dataset",
       "timestamp_source": "dataset"
     },
@@ -379,16 +388,16 @@
       "frame_id": "000421",
       "timestamp_s": 43.72795,
       "points": 125548,
-      "active_tracks": 2821,
-      "motion_samples": 123212,
+      "active_tracks": 1649,
+      "motion_samples": 49851,
       "state_counts": {
-        "static": 3374,
-        "possibly_moving": 13359,
-        "moving": 106479,
-        "unknown": 2336
+        "static": 85,
+        "possibly_moving": 30814,
+        "moving": 18952,
+        "unknown": 75697
       },
-      "max_speed_mps": 19.214462280273438,
-      "temporal_latency_ms": 2544.1030209999553,
+      "max_speed_mps": 19.046648025512695,
+      "temporal_latency_ms": 1169.4517560003987,
       "pose_source": "dataset",
       "timestamp_source": "dataset"
     },
@@ -396,16 +405,16 @@
       "frame_id": "000422",
       "timestamp_s": 43.83193,
       "points": 125654,
-      "active_tracks": 2733,
-      "motion_samples": 95839,
+      "active_tracks": 1588,
+      "motion_samples": 49863,
       "state_counts": {
-        "static": 640,
-        "possibly_moving": 9003,
-        "moving": 86196,
-        "unknown": 29815
+        "static": 288,
+        "possibly_moving": 26907,
+        "moving": 22668,
+        "unknown": 75791
       },
       "max_speed_mps": 19.225900650024414,
-      "temporal_latency_ms": 2435.9940110002753,
+      "temporal_latency_ms": 1717.9950810000264,
       "pose_source": "dataset",
       "timestamp_source": "dataset"
     },
@@ -413,16 +422,16 @@
       "frame_id": "000423",
       "timestamp_s": 43.93577,
       "points": 125914,
-      "active_tracks": 2687,
-      "motion_samples": 125207,
+      "active_tracks": 1557,
+      "motion_samples": 52089,
       "state_counts": {
-        "static": 1116,
-        "possibly_moving": 10067,
-        "moving": 114024,
-        "unknown": 707
+        "static": 374,
+        "possibly_moving": 28760,
+        "moving": 22955,
+        "unknown": 73825
       },
       "max_speed_mps": 19.245206832885742,
-      "temporal_latency_ms": 4814.579072000015,
+      "temporal_latency_ms": 1833.1073449999167,
       "pose_source": "dataset",
       "timestamp_source": "dataset"
     },
@@ -430,16 +439,16 @@
       "frame_id": "000424",
       "timestamp_s": 44.03973,
       "points": 125974,
-      "active_tracks": 2615,
-      "motion_samples": 125252,
+      "active_tracks": 1543,
+      "motion_samples": 53164,
       "state_counts": {
-        "static": 3268,
-        "possibly_moving": 3895,
-        "moving": 118089,
-        "unknown": 722
+        "static": 666,
+        "possibly_moving": 19240,
+        "moving": 33258,
+        "unknown": 72810
       },
       "max_speed_mps": 19.21036720275879,
-      "temporal_latency_ms": 3942.962507000175,
+      "temporal_latency_ms": 1686.4146020002408,
       "pose_source": "dataset",
       "timestamp_source": "dataset"
     },
@@ -447,16 +456,16 @@
       "frame_id": "000425",
       "timestamp_s": 44.14364,
       "points": 125980,
-      "active_tracks": 2576,
-      "motion_samples": 108732,
+      "active_tracks": 1514,
+      "motion_samples": 38121,
       "state_counts": {
-        "static": 401,
-        "possibly_moving": 6383,
-        "moving": 101948,
-        "unknown": 17248
+        "static": 69,
+        "possibly_moving": 18557,
+        "moving": 19495,
+        "unknown": 87859
       },
       "max_speed_mps": 19.212406158447266,
-      "temporal_latency_ms": 4201.105292999728,
+      "temporal_latency_ms": 3206.5711619998183,
       "pose_source": "dataset",
       "timestamp_source": "dataset"
     },
@@ -464,16 +473,16 @@
       "frame_id": "000426",
       "timestamp_s": 44.2475,
       "points": 126041,
-      "active_tracks": 2476,
-      "motion_samples": 122109,
+      "active_tracks": 1450,
+      "motion_samples": 55004,
       "state_counts": {
-        "static": 1605,
-        "possibly_moving": 8899,
-        "moving": 111605,
-        "unknown": 3932
+        "static": 187,
+        "possibly_moving": 32517,
+        "moving": 22300,
+        "unknown": 71037
       },
       "max_speed_mps": 19.191444396972656,
-      "temporal_latency_ms": 4127.053927999896,
+      "temporal_latency_ms": 2264.3340329996136,
       "pose_source": "dataset",
       "timestamp_source": "dataset"
     },
@@ -481,16 +490,16 @@
       "frame_id": "000427",
       "timestamp_s": 44.35126,
       "points": 126008,
-      "active_tracks": 2391,
-      "motion_samples": 124549,
+      "active_tracks": 1405,
+      "motion_samples": 56079,
       "state_counts": {
-        "static": 2840,
-        "possibly_moving": 3381,
-        "moving": 118328,
-        "unknown": 1459
+        "static": 276,
+        "possibly_moving": 34387,
+        "moving": 21416,
+        "unknown": 69929
       },
       "max_speed_mps": 19.20155906677246,
-      "temporal_latency_ms": 2633.004524000171,
+      "temporal_latency_ms": 2840.633450000041,
       "pose_source": "dataset",
       "timestamp_source": "dataset"
     },
@@ -498,16 +507,16 @@
       "frame_id": "000428",
       "timestamp_s": 44.45536,
       "points": 126056,
-      "active_tracks": 2293,
-      "motion_samples": 125206,
+      "active_tracks": 1350,
+      "motion_samples": 56900,
       "state_counts": {
-        "static": 1175,
-        "possibly_moving": 4980,
-        "moving": 119051,
-        "unknown": 850
+        "static": 450,
+        "possibly_moving": 13947,
+        "moving": 42503,
+        "unknown": 69156
       },
       "max_speed_mps": 19.175270080566406,
-      "temporal_latency_ms": 2158.2584230000066,
+      "temporal_latency_ms": 4245.875475000048,
       "pose_source": "dataset",
       "timestamp_source": "dataset"
     },
@@ -515,16 +524,16 @@
       "frame_id": "000429",
       "timestamp_s": 44.55877,
       "points": 126042,
-      "active_tracks": 2220,
-      "motion_samples": 124270,
+      "active_tracks": 1298,
+      "motion_samples": 57742,
       "state_counts": {
-        "static": 739,
-        "possibly_moving": 6208,
-        "moving": 117323,
-        "unknown": 1772
+        "static": 26,
+        "possibly_moving": 33271,
+        "moving": 24445,
+        "unknown": 68300
       },
-      "max_speed_mps": 19.329565048217773,
-      "temporal_latency_ms": 2179.7599450001144,
+      "max_speed_mps": 19.036806106567383,
+      "temporal_latency_ms": 4255.828358000144,
       "pose_source": "dataset",
       "timestamp_source": "dataset"
     },
@@ -532,16 +541,16 @@
       "frame_id": "000430",
       "timestamp_s": 44.66241,
       "points": 126186,
-      "active_tracks": 2135,
-      "motion_samples": 122586,
+      "active_tracks": 1255,
+      "motion_samples": 57785,
       "state_counts": {
-        "static": 871,
-        "possibly_moving": 6754,
-        "moving": 114961,
-        "unknown": 3600
+        "static": 283,
+        "possibly_moving": 16315,
+        "moving": 41187,
+        "unknown": 68401
       },
       "max_speed_mps": 19.179794311523438,
-      "temporal_latency_ms": 2805.2422579999075,
+      "temporal_latency_ms": 2776.804480999999,
       "pose_source": "dataset",
       "timestamp_source": "dataset"
     },
@@ -549,16 +558,16 @@
       "frame_id": "000431",
       "timestamp_s": 44.76604,
       "points": 126258,
-      "active_tracks": 2058,
-      "motion_samples": 125148,
+      "active_tracks": 1219,
+      "motion_samples": 59554,
       "state_counts": {
-        "static": 219,
-        "possibly_moving": 3797,
-        "moving": 121132,
-        "unknown": 1110
+        "static": 147,
+        "possibly_moving": 13847,
+        "moving": 45560,
+        "unknown": 66704
       },
-      "max_speed_mps": 18.954235076904297,
-      "temporal_latency_ms": 4095.0990239998646,
+      "max_speed_mps": 18.924245834350586,
+      "temporal_latency_ms": 3581.5401310001107,
       "pose_source": "dataset",
       "timestamp_source": "dataset"
     },
@@ -566,16 +575,16 @@
       "frame_id": "000432",
       "timestamp_s": 44.86976,
       "points": 126248,
-      "active_tracks": 1955,
-      "motion_samples": 125649,
+      "active_tracks": 1156,
+      "motion_samples": 60239,
       "state_counts": {
-        "static": 1804,
-        "possibly_moving": 4644,
-        "moving": 119201,
-        "unknown": 599
+        "static": 130,
+        "possibly_moving": 11912,
+        "moving": 48197,
+        "unknown": 66009
       },
-      "max_speed_mps": 19.184711456298828,
-      "temporal_latency_ms": 4162.986663000083,
+      "max_speed_mps": 19.009492874145508,
+      "temporal_latency_ms": 3426.687966999907,
       "pose_source": "dataset",
       "timestamp_source": "dataset"
     },
@@ -583,16 +592,16 @@
       "frame_id": "000433",
       "timestamp_s": 44.97351,
       "points": 126375,
-      "active_tracks": 1876,
-      "motion_samples": 123592,
+      "active_tracks": 1093,
+      "motion_samples": 60844,
       "state_counts": {
-        "static": 692,
-        "possibly_moving": 4379,
-        "moving": 118521,
-        "unknown": 2783
+        "static": 137,
+        "possibly_moving": 16487,
+        "moving": 44220,
+        "unknown": 65531
       },
       "max_speed_mps": 19.249792098999023,
-      "temporal_latency_ms": 4535.306745000071,
+      "temporal_latency_ms": 3904.9523509997925,
       "pose_source": "dataset",
       "timestamp_source": "dataset"
     },
@@ -600,16 +609,16 @@
       "frame_id": "000434",
       "timestamp_s": 45.07734,
       "points": 126383,
-      "active_tracks": 1806,
-      "motion_samples": 122512,
+      "active_tracks": 1052,
+      "motion_samples": 58616,
       "state_counts": {
-        "static": 2236,
-        "possibly_moving": 4194,
-        "moving": 116082,
-        "unknown": 3871
+        "static": 92,
+        "possibly_moving": 13077,
+        "moving": 45447,
+        "unknown": 67767
       },
       "max_speed_mps": 19.088245391845703,
-      "temporal_latency_ms": 4148.833473000195,
+      "temporal_latency_ms": 2567.309837999801,
       "pose_source": "dataset",
       "timestamp_source": "dataset"
     },
@@ -617,16 +626,16 @@
       "frame_id": "000435",
       "timestamp_s": 45.18089,
       "points": 126227,
-      "active_tracks": 1761,
-      "motion_samples": 125528,
+      "active_tracks": 1019,
+      "motion_samples": 61746,
       "state_counts": {
-        "static": 1577,
-        "possibly_moving": 6636,
-        "moving": 117315,
-        "unknown": 699
+        "static": 172,
+        "possibly_moving": 13653,
+        "moving": 47921,
+        "unknown": 64481
       },
-      "max_speed_mps": 19.242151260375977,
-      "temporal_latency_ms": 4214.797622999868,
+      "max_speed_mps": 19.160110473632812,
+      "temporal_latency_ms": 2798.5364969999864,
       "pose_source": "dataset",
       "timestamp_source": "dataset"
     },
@@ -634,16 +643,16 @@
       "frame_id": "000436",
       "timestamp_s": 45.28452,
       "points": 126313,
-      "active_tracks": 1763,
-      "motion_samples": 124623,
+      "active_tracks": 1029,
+      "motion_samples": 62294,
       "state_counts": {
-        "static": 921,
-        "possibly_moving": 6180,
-        "moving": 117522,
-        "unknown": 1690
+        "static": 0,
+        "possibly_moving": 14954,
+        "moving": 47340,
+        "unknown": 64019
       },
-      "max_speed_mps": 19.19557762145996,
-      "temporal_latency_ms": 4334.973846000139,
+      "max_speed_mps": 18.896432876586914,
+      "temporal_latency_ms": 4235.177705999831,
       "pose_source": "dataset",
       "timestamp_source": "dataset"
     },
@@ -651,16 +660,16 @@
       "frame_id": "000437",
       "timestamp_s": 45.38815,
       "points": 126201,
-      "active_tracks": 1760,
-      "motion_samples": 104475,
+      "active_tracks": 1033,
+      "motion_samples": 42629,
       "state_counts": {
-        "static": 1968,
-        "possibly_moving": 6313,
-        "moving": 96194,
-        "unknown": 21726
+        "static": 220,
+        "possibly_moving": 13085,
+        "moving": 29324,
+        "unknown": 83572
       },
       "max_speed_mps": 19.25209617614746,
-      "temporal_latency_ms": 4454.899341000328,
+      "temporal_latency_ms": 4846.2968489998275,
       "pose_source": "dataset",
       "timestamp_source": "dataset"
     },
@@ -668,16 +677,16 @@
       "frame_id": "000438",
       "timestamp_s": 45.49189,
       "points": 126100,
-      "active_tracks": 1740,
-      "motion_samples": 124870,
+      "active_tracks": 1031,
+      "motion_samples": 63432,
       "state_counts": {
-        "static": 686,
-        "possibly_moving": 8481,
-        "moving": 115703,
-        "unknown": 1230
+        "static": 17,
+        "possibly_moving": 16085,
+        "moving": 47330,
+        "unknown": 62668
       },
       "max_speed_mps": 19.06971549987793,
-      "temporal_latency_ms": 4691.488485999798,
+      "temporal_latency_ms": 6211.116554,
       "pose_source": "dataset",
       "timestamp_source": "dataset"
     },
@@ -685,16 +694,16 @@
       "frame_id": "000439",
       "timestamp_s": 45.59564,
       "points": 125911,
-      "active_tracks": 1701,
-      "motion_samples": 125010,
+      "active_tracks": 1007,
+      "motion_samples": 63637,
       "state_counts": {
-        "static": 1671,
-        "possibly_moving": 7360,
-        "moving": 115979,
-        "unknown": 901
+        "static": 416,
+        "possibly_moving": 32577,
+        "moving": 30644,
+        "unknown": 62274
       },
       "max_speed_mps": 19.178443908691406,
-      "temporal_latency_ms": 6008.686511999713,
+      "temporal_latency_ms": 6371.548956999959,
       "pose_source": "dataset",
       "timestamp_source": "dataset"
     },
@@ -702,16 +711,16 @@
       "frame_id": "000440",
       "timestamp_s": 45.69925,
       "points": 125843,
-      "active_tracks": 1626,
-      "motion_samples": 125017,
+      "active_tracks": 962,
+      "motion_samples": 64056,
       "state_counts": {
-        "static": 1300,
-        "possibly_moving": 7759,
-        "moving": 115958,
-        "unknown": 826
+        "static": 606,
+        "possibly_moving": 14399,
+        "moving": 49051,
+        "unknown": 61787
       },
       "max_speed_mps": 19.2047061920166,
-      "temporal_latency_ms": 5474.574312000186,
+      "temporal_latency_ms": 6618.282783000268,
       "pose_source": "dataset",
       "timestamp_source": "dataset"
     },
@@ -719,16 +728,16 @@
       "frame_id": "000441",
       "timestamp_s": 45.80302,
       "points": 125650,
-      "active_tracks": 1567,
-      "motion_samples": 105134,
+      "active_tracks": 950,
+      "motion_samples": 44846,
       "state_counts": {
-        "static": 3011,
-        "possibly_moving": 4343,
-        "moving": 97780,
-        "unknown": 20516
+        "static": 796,
+        "possibly_moving": 15350,
+        "moving": 28700,
+        "unknown": 80804
       },
-      "max_speed_mps": 19.147836685180664,
-      "temporal_latency_ms": 5132.168741999976,
+      "max_speed_mps": 18.80658531188965,
+      "temporal_latency_ms": 6679.825827000059,
       "pose_source": "dataset",
       "timestamp_source": "dataset"
     },
@@ -736,16 +745,16 @@
       "frame_id": "000442",
       "timestamp_s": 45.90667,
       "points": 125591,
-      "active_tracks": 1584,
-      "motion_samples": 124128,
+      "active_tracks": 978,
+      "motion_samples": 65522,
       "state_counts": {
-        "static": 2144,
-        "possibly_moving": 5781,
-        "moving": 116203,
-        "unknown": 1463
+        "static": 1100,
+        "possibly_moving": 55567,
+        "moving": 8855,
+        "unknown": 60069
       },
       "max_speed_mps": 19.155250549316406,
-      "temporal_latency_ms": 4860.3907050001,
+      "temporal_latency_ms": 10808.68013700001,
       "pose_source": "dataset",
       "timestamp_source": "dataset"
     },
@@ -753,16 +762,16 @@
       "frame_id": "000443",
       "timestamp_s": 46.01043,
       "points": 125703,
-      "active_tracks": 1579,
-      "motion_samples": 123564,
+      "active_tracks": 997,
+      "motion_samples": 67051,
       "state_counts": {
-        "static": 365,
-        "possibly_moving": 4096,
-        "moving": 119103,
-        "unknown": 2139
+        "static": 321,
+        "possibly_moving": 33321,
+        "moving": 33409,
+        "unknown": 58652
       },
       "max_speed_mps": 19.248455047607422,
-      "temporal_latency_ms": 6386.128300999644,
+      "temporal_latency_ms": 6539.180471999771,
       "pose_source": "dataset",
       "timestamp_source": "dataset"
     },
@@ -770,16 +779,16 @@
       "frame_id": "000444",
       "timestamp_s": 46.11435,
       "points": 125532,
-      "active_tracks": 1577,
-      "motion_samples": 123881,
+      "active_tracks": 996,
+      "motion_samples": 68509,
       "state_counts": {
-        "static": 2895,
-        "possibly_moving": 3755,
-        "moving": 117231,
-        "unknown": 1651
+        "static": 320,
+        "possibly_moving": 33182,
+        "moving": 35007,
+        "unknown": 57023
       },
       "max_speed_mps": 19.19900131225586,
-      "temporal_latency_ms": 5047.246083000118,
+      "temporal_latency_ms": 7385.052821000045,
       "pose_source": "dataset",
       "timestamp_source": "dataset"
     },
@@ -787,16 +796,16 @@
       "frame_id": "000445",
       "timestamp_s": 46.21846,
       "points": 125151,
-      "active_tracks": 1510,
-      "motion_samples": 103722,
+      "active_tracks": 961,
+      "motion_samples": 49156,
       "state_counts": {
-        "static": 2416,
-        "possibly_moving": 6177,
-        "moving": 95129,
-        "unknown": 21429
+        "static": 1179,
+        "possibly_moving": 13439,
+        "moving": 34538,
+        "unknown": 75995
       },
-      "max_speed_mps": 18.80198860168457,
-      "temporal_latency_ms": 5183.415940000032,
+      "max_speed_mps": 18.751956939697266,
+      "temporal_latency_ms": 6814.236795000397,
       "pose_source": "dataset",
       "timestamp_source": "dataset"
     },
@@ -804,16 +813,16 @@
       "frame_id": "000446",
       "timestamp_s": 46.32159,
       "points": 124749,
-      "active_tracks": 1442,
-      "motion_samples": 122982,
+      "active_tracks": 911,
+      "motion_samples": 70158,
       "state_counts": {
-        "static": 147,
-        "possibly_moving": 8382,
-        "moving": 114453,
-        "unknown": 1767
+        "static": 9,
+        "possibly_moving": 16430,
+        "moving": 53719,
+        "unknown": 54591
       },
-      "max_speed_mps": 19.232257843017578,
-      "temporal_latency_ms": 6028.719270999773,
+      "max_speed_mps": 19.190088272094727,
+      "temporal_latency_ms": 8137.2192290000385,
       "pose_source": "dataset",
       "timestamp_source": "dataset"
     },
@@ -821,16 +830,16 @@
       "frame_id": "000447",
       "timestamp_s": 46.42527,
       "points": 124614,
-      "active_tracks": 1415,
-      "motion_samples": 117215,
+      "active_tracks": 900,
+      "motion_samples": 71658,
       "state_counts": {
-        "static": 3749,
-        "possibly_moving": 10852,
-        "moving": 102614,
-        "unknown": 7399
+        "static": 2,
+        "possibly_moving": 42178,
+        "moving": 29478,
+        "unknown": 52956
       },
       "max_speed_mps": 19.089017868041992,
-      "temporal_latency_ms": 6271.492810999916,
+      "temporal_latency_ms": 9106.569820999994,
       "pose_source": "dataset",
       "timestamp_source": "dataset"
     },
@@ -838,16 +847,16 @@
       "frame_id": "000448",
       "timestamp_s": 46.52905,
       "points": 124680,
-      "active_tracks": 1430,
-      "motion_samples": 121530,
+      "active_tracks": 911,
+      "motion_samples": 72983,
       "state_counts": {
-        "static": 1035,
-        "possibly_moving": 9526,
-        "moving": 110969,
-        "unknown": 3150
+        "static": 54,
+        "possibly_moving": 23517,
+        "moving": 49412,
+        "unknown": 51697
       },
       "max_speed_mps": 19.258464813232422,
-      "temporal_latency_ms": 6249.388193999948,
+      "temporal_latency_ms": 15309.770630000003,
       "pose_source": "dataset",
       "timestamp_source": "dataset"
     },
@@ -855,16 +864,16 @@
       "frame_id": "000449",
       "timestamp_s": 46.63276,
       "points": 124823,
-      "active_tracks": 1401,
-      "motion_samples": 121667,
+      "active_tracks": 906,
+      "motion_samples": 74334,
       "state_counts": {
-        "static": 1414,
-        "possibly_moving": 7776,
-        "moving": 112477,
-        "unknown": 3156
+        "static": 64,
+        "possibly_moving": 22409,
+        "moving": 51861,
+        "unknown": 50489
       },
-      "max_speed_mps": 19.07935333251953,
-      "temporal_latency_ms": 6726.468114999989,
+      "max_speed_mps": 18.703365325927734,
+      "temporal_latency_ms": 9295.335897999848,
       "pose_source": "dataset",
       "timestamp_source": "dataset"
     },
@@ -872,16 +881,16 @@
       "frame_id": "000450",
       "timestamp_s": 46.73653,
       "points": 125050,
-      "active_tracks": 1346,
-      "motion_samples": 123629,
+      "active_tracks": 873,
+      "motion_samples": 75901,
       "state_counts": {
-        "static": 527,
-        "possibly_moving": 3977,
-        "moving": 119125,
-        "unknown": 1421
+        "static": 14,
+        "possibly_moving": 17292,
+        "moving": 58595,
+        "unknown": 49149
       },
       "max_speed_mps": 19.17106056213379,
-      "temporal_latency_ms": 6201.939497999774,
+      "temporal_latency_ms": 13159.89197099998,
       "pose_source": "dataset",
       "timestamp_source": "dataset"
     },
@@ -889,16 +898,16 @@
       "frame_id": "000451",
       "timestamp_s": 46.8405,
       "points": 125070,
-      "active_tracks": 1314,
-      "motion_samples": 123718,
+      "active_tracks": 862,
+      "motion_samples": 75893,
       "state_counts": {
-        "static": 455,
-        "possibly_moving": 9183,
-        "moving": 114080,
-        "unknown": 1352
+        "static": 94,
+        "possibly_moving": 18037,
+        "moving": 57762,
+        "unknown": 49177
       },
       "max_speed_mps": 18.35753059387207,
-      "temporal_latency_ms": 3629.616179000095,
+      "temporal_latency_ms": 12041.136638000353,
       "pose_source": "dataset",
       "timestamp_source": "dataset"
     },
@@ -906,16 +915,16 @@
       "frame_id": "000452",
       "timestamp_s": 46.9442,
       "points": 125294,
-      "active_tracks": 1291,
-      "motion_samples": 122159,
+      "active_tracks": 860,
+      "motion_samples": 74588,
       "state_counts": {
-        "static": 231,
-        "possibly_moving": 4088,
-        "moving": 117840,
-        "unknown": 3135
+        "static": 111,
+        "possibly_moving": 18949,
+        "moving": 55528,
+        "unknown": 50706
       },
       "max_speed_mps": 19.04295539855957,
-      "temporal_latency_ms": 3965.3673729999355,
+      "temporal_latency_ms": 10210.30890799966,
       "pose_source": "dataset",
       "timestamp_source": "dataset"
     },
@@ -923,16 +932,16 @@
       "frame_id": "000453",
       "timestamp_s": 47.04794,
       "points": 125003,
-      "active_tracks": 1336,
-      "motion_samples": 123433,
+      "active_tracks": 903,
+      "motion_samples": 76314,
       "state_counts": {
-        "static": 839,
-        "possibly_moving": 3679,
-        "moving": 118915,
-        "unknown": 1570
+        "static": 0,
+        "possibly_moving": 30018,
+        "moving": 46296,
+        "unknown": 48689
       },
-      "max_speed_mps": 19.102304458618164,
-      "temporal_latency_ms": 4125.4233899999235,
+      "max_speed_mps": 19.075170516967773,
+      "temporal_latency_ms": 8058.737696999742,
       "pose_source": "dataset",
       "timestamp_source": "dataset"
     },
@@ -940,16 +949,16 @@
       "frame_id": "000454",
       "timestamp_s": 47.15166,
       "points": 124947,
-      "active_tracks": 1329,
-      "motion_samples": 122500,
+      "active_tracks": 905,
+      "motion_samples": 77167,
       "state_counts": {
-        "static": 438,
-        "possibly_moving": 9647,
-        "moving": 112415,
-        "unknown": 2447
+        "static": 115,
+        "possibly_moving": 27747,
+        "moving": 49305,
+        "unknown": 47780
       },
       "max_speed_mps": 19.260732650756836,
-      "temporal_latency_ms": 4865.456476999952,
+      "temporal_latency_ms": 10179.188134000015,
       "pose_source": "dataset",
       "timestamp_source": "dataset"
     },
@@ -957,16 +966,16 @@
       "frame_id": "000455",
       "timestamp_s": 47.25554,
       "points": 125074,
-      "active_tracks": 1333,
-      "motion_samples": 121139,
+      "active_tracks": 903,
+      "motion_samples": 75470,
       "state_counts": {
-        "static": 341,
-        "possibly_moving": 5144,
-        "moving": 115654,
-        "unknown": 3935
+        "static": 45,
+        "possibly_moving": 28078,
+        "moving": 47347,
+        "unknown": 49604
       },
-      "max_speed_mps": 19.185747146606445,
-      "temporal_latency_ms": 5987.601454000014,
+      "max_speed_mps": 19.14240837097168,
+      "temporal_latency_ms": 13055.765875999896,
       "pose_source": "dataset",
       "timestamp_source": "dataset"
     },
@@ -974,16 +983,16 @@
       "frame_id": "000456",
       "timestamp_s": 47.35928,
       "points": 125196,
-      "active_tracks": 1348,
-      "motion_samples": 123533,
+      "active_tracks": 907,
+      "motion_samples": 79251,
       "state_counts": {
-        "static": 981,
-        "possibly_moving": 7338,
-        "moving": 115214,
-        "unknown": 1663
+        "static": 78,
+        "possibly_moving": 13334,
+        "moving": 65839,
+        "unknown": 45945
       },
       "max_speed_mps": 19.131513595581055,
-      "temporal_latency_ms": 8692.382234999968,
+      "temporal_latency_ms": 16500.658609999846,
       "pose_source": "dataset",
       "timestamp_source": "dataset"
     },
@@ -991,16 +1000,16 @@
       "frame_id": "000457",
       "timestamp_s": 47.46313,
       "points": 125370,
-      "active_tracks": 1240,
-      "motion_samples": 112305,
+      "active_tracks": 824,
+      "motion_samples": 81489,
       "state_counts": {
-        "static": 456,
-        "possibly_moving": 3526,
-        "moving": 108323,
-        "unknown": 13065
+        "static": 0,
+        "possibly_moving": 16688,
+        "moving": 64801,
+        "unknown": 43881
       },
-      "max_speed_mps": 19.207849502563477,
-      "temporal_latency_ms": 16091.895166000086,
+      "max_speed_mps": 19.14175033569336,
+      "temporal_latency_ms": 27972.997039999882,
       "pose_source": "dataset",
       "timestamp_source": "dataset"
     },
@@ -1008,16 +1017,16 @@
       "frame_id": "000458",
       "timestamp_s": 47.56688,
       "points": 124971,
-      "active_tracks": 1211,
-      "motion_samples": 122196,
+      "active_tracks": 810,
+      "motion_samples": 81496,
       "state_counts": {
-        "static": 1179,
-        "possibly_moving": 4317,
-        "moving": 116700,
-        "unknown": 2775
+        "static": 130,
+        "possibly_moving": 15648,
+        "moving": 65718,
+        "unknown": 43475
       },
-      "max_speed_mps": 19.257492065429688,
-      "temporal_latency_ms": 16857.981240999834,
+      "max_speed_mps": 18.972381591796875,
+      "temporal_latency_ms": 38432.55027399982,
       "pose_source": "dataset",
       "timestamp_source": "dataset"
     },
@@ -1025,26 +1034,26 @@
       "frame_id": "000459",
       "timestamp_s": 47.67063,
       "points": 124234,
-      "active_tracks": 1167,
-      "motion_samples": 119349,
+      "active_tracks": 762,
+      "motion_samples": 79980,
       "state_counts": {
-        "static": 516,
-        "possibly_moving": 2257,
-        "moving": 116576,
-        "unknown": 4885
+        "static": 161,
+        "possibly_moving": 10401,
+        "moving": 69418,
+        "unknown": 44254
       },
-      "max_speed_mps": 19.118778228759766,
-      "temporal_latency_ms": 13978.860505999819,
+      "max_speed_mps": 19.079395294189453,
+      "temporal_latency_ms": 27449.47457599983,
       "pose_source": "dataset",
       "timestamp_source": "dataset"
     }
   ],
   "timings": {
-    "p50_ms": 4030.2331984999,
-    "p95_ms": 8956.706148549945,
-    "p99_ms": 16405.99045674998,
-    "mean_ms": 4429.272160183321,
-    "max_ms": 16857.981240999834,
+    "p50_ms": 3034.4060329998683,
+    "p95_ms": 17048.099408299815,
+    "p99_ms": 32261.41386593982,
+    "mean_ms": 6061.281885749979,
+    "max_ms": 38432.55027399982,
     "samples": 60
   },
   "motion_quality": {

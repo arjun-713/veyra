@@ -1,0 +1,301 @@
+{
+  "artifact": "temporal real-sequential evidence (SemanticKITTI seq08)",
+  "code": "agent/temporal2 HEAD at generation time; tracker evidence config exclude_classes=[9,10,11,12,17], consistency defaults",
+  "windows_evidence_config": {
+    "W0": {
+      "file": "validate_W0.json",
+      "shares_frames1plus": {
+        "static": 0.034865474001256606,
+        "possibly_moving": 0.11872646485975114,
+        "moving": 0.8106023966167311,
+        "unknown": 0.035805664522261214
+      },
+      "timings_ms": {
+        "p50_ms": 1788.917685999877,
+        "p95_ms": 6398.567651849873,
+        "p99_ms": 6840.977060449975,
+        "mean_ms": 2527.4754540500044,
+        "max_ms": 6947.908589000008,
+        "samples": 100
+      },
+      "motion_quality": {
+        "meaning": "observed tracker evidence; no object-level ground truth was supplied",
+        "frames_with_motion_evidence": 99,
+        "frames_with_moving_state": 99
+      },
+      "nframes": 100,
+      "first": [
+        "000000",
+        0.0
+      ],
+      "last": [
+        "000099",
+        10.29086
+      ]
+    },
+    "W1": {
+      "file": "validate_W1.json",
+      "shares_frames1plus": {
+        "static": 0.0030839351552674936,
+        "possibly_moving": 0.1873910529694218,
+        "moving": 0.27668393796375484,
+        "unknown": 0.5328410739115559
+      },
+      "timings_ms": {
+        "p50_ms": 3034.4060329998683,
+        "p95_ms": 17048.099408299815,
+        "p99_ms": 32261.41386593982,
+        "mean_ms": 6061.281885749979,
+        "max_ms": 38432.55027399982,
+        "samples": 60
+      },
+      "motion_quality": {
+        "meaning": "observed tracker evidence; no object-level ground truth was supplied",
+        "frames_with_motion_evidence": 59,
+        "frames_with_moving_state": 59
+      },
+      "nframes": 60,
+      "first": [
+        "000400",
+        41.54063
+      ],
+      "last": [
+        "000459",
+        47.67063
+      ]
+    },
+    "W2": {
+      "file": "validate_W2.json",
+      "shares_frames1plus": {
+        "static": 0.04583901340027834,
+        "possibly_moving": 0.247031378897229,
+        "moving": 0.06025940962184279,
+        "unknown": 0.6468701980806498
+      },
+      "timings_ms": {
+        "p50_ms": 1397.8789275001873,
+        "p95_ms": 2756.58970269983,
+        "p99_ms": 2954.729900190173,
+        "mean_ms": 1554.8433933999681,
+        "max_ms": 2962.073134000093,
+        "samples": 60
+      },
+      "motion_quality": {
+        "meaning": "observed tracker evidence; no object-level ground truth was supplied",
+        "frames_with_motion_evidence": 59,
+        "frames_with_moving_state": 59
+      },
+      "nframes": 60,
+      "first": [
+        "003990",
+        414.6204
+      ],
+      "last": [
+        "004049",
+        420.7588
+      ]
+    },
+    "W0_detail": {
+      "state_totals": {
+        "static": 141204,
+        "possibly_moving": 2914438,
+        "moving": 1106578,
+        "unknown": 8100198
+      },
+      "moving_label_states": {
+        "static": 17170,
+        "possibly_moving": 226574,
+        "moving": 216862,
+        "unknown": 2247
+      },
+      "person_label_states": {
+        "static": 1939,
+        "possibly_moving": 23233,
+        "moving": 41774,
+        "unknown": 209
+      },
+      "static_vehicle_states": {
+        "static": 4229,
+        "possibly_moving": 75592,
+        "moving": 10899,
+        "unknown": 1706
+      },
+      "static_speed_mps": {
+        "median": 0.10171712934970856,
+        "p95": 0.1443129926919937,
+        "max": 0.1499444842338562,
+        "n": 141204
+      },
+      "moving_speed_mps": {
+        "median": 2.0710175037384033,
+        "p95": 9.731566429138184,
+        "max": 19.271909713745117,
+        "n": 1106578
+      },
+      "ego_speed_mps": {
+        "median": 4.188560142905801,
+        "max": 10.008758588558335
+      },
+      "ghost": {
+        "max_missed_frames_observed": 2,
+        "tracks_vanished_mid_run": 12637,
+        "stale_after_frames": 3
+      },
+      "latency_ms": {
+        "p50": 1712.8115324999271,
+        "p95": 6875.5183343501585,
+        "p99": 13626.745517139754,
+        "max": 14059.948740999971
+      }
+    },
+    "W1_detail": {
+      "state_totals": {
+        "static": 22840,
+        "possibly_moving": 1387841,
+        "moving": 2049155,
+        "unknown": 4072571
+      },
+      "moving_label_states": {
+        "static": 0,
+        "possibly_moving": 0,
+        "moving": 0,
+        "unknown": 0
+      },
+      "person_label_states": {
+        "static": 0,
+        "possibly_moving": 0,
+        "moving": 0,
+        "unknown": 0
+      },
+      "static_vehicle_states": {
+        "static": 366,
+        "possibly_moving": 160114,
+        "moving": 260685,
+        "unknown": 8383
+      },
+      "static_speed_mps": {
+        "median": 0.060300376266241074,
+        "p95": 0.14794352650642395,
+        "max": 0.14959125220775604,
+        "n": 22840
+      },
+      "moving_speed_mps": {
+        "median": 4.647770881652832,
+        "p95": 10.412158966064453,
+        "max": 19.25209617614746,
+        "n": 2049155
+      },
+      "ego_speed_mps": {
+        "median": 7.886291012066213,
+        "max": 10.036579809132967
+      },
+      "ghost": {
+        "max_missed_frames_observed": 2,
+        "tracks_vanished_mid_run": 6361,
+        "stale_after_frames": 3
+      },
+      "latency_ms": {
+        "p50": 2467.6171444998545,
+        "p95": 10816.342296700699,
+        "p99": 17166.41853295989,
+        "max": 18432.045265999477
+      }
+    },
+    "W2_detail": {
+      "state_totals": {
+        "static": 334676,
+        "possibly_moving": 1803605,
+        "moving": 439961,
+        "unknown": 4845963
+      },
+      "moving_label_states": {
+        "static": 3,
+        "possibly_moving": 5809,
+        "moving": 107966,
+        "unknown": 2001
+      },
+      "person_label_states": {
+        "static": 85,
+        "possibly_moving": 3792,
+        "moving": 8380,
+        "unknown": 249
+      },
+      "static_vehicle_states": {
+        "static": 104376,
+        "possibly_moving": 394047,
+        "moving": 29424,
+        "unknown": 17286
+      },
+      "static_speed_mps": {
+        "median": 0.0711246058344841,
+        "p95": 0.13542674481868744,
+        "max": 0.14990606904029846,
+        "n": 334676
+      },
+      "moving_speed_mps": {
+        "median": 1.9327528476715088,
+        "p95": 10.26410961151123,
+        "max": 19.2401065826416,
+        "n": 439961
+      },
+      "ego_speed_mps": {
+        "median": 0.889735842388868,
+        "max": 4.322866892751021
+      },
+      "ghost": {
+        "max_missed_frames_observed": 2,
+        "tracks_vanished_mid_run": 3428,
+        "stale_after_frames": 3
+      },
+      "latency_ms": {
+        "p50": 517.102791000525,
+        "p95": 887.9838236999601,
+        "p99": 1078.720491609738,
+        "max": 1090.0851429996692
+      }
+    }
+  },
+  "windows_baseline_default_config": {
+    "W0": {
+      "moving": 0.811,
+      "possibly_moving": 0.119,
+      "static": 0.035,
+      "source": "validate_W0.json (default TemporalTracker())"
+    },
+    "W1": {
+      "moving": 0.897,
+      "possibly_moving": 0.058,
+      "static": 0.012,
+      "source": "HEAD:validate_W1.json (sibling post-fix run, default config)"
+    },
+    "W2": {
+      "moving": 0.322,
+      "possibly_moving": 0.606,
+      "static": 0.055,
+      "source": "HEAD:validate_W2.json (sibling post-fix run, default config)"
+    }
+  },
+  "skipped_frames_stride2_dt_s": [
+    0.207866,
+    0.2078619,
+    0.20787640000000002,
+    0.20799880000000004,
+    0.2078759,
+    0.20787200000000006,
+    0.20799999999999996,
+    0.20799999999999996,
+    0.208005
+  ],
+  "skipped_frames_mover_median_ratio_0.902": "measured separately (stride_movers.py)",
+  "provenance": {
+    "dataset": "semantickitti",
+    "sequence": "08",
+    "scans": "mirror range-extract, CRC32-verified per entry",
+    "labels_poses": "official data_odometry_labels.zip sha256 408ec524...",
+    "calib_times": "mirror of official data_odometry_calib.zip",
+    "coordinate_frame": "world",
+    "timestamp_source": "dataset",
+    "pose_source": "dataset",
+    "no_fake_timestamps": true
+  }
+}
