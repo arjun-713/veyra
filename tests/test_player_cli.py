@@ -20,12 +20,14 @@ class PlayerCliTests(unittest.TestCase):
                 check=True,
                 capture_output=True,
                 text=True,
+                timeout=300,
             )
             result = subprocess.run(
                 [str(player)],
                 capture_output=True,
                 text=True,
                 check=False,
+                timeout=60,
             )
 
         self.assertEqual(result.returncode, 2)
