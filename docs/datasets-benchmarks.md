@@ -8,7 +8,19 @@ Philosophy.
 - **SemanticKITTI** — primary dev + quantitative benchmark
   (sequential LiDAR, poses, semantic + moving/static labels,
   range-based eval).
-- **RELLIS-3D** — off-road terrain validation.
+- **RELLIS-3D** — off-road terrain validation. Local layout
+  `data/raw/rellis3d/Rellis-3D/{00000..00004}/` with
+  `vel_cloud_node_kitti_bin/*.bin` + `vel_cloud_node_semantickitti_label_id/*.label`
+  (13532 paired frames: 2842/2315/4139/2180/2056; ~35–42k pts/frame).
+  `scripts/validate_dataset_capabilities.py --dataset rellis3d` reports
+  `validated_local` (alignment, finite byte-scale intensity, deterministic
+  order/replay, taxonomy mapping all true). Poses, timestamps, and calibration
+  are absent from this local mirror, so frames stay in the `lidar` frame with
+  `identity_absent`/`absent` provenance; no pose is inferred. Raw low-16 IDs
+  map through the versioned `RELLIS-3D-v1.1-learning_map` table
+  (`datasets/common/taxonomy.py:RELLIS_LABELS`); instance high-16 bits are 0
+  in sampled frames. Evidence: `reports/closure/rellis/RESULT.md` +
+  `replay.json`.
 - **Great Outdoors** — longer-term unstructured / UGV validation.
 
 Keep download/setup scripts + metadata in Git; data, weights, maps,
