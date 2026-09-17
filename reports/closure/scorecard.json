@@ -1,1 +1,412 @@
-{"assigned_streams": {"benchmark-credibility": "benchmark agent", "cli": "cli agent (adapts to control-api owner)", "control-api": "control-api owner (sole writer of controller.rs/daemon.rs protocol)", "cross-platform": "4 OS agents (ubuntu/fedora/windows/macos)", "datasets": "rellis + kitti + generic agents", "map-hardening": "map agent", "mcp": "mcp agent (adapts to control-api owner)", "perception-semantic": "semantic agent", "platform-ci-release": "ci/release agent", "product-tauri": "tauri + ui + telemetry + renderer + supervisor agents", "security-docs-demo": "security + docs/demo agents", "temporal": "temporal agent", "test-gate": "test-gate investigator (highest priority, no dependencies)"}, "closure_policy": "100% = implemented+integrated+real-production-path+correct+quantified+regression+failure-tested+measured+CI, no gaming (no GT-as-neural, no synthetic-as-real-temporal, no analytical-as-measured, no render-FPS-as-e2e, no removed tests).", "created": "2026-09-17", "head": "6e3cece", "nodes": [{"acceptance": "Full python suite + full ctest terminate without arbitrary timeout masking; root cause fixed", "area": "Test gate", "blockers": ["python_unittest stall (deadlock/infinite/network/dataset-scan/leak?)"], "current": 62, "deps": [], "evidence": "reports/closure/test-gate/*.log + fix commit", "id": "test-gate", "owner_files": ["tests/*.py", "CMakeLists.txt", "tests/CMakeLists.txt"], "status": "OPEN"}, {"acceptance": "Deterministic projection/unprojection tests; sensor geometry/taxonomy/intensity proven; aligned classes+confidence+failure reporting", "area": "Neural semantic segmentation", "blockers": ["sensor/checkpoint mismatch unproven", "projection geometry unproven", "taxonomy/learning-map unproven"], "current": 25, "deps": ["datasets"], "evidence": "reports/closure/semantic/*.json + perception/semantic tests", "id": "semantic", "owner_files": ["perception/semantic/*", "tests/test_salsanext.py", "tests/test_semantic_provider.py"], "status": "OPEN"}, {"acceptance": "accuracy/mIoU/per-class IoU/precision/recall/F1 overall + 0-10/10-30/30-60/60-100m on real labelled sequence, named hardware", "area": "Semantic quality + range-binned", "blockers": ["no closure-grade eval"], "current": 55, "deps": ["semantic", "datasets"], "evidence": "reports/closure/semantic-quality/*.json", "id": "semantic-quality", "owner_files": ["perception/*", "scripts/validate_perception.py"], "status": "OPEN"}, {"acceptance": "RELLIS points/labels/calibration/poses/taxonomy run on real frames; malformed-path diagnostics; >0 supported frames with reason if 0", "area": "RELLIS validation", "blockers": ["current path invalid/unsupported"], "current": 25, "deps": [], "evidence": "reports/closure/rellis/*.json", "id": "rellis", "owner_files": ["datasets/rellis/*", "tests/test_rellis_adapter.py"], "status": "OPEN"}, {"acceptance": "Official SemanticKITTI val subset (or documented equivalent) scans/labels/poses/timestamps/taxonomy validated; no fake timestamps", "area": "SemanticKITTI validation", "blockers": ["no trustworthy sequential metadata"], "current": 25, "deps": [], "evidence": "reports/closure/kitti/*.json", "id": "kitti", "owner_files": ["datasets/semantickitti/*", "tests/test_semantickitti_adapter.py", "datasets/download_semantickitti.sh"], "status": "OPEN"}, {"acceptance": "SemanticPOSS 488-500f/seq replay preserved; ground ratio ~33% sane; adapter contract holds", "area": "SemanticPOSS + generic adapters", "blockers": [], "current": 68, "deps": [], "evidence": "reports/closure/datasets/*.json", "id": "datasets", "owner_files": ["datasets/semanticposs/*", "datasets/common/*", "datasets/generic/*"], "status": "OPEN"}, {"acceptance": "Real sequential proof: ego-compensation, STATIC/MOVING(/POSSIBLY), stale cleanup, velocity, ghost persistence; parked/moving vehicle, person/rider, leave/reappear/skip cases", "area": "Temporal/dynamic", "blockers": ["no real temporal proof", "synthetic-only insufficient"], "current": 28, "deps": ["datasets", "kitti"], "evidence": "reports/closure/temporal/*.json + tracker tests", "id": "temporal", "owner_files": ["perception/temporal/*", "tests/test_temporal_tracker.py", "tests/test_validate_temporal.py"], "status": "OPEN"}, {"acceptance": "slope/roughness/step/height-spread/semantic -> DRIVABLE/NON_DRIVABLE/UNKNOWN (unknown!=free); quantified where labels permit; terrain p95 optimized", "area": "Ground + terrain quality", "blockers": ["terrain p95 ~77.8ms needs optimization"], "current": 55, "deps": ["datasets"], "evidence": "reports/closure/terrain/*.json", "id": "terrain", "owner_files": ["perception/ground/*", "perception/terrain/*"], "status": "OPEN"}, {"acceptance": "Zero gaps/overlaps/conflicts/duplication on long randomized split/merge/boundary/rolling-window/churn runs; stats preserved", "area": "Adaptive-map correctness", "blockers": [], "current": 78, "deps": [], "evidence": "reports/closure/map/*.log (ctest + stress)", "id": "map", "owner_files": ["src/map/*", "include/*", "tests/test_*.cpp"], "status": "OPEN"}, {"acceptance": "Controlled ablation DistanceLOD vs +geometry/semantics/motion/uncertainty on identical data; pole/ped/vehicle/hazard retention vs memory/latency/cells", "area": "UtilityLOD", "blockers": ["reason-to-exist unproven"], "current": 70, "deps": ["map", "semantic-quality", "temporal"], "evidence": "reports/closure/utility/*.json", "id": "utility", "owner_files": ["src/policy/*", "benchmarks/*"], "status": "OPEN"}, {"acceptance": "RAM/latency/cell budgets: quality loss, misses, churn, recovery measured; near/high-risk detail survives", "area": "Resource governor", "blockers": [], "current": 61, "deps": ["map"], "evidence": "reports/closure/governor/*.json", "id": "governor", "owner_files": ["src/runtime/*", "src/map/*govern*"], "status": "OPEN"}, {"acceptance": "Sparse high-res 3D reference measured (RSS/alloc/latency/elements) on same input; ANALYTICAL vs MEASURED labeled", "area": "3D baseline", "blockers": ["not genuinely measured"], "current": 30, "deps": ["map"], "evidence": "reports/closure/baseline/*.json", "id": "baseline-3d", "owner_files": ["benchmarks/*", "tools/*"], "status": "OPEN"}, {"acceptance": "Hundreds of frames where practical; mean/p50/p95/p99/max/FPS/RSS/logical/cells/quality/churn per policy (U5/U40/Dist/Util/3D); raw frame-level persisted", "area": "Benchmark credibility", "blockers": ["short samples only"], "current": 68, "deps": ["map", "baseline-3d"], "evidence": "benchmark-results/*.json + reports/closure/bench/*.json", "id": "benchmark", "owner_files": ["benchmarks/*", "scripts/*bench*", "benchmark-results/*"], "status": "OPEN"}, {"acceptance": "Packaged Tauri app -> select dataset -> start -> real processing -> map -> telemetry -> play/pause/seek/policy/layer/inspect/stop; no mocks", "area": "Tauri desktop", "blockers": ["partial migration"], "current": 55, "deps": ["control-api"], "evidence": "reports/closure/tauri/*.log + packaged app", "id": "tauri", "owner_files": ["src-tauri/*", "viewer/*", "apps/*"], "status": "OPEN"}, {"acceptance": "Every visible control inventoried (allowed states/command/backend/UI/E2E); dead/dup/fake removed", "area": "UI + renderer + telemetry + supervisor", "blockers": [], "current": 55, "deps": ["tauri", "control-api"], "evidence": "reports/closure/ui/*.md + e2e logs", "id": "ui-telemetry", "owner_files": ["viewer/*", "src-tauri/src/telemetry.rs", "src-tauri/src/supervisor.rs"], "status": "OPEN"}, {"acceptance": "Single authority: Control API <- Desktop, CLI, MCP; no duplicate runtime ownership", "area": "Control API (owner)", "blockers": ["uncommitted work just integrated (6e3cece)"], "current": 60, "deps": [], "evidence": "src-tauri/src/control/* tests green", "id": "control-api", "owner_files": ["src-tauri/src/control/*", "src-tauri/src/control_host/*"], "status": "INTEGRATED-PARTIAL"}, {"acceptance": "All documented commands + --json work against shared authority", "area": "CLI", "blockers": [], "current": 60, "deps": ["control-api"], "evidence": "reports/closure/cli/*.log", "id": "cli", "owner_files": ["src-tauri/src/bin/veyra-cli.rs"], "status": "OPEN"}, {"acceptance": "Typed schemas, no arbitrary shell/fs/process, real integration vs running instance", "area": "MCP", "blockers": [], "current": 60, "deps": ["control-api"], "evidence": "reports/closure/mcp/*.log", "id": "mcp", "owner_files": ["mcp/*"], "status": "OPEN"}, {"acceptance": "Capabilities/CSP/fs-scopes/sidecar/path-traversal/injection/MCP+CLI validation fixed, not just reported", "area": "Security/reliability", "blockers": [], "current": 68, "deps": ["control-api", "tauri"], "evidence": "reports/closure/security/*.md", "id": "security", "owner_files": ["src-tauri/tauri.conf.json", "src-tauri/capabilities/*", "mcp/*"], "status": "OPEN"}, {"acceptance": "Ubuntu .deb+AppImage smoke; Fedora .rpm smoke; Windows installer smoke; macOS .app/.dmg smoke (native CI where local impossible)", "area": "Cross-platform", "blockers": [], "current": 25, "deps": ["tauri", "control-api"], "evidence": "reports/closure/platform/* + CI runs", "id": "platform", "owner_files": [".github/workflows/*", "scripts/package_backend.py"], "status": "OPEN"}, {"acceptance": "Live GitHub CI validates real Tauri product; Electron CI removed after parity; artifacts uploaded; all required checks green", "area": "CI + release + Electron removal", "blockers": [], "current": 62, "deps": ["platform", "tauri"], "evidence": "CI run URLs + artifacts", "id": "ci-release", "owner_files": [".github/workflows/*", "apps/*electron*"], "status": "OPEN"}, {"acceptance": "Fresh-clone setup/build/test/validate/benchmark/launch from docs only; docs claims match evidence; provenance recorded; packaged demo rehearsal all policies/layers/telemetry", "area": "Docs + reproducibility + demo", "blockers": [], "current": 55, "deps": ["benchmark", "tauri", "semantic-quality", "temporal"], "evidence": "reports/closure/demo/*.log + docs updated", "id": "docs-demo", "owner_files": ["docs/*", "README.md", "scripts/validate_sih.sh"], "status": "OPEN"}], "objective": "100% on all 14 audit areas + 0 P0/P1 + READY verdict via independent audit", "target": 100}
+{
+ "assigned_streams": {
+  "benchmark-credibility": "benchmark agent",
+  "cli": "cli agent (adapts to control-api owner)",
+  "control-api": "control-api owner (sole writer of controller.rs/daemon.rs protocol)",
+  "cross-platform": "4 OS agents (ubuntu/fedora/windows/macos)",
+  "datasets": "rellis + kitti + generic agents",
+  "map-hardening": "map agent",
+  "mcp": "mcp agent (adapts to control-api owner)",
+  "perception-semantic": "semantic agent",
+  "platform-ci-release": "ci/release agent",
+  "product-tauri": "tauri + ui + telemetry + renderer + supervisor agents",
+  "security-docs-demo": "security + docs/demo agents",
+  "temporal": "temporal agent",
+  "test-gate": "test-gate investigator (highest priority, no dependencies)"
+ },
+ "closure_policy": "100% = implemented+integrated+real-production-path+correct+quantified+regression+failure-tested+measured+CI, no gaming (no GT-as-neural, no synthetic-as-real-temporal, no analytical-as-measured, no render-FPS-as-e2e, no removed tests).",
+ "created": "2026-09-17",
+ "head": "6e3cece",
+ "nodes": [
+  {
+   "acceptance": "Full python suite + full ctest terminate without arbitrary timeout masking; root cause fixed",
+   "area": "Test gate",
+   "blockers": [
+    "python_unittest stall (deadlock/infinite/network/dataset-scan/leak?)"
+   ],
+   "current": 90,
+   "deps": [],
+   "evidence": "reports/closure/test-gate/*.log + fix commit",
+   "id": "test-gate",
+   "owner_files": [
+    "tests/*.py",
+    "CMakeLists.txt",
+    "tests/CMakeLists.txt"
+   ],
+   "status": "INTEGRATED"
+  },
+  {
+   "acceptance": "Deterministic projection/unprojection tests; sensor geometry/taxonomy/intensity proven; aligned classes+confidence+failure reporting",
+   "area": "Neural semantic segmentation",
+   "blockers": [
+    "sensor/checkpoint mismatch unproven",
+    "projection geometry unproven",
+    "taxonomy/learning-map unproven"
+   ],
+   "current": 70,
+   "deps": [
+    "datasets"
+   ],
+   "evidence": "reports/closure/semantic/*.json + perception/semantic tests",
+   "id": "semantic",
+   "owner_files": [
+    "perception/semantic/*",
+    "tests/test_salsanext.py",
+    "tests/test_semantic_provider.py"
+   ],
+   "status": "INTEGRATED"
+  },
+  {
+   "acceptance": "accuracy/mIoU/per-class IoU/precision/recall/F1 overall + 0-10/10-30/30-60/60-100m on real labelled sequence, named hardware",
+   "area": "Semantic quality + range-binned",
+   "blockers": [
+    "no closure-grade eval"
+   ],
+   "current": 55,
+   "deps": [
+    "semantic",
+    "datasets"
+   ],
+   "evidence": "reports/closure/semantic-quality/*.json",
+   "id": "semantic-quality",
+   "owner_files": [
+    "perception/*",
+    "scripts/validate_perception.py"
+   ],
+   "status": "OPEN"
+  },
+  {
+   "acceptance": "RELLIS points/labels/calibration/poses/taxonomy run on real frames; malformed-path diagnostics; >0 supported frames with reason if 0",
+   "area": "RELLIS validation",
+   "blockers": [
+    "current path invalid/unsupported"
+   ],
+   "current": 90,
+   "deps": [],
+   "evidence": "reports/closure/rellis/*.json",
+   "id": "rellis",
+   "owner_files": [
+    "datasets/rellis/*",
+    "tests/test_rellis_adapter.py"
+   ],
+   "status": "INTEGRATED"
+  },
+  {
+   "acceptance": "Official SemanticKITTI val subset (or documented equivalent) scans/labels/poses/timestamps/taxonomy validated; no fake timestamps",
+   "area": "SemanticKITTI validation",
+   "blockers": [
+    "no trustworthy sequential metadata"
+   ],
+   "current": 60,
+   "deps": [],
+   "evidence": "reports/closure/kitti/*.json",
+   "id": "kitti",
+   "owner_files": [
+    "datasets/semantickitti/*",
+    "tests/test_semantickitti_adapter.py",
+    "datasets/download_semantickitti.sh"
+   ],
+   "status": "PARTIAL"
+  },
+  {
+   "acceptance": "SemanticPOSS 488-500f/seq replay preserved; ground ratio ~33% sane; adapter contract holds",
+   "area": "SemanticPOSS + generic adapters",
+   "blockers": [],
+   "current": 80,
+   "deps": [],
+   "evidence": "reports/closure/datasets/*.json",
+   "id": "datasets",
+   "owner_files": [
+    "datasets/semanticposs/*",
+    "datasets/common/*",
+    "datasets/generic/*"
+   ],
+   "status": "PARTIAL"
+  },
+  {
+   "acceptance": "Real sequential proof: ego-compensation, STATIC/MOVING(/POSSIBLY), stale cleanup, velocity, ghost persistence; parked/moving vehicle, person/rider, leave/reappear/skip cases",
+   "area": "Temporal/dynamic",
+   "blockers": [
+    "no real temporal proof",
+    "synthetic-only insufficient"
+   ],
+   "current": 55,
+   "deps": [
+    "datasets",
+    "kitti"
+   ],
+   "evidence": "reports/closure/temporal/*.json + tracker tests",
+   "id": "temporal",
+   "owner_files": [
+    "perception/temporal/*",
+    "tests/test_temporal_tracker.py",
+    "tests/test_validate_temporal.py"
+   ],
+   "status": "PARTIAL"
+  },
+  {
+   "acceptance": "slope/roughness/step/height-spread/semantic -> DRIVABLE/NON_DRIVABLE/UNKNOWN (unknown!=free); quantified where labels permit; terrain p95 optimized",
+   "area": "Ground + terrain quality",
+   "blockers": [
+    "terrain p95 ~77.8ms needs optimization"
+   ],
+   "current": 85,
+   "deps": [
+    "datasets"
+   ],
+   "evidence": "reports/closure/terrain/*.json",
+   "id": "terrain",
+   "owner_files": [
+    "perception/ground/*",
+    "perception/terrain/*"
+   ],
+   "status": "INTEGRATED"
+  },
+  {
+   "acceptance": "Zero gaps/overlaps/conflicts/duplication on long randomized split/merge/boundary/rolling-window/churn runs; stats preserved",
+   "area": "Adaptive-map correctness",
+   "blockers": [],
+   "current": 78,
+   "deps": [],
+   "evidence": "reports/closure/map/*.log (ctest + stress)",
+   "id": "map",
+   "owner_files": [
+    "src/map/*",
+    "include/*",
+    "tests/test_*.cpp"
+   ],
+   "status": "OPEN"
+  },
+  {
+   "acceptance": "Controlled ablation DistanceLOD vs +geometry/semantics/motion/uncertainty on identical data; pole/ped/vehicle/hazard retention vs memory/latency/cells",
+   "area": "UtilityLOD",
+   "blockers": [
+    "reason-to-exist unproven"
+   ],
+   "current": 70,
+   "deps": [
+    "map",
+    "semantic-quality",
+    "temporal"
+   ],
+   "evidence": "reports/closure/utility/*.json",
+   "id": "utility",
+   "owner_files": [
+    "src/policy/*",
+    "benchmarks/*"
+   ],
+   "status": "OPEN"
+  },
+  {
+   "acceptance": "RAM/latency/cell budgets: quality loss, misses, churn, recovery measured; near/high-risk detail survives",
+   "area": "Resource governor",
+   "blockers": [],
+   "current": 61,
+   "deps": [
+    "map"
+   ],
+   "evidence": "reports/closure/governor/*.json",
+   "id": "governor",
+   "owner_files": [
+    "src/runtime/*",
+    "src/map/*govern*"
+   ],
+   "status": "OPEN"
+  },
+  {
+   "acceptance": "Sparse high-res 3D reference measured (RSS/alloc/latency/elements) on same input; ANALYTICAL vs MEASURED labeled",
+   "area": "3D baseline",
+   "blockers": [
+    "not genuinely measured"
+   ],
+   "current": 30,
+   "deps": [
+    "map"
+   ],
+   "evidence": "reports/closure/baseline/*.json",
+   "id": "baseline-3d",
+   "owner_files": [
+    "benchmarks/*",
+    "tools/*"
+   ],
+   "status": "OPEN"
+  },
+  {
+   "acceptance": "Hundreds of frames where practical; mean/p50/p95/p99/max/FPS/RSS/logical/cells/quality/churn per policy (U5/U40/Dist/Util/3D); raw frame-level persisted",
+   "area": "Benchmark credibility",
+   "blockers": [
+    "short samples only"
+   ],
+   "current": 68,
+   "deps": [
+    "map",
+    "baseline-3d"
+   ],
+   "evidence": "benchmark-results/*.json + reports/closure/bench/*.json",
+   "id": "benchmark",
+   "owner_files": [
+    "benchmarks/*",
+    "scripts/*bench*",
+    "benchmark-results/*"
+   ],
+   "status": "OPEN"
+  },
+  {
+   "acceptance": "Packaged Tauri app -> select dataset -> start -> real processing -> map -> telemetry -> play/pause/seek/policy/layer/inspect/stop; no mocks",
+   "area": "Tauri desktop",
+   "blockers": [
+    "partial migration"
+   ],
+   "current": 55,
+   "deps": [
+    "control-api"
+   ],
+   "evidence": "reports/closure/tauri/*.log + packaged app",
+   "id": "tauri",
+   "owner_files": [
+    "src-tauri/*",
+    "viewer/*",
+    "apps/*"
+   ],
+   "status": "OPEN"
+  },
+  {
+   "acceptance": "Every visible control inventoried (allowed states/command/backend/UI/E2E); dead/dup/fake removed",
+   "area": "UI + renderer + telemetry + supervisor",
+   "blockers": [],
+   "current": 55,
+   "deps": [
+    "tauri",
+    "control-api"
+   ],
+   "evidence": "reports/closure/ui/*.md + e2e logs",
+   "id": "ui-telemetry",
+   "owner_files": [
+    "viewer/*",
+    "src-tauri/src/telemetry.rs",
+    "src-tauri/src/supervisor.rs"
+   ],
+   "status": "OPEN"
+  },
+  {
+   "acceptance": "Single authority: Control API <- Desktop, CLI, MCP; no duplicate runtime ownership",
+   "area": "Control API (owner)",
+   "blockers": [
+    "uncommitted work just integrated (6e3cece)"
+   ],
+   "current": 60,
+   "deps": [],
+   "evidence": "src-tauri/src/control/* tests green",
+   "id": "control-api",
+   "owner_files": [
+    "src-tauri/src/control/*",
+    "src-tauri/src/control_host/*"
+   ],
+   "status": "INTEGRATED-PARTIAL"
+  },
+  {
+   "acceptance": "All documented commands + --json work against shared authority",
+   "area": "CLI",
+   "blockers": [],
+   "current": 60,
+   "deps": [
+    "control-api"
+   ],
+   "evidence": "reports/closure/cli/*.log",
+   "id": "cli",
+   "owner_files": [
+    "src-tauri/src/bin/veyra-cli.rs"
+   ],
+   "status": "OPEN"
+  },
+  {
+   "acceptance": "Typed schemas, no arbitrary shell/fs/process, real integration vs running instance",
+   "area": "MCP",
+   "blockers": [],
+   "current": 60,
+   "deps": [
+    "control-api"
+   ],
+   "evidence": "reports/closure/mcp/*.log",
+   "id": "mcp",
+   "owner_files": [
+    "mcp/*"
+   ],
+   "status": "OPEN"
+  },
+  {
+   "acceptance": "Capabilities/CSP/fs-scopes/sidecar/path-traversal/injection/MCP+CLI validation fixed, not just reported",
+   "area": "Security/reliability",
+   "blockers": [],
+   "current": 68,
+   "deps": [
+    "control-api",
+    "tauri"
+   ],
+   "evidence": "reports/closure/security/*.md",
+   "id": "security",
+   "owner_files": [
+    "src-tauri/tauri.conf.json",
+    "src-tauri/capabilities/*",
+    "mcp/*"
+   ],
+   "status": "OPEN"
+  },
+  {
+   "acceptance": "Ubuntu .deb+AppImage smoke; Fedora .rpm smoke; Windows installer smoke; macOS .app/.dmg smoke (native CI where local impossible)",
+   "area": "Cross-platform",
+   "blockers": [],
+   "current": 25,
+   "deps": [
+    "tauri",
+    "control-api"
+   ],
+   "evidence": "reports/closure/platform/* + CI runs",
+   "id": "platform",
+   "owner_files": [
+    ".github/workflows/*",
+    "scripts/package_backend.py"
+   ],
+   "status": "OPEN"
+  },
+  {
+   "acceptance": "Live GitHub CI validates real Tauri product; Electron CI removed after parity; artifacts uploaded; all required checks green",
+   "area": "CI + release + Electron removal",
+   "blockers": [],
+   "current": 62,
+   "deps": [
+    "platform",
+    "tauri"
+   ],
+   "evidence": "CI run URLs + artifacts",
+   "id": "ci-release",
+   "owner_files": [
+    ".github/workflows/*",
+    "apps/*electron*"
+   ],
+   "status": "OPEN"
+  },
+  {
+   "acceptance": "Fresh-clone setup/build/test/validate/benchmark/launch from docs only; docs claims match evidence; provenance recorded; packaged demo rehearsal all policies/layers/telemetry",
+   "area": "Docs + reproducibility + demo",
+   "blockers": [],
+   "current": 55,
+   "deps": [
+    "benchmark",
+    "tauri",
+    "semantic-quality",
+    "temporal"
+   ],
+   "evidence": "reports/closure/demo/*.log + docs updated",
+   "id": "docs-demo",
+   "owner_files": [
+    "docs/*",
+    "README.md",
+    "scripts/validate_sih.sh"
+   ],
+   "status": "OPEN"
+  }
+ ],
+ "objective": "100% on all 14 audit areas + 0 P0/P1 + READY verdict via independent audit",
+ "target": 100
+}
