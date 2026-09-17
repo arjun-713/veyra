@@ -2,14 +2,16 @@
 set -euo pipefail
 
 # Reproducible validation entrypoint.  --ci is the affordable deterministic
-# gate; --full additionally requires the real local SemanticPOSS archive and
-# pinned SalsaNext model and executes the four-policy benchmark.
+# gate; --full additionally requires the real local SemanticPOSS archive, a
+# dataset-compatible semantic configuration that passes its quality gate, and
+# then executes the four-policy benchmark.
 
 script_dir="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd -P)"
 repo_dir="$(cd -- "${script_dir}/.." && pwd -P)"
 mode="ci"
 build_dir="${VEYRA_SIH_BUILD_DIR:-${TMPDIR:-/tmp}/veyra-sih-validation-build}"
 python_bin="${VEYRA_PYTHON:-${repo_dir}/.venv/bin/python}"
+perception_config="${VEYRA_SIH_PERCEPTION_CONFIG:-configs/perception-salsanext.yaml}"
 
 usage() {
   cat <<'EOF'
@@ -18,7 +20,8 @@ Usage: scripts/validate_sih.sh [--ci|--full]
   --ci    Run strict C++, Python, benchmark-contract, and desktop checks.
           Real dataset execution is explicitly not requested in this mode.
   --full  Run --ci checks plus the official local SemanticPOSS archive through
-          Patchwork++, SalsaNext, terrain, and all four map policies.
+          a dataset-compatible semantic backend, Patchwork++, terrain, and all
+          four map policies. The perception quality gate must pass first.
 
 Environment:
   VEYRA_SIH_BUILD_DIR  CMake build directory
@@ -27,6 +30,13 @@ Environment:
   VEYRA_SIH_WARMUP_FRAMES
                        Full-mode warmup frames (default: 10; reduced to
                        one fewer than VEYRA_SIH_FRAMES when necessary)
+  VEYRA_SIH_PERCEPTION_CONFIG
+                       Dataset-compatible perception config. Defaults to the
+                       checked-in SalsaNext config, which intentionally fails
+                       for SemanticPOSS because its model is SemanticKITTI-only.
+  VEYRA_SIH_QUALITY_FRAMES
+                       Perception-quality frames evaluated before map work
+                       (default: min(16, VEYRA_SIH_FRAMES)).
 EOF
 }
 
@@ -61,6 +71,37 @@ if [[ ! -x "$python_bin" ]]; then
 fi
 
 cd "$repo_dir"
+
+if [[ "$mode" == "full" ]]; then
+  dataset_root="${repo_dir}/data/raw/semanticposs/dataset"
+  if [[ ! -d "$dataset_root/sequences/00" ]]; then
+    echo "REAL DATA: UNAVAILABLE — official SemanticPOSS sequence 00 missing: $dataset_root" >&2
+    exit 2
+  fi
+  if [[ ! -f "$repo_dir/$perception_config" ]]; then
+    echo "PERCEPTION CONFIG: UNAVAILABLE — $perception_config" >&2
+    exit 2
+  fi
+  quality_frames="${VEYRA_SIH_QUALITY_FRAMES:-16}"
+  if ! [[ "$quality_frames" =~ ^[1-9][0-9]*$ ]]; then
+    echo "VEYRA_SIH_QUALITY_FRAMES must be a positive integer: $quality_frames" >&2
+    exit 2
+  fi
+  if ((quality_frames > frames)); then
+    quality_frames="$frames"
+  fi
+  output_dir="${VEYRA_SIH_OUTPUT_DIR:-${TMPDIR:-/tmp}/veyra-sih-full-results}"
+  perception_output="$output_dir/perception-validation.json"
+
+  # Do this before any C++ build or policy benchmark. A completed inference
+  # process is not a successful SIH perception result: the provider must be
+  # compatible with SemanticPOSS and satisfy its configured quality floors.
+  "$python_bin" -m scripts.validate_perception \
+    --dataset semanticposs --root "$dataset_root" --sequence 00 \
+    --count "$quality_frames" --config "$repo_dir/$perception_config" \
+    --output "$perception_output"
+fi
+
 echo "SIH26053 VALIDATION ($mode)"
 "$python_bin" scripts/validate_submission_closure.py reports/submission_closure.json
 
@@ -96,25 +137,14 @@ if [[ "$mode" == "ci" ]]; then
   exit 0
 fi
 
-dataset_root="${repo_dir}/data/raw/semanticposs/dataset"
-model_path="${repo_dir}/data/cache/models/salsanext-onnx-float/salsanext.onnx"
-if [[ ! -d "$dataset_root/sequences/00" ]]; then
-  echo "REAL DATA: UNAVAILABLE — official SemanticPOSS sequence 00 missing: $dataset_root" >&2
-  exit 2
-fi
-if [[ ! -s "$model_path" ]]; then
-  echo "REAL MODEL: UNAVAILABLE — pinned SalsaNext model missing: $model_path" >&2
-  exit 2
-fi
-
-output_dir="${VEYRA_SIH_OUTPUT_DIR:-${TMPDIR:-/tmp}/veyra-sih-full-results}"
 benchmarks/run_local.sh \
   --python "$python_bin" \
   --dataset semanticposs --sequence 00 --count "$frames" --warmup-frames "$warmup_frames" \
   --repetitions "${VEYRA_SIH_REPETITIONS:-1}" \
   --policies uniform5,uniform40,distance_lod,utility_lod \
-  --perception-config configs/perception-salsanext.yaml \
+  --perception-config "$perception_config" \
+  --perception-output "$perception_output" \
   --build-dir "$build_dir" --output-dir "$output_dir" --skip-build
 
-echo "REAL DATA: PASS — SemanticPOSS sequence 00, $frames frames"
+echo "REAL DATA: PASS — SemanticPOSS sequence 00, $frames map frames; $quality_frames perception-quality frames"
 echo "FULL SIH VALIDATION: PASS"

@@ -116,6 +116,18 @@ class ProductBenchmarkTests(unittest.TestCase):
         self.assertIn("validate_submission_closure.py", content)
         self.assertNotIn("|| true", content)
 
+    def test_full_sih_validation_requires_real_perception_evidence_first(self):
+        repo = Path(__file__).resolve().parents[1]
+        content = (repo / "scripts/validate_sih.sh").read_text()
+        perception_validation = content.index("-m scripts.validate_perception")
+        cpp_configuration = content.index("cmake -S . -B")
+        benchmark = content.index("benchmarks/run_local.sh")
+        self.assertLess(perception_validation, cpp_configuration)
+        self.assertLess(perception_validation, benchmark)
+        self.assertIn("VEYRA_SIH_PERCEPTION_CONFIG", content)
+        self.assertIn('--perception-output "$perception_output"', content)
+        self.assertNotIn('salsanext.onnx"', content)
+
     def test_sih_validator_scales_warmup_for_short_real_data_runs(self):
         repo = Path(__file__).resolve().parents[1]
         content = (repo / "scripts/validate_sih.sh").read_text()
@@ -140,6 +152,25 @@ class ProductBenchmarkTests(unittest.TestCase):
         )
         self.assertEqual(result.returncode, 2)
         self.assertIn("VEYRA_SIH_FRAMES must be a positive integer", result.stderr)
+
+    def test_full_sih_validator_resolves_project_modules_outside_checkout(self):
+        repo = Path(__file__).resolve().parents[1]
+        with tempfile.TemporaryDirectory() as directory:
+            result = subprocess.run(
+                ["bash", str(repo / "scripts/validate_sih.sh"), "--full"],
+                cwd=directory,
+                env={
+                    **os.environ,
+                    "VEYRA_SIH_FRAMES": "1",
+                    "VEYRA_SIH_QUALITY_FRAMES": "1",
+                    "VEYRA_SIH_BUILD_DIR": str(Path(directory) / "must-not-build"),
+                },
+                capture_output=True,
+                text=True,
+                check=False,
+            )
+        self.assertNotIn("No module named 'scripts'", result.stderr)
+        self.assertIn("supports only semantickitti, not semanticposs", result.stderr)
 
     def test_benchmark_workflows_do_not_hide_failed_evidence(self):
         repo = Path(__file__).resolve().parents[1]
