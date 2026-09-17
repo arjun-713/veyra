@@ -1,0 +1,31 @@
+-- The CXX compiler identification is GNU 16.2.1
+-- Detecting CXX compiler ABI info
+-- Detecting CXX compiler ABI info - done
+-- Check for working CXX compiler: /usr/bin/c++ - skipped
+-- Detecting CXX compile features
+-- Detecting CXX compile features - done
+-- Found Python3: /usr/bin/python3.14 (found version "3.14.7") found components: Interpreter
+-- Configuring done (2.5s)
+-- Generating done (0.3s)
+-- Build files have been written to: /home/arjun/Captain/SIH/Lidar/worktrees/tauri2/build
+[  6%] Building CXX object src/metrics/CMakeFiles/veyra_metrics.dir/metrics.cpp.o
+[ 13%] Building CXX object src/policy/CMakeFiles/veyra_policy.dir/policy.cpp.o
+[ 20%] Linking CXX static library libveyra_metrics.a
+[ 20%] Built target veyra_metrics
+[ 26%] Linking CXX static library libveyra_policy.a
+[ 26%] Built target veyra_policy
+[ 33%] Building CXX object src/map/CMakeFiles/veyra_map.dir/split_merge.cpp.o
+[ 40%] Building CXX object src/map/CMakeFiles/veyra_map.dir/tile_grid.cpp.o
+[ 46%] Building CXX object src/map/CMakeFiles/veyra_map.dir/fusion.cpp.o
+[ 53%] Building CXX object src/map/CMakeFiles/veyra_map.dir/resolution_pass.cpp.o
+[ 60%] Building CXX object src/map/CMakeFiles/veyra_map.dir/map.cpp.o
+[ 66%] Building CXX object src/map/CMakeFiles/veyra_map.dir/snapshot.cpp.o
+[ 73%] Linking CXX static library libveyra_map.a
+[ 73%] Built target veyra_map
+[ 80%] Building CXX object src/runtime/CMakeFiles/veyra_runtime_engine.dir/engine.cpp.o
+[ 86%] Linking CXX static library libveyra_runtime_engine.a
+[ 86%] Built target veyra_runtime_engine
+[ 93%] Building CXX object apps/runtime/CMakeFiles/veyra_runtime.dir/main.cpp.o
+[100%] Linking CXX executable veyra_runtime
+[100%] Built target veyra_runtime
+EXIT:0

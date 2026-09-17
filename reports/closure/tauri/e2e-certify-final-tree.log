@@ -1,0 +1,15 @@
+warning: veyra@0.1.0: Tauri backend resources are unstaged: /home/arjun/Captain/SIH/Lidar/worktrees/tauri2/src-tauri/resources/backend lacks the staged manifest; bundles built from this tree cannot run backend sessions (run scripts/stage_tauri_backend.py first)
+   Compiling veyra v0.1.0 (/home/arjun/Captain/SIH/Lidar/worktrees/tauri2/src-tauri)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 5.85s
+     Running unittests src/lib.rs (src-tauri/target/debug/deps/veyra_lib-2c4ace1e86b2198c)
+
+running 1 test
+test packaged_e2e::packaged_control_plane_serves_authenticated_fast_commands ... E2E prerequisites: repo="/home/arjun/Captain/SIH/Lidar/worktrees/tauri2" mapper="/home/arjun/Captain/SIH/Lidar/worktrees/tauri2/build/apps/runtime/veyra_runtime" python="/home/arjun/Captain/SIH/Lidar/.venv/bin/python"
+E2E catalog sequences=6
+E2E drained 1 control-plane events
+E2E packaged control-plane proof complete
+ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 48 filtered out; finished in 0.96s
+
+EXIT:0

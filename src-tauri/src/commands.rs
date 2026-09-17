@@ -77,6 +77,29 @@ pub fn choose_dataset(
 }
 
 #[tauri::command]
+pub fn open_dataset(
+    dataset: String,
+    root: String,
+    sequence: Option<String>,
+    state: tauri::State<'_, Mutex<DesktopControlService>>,
+) -> Result<Value, String> {
+    if dataset.is_empty() {
+        return Err("dataset format is required".to_owned());
+    }
+    let root = validated_dataset_root(&root)?;
+    let mut args = serde_json::Map::new();
+    args.insert("dataset".to_owned(), Value::String(dataset));
+    args.insert(
+        "root".to_owned(),
+        Value::String(root.to_string_lossy().into_owned()),
+    );
+    if let Some(sequence) = sequence.filter(|value| !value.is_empty()) {
+        args.insert("sequence".to_owned(), Value::String(sequence));
+    }
+    request(&state, "open_dataset", Value::Object(args))
+}
+
+#[tauri::command]
 pub fn export_diagnostics(
     state: tauri::State<'_, Mutex<DesktopControlService>>,
 ) -> Result<Value, String> {
