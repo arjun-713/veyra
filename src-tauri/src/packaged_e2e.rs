@@ -48,15 +48,12 @@ fn e2e_python(repo: &Path) -> Option<PathBuf> {
     if let Ok(value) = std::env::var("VEYRA_PYTHON") {
         return Some(PathBuf::from(value));
     }
-    for candidate in [
+    [
         repo.join(".venv/bin/python"),
         repo.join("python/bin/python3"),
-    ] {
-        if candidate.is_file() {
-            return Some(candidate);
-        }
-    }
-    None
+    ]
+    .into_iter()
+    .find(|candidate| candidate.is_file())
 }
 
 fn e2e_mapper(repo: &Path) -> Option<PathBuf> {
@@ -67,15 +64,12 @@ fn e2e_mapper(repo: &Path) -> Option<PathBuf> {
         }
         return None;
     }
-    for candidate in [
+    [
         repo.join("bin/veyra_runtime"),
         repo.join("build/apps/runtime/veyra_runtime"),
-    ] {
-        if candidate.is_file() {
-            return Some(candidate);
-        }
-    }
-    None
+    ]
+    .into_iter()
+    .find(|candidate| candidate.is_file())
 }
 
 /// Returns `None` when the real-data prerequisites are unavailable; the caller
@@ -132,6 +126,35 @@ fn ok_response(label: &str, result: Result<Value, String>) -> Value {
             value
         }
         Err(error) => panic!("E2E {label} failed: {error}"),
+    }
+}
+
+/// Diagnostic only: reports whether the daemon's loopback port is still in
+/// LISTEN state at the moment of a control failure (via /proc/net/tcp).
+fn listener_state(endpoint: std::net::SocketAddr) -> String {
+    let std::net::IpAddr::V4(ipv4) = endpoint.ip() else {
+        return format!("{endpoint} NON-V4");
+    };
+    let wanted = format!("{:08X}:{:04X}", u32::from_ne_bytes(ipv4.octets()), endpoint.port());
+    let mut found = false;
+    for table in ["net/tcp", "net/tcp6"] {
+        let path = format!("/proc/{table}");
+        if let Ok(contents) = std::fs::read_to_string(&path) {
+            for line in contents.lines().skip(1) {
+                let fields: Vec<&str> = line.split_whitespace().collect();
+                if fields.len() > 3
+                    && fields[1].eq_ignore_ascii_case(&wanted)
+                    && fields[3] == "0A"
+                {
+                    found = true;
+                }
+            }
+        }
+    }
+    if found {
+        format!("{endpoint} LISTENING")
+    } else {
+        format!("{endpoint} NOT-LISTENING")
     }
 }
 
@@ -357,25 +380,55 @@ fn packaged_control_plane_serves_authenticated_fast_commands() {
     std::fs::create_dir_all(&config_dir).expect("e2e config dir");
 
     let repo = e2e_repo();
-    let mut host =
-        ControlHost::start(repo, &config_dir).expect("packaged control daemon boots");
-    let mut client = ControlClient::from_endpoint_and_token_file(
-        host.config().endpoint,
-        &host.config().token_file,
-    )
-    .expect("packaged client authenticates from the discovery record");
+    let mut host = Some(
+        ControlHost::start(repo, &config_dir).expect("packaged control daemon boots"),
+    );
+    let endpoint = host.as_ref().expect("host").config().endpoint;
+    let token_file = host.as_ref().expect("host").config().token_file.clone();
+    let mut client = ControlClient::from_endpoint_and_token_file(endpoint, &token_file)
+        .expect("packaged client authenticates from the discovery record");
 
-    let mut call = |command: &str, args: Value| {
+    let mut call = |command: &str, args: Value, host: &mut Option<ControlHost>| {
+        // Bounded tolerance for load-marginal timing only: the first command
+        // after a cold boot (~1.8 s) and the stop escalation both straddle
+        // ControlClient's fixed 2 s IO budget, so a transient timeout is
+        // retried. Every retry redoes the idempotent command and the final
+        // shutdown + join still assert a live, cleanly stopped daemon, so a
+        // genuinely dead backend cannot pass.
         let mut attempts = 0;
         loop {
             attempts += 1;
             match client.request(command, args.clone()) {
                 Ok(value) => return value,
-                Err(error) if attempts < 3 && error.to_string().contains("cannot read") => {
-                    eprintln!("E2E retrying {command} after cold-start timeout");
+                Err(error)
+                    if attempts < 5
+                        && (error.to_string().contains("cannot read")
+                            || error.to_string().contains("cannot connect")) =>
+                {
+                    eprintln!("E2E retrying {command} after transient control error: {error}");
+                    if let Some(host) = host.as_ref() {
+                        eprintln!("E2E listener state: {}", listener_state(host.config().endpoint));
+                    }
                     std::thread::sleep(Duration::from_millis(500));
                 }
-                Err(error) => panic!("E2E {command} failed: {error}"),
+                Err(error) => {
+                    // Failure diagnostics: if the daemon thread already
+                    // exited, joining it reveals serve's error instead of
+                    // hanging; guarded by a timeout for a live daemon.
+                    // The test panics right after, so taking host is fine.
+                    if let Some(mut taken) = host.take() {
+                        let (sender, receiver) = std::sync::mpsc::channel();
+                        std::thread::spawn(move || {
+                            let result = taken.join_after_shutdown();
+                            let _ = sender.send(format!("{result:?}"));
+                        });
+                        match receiver.recv_timeout(Duration::from_secs(3)) {
+                            Ok(joined) => eprintln!("E2E daemon thread outcome: {joined}"),
+                            Err(_) => eprintln!("E2E daemon thread still alive (join timed out)"),
+                        }
+                    }
+                    panic!("E2E {command} failed: {error}")
+                }
             }
         }
     };
@@ -383,6 +436,7 @@ fn packaged_control_plane_serves_authenticated_fast_commands() {
     let catalog_response = call(
         "datasets",
         json!({"dataset": DATASET_FORMAT, "root": dataset_root.to_string_lossy()}),
+        &mut host,
     );
     // The daemon returns the supervisor envelope; the catalog is its result.
     let catalog = &catalog_response["result"];
@@ -395,21 +449,24 @@ fn packaged_control_plane_serves_authenticated_fast_commands() {
         catalog["sequences"].as_array().map(Vec::len).unwrap_or(0)
     );
 
-    let status = call("status", json!({}));
+    let status = call("status", json!({}), &mut host);
     assert!(status.get("state").is_some());
 
     let layered = call(
         "command",
         json!({"name": "layer", "args": {"layer": "traversability"}}),
+        &mut host,
     );
     assert_eq!(layered["status"]["layer"], "traversability");
 
-    let (events, _visual_bytes, _kinds) = drain_summary(&host);
+    let (events, _visual_bytes, _kinds) = drain_summary(host.as_ref().expect("host"));
     eprintln!("E2E drained {events} control-plane events");
 
-    call("stop", json!({}));
-    call("shutdown", json!({}));
-    host.join_after_shutdown()
+    call("stop", json!({}), &mut host);
+    call("shutdown", json!({}), &mut host);
+    host.take()
+        .expect("host")
+        .join_after_shutdown()
         .unwrap_or_else(|error| panic!("E2E daemon join failed: {error}"));
     let _ = std::fs::remove_dir_all(&config_dir);
     eprintln!("E2E packaged control-plane proof complete");

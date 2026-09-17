@@ -227,6 +227,14 @@ impl RuntimeSupervisor {
                 self.record_error(error.to_string());
             }
         }
+        // Close stdin once the shutdown round-trip is done: the runtime
+        // acknowledges shutdown but its main thread stays blocked reading
+        // stdin, so without EOF it lingers until the SIGKILL escalation
+        // below (every stop took the full 2 s deadline). EOF lets it exit
+        // promptly and run its session teardown instead of being killed.
+        if let Ok(mut shared) = self.shared.lock() {
+            shared.stdin.take();
+        }
         let deadline = Instant::now() + Duration::from_secs(2);
         while Instant::now() < deadline && self.is_running() {
             thread::sleep(Duration::from_millis(25));
@@ -237,6 +245,27 @@ impl RuntimeSupervisor {
                 if let Some(child) = shared.child.as_mut() {
                     let _ = child.kill();
                 }
+            }
+            // Reap synchronously so a subsequent start() can never observe
+            // the killed child: without this, start() sees child.is_some(),
+            // returns Ok, and the next request is written into a dead stdin
+            // pipe (hanging up to the 120 s supervisor budget while the
+            // monitor has not reaped yet). The monitor reaps identically;
+            // whichever reaps first wins and the outcome is the same.
+            let reap = Instant::now() + Duration::from_secs(2);
+            while self.is_running() && Instant::now() < reap {
+                if let Ok(mut shared) = self.shared.lock() {
+                    let reaped = shared
+                        .child
+                        .as_mut()
+                        .and_then(|child| child.try_wait().ok().flatten())
+                        .is_some();
+                    if reaped {
+                        shared.child = None;
+                        shared.stdin = None;
+                    }
+                }
+                thread::sleep(Duration::from_millis(10));
             }
         }
         Ok(())
