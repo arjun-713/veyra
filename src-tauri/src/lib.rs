@@ -81,4 +81,27 @@ mod tests {
         assert_eq!(state.status().state, RuntimeState::Booting);
         assert_eq!(state.play().unwrap_err(), StateError::DatasetRequired);
     }
+
+    #[test]
+    fn renderer_filesystem_capability_has_no_broad_user_directory_scope() {
+        let capability = include_str!("../capabilities/default.json");
+
+        for broad_scope in [
+            "$HOME/**",
+            "$DOCUMENT/**",
+            "$DOWNLOAD/**",
+            "$DESKTOP/**",
+            "$APPDATA/**",
+            "$APPCONFIG/**",
+        ] {
+            assert!(
+                !capability.contains(broad_scope),
+                "renderer capability must not grant recursive access to {broad_scope}"
+            );
+        }
+        assert!(capability.contains("dialog:default"));
+        assert!(capability.contains("fs:allow-read-text-file"));
+        assert!(capability.contains("fs:allow-write-text-file"));
+        assert!(capability.contains("fs:allow-write-file"));
+    }
 }
