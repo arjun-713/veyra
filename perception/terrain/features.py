@@ -6,7 +6,6 @@ from dataclasses import dataclass
 from typing import Any
 
 import numpy as np
-from scipy.ndimage import convolve
 
 
 @dataclass(frozen=True)
@@ -14,9 +13,10 @@ class TerrainEvidence:
     """Per-point terrain evidence aligned with the input point array.
 
     ``slope`` is in radians, ``roughness`` is RMS plane residual in metres,
-    ``height_complexity`` is a bounded local height-complexity score, and
-    ``step`` is the largest local height discontinuity in metres.  A point
-    is ``unknown`` when there is not enough trusted ground support.
+    ``height_complexity`` is ``tanh`` of the local height standard deviation
+    (bounded in [0, 1) and invariant to absolute elevation), and ``step`` is
+    the largest local height discontinuity in metres.  A point is ``unknown``
+    when there is not enough trusted ground support.
     """
 
     slope: np.ndarray
@@ -128,20 +128,29 @@ class TerrainAnalyzer:
 
         def aggregate(values: np.ndarray) -> np.ndarray:
             return np.bincount(
-                flat_cells, weights=values * support_mask, minlength=flat_size
+                flat_cells, weights=values, minlength=flat_size
             ).reshape(height, width)
 
-        counts = aggregate(np.ones(count, dtype=np.float64))
-        sums = [aggregate(xyz[:, axis]) for axis in range(3)]
-        second_moments = [
-            aggregate(xyz[:, 0] * xyz[:, 0]),
-            aggregate(xyz[:, 0] * xyz[:, 1]),
-            aggregate(xyz[:, 1] * xyz[:, 1]),
-            aggregate(xyz[:, 0] * xyz[:, 2]),
-            aggregate(xyz[:, 1] * xyz[:, 2]),
-            aggregate(xyz[:, 2] * xyz[:, 2]),
-        ]
-        confidence_sum = aggregate(confidence)
+        scaled = np.stack(
+            (
+                np.ones(count, dtype=np.float64),
+                xyz[:, 0],
+                xyz[:, 1],
+                xyz[:, 2],
+                xyz[:, 0] * xyz[:, 0],
+                xyz[:, 0] * xyz[:, 1],
+                xyz[:, 1] * xyz[:, 1],
+                xyz[:, 0] * xyz[:, 2],
+                xyz[:, 1] * xyz[:, 2],
+                xyz[:, 2] * xyz[:, 2],
+                confidence,
+            )
+        )
+        scaled *= support_mask
+        counts = aggregate(scaled[0])
+        sums = [aggregate(scaled[axis + 1]) for axis in range(3)]
+        second_moments = [aggregate(scaled[index]) for index in range(4, 10)]
+        confidence_sum = aggregate(scaled[10])
         ground_z = xyz[:, 2].copy()
         ground_z[~mask] = np.inf
         ground_min = np.full(flat_size, np.inf, dtype=np.float64)
@@ -153,12 +162,31 @@ class TerrainAnalyzer:
         ground_max = ground_max.reshape(height, width)
 
         radius_cells = int(np.ceil(self.neighborhood_radius / cell_size))
-        kernel_width = 2 * radius_cells + 1
-        kernel = np.ones((kernel_width, kernel_width), dtype=np.float64)
-        local = [
-            convolve(values, kernel, mode="constant")
-            for values in (*sums, *second_moments, counts, confidence_sum)
-        ]
+        # Exact zero-padded box sums via one stacked integral image.  This is
+        # O(K*H*W) for K aggregated fields instead of K scipy convolutions at
+        # O(K*H*W*k^2), which dominated full LiDAR scans.
+        stacked = np.stack(
+            (*sums, *second_moments, counts, confidence_sum), axis=0
+        )
+        extent = 2 * radius_cells + 1
+        integral = np.zeros(
+            (stacked.shape[0], height + extent, width + extent), dtype=np.float64
+        )
+        # Place the unpadded raster directly with a zero border of
+        # radius_cells instead of materializing a padded copy first.
+        integral[
+            :,
+            1 + radius_cells : 1 + radius_cells + height,
+            1 + radius_cells : 1 + radius_cells + width,
+        ] = stacked
+        np.cumsum(integral, axis=1, out=integral)
+        np.cumsum(integral, axis=2, out=integral)
+        local = (
+            integral[:, extent:, extent:]
+            - integral[:, :-extent, extent:]
+            - integral[:, extent:, :-extent]
+            + integral[:, :-extent, :-extent]
+        )
         sx, sy, sz, sxx, sxy, syy, sxz, syz, szz, local_count, local_confidence = local
         enough = local_count >= self.min_ground_neighbors
         with np.errstate(divide="ignore", invalid="ignore"):
@@ -188,7 +216,13 @@ class TerrainAnalyzer:
             residual_sum = czz - gradient_x * cxz - gradient_y * cyz
             roughness_grid = np.sqrt(np.maximum(residual_sum / local_count, 0.0))
             slope_grid = np.arctan(np.hypot(gradient_x, gradient_y))
-            complexity_grid = np.tanh(np.sqrt(np.maximum(szz / local_count, 0.0)))
+            # Height spread is the local height standard deviation through a
+            # bounded tanh map.  It must use the centered variance (czz), not
+            # the raw second moment (szz): the latter grows with absolute
+            # elevation and would mark flat but elevated ground as complex.
+            complexity_grid = np.tanh(
+                np.sqrt(np.maximum(czz / local_count, 0.0))
+            )
             confidence_grid = np.divide(
                 local_confidence,
                 local_count,
@@ -198,17 +232,31 @@ class TerrainAnalyzer:
 
         # A discontinuity is represented by adjacent raster-cell height
         # changes, while the in-cell range retains isolated curb/return
-        # hazards that averaging alone would hide.
+        # hazards that averaging alone would hide.  Only supported cells
+        # participate: empty cells hold a zero fill value, and comparing real
+        # heights against that fill would fabricate metre-scale phantom steps
+        # at the edge of ground support.
         cell_mean_z = np.divide(
             sums[2], counts, where=counts > 0, out=np.zeros_like(counts)
         )
+        has_support = counts > 0
         neighbor_step = np.zeros_like(cell_mean_z)
-        for axis, direction in ((0, 1), (0, -1), (1, 1), (1, -1)):
-            shifted = np.roll(cell_mean_z, direction, axis=axis)
-            boundary = [slice(None), slice(None)]
-            boundary[axis] = 0 if direction > 0 else -1
-            shifted[tuple(boundary)] = cell_mean_z[tuple(boundary)]
-            neighbor_step = np.maximum(neighbor_step, np.abs(cell_mean_z - shifted))
+        vertical_pairs = has_support[1:, :] & has_support[:-1, :]
+        vertical = np.where(
+            vertical_pairs,
+            np.abs(cell_mean_z[1:, :] - cell_mean_z[:-1, :]),
+            0.0,
+        )
+        np.maximum(neighbor_step[1:, :], vertical, out=neighbor_step[1:, :])
+        np.maximum(neighbor_step[:-1, :], vertical, out=neighbor_step[:-1, :])
+        horizontal_pairs = has_support[:, 1:] & has_support[:, :-1]
+        horizontal = np.where(
+            horizontal_pairs,
+            np.abs(cell_mean_z[:, 1:] - cell_mean_z[:, :-1]),
+            0.0,
+        )
+        np.maximum(neighbor_step[:, 1:], horizontal, out=neighbor_step[:, 1:])
+        np.maximum(neighbor_step[:, :-1], horizontal, out=neighbor_step[:, :-1])
         cell_range = np.where(
             counts > 0,
             np.maximum(0.0, ground_max - ground_min),

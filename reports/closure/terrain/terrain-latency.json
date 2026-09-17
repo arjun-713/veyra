@@ -1,0 +1,839 @@
+{
+  "semanticposs-00-0-10": {
+    "baseline": {
+      "timings": {
+        "sensor_transform": {
+          "p50_ms": 6.0380880004231585,
+          "p95_ms": 52.61931595105118,
+          "p99_ms": 78.02377759177035,
+          "mean_ms": 14.051595200362499,
+          "max_ms": 84.37489300195011,
+          "samples": 10
+        },
+        "semantic": {
+          "p50_ms": 0.7740755008853739,
+          "p95_ms": 8.059791947380287,
+          "p99_ms": 9.557301586683025,
+          "mean_ms": 2.1645432996592717,
+          "max_ms": 9.931678996508708,
+          "samples": 10
+        },
+        "ground": {
+          "p50_ms": 34.16607049985032,
+          "p95_ms": 98.84945205176331,
+          "p99_ms": 116.91158481302409,
+          "mean_ms": 47.67959040000278,
+          "max_ms": 121.42711800333927,
+          "samples": 10
+        },
+        "terrain": {
+          "p50_ms": 135.61042249966704,
+          "p95_ms": 369.1284617003472,
+          "p99_ms": 490.7964715396884,
+          "mean_ms": 171.5251931000239,
+          "max_ms": 521.2134739995236,
+          "samples": 10
+        },
+        "temporal": {
+          "p50_ms": 0.001239000994246453,
+          "p95_ms": 0.0024458007828798136,
+          "p99_ms": 0.002703560021473095,
+          "mean_ms": 0.0013542008673539385,
+          "max_ms": 0.002767999831121415,
+          "samples": 10
+        },
+        "total": {
+          "p50_ms": 206.20733149917214,
+          "p95_ms": 533.1279553020062,
+          "p99_ms": 714.0537982622847,
+          "mean_ms": 252.3899034003989,
+          "max_ms": 759.285259002354,
+          "samples": 10
+        },
+        "load": {
+          "p50_ms": 93.74590700099361,
+          "p95_ms": 221.97501590071622,
+          "p99_ms": 230.76437198080384,
+          "mean_ms": 120.2464919002523,
+          "max_ms": 232.96171100082574,
+          "samples": 10
+        },
+        "bridge_encode": {
+          "p50_ms": 2173.326524498407,
+          "p95_ms": 3103.0423219990553,
+          "p99_ms": 3103.1981083984647,
+          "mean_ms": 2321.7013746991142,
+          "max_ms": 3103.237054998317,
+          "samples": 10
+        },
+        "end_to_end": {
+          "p50_ms": 295.5678544985858,
+          "p95_ms": 744.9674392011724,
+          "p99_ms": 923.2591614425838,
+          "mean_ms": 372.6363953006512,
+          "max_ms": 967.8320920029364,
+          "samples": 10
+        }
+      },
+      "fps": 2.6835811332738397,
+      "peak_rss_bytes": 161427456,
+      "per_frame": {
+        "000000": {
+          "sensor_transform": 7.652,
+          "semantic": 0.951,
+          "ground": 57.896,
+          "terrain": 153.173,
+          "temporal": 0.002,
+          "total": 239.616,
+          "load": 232.962,
+          "bridge_encode": 2613.23,
+          "end_to_end": 472.577
+        },
+        "000001": {
+          "sensor_transform": 5.631,
+          "semantic": 0.786,
+          "ground": 30.733,
+          "terrain": 144.186,
+          "temporal": 0.003,
+          "total": 205.793,
+          "load": 85.167,
+          "bridge_encode": 1798.354,
+          "end_to_end": 290.96
+        },
+        "000002": {
+          "sensor_transform": 3.917,
+          "semantic": 0.733,
+          "ground": 27.737,
+          "terrain": 116.795,
+          "temporal": 0.001,
+          "total": 166.464,
+          "load": 61.875,
+          "bridge_encode": 2211.192,
+          "end_to_end": 228.339
+        },
+        "000003": {
+          "sensor_transform": 13.807,
+          "semantic": 5.772,
+          "ground": 71.255,
+          "terrain": 109.717,
+          "temporal": 0.001,
+          "total": 217.049,
+          "load": 176.106,
+          "bridge_encode": 3102.804,
+          "end_to_end": 393.156
+        },
+        "000004": {
+          "sensor_transform": 84.375,
+          "semantic": 9.932,
+          "ground": 121.427,
+          "terrain": 521.213,
+          "temporal": 0.001,
+          "total": 759.285,
+          "load": 208.547,
+          "bridge_encode": 2062.444,
+          "end_to_end": 967.832
+        },
+        "000005": {
+          "sensor_transform": 3.294,
+          "semantic": 0.596,
+          "ground": 25.481,
+          "terrain": 129.7,
+          "temporal": 0.001,
+          "total": 167.473,
+          "load": 47.018,
+          "bridge_encode": 1872.581,
+          "end_to_end": 214.492
+        },
+        "000006": {
+          "sensor_transform": 3.625,
+          "semantic": 0.682,
+          "ground": 25.514,
+          "terrain": 109.025,
+          "temporal": 0.001,
+          "total": 153.48,
+          "load": 140.522,
+          "bridge_encode": 2232.298,
+          "end_to_end": 294.001
+        },
+        "000007": {
+          "sensor_transform": 3.982,
+          "semantic": 0.617,
+          "ground": 27.381,
+          "terrain": 106.675,
+          "temporal": 0.001,
+          "total": 151.404,
+          "load": 62.777,
+          "bridge_encode": 2085.411,
+          "end_to_end": 214.181
+        },
+        "000008": {
+          "sensor_transform": 6.445,
+          "semantic": 0.762,
+          "ground": 51.773,
+          "terrain": 183.247,
+          "temporal": 0.001,
+          "total": 256.713,
+          "load": 96.979,
+          "bridge_encode": 3103.237,
+          "end_to_end": 353.692
+        },
+        "000009": {
+          "sensor_transform": 7.787,
+          "semantic": 0.814,
+          "ground": 37.599,
+          "terrain": 141.521,
+          "temporal": 0.001,
+          "total": 206.622,
+          "load": 90.513,
+          "bridge_encode": 2135.461,
+          "end_to_end": 297.135
+        }
+      },
+      "points": [
+        66021,
+        66049,
+        66035,
+        65970,
+        65978,
+        65930,
+        65963,
+        65989,
+        65886,
+        65916
+      ]
+    },
+    "after": {
+      "timings": {
+        "sensor_transform": {
+          "p50_ms": 4.760286499731592,
+          "p95_ms": 18.48735305065929,
+          "p99_ms": 20.02601860986033,
+          "mean_ms": 7.613634899826138,
+          "max_ms": 20.41068499966059,
+          "samples": 10
+        },
+        "semantic": {
+          "p50_ms": 0.7624570007465081,
+          "p95_ms": 2.5553337498422453,
+          "p99_ms": 3.4348371501982915,
+          "mean_ms": 1.0720865000621416,
+          "max_ms": 3.654713000287302,
+          "samples": 10
+        },
+        "ground": {
+          "p50_ms": 31.82523849864083,
+          "p95_ms": 74.5269774508415,
+          "p99_ms": 78.92030189144862,
+          "mean_ms": 40.241171199886594,
+          "max_ms": 80.01863300160039,
+          "samples": 10
+        },
+        "terrain": {
+          "p50_ms": 149.89659900129482,
+          "p95_ms": 256.5388750997953,
+          "p99_ms": 301.4031630192767,
+          "mean_ms": 157.7853724003944,
+          "max_ms": 312.619234999147,
+          "samples": 10
+        },
+        "temporal": {
+          "p50_ms": 0.00126000122691039,
+          "p95_ms": 0.004268349584890528,
+          "p99_ms": 0.004728070780402049,
+          "mean_ms": 0.001899400376714766,
+          "max_ms": 0.004843001079279929,
+          "samples": 10
+        },
+        "total": {
+          "p50_ms": 223.21575449859665,
+          "p95_ms": 343.20272874938377,
+          "p99_ms": 369.28676815012295,
+          "mean_ms": 229.51683899991622,
+          "max_ms": 375.80777800030774,
+          "samples": 10
+        },
+        "load": {
+          "p50_ms": 71.70891399982793,
+          "p95_ms": 242.72358829966828,
+          "p99_ms": 263.8384976611633,
+          "mean_ms": 103.55518100004701,
+          "max_ms": 269.117225001537,
+          "samples": 10
+        },
+        "bridge_encode": {
+          "p50_ms": 2256.4506764992984,
+          "p95_ms": 2963.4927629500453,
+          "p99_ms": 2985.9076405900123,
+          "mean_ms": 2282.3310471001605,
+          "max_ms": 2991.511360000004,
+          "samples": 10
+        },
+        "end_to_end": {
+          "p50_ms": 311.72515800062683,
+          "p95_ms": 529.6537801992598,
+          "p99_ms": 563.9062264396853,
+          "mean_ms": 333.07201999996323,
+          "max_ms": 572.4693379997916,
+          "samples": 10
+        }
+      },
+      "fps": 3.002353665132575,
+      "peak_rss_bytes": 152506368,
+      "per_frame": {
+        "000000": {
+          "sensor_transform": 4.822,
+          "semantic": 0.78,
+          "ground": 35.633,
+          "terrain": 187.996,
+          "temporal": 0.003,
+          "total": 266.859,
+          "load": 210.465,
+          "bridge_encode": 2279.858,
+          "end_to_end": 477.324
+        },
+        "000001": {
+          "sensor_transform": 20.411,
+          "semantic": 0.843,
+          "ground": 80.019,
+          "terrain": 170.13,
+          "temporal": 0.005,
+          "total": 303.352,
+          "load": 269.117,
+          "bridge_encode": 2991.511,
+          "end_to_end": 572.469
+        },
+        "000002": {
+          "sensor_transform": 4.699,
+          "semantic": 0.745,
+          "ground": 38.279,
+          "terrain": 312.619,
+          "temporal": 0.001,
+          "total": 375.808,
+          "load": 70.44,
+          "bridge_encode": 2929.248,
+          "end_to_end": 446.248
+        },
+        "000003": {
+          "sensor_transform": 10.932,
+          "semantic": 3.655,
+          "ground": 67.815,
+          "terrain": 142.696,
+          "temporal": 0.004,
+          "total": 256.366,
+          "load": 156.12,
+          "bridge_encode": 2504.221,
+          "end_to_end": 412.486
+        },
+        "000004": {
+          "sensor_transform": 16.137,
+          "semantic": 1.212,
+          "ground": 45.567,
+          "terrain": 118.443,
+          "temporal": 0.001,
+          "total": 204.247,
+          "load": 106.949,
+          "bridge_encode": 1903.81,
+          "end_to_end": 311.196
+        },
+        "000005": {
+          "sensor_transform": 3.67,
+          "semantic": 0.986,
+          "ground": 27.593,
+          "terrain": 94.739,
+          "temporal": 0.001,
+          "total": 142.402,
+          "load": 34.549,
+          "bridge_encode": 1558.121,
+          "end_to_end": 176.95
+        },
+        "000006": {
+          "sensor_transform": 4.902,
+          "semantic": 0.626,
+          "ground": 28.018,
+          "terrain": 185.955,
+          "temporal": 0.001,
+          "total": 239.276,
+          "load": 72.978,
+          "bridge_encode": 2058.88,
+          "end_to_end": 312.254
+        },
+        "000007": {
+          "sensor_transform": 4.108,
+          "semantic": 0.658,
+          "ground": 27.792,
+          "terrain": 117.132,
+          "temporal": 0.001,
+          "total": 162.837,
+          "load": 31.05,
+          "bridge_encode": 1950.808,
+          "end_to_end": 193.887
+        },
+        "000008": {
+          "sensor_transform": 3.298,
+          "semantic": 0.624,
+          "ground": 25.638,
+          "terrain": 91.046,
+          "temporal": 0.001,
+          "total": 136.867,
+          "load": 34.904,
+          "bridge_encode": 2233.043,
+          "end_to_end": 171.771
+        },
+        "000009": {
+          "sensor_transform": 3.159,
+          "semantic": 0.592,
+          "ground": 26.059,
+          "terrain": 157.097,
+          "temporal": 0.001,
+          "total": 207.155,
+          "load": 48.979,
+          "bridge_encode": 2413.811,
+          "end_to_end": 256.134
+        }
+      },
+      "points": [
+        66021,
+        66049,
+        66035,
+        65970,
+        65978,
+        65930,
+        65963,
+        65989,
+        65886,
+        65916
+      ]
+    }
+  },
+  "rellis-00000-0-10": {
+    "baseline": {
+      "timings": {
+        "sensor_transform": {
+          "p50_ms": 0.015404999430757016,
+          "p95_ms": 0.05897780065424739,
+          "p99_ms": 0.06296516105066985,
+          "mean_ms": 0.023932300246087834,
+          "max_ms": 0.06396200114977546,
+          "samples": 10
+        },
+        "semantic": {
+          "p50_ms": 0.8462585010420298,
+          "p95_ms": 2.9464468983860552,
+          "p99_ms": 3.5624421786269527,
+          "mean_ms": 1.2636852996365633,
+          "max_ms": 3.716440998687176,
+          "samples": 10
+        },
+        "ground": {
+          "p50_ms": 22.308469999188674,
+          "p95_ms": 38.798139399659696,
+          "p99_ms": 40.679948680553935,
+          "mean_ms": 24.134105700431974,
+          "max_ms": 41.15040100077749,
+          "samples": 10
+        },
+        "terrain": {
+          "p50_ms": 130.80603050002537,
+          "p95_ms": 177.78297009954258,
+          "p99_ms": 180.41862441987178,
+          "mean_ms": 129.10478920020978,
+          "max_ms": 181.07753799995407,
+          "samples": 10
+        },
+        "temporal": {
+          "p50_ms": 0.0013139997463440523,
+          "p95_ms": 0.0037128482290427187,
+          "p99_ms": 0.004111367125005927,
+          "mean_ms": 0.0018506998458178714,
+          "max_ms": 0.004210996848996729,
+          "samples": 10
+        },
+        "total": {
+          "p50_ms": 177.3128495005949,
+          "p95_ms": 222.0781470985457,
+          "p99_ms": 228.0967430185774,
+          "mean_ms": 166.91531159995066,
+          "max_ms": 229.6013919985853,
+          "samples": 10
+        },
+        "load": {
+          "p50_ms": 64.59094500132778,
+          "p95_ms": 279.4157227488538,
+          "p99_ms": 346.86443894785043,
+          "mean_ms": 116.44625980006822,
+          "max_ms": 363.72661799759953,
+          "samples": 10
+        },
+        "bridge_encode": {
+          "p50_ms": 1630.0529735017335,
+          "p95_ms": 2121.0902748007356,
+          "p99_ms": 2182.3880205603928,
+          "mean_ms": 1625.2555036007834,
+          "max_ms": 2197.712457000307,
+          "samples": 10
+        },
+        "end_to_end": {
+          "p50_ms": 256.9736080004077,
+          "p95_ms": 463.0464328491142,
+          "p99_ms": 525.994775368199,
+          "mean_ms": 283.3615714000189,
+          "max_ms": 541.7318609979702,
+          "samples": 10
+        }
+      },
+      "fps": 3.52906004529566,
+      "peak_rss_bytes": 131821568,
+      "per_frame": {
+        "000000": {
+          "sensor_transform": 0.014,
+          "semantic": 0.89,
+          "ground": 25.712,
+          "terrain": 137.406,
+          "temporal": 0.003,
+          "total": 178.005,
+          "load": 363.727,
+          "bridge_encode": 2027.441,
+          "end_to_end": 541.732
+        },
+        "000001": {
+          "sensor_transform": 0.016,
+          "semantic": 2.005,
+          "ground": 23.435,
+          "terrain": 173.756,
+          "temporal": 0.002,
+          "total": 212.883,
+          "load": 153.992,
+          "bridge_encode": 1669.523,
+          "end_to_end": 366.875
+        },
+        "000002": {
+          "sensor_transform": 0.018,
+          "semantic": 0.798,
+          "ground": 21.182,
+          "terrain": 138.5,
+          "temporal": 0.001,
+          "total": 176.62,
+          "load": 50.717,
+          "bridge_encode": 1655.398,
+          "end_to_end": 227.338
+        },
+        "000003": {
+          "sensor_transform": 0.014,
+          "semantic": 0.802,
+          "ground": 19.826,
+          "terrain": 103.238,
+          "temporal": 0.001,
+          "total": 133.462,
+          "load": 153.148,
+          "bridge_encode": 1155.637,
+          "end_to_end": 286.609
+        },
+        "000004": {
+          "sensor_transform": 0.025,
+          "semantic": 0.645,
+          "ground": 16.427,
+          "terrain": 90.057,
+          "temporal": 0.001,
+          "total": 117.809,
+          "load": 37.557,
+          "bridge_encode": 979.808,
+          "end_to_end": 155.366
+        },
+        "000005": {
+          "sensor_transform": 0.009,
+          "semantic": 0.443,
+          "ground": 11.243,
+          "terrain": 79.474,
+          "temporal": 0.002,
+          "total": 101.171,
+          "load": 64.539,
+          "bridge_encode": 2197.712,
+          "end_to_end": 165.71
+        },
+        "000006": {
+          "sensor_transform": 0.064,
+          "semantic": 1.606,
+          "ground": 26.123,
+          "terrain": 181.078,
+          "temporal": 0.004,
+          "total": 229.601,
+          "load": 59.351,
+          "bridge_encode": 1604.708,
+          "end_to_end": 288.952
+        },
+        "000007": {
+          "sensor_transform": 0.053,
+          "semantic": 3.716,
+          "ground": 35.923,
+          "terrain": 129.524,
+          "temporal": 0.001,
+          "total": 180.161,
+          "load": 176.369,
+          "bridge_encode": 1456.115,
+          "end_to_end": 356.531
+        },
+        "000008": {
+          "sensor_transform": 0.011,
+          "semantic": 0.79,
+          "ground": 20.319,
+          "terrain": 125.926,
+          "temporal": 0.001,
+          "total": 157.27,
+          "load": 64.643,
+          "bridge_encode": 1570.881,
+          "end_to_end": 221.913
+        },
+        "000009": {
+          "sensor_transform": 0.015,
+          "semantic": 0.941,
+          "ground": 41.15,
+          "terrain": 132.088,
+          "temporal": 0.001,
+          "total": 182.17,
+          "load": 40.42,
+          "bridge_encode": 1935.332,
+          "end_to_end": 222.59
+        }
+      },
+      "points": [
+        36279,
+        36368,
+        36384,
+        36314,
+        36393,
+        36372,
+        36357,
+        36347,
+        36389,
+        36300
+      ]
+    },
+    "after": {
+      "timings": {
+        "sensor_transform": {
+          "p50_ms": 0.009471499652136117,
+          "p95_ms": 0.012901398622489065,
+          "p99_ms": 0.014085079201322515,
+          "mean_ms": 0.009355200018035248,
+          "max_ms": 0.014380999346030876,
+          "samples": 10
+        },
+        "semantic": {
+          "p50_ms": 0.6152164987724973,
+          "p95_ms": 0.7375128498097182,
+          "p99_ms": 0.7757689691061387,
+          "mean_ms": 0.5963689000054728,
+          "max_ms": 0.7853329989302438,
+          "samples": 10
+        },
+        "ground": {
+          "p50_ms": 15.697198501584353,
+          "p95_ms": 18.556804200852635,
+          "p99_ms": 19.672172040955047,
+          "mean_ms": 15.357393600424984,
+          "max_ms": 19.95101400098065,
+          "samples": 10
+        },
+        "terrain": {
+          "p50_ms": 77.66702899971278,
+          "p95_ms": 94.33930809973388,
+          "p99_ms": 98.67391041843803,
+          "mean_ms": 77.25312999973539,
+          "max_ms": 99.75756099811406,
+          "samples": 10
+        },
+        "temporal": {
+          "p50_ms": 0.0011655010894173756,
+          "p95_ms": 0.0019977493138867426,
+          "p99_ms": 0.0021219494738033973,
+          "mean_ms": 0.0013076998584438115,
+          "max_ms": 0.002152999513782561,
+          "samples": 10
+        },
+        "total": {
+          "p50_ms": 105.5770080001821,
+          "p95_ms": 121.3242320991412,
+          "p99_ms": 129.7520992178761,
+          "mean_ms": 102.61644759957562,
+          "max_ms": 131.8590659975598,
+          "samples": 10
+        },
+        "load": {
+          "p50_ms": 24.686305499926675,
+          "p95_ms": 141.95807389987726,
+          "p99_ms": 211.76555078083769,
+          "mean_ms": 45.519331099421834,
+          "max_ms": 229.2174200010777,
+          "samples": 10
+        },
+        "bridge_encode": {
+          "p50_ms": 939.2706540002109,
+          "p95_ms": 1202.068083649101,
+          "p99_ms": 1220.3090687294389,
+          "mean_ms": 979.8368548992585,
+          "max_ms": 1224.8693149995233,
+          "samples": 10
+        },
+        "end_to_end": {
+          "p50_ms": 129.97885549884813,
+          "p95_ms": 262.1621830983711,
+          "p99_ms": 341.2936254185843,
+          "mean_ms": 148.13577869899746,
+          "max_ms": 361.0764859986375,
+          "samples": 10
+        }
+      },
+      "fps": 6.7505636300865355,
+      "peak_rss_bytes": 118841344,
+      "per_frame": {
+        "000000": {
+          "sensor_transform": 0.011,
+          "semantic": 0.63,
+          "ground": 19.951,
+          "terrain": 99.758,
+          "temporal": 0.001,
+          "total": 131.859,
+          "load": 229.217,
+          "bridge_encode": 1054.582,
+          "end_to_end": 361.076
+        },
+        "000001": {
+          "sensor_transform": 0.014,
+          "semantic": 0.639,
+          "ground": 15.683,
+          "terrain": 78.225,
+          "temporal": 0.002,
+          "total": 105.959,
+          "load": 35.308,
+          "bridge_encode": 1224.869,
+          "end_to_end": 141.267
+        },
+        "000002": {
+          "sensor_transform": 0.01,
+          "semantic": 0.785,
+          "ground": 16.73,
+          "terrain": 77.109,
+          "temporal": 0.001,
+          "total": 105.469,
+          "load": 25.538,
+          "bridge_encode": 1163.666,
+          "end_to_end": 131.006
+        },
+        "000003": {
+          "sensor_transform": 0.011,
+          "semantic": 0.679,
+          "ground": 16.853,
+          "terrain": 82.552,
+          "temporal": 0.002,
+          "total": 108.448,
+          "load": 31.635,
+          "bridge_encode": 929.212,
+          "end_to_end": 140.083
+        },
+        "000004": {
+          "sensor_transform": 0.007,
+          "semantic": 0.415,
+          "ground": 10.799,
+          "terrain": 53.937,
+          "temporal": 0.001,
+          "total": 72.298,
+          "load": 18.944,
+          "bridge_encode": 673.798,
+          "end_to_end": 91.242
+        },
+        "000005": {
+          "sensor_transform": 0.006,
+          "semantic": 0.438,
+          "ground": 10.722,
+          "terrain": 87.717,
+          "temporal": 0.001,
+          "total": 105.685,
+          "load": 20.027,
+          "bridge_encode": 949.33,
+          "end_to_end": 125.713
+        },
+        "000006": {
+          "sensor_transform": 0.008,
+          "semantic": 0.569,
+          "ground": 16.811,
+          "terrain": 81.117,
+          "temporal": 0.002,
+          "total": 106.833,
+          "load": 24.907,
+          "bridge_encode": 893.5,
+          "end_to_end": 131.74
+        },
+        "000007": {
+          "sensor_transform": 0.007,
+          "semantic": 0.578,
+          "ground": 14.974,
+          "terrain": 66.737,
+          "temporal": 0.001,
+          "total": 90.581,
+          "load": 22.009,
+          "bridge_encode": 875.092,
+          "end_to_end": 112.589
+        },
+        "000008": {
+          "sensor_transform": 0.009,
+          "semantic": 0.603,
+          "ground": 15.341,
+          "terrain": 68.327,
+          "temporal": 0.001,
+          "total": 94.546,
+          "load": 23.143,
+          "bridge_encode": 860.119,
+          "end_to_end": 117.689
+        },
+        "000009": {
+          "sensor_transform": 0.01,
+          "semantic": 0.628,
+          "ground": 15.712,
+          "terrain": 77.053,
+          "temporal": 0.001,
+          "total": 104.485,
+          "load": 24.466,
+          "bridge_encode": 1174.2,
+          "end_to_end": 128.951
+        }
+      },
+      "points": [
+        36279,
+        36368,
+        36384,
+        36314,
+        36393,
+        36372,
+        36357,
+        36347,
+        36389,
+        36300
+      ]
+    }
+  },
+  "ab_microbenchmark": {
+    "note": "interleaved old/new analyze() on identical frame+ground mask, 12 reps each, same process",
+    "poss00_n66021": {
+      "old_min_ms": 114.4,
+      "old_med_ms": 132.1,
+      "new_min_ms": 84.9,
+      "new_med_ms": 97.7,
+      "speedup_med": 1.35
+    },
+    "rellis00000_n36279": {
+      "old_min_ms": 82.5,
+      "old_med_ms": 105.2,
+      "new_min_ms": 70.0,
+      "new_med_ms": 80.3,
+      "speedup_med": 1.31
+    }
+  },
+  "hardware": {
+    "cpu": "Intel(R) Core(TM) i5-8350U CPU @ 1.70GHz",
+    "threads": 8,
+    "mem_total_gb": 15,
+    "platform": "Linux-7.2.5-200.fc44.x86_64-x86_64-with-glibc2.43",
+    "python": "3.13.15",
+    "condition": "heavily contended shared box (load avg 10-16 during runs); absolute ms are environment-bound, before/after deltas and interleaved A/B are the meaningful comparison"
+  }
+}
