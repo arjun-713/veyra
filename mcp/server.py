@@ -47,12 +47,16 @@ TOOLS = {
         _tool("restart_runtime", "Reset the active Veyra session.", {}),
     ),
     "open_dataset": (
-        "datasets",
+        "open_dataset",
         {},
         _tool(
             "open_dataset",
-            "Inspect a supported dataset root and return available sequences.",
-            {"dataset": {"type": "string"}, "root": {"type": "string"}},
+            "Validate and open a supported dataset using the Veyra production defaults.",
+            {
+                "dataset": {"type": "string"},
+                "root": {"type": "string"},
+                "sequence": {"type": "string"},
+            },
             ["dataset", "root"],
         ),
     ),

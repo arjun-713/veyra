@@ -141,6 +141,38 @@ class McpServerTests(unittest.TestCase):
         self.assertTrue(response["result"]["isError"])
         self.assertEqual(self.daemon.requests, [])
 
+    def test_open_dataset_uses_the_stateful_shared_open_operation(self):
+        self.start_server(
+            {
+                "open_dataset": {
+                    "ok": True,
+                    "result": {"selected_sequence": "00"},
+                }
+            }
+        )
+        response = self.server.handle(
+            {
+                "jsonrpc": "2.0",
+                "id": 41,
+                "method": "tools/call",
+                "params": {
+                    "name": "open_dataset",
+                    "arguments": {
+                        "dataset": "semanticposs",
+                        "root": "/data/semanticposs",
+                        "sequence": "00",
+                    },
+                },
+            }
+        )
+
+        self.assertFalse(response["result"]["isError"])
+        self.assertEqual(self.daemon.requests[0]["command"], "open_dataset")
+        self.assertEqual(
+            self.daemon.requests[0]["args"],
+            {"dataset": "semanticposs", "root": "/data/semanticposs", "sequence": "00"},
+        )
+
     def test_daemon_error_is_preserved_as_mcp_tool_error(self):
         self.start_server(
             {

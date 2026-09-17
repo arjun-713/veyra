@@ -261,6 +261,7 @@ fn dispatch_line(
             | "configure"
             | "config_validate"
             | "datasets"
+            | "open_dataset"
             | "command"
             | "diagnostics"
             | "stop"
@@ -309,6 +310,12 @@ fn dispatch_line(
         "datasets" => required_string(args, "dataset").and_then(|dataset| {
             required_string(args, "root")
                 .and_then(|root| controller.datasets(dataset, &PathBuf::from(root)))
+        }),
+        "open_dataset" => required_string(args, "dataset").and_then(|dataset| {
+            required_string(args, "root").and_then(|root| {
+                let sequence = optional_string(args, "sequence")?;
+                controller.open_dataset(dataset, &PathBuf::from(root), sequence)
+            })
         }),
         "command" => dispatch_controller_command(args, controller),
         "diagnostics" => Ok(controller.diagnostics()),
@@ -382,6 +389,19 @@ fn required_object(args: &Map<String, Value>, name: &str) -> Result<Value, Strin
         .filter(|value| value.is_object())
         .cloned()
         .ok_or_else(|| format!("{name} must be an object"))
+}
+
+fn optional_string<'a>(
+    args: &'a Map<String, Value>,
+    name: &str,
+) -> Result<Option<&'a str>, String> {
+    match args.get(name) {
+        None => Ok(None),
+        Some(Value::String(value)) if !value.is_empty() && value.len() <= MAX_COMMAND_BYTES => {
+            Ok(Some(value))
+        }
+        _ => Err(format!("{name} must be an optional bounded string")),
+    }
 }
 
 fn bounded_string<'a>(

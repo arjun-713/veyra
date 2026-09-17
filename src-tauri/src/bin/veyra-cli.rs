@@ -66,10 +66,20 @@ fn parse_args(args: &[String]) -> Result<CliOperation, ControlClientError> {
             validate_dataset(dataset, root)?;
             Ok(request("datasets", json!({"dataset": dataset, "root": root})))
         }
-        [command, action, _dataset, _root] if command == "dataset" && action == "open" => {
-            Err(unsupported(
-                "dataset open is unavailable: use configure to open a dataset; dataset info only inspects metadata",
-            ))
+        [command, action, dataset, root] if command == "dataset" && action == "open" => {
+            validate_dataset(dataset, root)?;
+            Ok(request("open_dataset", json!({"dataset": dataset, "root": root})))
+        }
+        [command, action, dataset, root, sequence] if command == "dataset" && action == "open" => {
+            validate_dataset(dataset, root)?;
+            if sequence.is_empty() || sequence.len() > 64 {
+                return Err(invalid_argument("dataset sequence must be a bounded non-empty string"));
+            }
+            Ok(request("open_dataset", json!({
+                "dataset": dataset,
+                "root": root,
+                "sequence": sequence
+            })))
         }
         [command, action] if command == "playback" && action == "play" => {
             Ok(command_request("start", json!({})))
@@ -103,6 +113,7 @@ fn parse_args(args: &[String]) -> Result<CliOperation, ControlClientError> {
             concat!(
                 "usage: veyra-cli status | metrics [--json] | runtime start|stop|restart | ",
                 "configure <json> | config validate <json> | dataset info <format> <root> | ",
+                "dataset open <format> <root> [sequence] | ",
                 "playback play|pause|seek <frame> | policy set <policy> | ",
                 "layer set <layer> | diagnostics"
             )
@@ -117,13 +128,6 @@ fn request(command: &'static str, args: Value) -> CliOperation {
 
 fn command_request(name: &'static str, args: Value) -> CliOperation {
     request("command", json!({"name": name, "args": args}))
-}
-
-fn unsupported(message: &str) -> ControlClientError {
-    ControlClientError::Daemon {
-        code: "UNSUPPORTED_OPERATION".to_owned(),
-        message: message.to_owned(),
-    }
 }
 
 fn invalid_argument(message: &str) -> ControlClientError {
@@ -229,18 +233,19 @@ mod tests {
     }
 
     #[test]
-    fn dataset_open_is_rejected_before_network_use() {
-        let error = parse_args(&[
-            "dataset".to_owned(),
-            "open".to_owned(),
-            "generic".to_owned(),
-            "/data/example".to_owned(),
-        ])
-        .unwrap_err();
-        assert_eq!(error, ControlClientError::Daemon {
-            code: "UNSUPPORTED_OPERATION".to_owned(),
-            message: "dataset open is unavailable: use configure to open a dataset; dataset info only inspects metadata".to_owned(),
-        });
+    fn dataset_open_uses_the_shared_controller_operation() {
+        assert_eq!(
+            parse_args(&[
+                "dataset".to_owned(),
+                "open".to_owned(),
+                "semanticposs".to_owned(),
+                "/data/example".to_owned(),
+            ]),
+            Ok(CliOperation::Request {
+                command: "open_dataset",
+                args: json!({"dataset": "semanticposs", "root": "/data/example"}),
+            })
+        );
     }
 
     #[test]
