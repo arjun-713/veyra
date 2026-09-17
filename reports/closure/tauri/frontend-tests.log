@@ -1,0 +1,179 @@
+TAP version 13
+# Subtest: rejects arbitrary commands, traversal capabilities, and invalid numeric controls
+ok 1 - rejects arbitrary commands, traversal capabilities, and invalid numeric controls
+  ---
+  duration_ms: 16.551227
+  type: 'test'
+  ...
+# Subtest: decodes split and concatenated frames without trusting unbounded lengths
+ok 2 - decodes split and concatenated frames without trusting unbounded lengths
+  ---
+  duration_ms: 6.999384
+  type: 'test'
+  ...
+# Subtest: rolling history evicts old samples and preserves unavailable measurements
+ok 3 - rolling history evicts old samples and preserves unavailable measurements
+  ---
+  duration_ms: 1.328696
+  type: 'test'
+  ...
+# Subtest: visualization rejects out-of-bounds sections and invalid strides
+ok 4 - visualization rejects out-of-bounds sections and invalid strides
+  ---
+  duration_ms: 1.571878
+  type: 'test'
+  ...
+# Subtest: desktop accepts every dataset adapter exposed by the runtime
+ok 5 - desktop accepts every dataset adapter exposed by the runtime
+  ---
+  duration_ms: 1.250776
+  type: 'test'
+  ...
+# Subtest: desktop runtime bridge failure does not direct Tauri users to Electron
+ok 6 - desktop runtime bridge failure does not direct Tauri users to Electron
+  ---
+  duration_ms: 1.668815
+  type: 'test'
+  ...
+# Subtest: comparison requires measured matching policy reports and never fabricates reduction
+ok 7 - comparison requires measured matching policy reports and never fabricates reduction
+  ---
+  duration_ms: 31.062719
+  type: 'test'
+  ...
+# Subtest: event log is capped and records observable status transitions without repeated telemetry spam
+ok 8 - event log is capped and records observable status transitions without repeated telemetry spam
+  ---
+  duration_ms: 6.805735
+  type: 'test'
+  ...
+# Subtest: summary reports displayed semantic points only when semantic evidence exists
+ok 9 - summary reports displayed semantic points only when semantic evidence exists
+  ---
+  duration_ms: 11.93926
+  type: 'test'
+  ...
+# Subtest: product presets coordinate display and runtime governor budgets
+ok 10 - product presets coordinate display and runtime governor budgets
+  ---
+  duration_ms: 7.619935
+  type: 'test'
+  ...
+# Subtest: new desktop sessions request ground and terrain evidence by default
+ok 11 - new desktop sessions request ground and terrain evidence by default
+  ---
+  duration_ms: 3.362222
+  type: 'test'
+  ...
+# Subtest: supported runtime datasets and snapshot layer availability stay aligned
+ok 12 - supported runtime datasets and snapshot layer availability stay aligned
+  ---
+  duration_ms: 4.494431
+  type: 'test'
+  ...
+# Subtest: perception stage summary keeps backend state distinct from timing
+ok 13 - perception stage summary keeps backend state distinct from timing
+  ---
+  duration_ms: 9.725646
+  type: 'test'
+  ...
+# Subtest: performance activity exposes measured split and merge rates
+ok 14 - performance activity exposes measured split and merge rates
+  ---
+  duration_ms: 0.948043
+  type: 'test'
+  ...
+# Subtest: direct open is advertised only by shells that implement openDataset
+ok 15 - direct open is advertised only by shells that implement openDataset
+  ---
+  duration_ms: 18.276594
+  type: 'test'
+  ...
+# Subtest: open_dataset responses normalize across daemon envelope shapes
+ok 16 - open_dataset responses normalize across daemon envelope shapes
+  ---
+  duration_ms: 5.912633
+  type: 'test'
+  ...
+# Subtest: packaged runtime layout uses only the staged backend contract
+ok 17 - packaged runtime layout uses only the staged backend contract
+  ---
+  duration_ms: 9.065223
+  type: 'test'
+  ...
+# Subtest: restart budget is bounded and resets after a stable session
+ok 18 - restart budget is bounded and resets after a stable session
+  ---
+  duration_ms: 6.046925
+  type: 'test'
+  ...
+# Subtest: development layout accepts an explicit python and stays platform-safe
+ok 19 - development layout accepts an explicit python and stays platform-safe
+  ---
+  duration_ms: 2.924086
+  type: 'test'
+  ...
+# Subtest: Tauri development uses a dedicated strict Veyra renderer port
+ok 20 - Tauri development uses a dedicated strict Veyra renderer port
+  ---
+  duration_ms: 41.26839
+  type: 'test'
+  ...
+# Subtest: rotating log serializes concurrent writes and keeps bounded history
+ok 21 - rotating log serializes concurrent writes and keeps bounded history
+  ---
+  duration_ms: 34.347288
+  type: 'test'
+  ...
+# Subtest: forced shutdown addresses the whole Unix runtime process group
+ok 22 - forced shutdown addresses the whole Unix runtime process group
+  ---
+  duration_ms: 7.475383
+  type: 'test'
+  ...
+# Subtest: supervisor rejects pending commands when backend dies and reports process identity
+ok 23 - supervisor rejects pending commands when backend dies and reports process identity
+  ---
+  duration_ms: 408.058145
+  type: 'test'
+  ...
+# Subtest: backend status errors remain ordinary events and do not signal a process fatal
+ok 24 - backend status errors remain ordinary events and do not signal a process fatal
+  ---
+  duration_ms: 1205.581538
+  type: 'test'
+  ...
+# Subtest: supervisor bounds pending requests and terminates a silent child
+ok 25 - supervisor bounds pending requests and terminates a silent child
+  ---
+  duration_ms: 1088.562924
+  type: 'test'
+  ...
+# Subtest: missing evidence renders neutral and unknown traversability remains distinct
+ok 26 - missing evidence renders neutral and unknown traversability remains distinct
+  ---
+  duration_ms: 22.146864
+  type: 'test'
+  ...
+# Subtest: ground-truth semantic status renders its measured class color
+ok 27 - ground-truth semantic status renders its measured class color
+  ---
+  duration_ms: 0.797387
+  type: 'test'
+  ...
+# Subtest: world coordinates and 5/10/20/40cm colors remain distinguishable
+ok 28 - world coordinates and 5/10/20/40cm colors remain distinguishable
+  ---
+  duration_ms: 1.579092
+  type: 'test'
+  ...
+1..28
+# tests 28
+# suites 0
+# pass 28
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 3547.928142
+EXIT:0

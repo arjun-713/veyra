@@ -1,0 +1,56 @@
+warning: veyra@0.1.0: Tauri backend resources are unstaged: /home/arjun/Captain/SIH/Lidar/worktrees/tauri2/src-tauri/resources/backend lacks the staged manifest; bundles built from this tree cannot run backend sessions (run scripts/stage_tauri_backend.py first)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.39s
+     Running unittests src/lib.rs (src-tauri/target/debug/deps/veyra_lib-2c4ace1e86b2198c)
+
+running 47 tests
+test control::client::tests::endpoint_must_be_loopback ... ok
+test commands::tests::dataset_root_is_canonicalized_before_control_request ... ok
+test commands::tests::dataset_root_rejects_a_file ... ok
+test control::client::tests::explicit_client_construction_requires_loopback_without_environment_changes ... ok
+test control::client::tests::missing_endpoint_and_token_are_rejected_before_connecting ... ok
+test control::client::tests::request_rejects_non_object_args_without_connecting ... ok
+test control::client::tests::response_id_and_shape_are_strictly_validated ... ok
+test control::client::tests::response_validation_preserves_daemon_code_and_message ... ok
+test control::client::tests::token_file_client_rejects_group_or_world_readable_secret ... ok
+test control::controller::tests::controller_starts_booting_without_starting_the_backend ... ok
+test control::controller::tests::dataset_open_configuration_uses_explicit_production_defaults ... ok
+test control::client::tests::token_is_trimmed_and_bounded_without_exposing_contents_in_errors ... ok
+test control::controller::tests::mapper_path_is_injected_without_mutating_other_config ... ok
+test control::client::tests::oversized_response_is_rejected_before_json_parsing ... ok
+test control::controller::tests::layer_selection_is_local_and_reported_in_status ... ok
+test control::controller::tests::selects_only_nonempty_dataset_sequences_without_accepting_invalid_catalogs ... ok
+test control::daemon::tests::rejects_a_request_with_an_unsupported_schema_version ... ok
+test control::daemon::tests::daemon_accepts_every_runtime_command_exposed_by_the_tauri_frontend ... ok
+test control::controller::tests::packaged_controller_uses_the_staged_mapper ... ok
+test control::state::tests::error_state_rejects_all_playback_transitions ... ok
+test control::daemon::tests::rejects_a_request_with_the_wrong_authorization_secret ... ok
+test control::state::tests::failed_runtime_cannot_be_played ... ok
+test control::state::tests::opening_a_dataset_makes_playback_ready ... ok
+test control::daemon::tests::runtime_stop_keeps_the_control_daemon_available ... ok
+test control::daemon::tests::sequential_requests_share_the_daemon_controller_state ... ok
+test control::state::tests::running_playback_can_pause_and_stop_cleanly ... ok
+test control_host::tests::event_relay_coalesces_latest_high_rate_events_without_corrupting_visualization ... ok
+test control_host::tests::external_config_rejects_non_loopback_and_relative_tokens ... ok
+test control_host::tests::generated_secret_is_printable_and_bounded ... ok
+test control_host::tests::external_config_requires_private_token_file ... ok
+test desktop_control::tests::daemon_failures_reach_tauri_with_code_and_message ... ok
+test desktop_control::tests::desktop_requests_map_to_the_daemon_protocol ... ok
+test desktop_control::tests::unavailable_control_plane_fails_closed_without_preventing_desktop_boot ... ok
+test supervisor::tests::decodes_a_response_packet ... ok
+test control_host::tests::launch_storage_contains_no_secret_in_discovery_record ... ok
+test supervisor::tests::rejects_truncated_header ... ok
+test telemetry::tests::malformed_and_unsupported_events_are_rejected ... ok
+test supervisor::tests::prefers_the_packaged_python_runtime ... ok
+test telemetry::tests::telemetry_events_are_versioned_and_keep_unknown_fields ... ok
+test tests::a_new_application_starts_booting_and_cannot_play_without_a_dataset ... ok
+test telemetry::tests::visualization_events_use_the_binary_channel ... ok
+test tests::renderer_filesystem_capability_has_no_broad_user_directory_scope ... ok
+test tests::runtime_visualization_event_uses_the_renderer_binary_channel ... ok
+test tests::packaged_resource_directory_resolves_the_staged_backend_root ... ok
+test tests::unstaged_backend_placeholder_never_masquerades_as_a_runnable_backend ... ok
+test control::daemon::tests::idle_connection_cannot_stall_the_control_loop ... ok
+test supervisor::tests::supervises_the_real_python_runtime_status_path ... ok
+
+test result: ok. 47 passed; 0 failed; 0 ignored; 0 measured; 2 filtered out; finished in 2.24s
+
+EXIT:0

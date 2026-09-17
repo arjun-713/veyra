@@ -1,0 +1,44 @@
+warning: veyra@0.1.0: Tauri backend resources are unstaged: /home/arjun/Captain/SIH/Lidar/worktrees/tauri2/src-tauri/resources/backend lacks the staged manifest; bundles built from this tree cannot run backend sessions (run scripts/stage_tauri_backend.py first)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.97s
+     Running unittests src/lib.rs (src-tauri/target/debug/deps/veyra_lib-2c4ace1e86b2198c)
+
+running 2 tests
+test packaged_e2e::packaged_control_plane_serves_authenticated_fast_commands ... E2E prerequisites: repo="/home/arjun/Captain/SIH/Lidar/worktrees/tauri2" mapper="/home/arjun/Captain/SIH/Lidar/worktrees/tauri2/build/apps/runtime/veyra_runtime" python="/home/arjun/Captain/SIH/Lidar/.venv/bin/python"
+E2E catalog sequences=6
+E2E drained 1 control-plane events
+E2E packaged control-plane proof complete
+ok
+test packaged_e2e::packaged_tauri_session_runs_a_real_semanticposs_flow ... E2E prerequisites: repo="/home/arjun/Captain/SIH/Lidar/worktrees/tauri2" mapper="/home/arjun/Captain/SIH/Lidar/worktrees/tauri2/build/apps/runtime/veyra_runtime" python="/home/arjun/Captain/SIH/Lidar/.venv/bin/python"
+E2E datasets: ok
+E2E datasets completed in 2.2s
+E2E catalog sequence=00
+E2E configure: ok
+E2E configure completed in 0.1s
+E2E configured frames=488
+E2E status: ok
+E2E step: ok
+E2E step completed in 16.9s
+E2E status-after-step: ok
+E2E after step: index=0 policy="distance_lod"
+E2E drained 9 events
+E2E drain completed in 0.0s
+E2E map evidence: active_cells=37250 visual_bytes=2936872
+E2E seek: ok
+E2E seek completed in 9.8s
+E2E status-after-seek: ok
+E2E policy: ok
+E2E policy completed in 0.1s
+E2E status-after-policy: ok
+E2E layer: ok
+E2E start: ok
+E2E start completed in 0.0s
+E2E pause: ok
+E2E pause completed in 6.2s
+E2E status-after-pause: ok
+E2E stop completed in 0.1s
+E2E real-data flow complete: sequence=00 frames=488
+ok
+
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 47 filtered out; finished in 38.21s
+
+EXIT:0

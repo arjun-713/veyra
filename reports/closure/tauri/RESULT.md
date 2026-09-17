@@ -129,5 +129,8 @@ ground-truth-as-neural substitution.
    control-api fix (`is_none_or` → MSRV-compatible form or MSRV bump).
 4. Full installer bundles (deb/rpm/AppImage/NSIS/dmg) are built by
    `release-tauri.yml` CI, not on this box; local proof is the staged-bundle
-   E2E above plus the `--no-bundle` smoke build (see below). No Electron
-   code was touched.
+   E2E above plus the `--no-bundle` smoke build, which passed here:
+   `tauri build --config src-tauri/tauri.conf.json --no-bundle`, release
+   profile, 10m32s on the named hardware, EXIT 0, binary at
+   `src-tauri/target/release/veyra` (`tauri-build-no-bundle.log`).
+   No Electron code was touched.
