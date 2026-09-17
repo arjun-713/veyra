@@ -3,13 +3,34 @@ pub mod control;
 mod control_host;
 mod desktop_control;
 pub mod supervisor;
+mod telemetry;
 
 use std::path::{Path, PathBuf};
-use std::sync::Mutex;
+use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::{Arc, Mutex};
+use std::thread;
+use std::time::Duration;
 
 use tauri::{Emitter, Manager};
 
 use desktop_control::DesktopControlService;
+
+#[derive(Clone)]
+struct EventPump {
+    running: Arc<AtomicBool>,
+}
+
+impl EventPump {
+    fn new() -> Self {
+        Self {
+            running: Arc::new(AtomicBool::new(true)),
+        }
+    }
+
+    fn stop(&self) {
+        self.running.store(false, Ordering::Release);
+    }
+}
 
 pub fn run() {
     let builder = tauri::Builder::default()
@@ -27,6 +48,9 @@ pub fn run() {
                 DesktopControlService::bootstrap(runtime_root(&resource_dir), &config_dir);
             let startup_diagnostic = control.startup_diagnostic().map(str::to_owned);
             app.manage(Mutex::new(control));
+            let event_pump = EventPump::new();
+            spawn_event_pump(app.handle().clone(), Arc::clone(&event_pump.running));
+            app.manage(event_pump);
             if let Some(message) = startup_diagnostic {
                 let _ = app.emit(
                     "veyra://event",
@@ -56,6 +80,9 @@ pub fn run() {
         .expect("error while building Veyra");
     app.run(|app_handle, event| {
         if matches!(event, tauri::RunEvent::Exit) {
+            if let Some(pump) = app_handle.try_state::<EventPump>() {
+                pump.stop();
+            }
             if let Some(state) = app_handle.try_state::<Mutex<DesktopControlService>>() {
                 match state.lock() {
                     Ok(mut service) => {
@@ -70,6 +97,48 @@ pub fn run() {
             }
         }
     });
+}
+
+fn spawn_event_pump(app_handle: tauri::AppHandle, running: Arc<AtomicBool>) {
+    thread::Builder::new()
+        .name("veyra-desktop-event-pump".to_owned())
+        .spawn(move || {
+            while running.load(Ordering::Acquire) {
+                let events = app_handle
+                    .try_state::<Mutex<DesktopControlService>>()
+                    .and_then(|service| service.lock().ok().map(|service| service.drain_events()))
+                    .unwrap_or_default();
+                for event in events {
+                    match forwardable_runtime_event(event) {
+                        Ok((channel, payload)) => {
+                            let _ = app_handle.emit(channel, payload);
+                        }
+                        Err(error) => {
+                            let _ = app_handle.emit(
+                                "veyra://event",
+                                serde_json::json!({
+                                    "type": "diagnostics",
+                                    "schema_version": 1,
+                                    "diagnostic": {
+                                        "code": "RUNTIME_EVENT_REJECTED",
+                                        "message": error,
+                                    }
+                                }),
+                            );
+                        }
+                    }
+                }
+                thread::sleep(Duration::from_millis(16));
+            }
+        })
+        .expect("failed to spawn desktop event pump");
+}
+
+fn forwardable_runtime_event(
+    event: supervisor::RuntimeEvent,
+) -> Result<(&'static str, serde_json::Value), String> {
+    let (channel, payload) = telemetry::event_payload(event.metadata, event.payload)?;
+    Ok((channel.name(), payload))
 }
 
 /// Tauri places configured resources beneath the application resource
@@ -87,6 +156,9 @@ fn runtime_root(resource_dir: &Path) -> PathBuf {
 #[cfg(test)]
 mod tests {
     use super::control::state::{AppState, RuntimeState, StateError};
+    use super::forwardable_runtime_event;
+    use super::supervisor::RuntimeEvent;
+    use serde_json::json;
     use std::fs;
 
     #[test]
@@ -130,5 +202,22 @@ mod tests {
         assert_eq!(super::runtime_root(&root), backend);
 
         fs::remove_dir_all(root).unwrap();
+    }
+
+    #[test]
+    fn runtime_visualization_event_uses_the_renderer_binary_channel() {
+        let (channel, payload) = forwardable_runtime_event(RuntimeEvent {
+            metadata: json!({
+                "type": "visualization",
+                "schema_version": 1,
+                "generation": 7
+            }),
+            payload: vec![9, 8, 7],
+        })
+        .unwrap();
+
+        assert_eq!(channel, "veyra://visualization");
+        assert_eq!(payload["metadata"]["generation"], 7);
+        assert_eq!(payload["payload"], json!([9, 8, 7]));
     }
 }

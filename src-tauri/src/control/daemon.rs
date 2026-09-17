@@ -1,10 +1,14 @@
 use std::io::{self, BufRead, BufReader, Write};
 use std::net::{Ipv4Addr, SocketAddr, TcpListener, TcpStream};
 use std::path::PathBuf;
+use std::sync::Arc;
+use std::thread;
+use std::time::Duration;
 
 use serde_json::{json, Map, Value};
 
 use super::RuntimeController;
+use crate::supervisor::RuntimeEvent;
 
 pub const PROTOCOL_VERSION: u64 = 1;
 const MAX_FRAME_BYTES: usize = 64 * 1024;
@@ -26,20 +30,38 @@ pub fn serve(repo: PathBuf, bind_addr: SocketAddr, secret: String) -> Result<(),
 
 pub fn serve_listener(
     listener: TcpListener,
-    mut controller: RuntimeController,
+    controller: RuntimeController,
     secret: String,
 ) -> io::Result<()> {
-    for stream in listener.incoming() {
-        match stream {
-            Ok(stream) => {
+    serve_listener_with_event_sink(listener, controller, secret, None)
+}
+
+pub type RuntimeEventSink = Arc<dyn Fn(RuntimeEvent) + Send + Sync>;
+
+pub fn serve_listener_with_event_sink(
+    listener: TcpListener,
+    mut controller: RuntimeController,
+    secret: String,
+    event_sink: Option<RuntimeEventSink>,
+) -> io::Result<()> {
+    listener.set_nonblocking(true)?;
+    loop {
+        match listener.accept() {
+            Ok((stream, _)) => {
                 if handle_connection(stream, &mut controller, &secret)? {
                     return Ok(());
                 }
             }
+            Err(error) if error.kind() == io::ErrorKind::WouldBlock => {}
             Err(error) => eprintln!("veyra-control connection failed: {error}"),
         }
+        if let Some(sink) = event_sink.as_ref() {
+            for event in controller.drain_events() {
+                sink(event);
+            }
+        }
+        thread::sleep(Duration::from_millis(10));
     }
-    Ok(())
 }
 
 fn validate_bind_address(bind_addr: SocketAddr) -> Result<(), String> {
@@ -294,7 +316,19 @@ fn dispatch_controller_command(
     controller: &mut RuntimeController,
 ) -> Result<Value, String> {
     let command = required_string(args, "name")?;
-    if !matches!(
+    if !is_supported_controller_command(command) {
+        return Err("unsupported controller command".to_owned());
+    }
+    let command_args = args
+        .get("args")
+        .filter(|value| value.is_object())
+        .cloned()
+        .ok_or_else(|| "command args must be an object".to_owned())?;
+    controller.command(command, command_args)
+}
+
+fn is_supported_controller_command(command: &str) -> bool {
+    matches!(
         command,
         "start"
             | "pause"
@@ -305,15 +339,11 @@ fn dispatch_controller_command(
             | "layer"
             | "restart"
             | "status"
-    ) {
-        return Err("unsupported controller command".to_owned());
-    }
-    let command_args = args
-        .get("args")
-        .filter(|value| value.is_object())
-        .cloned()
-        .ok_or_else(|| "command args must be an object".to_owned())?;
-    controller.command(command, command_args)
+            | "step"
+            | "speed"
+            | "governor"
+            | "benchmark"
+    )
 }
 
 fn required_string<'a>(args: &'a Map<String, Value>, name: &str) -> Result<&'a str, String> {
@@ -365,7 +395,7 @@ mod tests {
     use serde_json::json;
 
     use super::super::RuntimeController;
-    use super::{dispatch_line, validate_bind_address};
+    use super::{dispatch_line, is_supported_controller_command, validate_bind_address};
 
     const TEST_SECRET: &str = "test-control-secret-0123456789-ABCDEFGHIJKLMNOPQRSTUVWXYZ";
 
@@ -452,5 +482,29 @@ mod tests {
         assert_eq!(response.value["ok"], true);
         assert_eq!(response.value["result"]["status"]["runtime_running"], false);
         assert!(!response.shutdown);
+    }
+
+    #[test]
+    fn daemon_accepts_every_runtime_command_exposed_by_the_tauri_frontend() {
+        for command in [
+            "start",
+            "pause",
+            "reset",
+            "sequence",
+            "policy",
+            "seek",
+            "layer",
+            "restart",
+            "status",
+            "step",
+            "speed",
+            "governor",
+            "benchmark",
+        ] {
+            assert!(
+                is_supported_controller_command(command),
+                "Tauri runtime command must not be rejected by the daemon: {command}"
+            );
+        }
     }
 }

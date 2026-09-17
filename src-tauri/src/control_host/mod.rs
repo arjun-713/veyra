@@ -2,9 +2,11 @@ use std::fs::{self, File, OpenOptions};
 use std::io::{self, Read, Write};
 use std::net::{IpAddr, Ipv4Addr, SocketAddr, TcpListener};
 use std::path::{Path, PathBuf};
+use std::sync::{Arc, Mutex};
 use std::thread::{self, JoinHandle};
 
-use crate::control::{serve_listener, RuntimeController};
+use crate::control::{serve_listener_with_event_sink, RuntimeController, RuntimeEventSink};
+use crate::supervisor::RuntimeEvent;
 
 const TOKEN_BYTES: usize = 32;
 const TOKEN_FILE: &str = "control.token";
@@ -40,6 +42,45 @@ pub(crate) struct ControlHost {
     secret: Option<String>,
     owns_daemon: bool,
     persisted: bool,
+    event_relay: Option<Arc<Mutex<EventRelay>>>,
+}
+
+const MAX_CONTROL_EVENTS: usize = 64;
+
+#[derive(Default)]
+struct EventRelay {
+    control: std::collections::VecDeque<RuntimeEvent>,
+    status: Option<RuntimeEvent>,
+    telemetry: Option<RuntimeEvent>,
+    visualization: Option<RuntimeEvent>,
+}
+
+impl EventRelay {
+    fn push(&mut self, event: RuntimeEvent) {
+        match event
+            .metadata
+            .get("type")
+            .and_then(serde_json::Value::as_str)
+        {
+            Some("status") => self.status = Some(event),
+            Some("telemetry") => self.telemetry = Some(event),
+            Some("visualization") => self.visualization = Some(event),
+            _ => {
+                if self.control.len() >= MAX_CONTROL_EVENTS {
+                    self.control.pop_front();
+                }
+                self.control.push_back(event);
+            }
+        }
+    }
+
+    fn drain(&mut self) -> Vec<RuntimeEvent> {
+        let mut events = self.control.drain(..).collect::<Vec<_>>();
+        events.extend(self.status.take());
+        events.extend(self.telemetry.take());
+        events.extend(self.visualization.take());
+        events
+    }
 }
 
 impl ControlHost {
@@ -57,6 +98,7 @@ impl ControlHost {
                     secret: None,
                     owns_daemon: false,
                     persisted: false,
+                    event_relay: None,
                 })
             }
             (None, None) => Self::launch_owned(repo, config_dir),
@@ -77,6 +119,13 @@ impl ControlHost {
         } else {
             Ok(())
         }
+    }
+
+    pub(crate) fn drain_events(&self) -> Vec<RuntimeEvent> {
+        self.event_relay
+            .as_ref()
+            .and_then(|relay| relay.lock().ok().map(|mut relay| relay.drain()))
+            .unwrap_or_default()
     }
 
     fn stop_and_join(&mut self) -> Result<(), String> {
@@ -101,11 +150,23 @@ impl ControlHost {
 
         persist_credentials(&token_file, &discovery_file, endpoint, &secret)?;
         let daemon_secret = secret.clone();
+        let event_relay = Arc::new(Mutex::new(EventRelay::default()));
+        let daemon_relay = Arc::clone(&event_relay);
+        let event_sink: RuntimeEventSink = Arc::new(move |event| {
+            if let Ok(mut relay) = daemon_relay.lock() {
+                relay.push(event);
+            }
+        });
         let thread = thread::Builder::new()
             .name("veyra-control-daemon".to_owned())
             .spawn(move || {
-                serve_listener(listener, RuntimeController::new(repo), daemon_secret)
-                    .map_err(|error| error.to_string())
+                serve_listener_with_event_sink(
+                    listener,
+                    RuntimeController::new(repo),
+                    daemon_secret,
+                    Some(event_sink),
+                )
+                .map_err(|error| error.to_string())
             })
             .map_err(|error| ControlHostError::Start(error.to_string()))?;
 
@@ -118,6 +179,7 @@ impl ControlHost {
             secret: Some(secret),
             owns_daemon: true,
             persisted: true,
+            event_relay: Some(event_relay),
         })
     }
 }
@@ -274,6 +336,8 @@ fn generate_secret() -> Result<String, ControlHostError> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::supervisor::RuntimeEvent;
+    use serde_json::json;
     use std::time::{SystemTime, UNIX_EPOCH};
 
     fn temp_file(name: &str) -> PathBuf {
@@ -329,5 +393,34 @@ mod tests {
         assert!(!record.contains(&"a".repeat(64)));
         validate_token_file(&token).unwrap();
         let _ = fs::remove_dir_all(root);
+    }
+
+    #[test]
+    fn event_relay_coalesces_latest_high_rate_events_without_corrupting_visualization() {
+        let mut relay = EventRelay::default();
+        relay.push(RuntimeEvent {
+            metadata: json!({"type": "telemetry", "sequence": 1}),
+            payload: vec![],
+        });
+        relay.push(RuntimeEvent {
+            metadata: json!({"type": "visualization", "generation": 1}),
+            payload: vec![1, 2],
+        });
+        relay.push(RuntimeEvent {
+            metadata: json!({"type": "telemetry", "sequence": 2}),
+            payload: vec![],
+        });
+        relay.push(RuntimeEvent {
+            metadata: json!({"type": "visualization", "generation": 2}),
+            payload: vec![3, 4, 5],
+        });
+
+        let events = relay.drain();
+
+        assert_eq!(events.len(), 2);
+        assert_eq!(events[0].metadata["sequence"], 2);
+        assert_eq!(events[1].metadata["generation"], 2);
+        assert_eq!(events[1].payload, vec![3, 4, 5]);
+        assert!(relay.drain().is_empty());
     }
 }

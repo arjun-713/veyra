@@ -60,6 +60,13 @@ impl DesktopControlService {
         }
         Ok(())
     }
+
+    pub(crate) fn drain_events(&self) -> Vec<crate::supervisor::RuntimeEvent> {
+        self.host
+            .as_ref()
+            .map(ControlHost::drain_events)
+            .unwrap_or_default()
+    }
 }
 
 fn client_from_config(config: &ClientConfig) -> Result<ControlClient, ControlHostError> {
