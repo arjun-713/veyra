@@ -217,6 +217,7 @@ fn dispatch_line(
             | "datasets"
             | "command"
             | "diagnostics"
+            | "stop"
             | "shutdown"
     ) {
         return DispatchResponse {
@@ -230,6 +231,19 @@ fn dispatch_line(
             Ok(()) => DispatchResponse {
                 value: success_response(id, json!({"status": controller.status()})),
                 shutdown: true,
+            },
+            Err(error) => DispatchResponse {
+                value: error_response(id, "CONTROLLER_ERROR", &error),
+                shutdown: false,
+            },
+        };
+    }
+
+    if command == "stop" {
+        return match controller.stop() {
+            Ok(()) => DispatchResponse {
+                value: success_response(id, json!({"status": controller.status()})),
+                shutdown: false,
             },
             Err(error) => DispatchResponse {
                 value: error_response(id, "CONTROLLER_ERROR", &error),
@@ -252,6 +266,7 @@ fn dispatch_line(
         }),
         "command" => dispatch_controller_command(args, controller),
         "diagnostics" => Ok(controller.diagnostics()),
+        "stop" => unreachable!(),
         "shutdown" => unreachable!(),
         _ => unreachable!(),
     };
@@ -415,6 +430,27 @@ mod tests {
         );
 
         assert_eq!(response.value["error"]["code"], "UNAUTHORIZED");
+        assert!(!response.shutdown);
+    }
+
+    #[test]
+    fn runtime_stop_keeps_the_control_daemon_available() {
+        let request = json!({
+            "schema_version": 1,
+            "id": "runtime-stop",
+            "authorization": TEST_SECRET,
+            "command": "stop",
+            "args": {}
+        });
+        let mut controller = RuntimeController::new("/tmp/veyra-daemon-stop-test");
+        let response = dispatch_line(
+            &serde_json::to_vec(&request).unwrap(),
+            &mut controller,
+            TEST_SECRET,
+        );
+
+        assert_eq!(response.value["ok"], true);
+        assert_eq!(response.value["result"]["status"]["runtime_running"], false);
         assert!(!response.shutdown);
     }
 }

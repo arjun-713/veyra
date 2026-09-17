@@ -53,7 +53,7 @@ fn parse_args(args: &[String]) -> Result<CliOperation, ControlClientError> {
             Ok(command_request("start", json!({})))
         }
         [command, action] if command == "runtime" && action == "stop" => {
-            Ok(request("shutdown", json!({})))
+            Ok(request("stop", json!({})))
         }
         [command, action] if command == "runtime" && action == "restart" => {
             Ok(command_request("restart", json!({})))
@@ -196,6 +196,17 @@ mod tests {
             parse_args(&["metrics".to_owned(), "--json".to_owned()]),
             Ok(CliOperation::Request {
                 command: "status",
+                args: json!({}),
+            })
+        );
+    }
+
+    #[test]
+    fn runtime_stop_requests_a_runtime_stop_without_shutting_down_the_daemon() {
+        assert_eq!(
+            parse_args(&["runtime".to_owned(), "stop".to_owned()]),
+            Ok(CliOperation::Request {
+                command: "stop",
                 args: json!({}),
             })
         );
