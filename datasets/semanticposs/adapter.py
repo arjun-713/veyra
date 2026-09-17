@@ -401,9 +401,10 @@ class SemanticPOSSDataset:
           own line, so frame ``"000400"`` resolves line 400 rather than
           its checkout position.
 
-        When the layout is unknown (``total_lines is None``) or the file is
-        short (``total_lines < len(refs)``), historical refs-position
-        behavior is kept. Non-numeric frame ids always use refs-position.
+        When the layout is unknown (``total_lines is None``) the historical
+        numeric behavior is kept; when the file is short
+        (``total_lines < len(refs)``), refs-position behavior is kept.
+        Non-numeric frame ids always use refs-position.
         """
         refs = self.list_frames(sequence)
         for position, ref in enumerate(refs):
