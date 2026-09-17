@@ -1,0 +1,960 @@
+{
+  "ablation_matrix": {
+    "ablation_distance": {
+      "cost": {
+        "active_leaves": 247845,
+        "allocated_map_bytes": 37367408,
+        "final_leaves_per_level": {
+          "0": 68093,
+          "1": 130221,
+          "2": 41429,
+          "3": 8102
+        },
+        "logical_map_bytes": 26702000,
+        "map_update_p50_ms": 155.916728,
+        "map_update_p95_ms": 207.012349,
+        "map_update_p99_ms": 238.729602,
+        "peak_rss_mb": 168.3515625
+      },
+      "cpp_policy": "distance_lod",
+      "delta_vs_distance": {
+        "active_leaves": 0.0,
+        "elevation_rmse_m": 0.0,
+        "map_update_p95_ms": 0.0,
+        "peak_rss_mb": 0.0,
+        "semantic_retention": 0.0,
+        "task_class_retention": {
+          "pedestrian": 0.0,
+          "pole": 0.0,
+          "vehicle": 0.0
+        },
+        "terrain_hazard_retention": null,
+        "topology_churn_p95": 0.0,
+        "weighted_mean_level": 0.0
+      },
+      "dynamics": {
+        "governor_actions_applied": 0,
+        "governor_interventions": 0,
+        "merges_p95": 326,
+        "splits_p95": 526,
+        "topology_churn_p50": 584,
+        "topology_churn_p95": 786
+      },
+      "quality": {
+        "elevation_coverage": 0.9896370345585472,
+        "elevation_rmse_m": 0.46653111415813886,
+        "semantic_retention": {
+          "reference_bins": 597451,
+          "retained_bins": 574569,
+          "retention_fraction": 0.9617006248211151,
+          "status": "measured"
+        },
+        "task_classes": {
+          "pedestrian": {
+            "reference_bins": 7067,
+            "retained_bins": 5015,
+            "retention_fraction": 0.7096363379085893,
+            "status": "measured"
+          },
+          "pole": {
+            "reference_bins": 780,
+            "retained_bins": 720,
+            "retention_fraction": 0.9230769230769231,
+            "status": "measured"
+          },
+          "vehicle": {
+            "reference_bins": 64497,
+            "retained_bins": 61334,
+            "retention_fraction": 0.9509589593314418,
+            "status": "measured"
+          }
+        },
+        "terrain_hazard_retention": {
+          "reference_bins": 0,
+          "retained_bins": 0,
+          "retention_fraction": null,
+          "status": "measured"
+        },
+        "weighted_mean_level": 1.1622780049610653
+      },
+      "signals": [],
+      "utility_config": "utility_lod.yaml"
+    },
+    "ablation_geometry": {
+      "cost": {
+        "active_leaves": 247383,
+        "allocated_map_bytes": 37370944,
+        "final_leaves_per_level": {
+          "0": 68093,
+          "1": 130177,
+          "2": 40868,
+          "3": 8245
+        },
+        "logical_map_bytes": 26649480,
+        "map_update_p50_ms": 179.521493,
+        "map_update_p95_ms": 298.69786,
+        "map_update_p99_ms": 392.180615,
+        "peak_rss_mb": 175.5546875
+      },
+      "cpp_policy": "utility_lod",
+      "delta_vs_distance": {
+        "active_leaves": -462.0,
+        "elevation_rmse_m": 0.0017576942555830866,
+        "map_update_p95_ms": 91.68551099999999,
+        "peak_rss_mb": 7.203125,
+        "semantic_retention": -4.351821320913718e-05,
+        "task_class_retention": {
+          "pedestrian": 0.0,
+          "pole": 0.0,
+          "vehicle": -7.752298556529258e-05
+        },
+        "terrain_hazard_retention": null,
+        "topology_churn_p95": 110.0,
+        "weighted_mean_level": 0.0020742370270190325
+      },
+      "dynamics": {
+        "governor_actions_applied": 5376,
+        "governor_interventions": 0,
+        "merges_p95": 387,
+        "splits_p95": 578,
+        "topology_churn_p50": 708,
+        "topology_churn_p95": 896
+      },
+      "quality": {
+        "elevation_coverage": 0.9895466460305957,
+        "elevation_rmse_m": 0.46828880841372195,
+        "semantic_retention": {
+          "reference_bins": 597451,
+          "retained_bins": 574543,
+          "retention_fraction": 0.9616571066079059,
+          "status": "measured"
+        },
+        "task_classes": {
+          "pedestrian": {
+            "reference_bins": 7067,
+            "retained_bins": 5015,
+            "retention_fraction": 0.7096363379085893,
+            "status": "measured"
+          },
+          "pole": {
+            "reference_bins": 780,
+            "retained_bins": 720,
+            "retention_fraction": 0.9230769230769231,
+            "status": "measured"
+          },
+          "vehicle": {
+            "reference_bins": 64497,
+            "retained_bins": 61329,
+            "retention_fraction": 0.9508814363458765,
+            "status": "measured"
+          }
+        },
+        "terrain_hazard_retention": {
+          "reference_bins": 0,
+          "retained_bins": 0,
+          "retention_fraction": null,
+          "status": "measured"
+        },
+        "weighted_mean_level": 1.1643522419880843
+      },
+      "signals": [
+        "geometry"
+      ],
+      "utility_config": "utility_lod-geometry.yaml"
+    },
+    "ablation_motion": {
+      "cost": {
+        "active_leaves": 247383,
+        "allocated_map_bytes": 37370944,
+        "final_leaves_per_level": {
+          "0": 68093,
+          "1": 130177,
+          "2": 40868,
+          "3": 8245
+        },
+        "logical_map_bytes": 26649480,
+        "map_update_p50_ms": 150.441925,
+        "map_update_p95_ms": 180.805128,
+        "map_update_p99_ms": 193.694446,
+        "peak_rss_mb": 175.4296875
+      },
+      "cpp_policy": "utility_lod",
+      "delta_vs_distance": {
+        "active_leaves": -462.0,
+        "elevation_rmse_m": 0.0017576942555830866,
+        "map_update_p95_ms": -26.207221000000004,
+        "peak_rss_mb": 7.078125,
+        "semantic_retention": -4.351821320913718e-05,
+        "task_class_retention": {
+          "pedestrian": 0.0,
+          "pole": 0.0,
+          "vehicle": -7.752298556529258e-05
+        },
+        "terrain_hazard_retention": null,
+        "topology_churn_p95": 110.0,
+        "weighted_mean_level": 0.0020742370270190325
+      },
+      "dynamics": {
+        "governor_actions_applied": 5376,
+        "governor_interventions": 0,
+        "merges_p95": 387,
+        "splits_p95": 578,
+        "topology_churn_p50": 708,
+        "topology_churn_p95": 896
+      },
+      "quality": {
+        "elevation_coverage": 0.9895466460305957,
+        "elevation_rmse_m": 0.46828880841372195,
+        "semantic_retention": {
+          "reference_bins": 597451,
+          "retained_bins": 574543,
+          "retention_fraction": 0.9616571066079059,
+          "status": "measured"
+        },
+        "task_classes": {
+          "pedestrian": {
+            "reference_bins": 7067,
+            "retained_bins": 5015,
+            "retention_fraction": 0.7096363379085893,
+            "status": "measured"
+          },
+          "pole": {
+            "reference_bins": 780,
+            "retained_bins": 720,
+            "retention_fraction": 0.9230769230769231,
+            "status": "measured"
+          },
+          "vehicle": {
+            "reference_bins": 64497,
+            "retained_bins": 61329,
+            "retention_fraction": 0.9508814363458765,
+            "status": "measured"
+          }
+        },
+        "terrain_hazard_retention": {
+          "reference_bins": 0,
+          "retained_bins": 0,
+          "retention_fraction": null,
+          "status": "measured"
+        },
+        "weighted_mean_level": 1.1643522419880843
+      },
+      "signals": [
+        "motion"
+      ],
+      "utility_config": "utility_lod-motion.yaml"
+    },
+    "ablation_semantics": {
+      "cost": {
+        "active_leaves": 247383,
+        "allocated_map_bytes": 37370944,
+        "final_leaves_per_level": {
+          "0": 68093,
+          "1": 130177,
+          "2": 40868,
+          "3": 8245
+        },
+        "logical_map_bytes": 26649480,
+        "map_update_p50_ms": 168.48827,
+        "map_update_p95_ms": 275.415219,
+        "map_update_p99_ms": 321.534656,
+        "peak_rss_mb": 175.4296875
+      },
+      "cpp_policy": "utility_lod",
+      "delta_vs_distance": {
+        "active_leaves": -462.0,
+        "elevation_rmse_m": 0.0017576942555830866,
+        "map_update_p95_ms": 68.40286999999998,
+        "peak_rss_mb": 7.078125,
+        "semantic_retention": -4.351821320913718e-05,
+        "task_class_retention": {
+          "pedestrian": 0.0,
+          "pole": 0.0,
+          "vehicle": -7.752298556529258e-05
+        },
+        "terrain_hazard_retention": null,
+        "topology_churn_p95": 110.0,
+        "weighted_mean_level": 0.0020742370270190325
+      },
+      "dynamics": {
+        "governor_actions_applied": 5376,
+        "governor_interventions": 0,
+        "merges_p95": 387,
+        "splits_p95": 578,
+        "topology_churn_p50": 708,
+        "topology_churn_p95": 896
+      },
+      "quality": {
+        "elevation_coverage": 0.9895466460305957,
+        "elevation_rmse_m": 0.46828880841372195,
+        "semantic_retention": {
+          "reference_bins": 597451,
+          "retained_bins": 574543,
+          "retention_fraction": 0.9616571066079059,
+          "status": "measured"
+        },
+        "task_classes": {
+          "pedestrian": {
+            "reference_bins": 7067,
+            "retained_bins": 5015,
+            "retention_fraction": 0.7096363379085893,
+            "status": "measured"
+          },
+          "pole": {
+            "reference_bins": 780,
+            "retained_bins": 720,
+            "retention_fraction": 0.9230769230769231,
+            "status": "measured"
+          },
+          "vehicle": {
+            "reference_bins": 64497,
+            "retained_bins": 61329,
+            "retention_fraction": 0.9508814363458765,
+            "status": "measured"
+          }
+        },
+        "terrain_hazard_retention": {
+          "reference_bins": 0,
+          "retained_bins": 0,
+          "retention_fraction": null,
+          "status": "measured"
+        },
+        "weighted_mean_level": 1.1643522419880843
+      },
+      "signals": [
+        "semantics",
+        "uncertainty"
+      ],
+      "utility_config": "utility_lod-semantics.yaml"
+    },
+    "ablation_traversability": {
+      "cost": {
+        "active_leaves": 247383,
+        "allocated_map_bytes": 37370944,
+        "final_leaves_per_level": {
+          "0": 68093,
+          "1": 130177,
+          "2": 40868,
+          "3": 8245
+        },
+        "logical_map_bytes": 26649480,
+        "map_update_p50_ms": 154.992426,
+        "map_update_p95_ms": 251.744634,
+        "map_update_p99_ms": 284.18995,
+        "peak_rss_mb": 175.43359375
+      },
+      "cpp_policy": "utility_lod",
+      "delta_vs_distance": {
+        "active_leaves": -462.0,
+        "elevation_rmse_m": 0.0017576942555830866,
+        "map_update_p95_ms": 44.73228499999999,
+        "peak_rss_mb": 7.08203125,
+        "semantic_retention": -4.351821320913718e-05,
+        "task_class_retention": {
+          "pedestrian": 0.0,
+          "pole": 0.0,
+          "vehicle": -7.752298556529258e-05
+        },
+        "terrain_hazard_retention": null,
+        "topology_churn_p95": 110.0,
+        "weighted_mean_level": 0.0020742370270190325
+      },
+      "dynamics": {
+        "governor_actions_applied": 5376,
+        "governor_interventions": 0,
+        "merges_p95": 387,
+        "splits_p95": 578,
+        "topology_churn_p50": 708,
+        "topology_churn_p95": 896
+      },
+      "quality": {
+        "elevation_coverage": 0.9895466460305957,
+        "elevation_rmse_m": 0.46828880841372195,
+        "semantic_retention": {
+          "reference_bins": 597451,
+          "retained_bins": 574543,
+          "retention_fraction": 0.9616571066079059,
+          "status": "measured"
+        },
+        "task_classes": {
+          "pedestrian": {
+            "reference_bins": 7067,
+            "retained_bins": 5015,
+            "retention_fraction": 0.7096363379085893,
+            "status": "measured"
+          },
+          "pole": {
+            "reference_bins": 780,
+            "retained_bins": 720,
+            "retention_fraction": 0.9230769230769231,
+            "status": "measured"
+          },
+          "vehicle": {
+            "reference_bins": 64497,
+            "retained_bins": 61329,
+            "retention_fraction": 0.9508814363458765,
+            "status": "measured"
+          }
+        },
+        "terrain_hazard_retention": {
+          "reference_bins": 0,
+          "retained_bins": 0,
+          "retention_fraction": null,
+          "status": "measured"
+        },
+        "weighted_mean_level": 1.1643522419880843
+      },
+      "signals": [
+        "traversability"
+      ],
+      "utility_config": "utility_lod-traversability.yaml"
+    },
+    "utility_lod": {
+      "cost": {
+        "active_leaves": 247383,
+        "allocated_map_bytes": 37370944,
+        "final_leaves_per_level": {
+          "0": 68093,
+          "1": 130177,
+          "2": 40868,
+          "3": 8245
+        },
+        "logical_map_bytes": 26649480,
+        "map_update_p50_ms": 144.415002,
+        "map_update_p95_ms": 179.53854,
+        "map_update_p99_ms": 237.615235,
+        "peak_rss_mb": 175.4296875
+      },
+      "cpp_policy": "utility_lod",
+      "delta_vs_distance": {
+        "active_leaves": -462.0,
+        "elevation_rmse_m": 0.0017576942555830866,
+        "map_update_p95_ms": -27.47380899999999,
+        "peak_rss_mb": 7.078125,
+        "semantic_retention": -4.351821320913718e-05,
+        "task_class_retention": {
+          "pedestrian": 0.0,
+          "pole": 0.0,
+          "vehicle": -7.752298556529258e-05
+        },
+        "terrain_hazard_retention": null,
+        "topology_churn_p95": 110.0,
+        "weighted_mean_level": 0.0020742370270190325
+      },
+      "dynamics": {
+        "governor_actions_applied": 5376,
+        "governor_interventions": 0,
+        "merges_p95": 387,
+        "splits_p95": 578,
+        "topology_churn_p50": 708,
+        "topology_churn_p95": 896
+      },
+      "quality": {
+        "elevation_coverage": 0.9895466460305957,
+        "elevation_rmse_m": 0.46828880841372195,
+        "semantic_retention": {
+          "reference_bins": 597451,
+          "retained_bins": 574543,
+          "retention_fraction": 0.9616571066079059,
+          "status": "measured"
+        },
+        "task_classes": {
+          "pedestrian": {
+            "reference_bins": 7067,
+            "retained_bins": 5015,
+            "retention_fraction": 0.7096363379085893,
+            "status": "measured"
+          },
+          "pole": {
+            "reference_bins": 780,
+            "retained_bins": 720,
+            "retention_fraction": 0.9230769230769231,
+            "status": "measured"
+          },
+          "vehicle": {
+            "reference_bins": 64497,
+            "retained_bins": 61329,
+            "retention_fraction": 0.9508814363458765,
+            "status": "measured"
+          }
+        },
+        "terrain_hazard_retention": {
+          "reference_bins": 0,
+          "retained_bins": 0,
+          "retention_fraction": null,
+          "status": "measured"
+        },
+        "weighted_mean_level": 1.1643522419880843
+      },
+      "signals": [
+        "geometry",
+        "semantics",
+        "motion",
+        "traversability",
+        "uncertainty"
+      ],
+      "utility_config": "utility_lod.yaml"
+    }
+  },
+  "context_policies": {
+    "distance_lod": {
+      "cost": {
+        "active_leaves": 247845,
+        "allocated_map_bytes": 37367408,
+        "final_leaves_per_level": {
+          "0": 68093,
+          "1": 130221,
+          "2": 41429,
+          "3": 8102
+        },
+        "logical_map_bytes": 26702000,
+        "map_update_p50_ms": 144.349297,
+        "map_update_p95_ms": 249.453799,
+        "map_update_p99_ms": 370.281992,
+        "peak_rss_mb": 168.3515625
+      },
+      "cpp_policy": "distance_lod",
+      "dynamics": {
+        "governor_actions_applied": 0,
+        "governor_interventions": 0,
+        "merges_p95": 326,
+        "splits_p95": 526,
+        "topology_churn_p50": 584,
+        "topology_churn_p95": 786
+      },
+      "quality": {
+        "elevation_coverage": 0.9896370345585472,
+        "elevation_rmse_m": 0.46653111415813886,
+        "semantic_retention": {
+          "reference_bins": 597451,
+          "retained_bins": 574569,
+          "retention_fraction": 0.9617006248211151,
+          "status": "measured"
+        },
+        "task_classes": {
+          "pedestrian": {
+            "reference_bins": 7067,
+            "retained_bins": 5015,
+            "retention_fraction": 0.7096363379085893,
+            "status": "measured"
+          },
+          "pole": {
+            "reference_bins": 780,
+            "retained_bins": 720,
+            "retention_fraction": 0.9230769230769231,
+            "status": "measured"
+          },
+          "vehicle": {
+            "reference_bins": 64497,
+            "retained_bins": 61334,
+            "retention_fraction": 0.9509589593314418,
+            "status": "measured"
+          }
+        },
+        "terrain_hazard_retention": {
+          "reference_bins": 0,
+          "retained_bins": 0,
+          "retention_fraction": null,
+          "status": "measured"
+        },
+        "weighted_mean_level": 1.1622780049610653
+      },
+      "signals": [],
+      "utility_config": "utility_lod.yaml"
+    },
+    "uniform40": {
+      "cost": {
+        "active_leaves": 35962,
+        "allocated_map_bytes": 5686512,
+        "final_leaves_per_level": {
+          "0": 0,
+          "1": 0,
+          "2": 0,
+          "3": 35962
+        },
+        "logical_map_bytes": 3740048,
+        "map_update_p50_ms": 243.251391,
+        "map_update_p95_ms": 273.189772,
+        "map_update_p99_ms": 347.564031,
+        "peak_rss_mb": 35.53515625
+      },
+      "cpp_policy": "uniform40",
+      "dynamics": {
+        "governor_actions_applied": 0,
+        "governor_interventions": 0,
+        "merges_p95": 0,
+        "splits_p95": 0,
+        "topology_churn_p50": 0,
+        "topology_churn_p95": 0
+      },
+      "quality": {
+        "elevation_coverage": 1.0,
+        "elevation_rmse_m": 0.5756854977175536,
+        "semantic_retention": {
+          "reference_bins": 597451,
+          "retained_bins": 564107,
+          "retention_fraction": 0.9441895653367389,
+          "status": "measured"
+        },
+        "task_classes": {
+          "pedestrian": {
+            "reference_bins": 7067,
+            "retained_bins": 4026,
+            "retention_fraction": 0.5696901089571247,
+            "status": "measured"
+          },
+          "pole": {
+            "reference_bins": 780,
+            "retained_bins": 722,
+            "retention_fraction": 0.9256410256410257,
+            "status": "measured"
+          },
+          "vehicle": {
+            "reference_bins": 64497,
+            "retained_bins": 62284,
+            "retention_fraction": 0.9656883265888336,
+            "status": "measured"
+          }
+        },
+        "terrain_hazard_retention": {
+          "reference_bins": 0,
+          "retained_bins": 0,
+          "retention_fraction": null,
+          "status": "measured"
+        },
+        "weighted_mean_level": 3.0
+      },
+      "signals": [],
+      "utility_config": "utility_lod.yaml"
+    },
+    "uniform5": {
+      "cost": {
+        "active_leaves": 630611,
+        "allocated_map_bytes": 90880192,
+        "final_leaves_per_level": {
+          "0": 630611,
+          "1": 0,
+          "2": 0,
+          "3": 0
+        },
+        "logical_map_bytes": 65583544,
+        "map_update_p50_ms": 344.164682,
+        "map_update_p95_ms": 543.577886,
+        "map_update_p99_ms": 676.302738,
+        "peak_rss_mb": 307.88671875
+      },
+      "cpp_policy": "uniform5",
+      "dynamics": {
+        "governor_actions_applied": 0,
+        "governor_interventions": 0,
+        "merges_p95": 0,
+        "splits_p95": 0,
+        "topology_churn_p50": 0,
+        "topology_churn_p95": 0
+      },
+      "quality": {
+        "elevation_coverage": 1.0,
+        "elevation_rmse_m": 0.0,
+        "semantic_retention": {
+          "reference_bins": 597451,
+          "retained_bins": 592458,
+          "retention_fraction": 0.9916428292864184,
+          "status": "measured"
+        },
+        "task_classes": {
+          "pedestrian": {
+            "reference_bins": 7067,
+            "retained_bins": 6489,
+            "retention_fraction": 0.9182114051223998,
+            "status": "measured"
+          },
+          "pole": {
+            "reference_bins": 780,
+            "retained_bins": 745,
+            "retention_fraction": 0.9551282051282052,
+            "status": "measured"
+          },
+          "vehicle": {
+            "reference_bins": 64497,
+            "retained_bins": 63298,
+            "retention_fraction": 0.9814099880614602,
+            "status": "measured"
+          }
+        },
+        "terrain_hazard_retention": {
+          "reference_bins": 0,
+          "retained_bins": 0,
+          "retention_fraction": null,
+          "status": "measured"
+        },
+        "weighted_mean_level": 0.0
+      },
+      "signals": [],
+      "utility_config": "utility_lod.yaml"
+    }
+  },
+  "dataset": "semanticposs",
+  "git_sha": "247f127493ebecdca14fbf4222909e1a84e997b1",
+  "hardware": {
+    "capture": "runtime",
+    "logical_cpu_count": 8,
+    "machine": "x86_64",
+    "os": "Linux-7.2.5-200.fc44.x86_64-x86_64-with-glibc2.43",
+    "physical_memory_bytes": 16489127936,
+    "processor": "Intel(R) Core(TM) i5-8350U CPU @ 1.70GHz",
+    "profile": "auto",
+    "python": "3.14.7"
+  },
+  "input_frames": 30,
+  "measured_frames_per_run": 28,
+  "perception": {
+    "bridge_scope": "C++ protocol_parse_and_validate across measured policy streams",
+    "dataset": "semanticposs",
+    "failures": 0,
+    "frames": 30,
+    "ground_ratio": 0.0,
+    "known_motion_fraction": 0.0,
+    "known_terrain_fraction": 0.0,
+    "points_processed": 1970337,
+    "sequence": "00",
+    "status": {
+      "ground": "unavailable",
+      "semantic": "ground_truth",
+      "temporal": "disabled",
+      "terrain": "unavailable"
+    },
+    "timings": {
+      "bridge": {
+        "max_ms": 279.58418,
+        "mean_ms": 83.68823513227514,
+        "p50_ms": 78.901229,
+        "p95_ms": 127.655579,
+        "p99_ms": 180.796692,
+        "samples": 756
+      },
+      "dataset_load": {
+        "max_ms": 128.580796,
+        "mean_ms": 56.018866933333335,
+        "p50_ms": 51.59166,
+        "p95_ms": 77.946806,
+        "p99_ms": 128.580796,
+        "samples": 30
+      },
+      "ground": {
+        "max_ms": 2.90550899990194,
+        "mean_ms": 0.7385336333148492,
+        "p50_ms": 0.6091280001783161,
+        "p95_ms": 1.2217820003570523,
+        "p99_ms": 2.90550899990194,
+        "samples": 30
+      },
+      "semantic": {
+        "max_ms": 2.0787240000572638,
+        "mean_ms": 0.8664673332532402,
+        "p50_ms": 0.6928100001459825,
+        "p95_ms": 1.7429139998057508,
+        "p99_ms": 2.0787240000572638,
+        "samples": 30
+      },
+      "sensor_transform": {
+        "max_ms": 16.151086999343534,
+        "mean_ms": 6.22369376660572,
+        "p50_ms": 5.998202000228048,
+        "p95_ms": 8.359004000340065,
+        "p99_ms": 16.151086999343534,
+        "samples": 30
+      },
+      "temporal": {
+        "max_ms": 0.0019479994080029428,
+        "mean_ms": 0.0005321666624998519,
+        "p50_ms": 0.00040099985199049115,
+        "p95_ms": 0.000922000253922306,
+        "p99_ms": 0.0019479994080029428,
+        "samples": 30
+      },
+      "terrain": {
+        "max_ms": 0.002809999386954587,
+        "mean_ms": 0.0007454665743959291,
+        "p50_ms": 0.0005450001481221989,
+        "p95_ms": 0.002325999957975,
+        "p99_ms": 0.002809999386954587,
+        "samples": 30
+      },
+      "total": {
+        "max_ms": 64.69374499920377,
+        "mean_ms": 34.01695353325825,
+        "p50_ms": 32.39631499945972,
+        "p95_ms": 48.97963599978539,
+        "p99_ms": 64.69374499920377,
+        "samples": 30
+      }
+    }
+  },
+  "repetitions": 3,
+  "selection_digest": "4cd60ac5a5746bbc142d56e36fdbc4a89b8707e6cb905c8dae4f9d4f9c8c43dc",
+  "sequence": "00",
+  "utility_ablation_framework": {
+    "baseline": "ablation_distance",
+    "full_vs_distance_assessment": "no_measured_quality_improvement",
+    "interpretation": {
+      "assessment": "descriptive result on this selection; no cross-hardware or general quality claim",
+      "elevation_rmse_m": "negative delta is better",
+      "resource_fractions": "negative delta uses less measured resource",
+      "weighted_mean_level": "negative delta means finer retained detail"
+    },
+    "members": {
+      "ablation_distance": {
+        "delta_vs_distance": {
+          "active_leaves_fraction": 0.0,
+          "elevation_rmse_m": 0.0,
+          "map_latency_fraction": 0.0,
+          "peak_rss_fraction": 0.0,
+          "semantic_retention_delta": 0.0,
+          "terrain_hazard_retention_delta": null,
+          "weighted_mean_level": 0.0
+        },
+        "measurements": {
+          "active_leaves": 247845,
+          "elevation_rmse_m": 0.46653111415813886,
+          "map_latency_p95_ns": 207012349,
+          "peak_rss_bytes": 176529408,
+          "semantic_retention_fraction": 0.9617006248211151,
+          "terrain_hazard_retention_fraction": null,
+          "weighted_mean_level": 1.1622780049610653
+        },
+        "signals": []
+      },
+      "ablation_geometry": {
+        "delta_vs_distance": {
+          "active_leaves_fraction": -0.001864068268474248,
+          "elevation_rmse_m": 0.0017576942555830866,
+          "map_latency_fraction": 0.4428987519000618,
+          "peak_rss_fraction": 0.04278620817671354,
+          "semantic_retention_delta": -4.351821320913718e-05,
+          "terrain_hazard_retention_delta": null,
+          "weighted_mean_level": 0.0020742370270190325
+        },
+        "measurements": {
+          "active_leaves": 247383,
+          "elevation_rmse_m": 0.46828880841372195,
+          "map_latency_p95_ns": 298697860,
+          "peak_rss_bytes": 184082432,
+          "semantic_retention_fraction": 0.9616571066079059,
+          "terrain_hazard_retention_fraction": null,
+          "weighted_mean_level": 1.1643522419880843
+        },
+        "signals": [
+          "geometry"
+        ]
+      },
+      "ablation_motion": {
+        "delta_vs_distance": {
+          "active_leaves_fraction": -0.001864068268474248,
+          "elevation_rmse_m": 0.0017576942555830866,
+          "map_latency_fraction": -0.1265973799466427,
+          "peak_rss_fraction": 0.04204371432549074,
+          "semantic_retention_delta": -4.351821320913718e-05,
+          "terrain_hazard_retention_delta": null,
+          "weighted_mean_level": 0.0020742370270190325
+        },
+        "measurements": {
+          "active_leaves": 247383,
+          "elevation_rmse_m": 0.46828880841372195,
+          "map_latency_p95_ns": 180805128,
+          "peak_rss_bytes": 183951360,
+          "semantic_retention_fraction": 0.9616571066079059,
+          "terrain_hazard_retention_fraction": null,
+          "weighted_mean_level": 1.1643522419880843
+        },
+        "signals": [
+          "motion"
+        ]
+      },
+      "ablation_semantics": {
+        "delta_vs_distance": {
+          "active_leaves_fraction": -0.001864068268474248,
+          "elevation_rmse_m": 0.0017576942555830866,
+          "map_latency_fraction": 0.33042893494242703,
+          "peak_rss_fraction": 0.04204371432549074,
+          "semantic_retention_delta": -4.351821320913718e-05,
+          "terrain_hazard_retention_delta": null,
+          "weighted_mean_level": 0.0020742370270190325
+        },
+        "measurements": {
+          "active_leaves": 247383,
+          "elevation_rmse_m": 0.46828880841372195,
+          "map_latency_p95_ns": 275415219,
+          "peak_rss_bytes": 183951360,
+          "semantic_retention_fraction": 0.9616571066079059,
+          "terrain_hazard_retention_fraction": null,
+          "weighted_mean_level": 1.1643522419880843
+        },
+        "signals": [
+          "semantics",
+          "uncertainty"
+        ]
+      },
+      "ablation_traversability": {
+        "delta_vs_distance": {
+          "active_leaves_fraction": -0.001864068268474248,
+          "elevation_rmse_m": 0.0017576942555830866,
+          "map_latency_fraction": 0.21608510417897822,
+          "peak_rss_fraction": 0.042066917258341455,
+          "semantic_retention_delta": -4.351821320913718e-05,
+          "terrain_hazard_retention_delta": null,
+          "weighted_mean_level": 0.0020742370270190325
+        },
+        "measurements": {
+          "active_leaves": 247383,
+          "elevation_rmse_m": 0.46828880841372195,
+          "map_latency_p95_ns": 251744634,
+          "peak_rss_bytes": 183955456,
+          "semantic_retention_fraction": 0.9616571066079059,
+          "terrain_hazard_retention_fraction": null,
+          "weighted_mean_level": 1.1643522419880843
+        },
+        "signals": [
+          "traversability"
+        ]
+      },
+      "utility_lod": {
+        "delta_vs_distance": {
+          "active_leaves_fraction": -0.001864068268474248,
+          "elevation_rmse_m": 0.0017576942555830866,
+          "map_latency_fraction": -0.1327157975488699,
+          "peak_rss_fraction": 0.04204371432549074,
+          "semantic_retention_delta": -4.351821320913718e-05,
+          "terrain_hazard_retention_delta": null,
+          "weighted_mean_level": 0.0020742370270190325
+        },
+        "measurements": {
+          "active_leaves": 247383,
+          "elevation_rmse_m": 0.46828880841372195,
+          "map_latency_p95_ns": 179538540,
+          "peak_rss_bytes": 183951360,
+          "semantic_retention_fraction": 0.9616571066079059,
+          "terrain_hazard_retention_fraction": null,
+          "weighted_mean_level": 1.1643522419880843
+        },
+        "signals": [
+          "geometry",
+          "semantics",
+          "motion",
+          "traversability",
+          "uncertainty"
+        ]
+      }
+    },
+    "missing_policies": [],
+    "required_policies": [
+      "ablation_distance",
+      "ablation_geometry",
+      "ablation_semantics",
+      "ablation_motion",
+      "ablation_traversability",
+      "utility_lod"
+    ],
+    "status": "complete"
+  },
+  "warmup_frames": 2
+}
