@@ -27,6 +27,8 @@ Official RELLIS pose metadata was acquired on 2026-09-10 after approval:
 <https://drive.google.com/file/d/1V3PT_NJhA41N7TBLp5AbW31d0ztQDQOX/view>.
 The downloaded archive was 609,344 compressed bytes and contains only
 `Rellis-3D/<sequence>/poses.txt` plus `calib.txt` for sequences `00000`--`00004`.
+The official archive retrieved on 2026-09-17 has SHA-256
+`6deaf38a9cac3a480cfdb70fa9a1d9278f25c36f5efd2487a3c4a6a400250f67`.
 It has no timestamps, frame IDs, or filename association. Its pose-row counts
 are 2,847/2,319/4,147/2,184/2,059, while local Velodyne scan counts are
 2,842/2,315/4,139/2,180/2,056. Because counts differ, the adapter accepts an
