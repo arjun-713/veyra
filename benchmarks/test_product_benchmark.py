@@ -113,6 +113,7 @@ class ProductBenchmarkTests(unittest.TestCase):
         self.assertIn("--full", content)
         self.assertIn("SemanticPOSS", content)
         self.assertIn("benchmarks/run_local.sh", content)
+        self.assertIn("validate_submission_closure.py", content)
         self.assertNotIn("|| true", content)
 
     def test_sih_validator_scales_warmup_for_short_real_data_runs(self):

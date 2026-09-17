@@ -62,6 +62,7 @@ fi
 
 cd "$repo_dir"
 echo "SIH26053 VALIDATION ($mode)"
+"$python_bin" scripts/validate_submission_closure.py reports/submission_closure.json
 
 cmake -S . -B "$build_dir" -DCMAKE_BUILD_TYPE=Release \
   -DBUILD_TESTING=ON -DVEYRA_BUILD_APPS=ON \
