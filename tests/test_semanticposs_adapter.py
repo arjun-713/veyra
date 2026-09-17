@@ -271,6 +271,21 @@ class SemanticPOSSAdapterTests(unittest.TestCase):
             self.assertEqual([frame.frame_id for frame in frames], ["2", "10"])
             self.assertEqual([frame.timestamp for frame in frames], [0.25, 0.50])
 
+    def test_resolves_absolute_metadata_lines_for_partial_checkouts(self):
+        with tempfile.TemporaryDirectory() as raw:
+            root = Path(raw)
+            write_frame(root, "00", "400", [400.0])
+            write_frame(root, "00", "401", [401.0])
+            lines = "".join(f"{i * 0.1:.1f}\n" for i in range(402))
+            (root / "timestamps").mkdir()
+            (root / "timestamps" / "00.txt").write_text(lines)
+            adapter = SemanticPOSSDataset(root)
+
+            frames = list(adapter.replay("00", label_mapping={10: 1}))
+
+            self.assertEqual([frame.frame_id for frame in frames], ["400", "401"])
+            self.assertEqual([frame.timestamp for frame in frames], [40.0, 40.1])
+
     def test_rejects_scan_and_label_count_mismatch(self):
         with tempfile.TemporaryDirectory() as raw:
             root = Path(raw)
