@@ -37,7 +37,7 @@ TOOLS = {
         _tool("start_runtime", "Start configured playback.", {}),
     ),
     "stop_runtime": (
-        "shutdown",
+        "stop",
         {},
         _tool("stop_runtime", "Stop the supervised playback runtime.", {}),
     ),

@@ -110,6 +110,21 @@ class McpServerTests(unittest.TestCase):
             self.daemon.requests[0]["args"], {"name": "layer", "args": {"layer": "lod"}}
         )
 
+    def test_stop_runtime_stops_the_runtime_without_shutting_down_control(self):
+        self.start_server({"stop": {"ok": True, "result": {"state": "ready"}}})
+        response = self.server.handle(
+            {
+                "jsonrpc": "2.0",
+                "id": 31,
+                "method": "tools/call",
+                "params": {"name": "stop_runtime", "arguments": {}},
+            }
+        )
+
+        self.assertFalse(response["result"]["isError"])
+        self.assertEqual(self.daemon.requests[0]["command"], "stop")
+        self.assertEqual(self.daemon.requests[0]["args"], {})
+
     def test_dataset_tool_validates_format_and_root_before_daemon(self):
         self.start_server()
         response = self.server.handle(
