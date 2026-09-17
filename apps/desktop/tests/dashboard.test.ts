@@ -33,6 +33,16 @@ test('supported runtime datasets and snapshot layer availability stay aligned',(
  assert.equal(layerUnavailable(frame,'utility'),false);assert.equal(layerUnavailable(frame,'motion'),true);
  const labeled:any={metadata:{layers:{semantic:'ground_truth'}},payload:new Uint8Array()};assert.equal(layerUnavailable(labeled,'semantic'),false);
 });
+test('semantic layer flags its n/a badge when semantic evidence is missing',()=>{
+ const missing:any={metadata:{layers:{}},payload:new Uint8Array()};
+ assert.equal(layerUnavailable(missing,'semantic'),true);
+ const unavailable:any={metadata:{layers:{semantic:'unavailable'}},payload:new Uint8Array()};
+ assert.equal(layerUnavailable(unavailable,'semantic'),true);
+ const available:any={metadata:{layers:{semantic:'available'}},payload:new Uint8Array()};
+ assert.equal(layerUnavailable(available,'semantic'),false);
+ assert.equal(layerUnavailable(null,'elevation'),false);
+ assert.equal(layerUnavailable(null,'lod'),false);
+});
 test('perception stage summary keeps backend state distinct from timing',()=>{
  const rows=perceptionStages({metadata:{pipeline_status:{semantic:'model',ground:'available',terrain:'unavailable',temporal:'skipped'},perception_timings_ms:{semantic:12.5,ground:3.2}},payload:new Uint8Array()});
  assert.deepEqual(rows,[{label:'Semantic',status:'model',latency:12.5},{label:'Ground',status:'available',latency:3.2},{label:'Terrain',status:'unavailable',latency:null},{label:'Temporal',status:'skipped',latency:null}]);
