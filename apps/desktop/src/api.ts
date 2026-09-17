@@ -1,4 +1,8 @@
 import type {Json,WireFrame} from './core';
+
+export const nativeRuntimeUnavailableMessage =
+ 'Veyra desktop runtime bridge is unavailable. Launch Veyra from a supported desktop shell.';
+
 export interface DesktopAPI {
  info():Promise<Json>;
  command(command:string,args?:Json):Promise<Json>;

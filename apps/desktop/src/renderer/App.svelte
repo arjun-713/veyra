@@ -1,7 +1,7 @@
 <script lang="ts">
  import {onMount} from 'svelte';
  import MapCanvas from './MapCanvas.svelte';import Chart from './Chart.svelte';import Dashboard from './Dashboard.svelte';import Icon from './Icon.svelte';import {datasetFormats,layerUnavailable,mapActivity,perceptionStages,profileConfig,recordEvent,type DashboardEvent} from './dashboard';
- import {policies,type Json,type WireFrame} from '../core';import type {} from '../api';
+ import {policies,type Json,type WireFrame} from '../core';import {nativeRuntimeUnavailableMessage} from '../api';
  let workspace=$state('Dashboard'),status=$state<Json>({state:'unconfigured',index:0,frames:0,policy:'distance_lod',speed:1}),telemetry=$state<Json>({}),desktop=$state<Json>({}),render=$state<Json>({}),info=$state<Json>({});
  let frame=$state.raw<WireFrame|null>(null),samples=$state<Json[]>([]),error=$state(''),notice=$state(''),busy=$state(false),catalog=$state<Json|null>(null),inspector=$state<Json|null>(null);
  let dataset=$state('generic'),sequence=$state(''),config=$state<Json>({dataset:'generic',dataset_root:'',sequence:'',pipeline:{semantic:{mode:'ground_truth'}},map:{policy:'distance_lod',window_radius_m:100.001,resource_profile:'balanced',governor_override:'automatic'},playback:{fps:10,speed:1},visualization:{point_budget:50000,cell_budget:20000,update_hz:15}});
@@ -20,7 +20,7 @@
  async function configure(){await action(async()=>{const next=JSON.parse(configText||JSON.stringify(config));const response=await window.veyra.configure(next);config=next;if(response.status)status=response.status;frame=null;notice='Runtime configured. Loading the first frame…';const first=await window.veyra.command('step');if(first.status)status={...status,...first.status};notice='First frame loaded. Start playback or step through the sequence.';});}
  function applyPreset(){config=profileConfig(config,preset);refreshText();}
  onMount(()=>{
-  refreshText();if(!window.veyra){error='Open Veyra through Electron to connect to the runtime.';return;}
+  refreshText();if(!window.veyra){error=nativeRuntimeUnavailableMessage;return;}
   void action(async()=>{info=await window.veyra.info();if(info.status)status=info.status;});
   const off=window.veyra.onEvent(event=>{
    events=recordEvent(events,event);

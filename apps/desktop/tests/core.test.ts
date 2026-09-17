@@ -1,6 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { FrameDecoder, isSupportedDataset, validateCommand, RollingTelemetry, validateVisualization } from '../src/core.ts';
+import { nativeRuntimeUnavailableMessage } from '../src/api.ts';
 
 test('rejects arbitrary commands, traversal capabilities, and invalid numeric controls', () => {
   for (const [command,args] of [['exec',{shell:'touch x'}],['seek',{index:-1}],['speed',{speed:Infinity}],['policy',{policy:'unsafe'}],['start',{executable:'/tmp/evil'}]]) {
@@ -37,4 +38,9 @@ test('visualization rejects out-of-bounds sections and invalid strides', () => {
 test('desktop accepts every dataset adapter exposed by the runtime',()=>{
  for(const dataset of ['generic','semanticposs','semantickitti','rellis3d'])assert.equal(isSupportedDataset(dataset),true);
  assert.equal(isSupportedDataset('../dataset'),false);
+});
+
+test('desktop runtime bridge failure does not direct Tauri users to Electron',()=>{
+ assert.match(nativeRuntimeUnavailableMessage,/desktop runtime bridge/i);
+ assert.doesNotMatch(nativeRuntimeUnavailableMessage,/electron/i);
 });
