@@ -24,7 +24,7 @@
    "blockers": [
     "python_unittest stall (deadlock/infinite/network/dataset-scan/leak?)"
    ],
-   "current": 90,
+   "current": 95,
    "deps": [],
    "evidence": "reports/closure/test-gate/*.log + fix commit",
    "id": "test-gate",
@@ -43,7 +43,7 @@
     "projection geometry unproven",
     "taxonomy/learning-map unproven"
    ],
-   "current": 70,
+   "current": 85,
    "deps": [
     "datasets"
    ],
@@ -62,7 +62,7 @@
    "blockers": [
     "no closure-grade eval"
    ],
-   "current": 55,
+   "current": 80,
    "deps": [
     "semantic",
     "datasets"
@@ -73,7 +73,7 @@
     "perception/*",
     "scripts/validate_perception.py"
    ],
-   "status": "OPEN"
+   "status": "INTEGRATED"
   },
   {
    "acceptance": "RELLIS points/labels/calibration/poses/taxonomy run on real frames; malformed-path diagnostics; >0 supported frames with reason if 0",
@@ -112,7 +112,7 @@
    "acceptance": "SemanticPOSS 488-500f/seq replay preserved; ground ratio ~33% sane; adapter contract holds",
    "area": "SemanticPOSS + generic adapters",
    "blockers": [],
-   "current": 80,
+   "current": 85,
    "deps": [],
    "evidence": "reports/closure/datasets/*.json",
    "id": "datasets",
@@ -121,7 +121,7 @@
     "datasets/common/*",
     "datasets/generic/*"
    ],
-   "status": "PARTIAL"
+   "status": "INTEGRATED"
   },
   {
    "acceptance": "Real sequential proof: ego-compensation, STATIC/MOVING(/POSSIBLY), stale cleanup, velocity, ghost persistence; parked/moving vehicle, person/rider, leave/reappear/skip cases",
@@ -130,7 +130,7 @@
     "no real temporal proof",
     "synthetic-only insufficient"
    ],
-   "current": 55,
+   "current": 70,
    "deps": [
     "datasets",
     "kitti"
@@ -166,7 +166,7 @@
    "acceptance": "Zero gaps/overlaps/conflicts/duplication on long randomized split/merge/boundary/rolling-window/churn runs; stats preserved",
    "area": "Adaptive-map correctness",
    "blockers": [],
-   "current": 78,
+   "current": 85,
    "deps": [],
    "evidence": "reports/closure/map/*.log (ctest + stress)",
    "id": "map",
@@ -175,7 +175,7 @@
     "include/*",
     "tests/test_*.cpp"
    ],
-   "status": "OPEN"
+   "status": "INTEGRATED"
   },
   {
    "acceptance": "Controlled ablation DistanceLOD vs +geometry/semantics/motion/uncertainty on identical data; pole/ped/vehicle/hazard retention vs memory/latency/cells",
@@ -183,7 +183,7 @@
    "blockers": [
     "reason-to-exist unproven"
    ],
-   "current": 70,
+   "current": 75,
    "deps": [
     "map",
     "semantic-quality",
@@ -195,13 +195,13 @@
     "src/policy/*",
     "benchmarks/*"
    ],
-   "status": "OPEN"
+   "status": "PARTIAL"
   },
   {
    "acceptance": "RAM/latency/cell budgets: quality loss, misses, churn, recovery measured; near/high-risk detail survives",
    "area": "Resource governor",
    "blockers": [],
-   "current": 61,
+   "current": 70,
    "deps": [
     "map"
    ],
@@ -211,7 +211,7 @@
     "src/runtime/*",
     "src/map/*govern*"
    ],
-   "status": "OPEN"
+   "status": "PARTIAL"
   },
   {
    "acceptance": "Sparse high-res 3D reference measured (RSS/alloc/latency/elements) on same input; ANALYTICAL vs MEASURED labeled",
@@ -219,7 +219,7 @@
    "blockers": [
     "not genuinely measured"
    ],
-   "current": 30,
+   "current": 55,
    "deps": [
     "map"
    ],
@@ -229,7 +229,7 @@
     "benchmarks/*",
     "tools/*"
    ],
-   "status": "OPEN"
+   "status": "PARTIAL"
   },
   {
    "acceptance": "Hundreds of frames where practical; mean/p50/p95/p99/max/FPS/RSS/logical/cells/quality/churn per policy (U5/U40/Dist/Util/3D); raw frame-level persisted",
@@ -237,7 +237,7 @@
    "blockers": [
     "short samples only"
    ],
-   "current": 68,
+   "current": 70,
    "deps": [
     "map",
     "baseline-3d"
@@ -249,7 +249,7 @@
     "scripts/*bench*",
     "benchmark-results/*"
    ],
-   "status": "OPEN"
+   "status": "PARTIAL"
   },
   {
    "acceptance": "Packaged Tauri app -> select dataset -> start -> real processing -> map -> telemetry -> play/pause/seek/policy/layer/inspect/stop; no mocks",
@@ -257,7 +257,7 @@
    "blockers": [
     "partial migration"
    ],
-   "current": 55,
+   "current": 85,
    "deps": [
     "control-api"
    ],
@@ -268,13 +268,13 @@
     "viewer/*",
     "apps/*"
    ],
-   "status": "OPEN"
+   "status": "INTEGRATED"
   },
   {
    "acceptance": "Every visible control inventoried (allowed states/command/backend/UI/E2E); dead/dup/fake removed",
    "area": "UI + renderer + telemetry + supervisor",
    "blockers": [],
-   "current": 55,
+   "current": 60,
    "deps": [
     "tauri",
     "control-api"
@@ -286,7 +286,7 @@
     "src-tauri/src/telemetry.rs",
     "src-tauri/src/supervisor.rs"
    ],
-   "status": "OPEN"
+   "status": "PARTIAL"
   },
   {
    "acceptance": "Single authority: Control API <- Desktop, CLI, MCP; no duplicate runtime ownership",
@@ -294,7 +294,7 @@
    "blockers": [
     "uncommitted work just integrated (6e3cece)"
    ],
-   "current": 60,
+   "current": 85,
    "deps": [],
    "evidence": "src-tauri/src/control/* tests green",
    "id": "control-api",
@@ -302,13 +302,13 @@
     "src-tauri/src/control/*",
     "src-tauri/src/control_host/*"
    ],
-   "status": "INTEGRATED-PARTIAL"
+   "status": "INTEGRATED"
   },
   {
    "acceptance": "All documented commands + --json work against shared authority",
    "area": "CLI",
    "blockers": [],
-   "current": 60,
+   "current": 80,
    "deps": [
     "control-api"
    ],
@@ -317,13 +317,13 @@
    "owner_files": [
     "src-tauri/src/bin/veyra-cli.rs"
    ],
-   "status": "OPEN"
+   "status": "INTEGRATED"
   },
   {
    "acceptance": "Typed schemas, no arbitrary shell/fs/process, real integration vs running instance",
    "area": "MCP",
    "blockers": [],
-   "current": 60,
+   "current": 75,
    "deps": [
     "control-api"
    ],
@@ -332,13 +332,13 @@
    "owner_files": [
     "mcp/*"
    ],
-   "status": "OPEN"
+   "status": "PARTIAL"
   },
   {
    "acceptance": "Capabilities/CSP/fs-scopes/sidecar/path-traversal/injection/MCP+CLI validation fixed, not just reported",
    "area": "Security/reliability",
    "blockers": [],
-   "current": 68,
+   "current": 75,
    "deps": [
     "control-api",
     "tauri"
@@ -350,13 +350,13 @@
     "src-tauri/capabilities/*",
     "mcp/*"
    ],
-   "status": "OPEN"
+   "status": "PARTIAL"
   },
   {
    "acceptance": "Ubuntu .deb+AppImage smoke; Fedora .rpm smoke; Windows installer smoke; macOS .app/.dmg smoke (native CI where local impossible)",
    "area": "Cross-platform",
    "blockers": [],
-   "current": 25,
+   "current": 55,
    "deps": [
     "tauri",
     "control-api"
@@ -367,13 +367,13 @@
     ".github/workflows/*",
     "scripts/package_backend.py"
    ],
-   "status": "OPEN"
+   "status": "PARTIAL"
   },
   {
    "acceptance": "Live GitHub CI validates real Tauri product; Electron CI removed after parity; artifacts uploaded; all required checks green",
    "area": "CI + release + Electron removal",
    "blockers": [],
-   "current": 62,
+   "current": 55,
    "deps": [
     "platform",
     "tauri"
@@ -384,7 +384,7 @@
     ".github/workflows/*",
     "apps/*electron*"
    ],
-   "status": "OPEN"
+   "status": "PARTIAL"
   },
   {
    "acceptance": "Fresh-clone setup/build/test/validate/benchmark/launch from docs only; docs claims match evidence; provenance recorded; packaged demo rehearsal all policies/layers/telemetry",
@@ -404,7 +404,7 @@
     "README.md",
     "scripts/validate_sih.sh"
    ],
-   "status": "OPEN"
+   "status": "PARTIAL"
   }
  ],
  "objective": "100% on all 14 audit areas + 0 P0/P1 + READY verdict via independent audit",
