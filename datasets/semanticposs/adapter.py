@@ -380,10 +380,26 @@ class SemanticPOSSDataset:
         return metadata[key]  # type: ignore[return-value]
 
     def _frame_index(self, sequence: str, frame_id: str) -> int:
-        for index, ref in enumerate(self.list_frames(sequence)):
+        """Return the metadata line index for a frame.
+
+        Poses and timestamps are stored per sequence line-by-line in absolute
+        frame order, so a numeric frame id names its own metadata line (this
+        matches :meth:`_frame_sort_key`). The position inside
+        :meth:`list_frames` is only equal to that line when every scan up to
+        the frame is present on disk; a partial checkout (e.g. three KITTI
+        blocks out of 4071 scans) must still resolve the absolute line.
+        Non-numeric frame ids keep the historical refs-position behavior.
+        """
+        for position, ref in enumerate(self.list_frames(sequence)):
             if ref.frame_id == str(frame_id):
-                return index
-        raise FileNotFoundError(f"frame {sequence}/{frame_id} does not exist")
+                break
+        else:
+            raise FileNotFoundError(f"frame {sequence}/{frame_id} does not exist")
+        try:
+            numeric = int(str(frame_id))
+        except ValueError:
+            return position
+        return numeric if numeric >= 0 else position
 
     @staticmethod
     def _transform_points(points: np.ndarray, matrix: np.ndarray) -> np.ndarray:

@@ -1,0 +1,231 @@
+{
+  "dataset": "semantickitti",
+  "sequence": "08",
+  "covered_frames": 220,
+  "meaning": "observed tracker evidence only; no object-level motion ground truth was supplied",
+  "hardware": "Intel i5-8350U x86_64, 15GB RAM, Python 3.14.7, no CUDA",
+  "blocks": {
+    "W0_refs0_100": {
+      "frames": 100,
+      "frame_ids": [
+        "000000",
+        "000099"
+      ],
+      "timestamps_s": [
+        0.0,
+        10.29086
+      ],
+      "strictly_increasing": true,
+      "provenance": {
+        "pose_sources": [
+          "dataset"
+        ],
+        "timestamp_sources": [
+          "dataset"
+        ],
+        "coordinate_frame": "world"
+      },
+      "state_fraction_post_first": {
+        "static": 0.0349,
+        "possibly_moving": 0.1187,
+        "moving": 0.8106,
+        "unknown": 0.0358
+      },
+      "motion_quality": {
+        "meaning": "observed tracker evidence; no object-level ground truth was supplied",
+        "frames_with_motion_evidence": 99,
+        "frames_with_moving_state": 99
+      },
+      "active_tracks_first_last": [
+        2032,
+        3164
+      ],
+      "timings_ms": {
+        "p50_ms": 1788.9,
+        "p95_ms": 6398.6,
+        "p99_ms": 6841.0,
+        "mean_ms": 2527.5,
+        "max_ms": 6947.9,
+        "samples": 100
+      }
+    },
+    "W1_refs100_160": {
+      "frames": 60,
+      "frame_ids": [
+        "000400",
+        "000459"
+      ],
+      "timestamps_s": [
+        41.54063,
+        47.67063
+      ],
+      "strictly_increasing": true,
+      "provenance": {
+        "pose_sources": [
+          "dataset"
+        ],
+        "timestamp_sources": [
+          "dataset"
+        ],
+        "coordinate_frame": "world"
+      },
+      "state_fraction_post_first": {
+        "static": 0.0123,
+        "possibly_moving": 0.0578,
+        "moving": 0.8974,
+        "unknown": 0.0325
+      },
+      "motion_quality": {
+        "meaning": "observed tracker evidence; no object-level ground truth was supplied",
+        "frames_with_motion_evidence": 59,
+        "frames_with_moving_state": 59
+      },
+      "active_tracks_first_last": [
+        1579,
+        1167
+      ],
+      "timings_ms": {
+        "p50_ms": 4030.2,
+        "p95_ms": 8956.7,
+        "p99_ms": 16406.0,
+        "mean_ms": 4429.3,
+        "max_ms": 16858.0,
+        "samples": 60
+      }
+    },
+    "W2_refs160_220": {
+      "frames": 60,
+      "frame_ids": [
+        "003990",
+        "004049"
+      ],
+      "timestamps_s": [
+        414.6204,
+        420.7588
+      ],
+      "strictly_increasing": true,
+      "provenance": {
+        "pose_sources": [
+          "dataset"
+        ],
+        "timestamp_sources": [
+          "dataset"
+        ],
+        "coordinate_frame": "world"
+      },
+      "state_fraction_post_first": {
+        "static": 0.0548,
+        "possibly_moving": 0.6056,
+        "moving": 0.3218,
+        "unknown": 0.0177
+      },
+      "motion_quality": {
+        "meaning": "observed tracker evidence; no object-level ground truth was supplied",
+        "frames_with_motion_evidence": 59,
+        "frames_with_moving_state": 59
+      },
+      "active_tracks_first_last": [
+        1105,
+        1707
+      ],
+      "timings_ms": {
+        "p50_ms": 2162.7,
+        "p95_ms": 4192.5,
+        "p99_ms": 4992.9,
+        "mean_ms": 2378.4,
+        "max_ms": 5012.0,
+        "samples": 60
+      }
+    }
+  },
+  "label_census": {
+    "W0_frames_with_moving_raw_ids": "100/100 (252:100, 254:100, 253:61)",
+    "W1_frames_with_moving_raw_ids": "0/60",
+    "W2_frames_with_moving_raw_ids": "60/60 (252:60, 254:60, 253:1)",
+    "person_frames_30_254": "160/220",
+    "rider_frames_31_32_253_255": "62/220"
+  },
+  "gap_probe_99_400": {
+    "dt_s": 31.25,
+    "steps": [
+      {
+        "frame_id": "000098",
+        "timestamp_s": 10.18686,
+        "points": 124577,
+        "active_tracks": 2192,
+        "continued": 0,
+        "new": 2192,
+        "missed_hist": {
+          "0": 2192
+        },
+        "persistence_max": 1,
+        "latency_ms": 3467.459419000079
+      },
+      {
+        "frame_id": "000099",
+        "timestamp_s": 10.29086,
+        "points": 124664,
+        "active_tracks": 2710,
+        "continued": 2192,
+        "new": 518,
+        "missed_hist": {
+          "0": 2166,
+          "1": 544
+        },
+        "persistence_max": 2,
+        "latency_ms": 2711.876003999805
+      },
+      {
+        "frame_id": "000400",
+        "timestamp_s": 41.54063,
+        "points": 126285,
+        "active_tracks": 4289,
+        "continued": 2710,
+        "new": 1579,
+        "missed_hist": {
+          "0": 1579,
+          "1": 2166,
+          "2": 544
+        },
+        "persistence_max": 2,
+        "latency_ms": 4777.255622999746
+      },
+      {
+        "frame_id": "000401",
+        "timestamp_s": 41.64489,
+        "points": 126026,
+        "active_tracks": 4158,
+        "continued": 3745,
+        "new": 413,
+        "missed_hist": {
+          "0": 1605,
+          "1": 387,
+          "2": 2166
+        },
+        "persistence_max": 2,
+        "latency_ms": 3259.3326320002234
+      },
+      {
+        "frame_id": "000402",
+        "timestamp_s": 41.74904,
+        "points": 125733,
+        "active_tracks": 2274,
+        "continued": 1992,
+        "new": 282,
+        "missed_hist": {
+          "0": 1587,
+          "1": 459,
+          "2": 228
+        },
+        "persistence_max": 3,
+        "latency_ms": 3927.6337219998823
+      }
+    ]
+  },
+  "provenance_note": "220 bins on disk (mtimes 2026-09-17 15:21:19 +0530); fetch source unverified; committed validation_seq08.json says velodyne NOT obtained",
+  "tests": {
+    "test_validate_temporal": "4 passed",
+    "test_temporal_tracker": "25 passed, 1 skipped (no local POSS data)",
+    "test_semantickitti_adapter": "12 passed + 1 pre-existing env failure (assumes local seq 00)"
+  }
+}

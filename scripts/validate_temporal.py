@@ -68,12 +68,15 @@ def validate_frames(
     count: int = 100,
     stride: int = 1,
     max_range_m: float | None = 100.0,
+    exclude_classes: tuple[int, ...] = (),
 ) -> dict:
     """Run the tracker over a strictly metadata-backed real replay.
 
     The returned report distinguishes tracker execution from motion quality:
     the tracker has no object-level ground-truth evaluator, so this function
     reports observed states and velocities without calling them ground truth.
+    ``exclude_classes`` is forwarded to the tracker (ground-surface classes
+    already consumed by the terrain branch) and recorded in the report.
     """
     if start < 0 or count < 1 or stride < 1:
         raise ValueError(
@@ -90,7 +93,7 @@ def validate_frames(
         stride=stride,
         max_range_m=max_range_m,
     )
-    tracker = TemporalTracker()
+    tracker = TemporalTracker(exclude_classes=tuple(exclude_classes))
     records: list[dict] = []
     timings_ms: list[float] = []
     previous_timestamp: float | None = None
@@ -176,6 +179,9 @@ def validate_frames(
             "stride": stride,
             "max_range_m": max_range_m,
         },
+        "tracker": {
+            "exclude_classes": sorted(set(exclude_classes)),
+        },
         "temporal_proven": True,
         "provenance": {
             "pose_sources": sorted({row["pose_source"] for row in records}),
@@ -209,8 +215,21 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--count", type=int, default=100)
     parser.add_argument("--stride", type=int, default=1)
     parser.add_argument("--max-range-m", type=float, default=100.0)
+    parser.add_argument(
+        "--exclude-classes",
+        type=str,
+        default="",
+        help="comma-separated semantic class IDs excluded from tracking",
+    )
     parser.add_argument("--output", type=Path, required=True)
     args = parser.parse_args(argv)
+    try:
+        exclude = tuple(
+            int(value) for value in args.exclude_classes.split(",") if value.strip()
+        )
+    except ValueError as error:
+        print(f"temporal validation failed closed: {error}", file=sys.stderr)
+        return 2
     try:
         result = validate_frames(
             args.root,
@@ -220,6 +239,7 @@ def main(argv: list[str] | None = None) -> int:
             count=args.count,
             stride=args.stride,
             max_range_m=args.max_range_m,
+            exclude_classes=exclude,
         )
     except (FileNotFoundError, ValueError, TemporalValidationError) as error:
         print(f"temporal validation failed closed: {error}", file=sys.stderr)
