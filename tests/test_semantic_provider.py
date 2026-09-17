@@ -8,8 +8,6 @@ import numpy as np
 from perception.semantic.cenet import (
     CENET_IMAGE_HEIGHT,
     CENET_IMAGE_WIDTH,
-    CENET_LEARNING_TO_RAW,
-    CENET_N_LEARNING_CLASSES,
     CENET_YAW_COL_OFFSET,
     CENetSemanticProvider,
     render_cenet_image,
@@ -242,7 +240,7 @@ class PandoraProjectionTests(unittest.TestCase):
         )
         _, cols, valid = project_pandora_scan(points)
         self.assertTrue(bool(valid.all()))
-        self.assertEqual(len(set(int(c) for c in cols)), 4)
+        self.assertEqual(len({int(c) for c in cols}), 4)
 
     def test_real_pandora_frame_near_full_coverage(self):
         root = Path(
@@ -256,7 +254,7 @@ class PandoraProjectionTests(unittest.TestCase):
         if not frame.is_file():
             self.skipTest(f"SemanticPOSS data absent: {frame}")
         points = np.fromfile(frame, dtype=np.float32).reshape(-1, 4)
-        rows, cols, valid = project_pandora_scan(points)
+        _, _, valid = project_pandora_scan(points)
         # Native FOV covers all but the measured +7.0..+7.3 deg above-horizon
         # tail (SalsaNext covers only ~90.5%). Out-of-contract returns stay
         # invalid/unknown rather than inheriting an edge-row prediction.
@@ -328,7 +326,7 @@ class PandoraNativeProviderTests(unittest.TestCase):
             self.assertEqual(result.semantic_confidence.shape, (3,))
             # Tiny head predicts native {22, 7, 0} -> Veyra {12, 1, 0}.
             self.assertTrue(
-                set(int(c) for c in result.semantic_class) <= {12, 1, 0}
+                {int(c) for c in result.semantic_class} <= {12, 1, 0}
             )
             self.assertTrue(
                 bool(((result.semantic_confidence >= 0.0)
@@ -490,14 +488,14 @@ class CENetRenderTests(unittest.TestCase):
         occupied = np.zeros((CENET_IMAGE_HEIGHT, CENET_IMAGE_WIDTH), bool)
         occupied[rows[valid], cols[valid]] = True
         self.assertTrue(bool((image[0, :, ~occupied] == 0.0).all()))
-        image2, rows2, cols2, valid2 = render_cenet_image(points)
+        image2, rows2, _, _ = render_cenet_image(points)
         np.testing.assert_array_equal(image, image2)
         np.testing.assert_array_equal(rows, rows2)
 
     def test_render_applies_yaw_column_offset(self):
         # yaw = 0 (+x axis) -> analytic col 900 -> shifted col.
         points = np.array([[10.0, 0.0, -1.0, 50.0]], np.float32)
-        _, rows, cols, valid = render_cenet_image(points)
+        _, _, cols, valid = render_cenet_image(points)
         self.assertTrue(bool(valid[0]))
         self.assertEqual(int(cols[0]), (900 + CENET_YAW_COL_OFFSET) % CENET_IMAGE_WIDTH)
 
@@ -507,7 +505,7 @@ class CENetRenderTests(unittest.TestCase):
         from perception.semantic.cenet import CENET_MEANS, CENET_STDS
 
         points = np.array([[10.0, 0.0, -1.0, 200.0]], np.float32)
-        image, rows, cols, valid = render_cenet_image(points)
+        image, rows, cols, _ = render_cenet_image(points)
         raw = (
             float(image[0, 4, rows[0], cols[0]]) * CENET_STDS[4] + CENET_MEANS[4]
         )
@@ -531,7 +529,7 @@ class CENetRenderTests(unittest.TestCase):
         )
         tags = np.fromfile(root / "sequences/00/tag/000000.tag", dtype=bool)
         tagidx = np.flatnonzero(tags)
-        rows, _, valid = project_pandora_beams(points)
+        rows, _, _ = project_pandora_beams(points)
         # Beam rows reproduce the tag layout exactly for every return.
         np.testing.assert_array_equal(rows, tagidx // 1800)
         self.assertEqual(len(PANDORA_BEAM_ELEVATIONS_DEG), 40)

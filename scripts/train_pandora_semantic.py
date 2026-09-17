@@ -41,7 +41,6 @@ import numpy as np
 
 from perception.semantic.pandora import (
     FEATURE_NAMES,
-    POSS_NATIVE_KNOWN_IDS,
     extract_features,
     fold_to_native,
     mlp_predict_proba,
@@ -106,7 +105,6 @@ def main() -> int:
 
     root = _resolve(args.root)
     rng = np.random.RandomState(args.seed)
-    known = set(POSS_NATIVE_KNOWN_IDS)
 
     train_frames: list[Path] = []
     calib_frames: list[Path] = []

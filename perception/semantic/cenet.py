@@ -35,12 +35,7 @@ from pathlib import Path
 import numpy as np
 
 from datasets.common.taxonomy import SEMANTIC_POSS_LABELS
-from perception.semantic.pandora import (
-    PANDORA_IMAGE_HEIGHT,
-    PANDORA_IMAGE_WIDTH,
-    project_pandora_beams,
-    project_pandora_scan,
-)
+from perception.semantic.pandora import project_pandora_beams
 from perception.semantic.semantic_provider import SemanticResult
 
 CENET_IMAGE_HEIGHT = 40
@@ -370,7 +365,7 @@ class CENetSemanticProvider:
             raise ValueError(f"cannot load CENet checkpoint: {error}") from error
         state = payload.get("state_dict", payload) if isinstance(payload, dict) else None
         if not isinstance(state, dict):
-            raise ValueError("CENet checkpoint has no state_dict mapping")
+            raise TypeError("CENet checkpoint has no state_dict mapping")
         try:
             model.load_state_dict(state, strict=True)
         except Exception as error:
@@ -452,8 +447,6 @@ class CENetSemanticProvider:
 
 
 __all__ = [
-    "BasicBlock",
-    "BasicConv2d",
     "CENET_IMAGE_HEIGHT",
     "CENET_IMAGE_WIDTH",
     "CENET_LEARNING_TO_RAW",
@@ -461,6 +454,8 @@ __all__ = [
     "CENET_N_LEARNING_CLASSES",
     "CENET_STDS",
     "CENET_YAW_COL_OFFSET",
+    "BasicBlock",
+    "BasicConv2d",
     "CENetSemanticProvider",
     "ResNet_34",
     "model_contract",
