@@ -100,10 +100,19 @@ fn handle_connection(
         match frame {
             Frame::Eof => return Ok(false),
             Frame::TooLarge => {
-                write_response(
+                match write_response(
                     &mut writer,
                     &error_response(Value::Null, "FRAME_TOO_LARGE", "request exceeds 64 KiB"),
-                )?;
+                ) {
+                    Ok(()) => {}
+                    Err(error) if client_connection_error(&error) => {
+                        eprintln!(
+                            "veyra-control client went away before FRAME_TOO_LARGE reply: {error}"
+                        );
+                        return Ok(false);
+                    }
+                    Err(error) => return Err(error),
+                }
                 continue;
             }
             Frame::Line => {
@@ -111,7 +120,12 @@ fn handle_connection(
                 let shutdown = response.shutdown;
                 match write_response(&mut writer, &response.value) {
                     Ok(()) => {}
-                    Err(error) if client_connection_error(&error) => return Ok(false),
+                    Err(error) if client_connection_error(&error) => {
+                        eprintln!(
+                            "veyra-control client went away mid-response; closing connection: {error}"
+                        );
+                        return Ok(false);
+                    }
                     Err(error) => return Err(error),
                 }
                 if shutdown {
@@ -428,14 +442,27 @@ fn error_response(id: Value, code: &str, message: &str) -> Value {
 }
 
 fn write_response(writer: &mut TcpStream, response: &Value) -> io::Result<()> {
-    serde_json::to_writer(&mut *writer, response)
+    write_response_to(&mut *writer, response)
+}
+
+fn write_response_to(writer: &mut impl Write, response: &Value) -> io::Result<()> {
+    // Serialize before touching the socket so a dead (client-abandoned)
+    // peer surfaces as its native transport error (BrokenPipe /
+    // ConnectionReset / TimedOut) instead of being rewrapped as
+    // InvalidData inside serde_json::to_writer. That rewrapping escaped
+    // `client_connection_error`, so any slow command abandoned by the 2 s
+    // ControlClient budget killed the whole daemon (serve loop exited,
+    // listener closed, later commands got Connection refused).
+    let mut encoded = serde_json::to_vec(response)
         .map_err(|error| io::Error::new(io::ErrorKind::InvalidData, error))?;
-    writer.write_all(b"\n")?;
+    encoded.push(b'\n');
+    writer.write_all(&encoded)?;
     writer.flush()
 }
 
 #[cfg(test)]
 mod tests {
+    use std::io::{self, BufRead, Write};
     use std::net::{TcpListener, TcpStream};
     use std::thread;
     use std::time::{Duration, Instant};
@@ -444,7 +471,8 @@ mod tests {
 
     use super::super::RuntimeController;
     use super::{
-        dispatch_line, handle_connection, is_supported_controller_command, validate_bind_address,
+        client_connection_error, dispatch_line, handle_connection, is_supported_controller_command,
+        serve_listener, validate_bind_address, write_response_to,
     };
 
     const TEST_SECRET: &str = "test-control-secret-0123456789-ABCDEFGHIJKLMNOPQRSTUVWXYZ";
@@ -577,5 +605,120 @@ mod tests {
             started.elapsed()
         );
         client.join().unwrap();
+    }
+
+    /// A writer that is already gone, modelling a client that abandoned a
+    /// slow command after its 2 s budget and closed the socket.
+    struct DeadClientWriter;
+
+    impl Write for DeadClientWriter {
+        fn write(&mut self, _buf: &[u8]) -> io::Result<usize> {
+            Err(io::Error::new(
+                io::ErrorKind::BrokenPipe,
+                "broken pipe (test dead client)",
+            ))
+        }
+
+        fn flush(&mut self) -> io::Result<()> {
+            Err(io::Error::new(
+                io::ErrorKind::BrokenPipe,
+                "broken pipe (test dead client)",
+            ))
+        }
+    }
+
+    #[test]
+    fn write_failure_to_a_dead_client_is_a_disconnect_not_a_serve_failure() {
+        let response = json!({"ok": true, "id": "abandoned", "result": {}});
+        let error = write_response_to(&mut DeadClientWriter, &response)
+            .expect_err("writing to a gone client must fail");
+        assert_eq!(
+            error.kind(),
+            io::ErrorKind::BrokenPipe,
+            "EPIPE must keep its transport kind (was rewrapped as InvalidData, \
+             which escaped client_connection_error and killed the daemon)"
+        );
+        assert!(
+            client_connection_error(&error),
+            "EPIPE must close only that connection, never the serve loop"
+        );
+    }
+
+    fn daemon_request_line(id: &str, command: &str) -> String {
+        serde_json::to_string(&json!({
+            "schema_version": 1,
+            "id": id,
+            "authorization": TEST_SECRET,
+            "command": command,
+            "args": {}
+        }))
+        .unwrap()
+            + "\n"
+    }
+
+    fn daemon_round_trip(
+        address: std::net::SocketAddr,
+        id: &str,
+        command: &str,
+    ) -> serde_json::Value {
+        let mut stream = TcpStream::connect(address)
+            .unwrap_or_else(|error| panic!("daemon must still accept connections: {error}"));
+        stream
+            .set_read_timeout(Some(Duration::from_secs(5)))
+            .unwrap();
+        stream
+            .write_all(daemon_request_line(id, command).as_bytes())
+            .unwrap();
+        stream.flush().unwrap();
+        let mut line = String::new();
+        std::io::BufReader::new(stream)
+            .read_line(&mut line)
+            .unwrap();
+        serde_json::from_str(&line).unwrap()
+    }
+
+    #[test]
+    fn abandoned_command_keeps_daemon_alive_for_the_next_client() {
+        let listener = TcpListener::bind("127.0.0.1:0").unwrap();
+        let address = listener.local_addr().unwrap();
+        let server = thread::spawn(move || {
+            serve_listener(
+                listener,
+                RuntimeController::new("/tmp/veyra-daemon-epipe-test"),
+                TEST_SECRET.to_owned(),
+            )
+        });
+
+        // Abandoned slow command: send a request, then go away without
+        // reading the reply (the 2 s ControlClient-budget analogue).
+        let mut abandoned = TcpStream::connect(address).unwrap();
+        abandoned
+            .write_all(daemon_request_line("abandoned-stop", "stop").as_bytes())
+            .unwrap();
+        abandoned.flush().unwrap();
+        drop(abandoned);
+        thread::sleep(Duration::from_millis(400));
+
+        // The next client must be served; Connection refused here means the
+        // abandoned write killed the daemon (the routed EPIPE defect).
+        // (`diagnostics` is infallible without an open dataset; `status`
+        // needs one, so it is not a liveness probe here.)
+        let response = daemon_round_trip(address, "after-abandon", "diagnostics");
+        assert_eq!(response["ok"], true);
+        assert_eq!(response["id"], "after-abandon");
+
+        // stop keeps the daemon alive (existing contract, still honored).
+        let response = daemon_round_trip(address, "runtime-stop", "stop");
+        assert_eq!(response["ok"], true);
+        let response = daemon_round_trip(address, "still-alive", "diagnostics");
+        assert_eq!(response["ok"], true);
+
+        // Clean shutdown so the serve thread can be joined.
+        let response = daemon_round_trip(address, "teardown", "shutdown");
+        assert_eq!(response["ok"], true);
+        server
+            .join()
+            .expect("serve thread panicked")
+            .expect("serve loop must exit cleanly on shutdown");
     }
 }
