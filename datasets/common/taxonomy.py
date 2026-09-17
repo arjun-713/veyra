@@ -79,25 +79,25 @@ SEMANTIC_POSS_LABELS: dict[int, VeyraClass] = {
 # retained by the adapter separately from this semantic projection.
 RELLIS_LABELS: dict[int, VeyraClass] = {
     0: 0,
-    1: 17,   # dirt -> terrain
-    3: 15,   # grass -> vegetation
-    4: 15,   # tree -> vegetation
-    5: 18,   # pole -> pole
-    6: 0,    # water has no honest SemanticKITTI equivalent
-    7: 0,    # sky is outside the point semantic taxonomy
-    8: 5,    # vehicle -> other-vehicle
-    9: 0,    # generic object is underspecified
-    10: 9,   # asphalt -> road
+    1: 17,  # dirt -> terrain
+    3: 15,  # grass -> vegetation
+    4: 15,  # tree -> vegetation
+    5: 18,  # pole -> pole
+    6: 0,  # water has no honest SemanticKITTI equivalent
+    7: 0,  # sky is outside the point semantic taxonomy
+    8: 5,  # vehicle -> other-vehicle
+    9: 0,  # generic object is underspecified
+    10: 9,  # asphalt -> road
     12: 13,  # building -> building
     15: 16,  # log -> trunk
-    17: 6,   # person -> person
+    17: 6,  # person -> person
     18: 14,  # fence -> fence
     19: 15,  # bush -> vegetation
-    23: 0,   # concrete is a material, not a SemanticKITTI class
-    27: 0,   # barrier has no honest SemanticKITTI equivalent
-    31: 0,   # puddle has no honest SemanticKITTI equivalent
+    23: 0,  # concrete is a material, not a SemanticKITTI class
+    27: 0,  # barrier has no honest SemanticKITTI equivalent
+    31: 0,  # puddle has no honest SemanticKITTI equivalent
     33: 17,  # mud -> terrain
-    34: 0,   # rubble has no honest SemanticKITTI equivalent
+    34: 0,  # rubble has no honest SemanticKITTI equivalent
 }
 
 DATASET_TAXONOMY_VERSIONS = {
@@ -128,8 +128,7 @@ def map_dataset_labels(
         if not np.all(np.isfinite(raw)) or not np.all(raw == np.floor(raw)):
             raise ValueError("labels must contain finite integer values")
         if raw.size and (
-            np.min(raw) < np.iinfo(np.int64).min
-            or np.max(raw) > np.iinfo(np.int64).max
+            np.min(raw) < np.iinfo(np.int64).min or np.max(raw) > np.iinfo(np.int64).max
         ):
             raise ValueError("labels exceed supported integer range")
         integer_labels = raw.astype(np.int64).reshape(-1)

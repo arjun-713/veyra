@@ -20,6 +20,43 @@ def _write_frame(root: Path, sequence: str, frame_id: str, offset: float) -> Non
     np.asarray([10, 20], dtype=np.uint32).tofile(label_dir / f"{frame_id}.label")
 
 
+def _write_generic_manifest(root: Path) -> None:
+    points = np.asarray(
+        [[1.0, 2.0, 0.5, 0.25], [2.0, 3.0, 0.6, 0.75]], dtype=np.float32
+    )
+    points.tofile(root / "scan.bin")
+    np.asarray([10, 20], dtype=np.uint32).tofile(root / "labels.label")
+    (root / "manifest.json").write_text(
+        json.dumps(
+            {
+                "schema_version": 1,
+                "dataset": "generic-fixture",
+                "point_schema": {
+                    "format": "xyzi",
+                    "coordinate_frame": "sensor",
+                    "intensity_semantics": "normalized",
+                },
+                "taxonomy": {"version": "fixture-v1", "mapping": {"10": 9}},
+                "frames": [
+                    {
+                        "sequence": "demo",
+                        "frame_id": "000000",
+                        "timestamp_s": 12.5,
+                        "pose_sensor_to_world": [
+                            [1, 0, 0, 4],
+                            [0, 1, 0, 5],
+                            [0, 0, 1, 6],
+                            [0, 0, 0, 1],
+                        ],
+                        "points": {"path": "scan.bin", "format": "xyzi_f32_bin"},
+                        "labels": {"path": "labels.label", "format": "uint32_label"},
+                    }
+                ],
+            }
+        )
+    )
+
+
 class RuntimePlayerTests(unittest.TestCase):
     def _runtime(self, root: Path):
         from viewer.runtime import RuntimeSession
@@ -57,6 +94,41 @@ class RuntimePlayerTests(unittest.TestCase):
                 sequences=["00000"],
                 pipeline_config={"semantic": {"mode": "ground_truth"}},
             )
+
+    def test_settings_session_supports_generic_manifest_and_preserves_provenance(self):
+        from viewer.runtime import RuntimeSession
+
+        with tempfile.TemporaryDirectory() as raw:
+            root = Path(raw)
+            _write_generic_manifest(root)
+            runtime = RuntimeSession.from_dataset_settings(
+                dataset="generic",
+                dataset_root=root,
+                sequences=["demo"],
+                pipeline_config={
+                    "semantic": {"mode": "ground_truth"},
+                    "ground": {"enabled": False},
+                    "terrain": {"enabled": False},
+                    "temporal": {"enabled": False},
+                },
+            )
+            try:
+                payload = runtime.frame_payload(0, budget=1000)
+            finally:
+                runtime.close()
+
+        self.assertEqual(payload["source"], "ManifestDataset")
+        self.assertEqual(payload["timestamp"], 12.5)
+        self.assertEqual(payload["pose"]["available"], True)
+        self.assertEqual(
+            payload["pose"]["provenance"],
+            {
+                "coordinate_frame": "world",
+                "timestamp_source": "dataset",
+                "pose_source": "dataset",
+                "calibration_source": "identity_absent",
+            },
+        )
 
     def test_controls_replay_real_adapter_frames_and_reset_temporal_state(self):
         with tempfile.TemporaryDirectory() as raw:

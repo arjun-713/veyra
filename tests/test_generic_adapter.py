@@ -120,11 +120,7 @@ class GenericManifestAdapterTests(unittest.TestCase):
         np.testing.assert_array_equal(
             frame.semantic_confidence, np.zeros(3, dtype=np.int32)
         )
-        self.assertIsNone(
-            frame.provenance.label_source
-            if hasattr(frame.provenance, "label_source")
-            else None
-        )
+        self.assertEqual(frame.provenance.label_source, "absent")
 
     def test_pose_timestamp_and_sensor_range_filter(self):
         item = self.frame()

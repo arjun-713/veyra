@@ -6,7 +6,7 @@ algorithm would make results look valid while changing their meaning.
 """
 
 import importlib
-from collections.abc import Iterable
+from collections.abc import Iterable, Mapping
 from dataclasses import dataclass
 from typing import Any
 
@@ -69,11 +69,13 @@ class PatchworkPPGroundSegmenter:
         *,
         module_names: Iterable[str] | None = None,
         executable_names: Iterable[str] = (),
+        parameter_overrides: Mapping[str, Any] | None = None,
     ) -> None:
         # executable_names is retained as diagnostic context, but an arbitrary
         # executable cannot be treated as Patchwork++ without a defined API.
         self._module_names = tuple(module_names or self._DEFAULT_MODULES)
         self._executable_names = tuple(executable_names)
+        self._parameter_overrides = dict(parameter_overrides or {})
         self._binding: Any | None = None
         self._backend_name: str | None = None
 
@@ -117,7 +119,13 @@ class PatchworkPPGroundSegmenter:
                 )
                 continue
             try:
-                binding = factory(parameters())
+                parameter_object = parameters()
+            except (ImportError, RuntimeError, TypeError, ValueError) as exc:
+                failures.append(f"{module_name}.patchworkpp: {exc}")
+                continue
+            self._apply_parameter_overrides(parameter_object)
+            try:
+                binding = factory(parameter_object)
             except (ImportError, RuntimeError, TypeError, ValueError) as exc:
                 failures.append(f"{module_name}.patchworkpp: {exc}")
                 continue
@@ -137,6 +145,27 @@ class PatchworkPPGroundSegmenter:
             "Patchwork++ is unavailable: install/configure a supported Python "
             f"binding (tried {attempted}){executable_note}. Diagnostics: {detail}"
         )
+
+    def _apply_parameter_overrides(self, parameters: Any) -> None:
+        """Apply only explicitly exposed binding parameters from config."""
+
+        for name, value in self._parameter_overrides.items():
+            if not isinstance(name, str) or not name or name.startswith("_"):
+                raise ValueError("Patchwork++ parameter names must be public strings")
+            if not hasattr(parameters, name):
+                raise ValueError(f"Patchwork++ parameter is not supported: {name}")
+            if isinstance(value, bool):
+                raise ValueError(  # noqa: TRY004 - config validation has one stable error type
+                    f"Patchwork++ parameter must not be boolean: {name}"
+                )
+            if isinstance(value, (int, float)) and not np.isfinite(value):
+                raise ValueError(f"Patchwork++ parameter must be finite: {name}")
+            try:
+                setattr(parameters, name, value)
+            except (AttributeError, TypeError, ValueError) as exc:
+                raise ValueError(
+                    f"invalid Patchwork++ parameter {name}={value!r}"
+                ) from exc
 
     @staticmethod
     def _invoke(binding: Any, points: np.ndarray) -> tuple[np.ndarray, np.ndarray]:

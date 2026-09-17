@@ -1,6 +1,7 @@
 #include "veyra/map/fusion.hpp"
 
 #include <cmath>
+#include <limits>
 
 #include "veyra/core/types.hpp"
 #include "veyra/map/cell.hpp"
@@ -95,7 +96,12 @@ FusionStats integrate(TileGrid& grid, std::span<const Observation> points,
 
     updateCell(cell, static_cast<double>(o.z));
     cell.last_seen = frame_index;
-    accumulateClass(cell, o.cls, o.confidence);
+    if (o.semantic_class <= std::numeric_limits<std::uint8_t>::max()) {
+      accumulateClass(cell, static_cast<std::uint8_t>(o.semantic_class),
+                      o.semantic_confidence);
+    } else if (o.semantic_confidence > 0.0F) {
+      ++stats.semantic_labels_unrepresentable;
+    }
 
     ++stats.accepted;
     stats.cells_created += static_cast<std::size_t>(created);

@@ -1,5 +1,7 @@
 import hashlib
 import json
+import subprocess
+import sys
 import tempfile
 import unittest
 import zipfile
@@ -12,10 +14,38 @@ from scripts.validate_perception import (
     confusion_report,
     latency_summary,
     reproducibility_metadata,
+    semantic_evaluation_report,
 )
 
 
 class PerceptionValidationTests(unittest.TestCase):
+    def test_validate_perception_supports_direct_script_help(self):
+        result = subprocess.run(
+            [sys.executable, "scripts/validate_perception.py", "--help"],
+            check=False,
+            capture_output=True,
+            text=True,
+        )
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertIn("--dataset", result.stdout)
+
+    def test_semantic_evaluation_separates_model_fov_from_all_return_quality(self):
+        all_confusion = np.zeros((20, 20), np.int64)
+        supported_confusion = np.zeros((20, 20), np.int64)
+        all_confusion[1, 1] = 3
+        all_confusion[1, 0] = 1
+        supported_confusion[1, 1] = 3
+        report = semantic_evaluation_report(
+            all_confusion,
+            supported_confusion,
+            total_points=5,
+            supported_points=4,
+        )
+        self.assertEqual(report["coverage_fraction"], 0.8)
+        self.assertEqual(report["all_returns"]["evaluated_points"], 4)
+        self.assertEqual(report["model_fov_only"]["evaluated_points"], 3)
+        self.assertAlmostEqual(report["model_fov_only"]["accuracy"], 1.0)
+
     def test_reproducibility_metadata_records_selection_and_digests(self):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
@@ -51,6 +81,10 @@ class PerceptionValidationTests(unittest.TestCase):
         self.assertEqual(report["evaluated_points"], 6)
         self.assertAlmostEqual(report["accuracy"], 4 / 6)
         self.assertAlmostEqual(report["mean_iou"], (2 / 4 + 2 / 3) / 2)
+        self.assertEqual(report["confusion_matrix"], matrix.tolist())
+        self.assertAlmostEqual(report["per_class"]["1"]["precision"], 2 / 3)
+        self.assertAlmostEqual(report["per_class"]["1"]["recall"], 2 / 3)
+        self.assertAlmostEqual(report["per_class"]["1"]["iou"], 0.5)
         self.assertIsNone(confusion_report(np.zeros((20, 20)))["accuracy"])
 
     def test_latency_tails_and_invalid_samples(self):

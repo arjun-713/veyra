@@ -1,5 +1,5 @@
 import {test} from 'node:test';import assert from 'node:assert/strict';
-import {comparisonMetrics,datasetFormats,layerUnavailable,mapActivity,profileConfig,recordEvent,summarizeVisual} from '../src/renderer/dashboard.ts';
+import {comparisonMetrics,datasetFormats,layerUnavailable,mapActivity,perceptionStages,profileConfig,recordEvent,summarizeVisual} from '../src/renderer/dashboard.ts';
 test('comparison requires measured matching policy reports and never fabricates reduction',()=>{
  assert.equal(comparisonMetrics(null).memoryReduction,null);
  assert.equal(comparisonMetrics({policies:{uniform5:{aggregate:{peak_rss_bytes:100}},utility_lod:{aggregate:{peak_rss_bytes:25}}}}).memoryReduction,75);
@@ -28,6 +28,10 @@ test('supported runtime datasets and snapshot layer availability stay aligned',(
  const frame:any={metadata:{layers:{utility:'available'}},payload:new Uint8Array()};
  assert.equal(layerUnavailable(frame,'utility'),false);assert.equal(layerUnavailable(frame,'motion'),true);
  const labeled:any={metadata:{layers:{semantic:'ground_truth'}},payload:new Uint8Array()};assert.equal(layerUnavailable(labeled,'semantic'),false);
+});
+test('perception stage summary keeps backend state distinct from timing',()=>{
+ const rows=perceptionStages({metadata:{pipeline_status:{semantic:'model',ground:'available',terrain:'unavailable',temporal:'skipped'},perception_timings_ms:{semantic:12.5,ground:3.2}},payload:new Uint8Array()});
+ assert.deepEqual(rows,[{label:'Semantic',status:'model',latency:12.5},{label:'Ground',status:'available',latency:3.2},{label:'Terrain',status:'unavailable',latency:null},{label:'Temporal',status:'skipped',latency:null}]);
 });
 test('performance activity exposes measured split and merge rates',()=>{
  const activity=mapActivity({map:{splits_per_second:12.5,merges_per_second:3.25}} as any);

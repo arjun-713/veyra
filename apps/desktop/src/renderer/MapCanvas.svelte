@@ -19,9 +19,9 @@
   if(meta.generation<lastGeneration||(meta.generation===lastGeneration&&meta.index<lastIndex))return;
   lastGeneration=meta.generation;lastIndex=meta.index;
   const bytes=frame.payload;const data=new DataView(bytes.buffer,bytes.byteOffset,bytes.byteLength);
-  const pointRow=new Float32Array(8),cellRow=new Float32Array(9);
+  const pointRow=new Float32Array(17),cellRow=new Float32Array(9);
   for(let i=0;i<meta.points.count;i++){
-   for(let j=0;j<8;j++)pointRow[j]=data.getFloat32(meta.points.offset+i*32+j*4,true);
+   for(let j=0;j<17;j++)pointRow[j]=data.getFloat32(meta.points.offset+i*68+j*4,true);
    position.set(displayPosition(pointRow[0],pointRow[1],pointRow[2]),i*3);colors.set(pointColor(mode,pointRow,meta.layers??{}),i*3);
   }
   pointGeo.setDrawRange(0,meta.points.count);pointGeo.getAttribute('position').needsUpdate=true;pointGeo.getAttribute('color').needsUpdate=true;pointGeo.computeBoundingSphere();

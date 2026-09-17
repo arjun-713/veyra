@@ -31,6 +31,7 @@ class Rellis3DDataset:
         sequences: list[str] | None = None,
         scan_dir: str = "vel_cloud_node_kitti_bin",
         label_dir: str = "vel_cloud_node_semantickitti_label_id",
+        require_labels: bool = True,
         max_cached_sequences: int = 8,
         metadata_root: str | Path | None = None,
     ) -> None:
@@ -42,7 +43,12 @@ class Rellis3DDataset:
         )
         self.scan_dir = scan_dir
         self.label_dir = label_dir
-        self.metadata_root = Path(metadata_root) if metadata_root is not None else self.root
+        if not isinstance(require_labels, bool):
+            raise TypeError("require_labels must be boolean")
+        self.require_labels = require_labels
+        self.metadata_root = (
+            Path(metadata_root) if metadata_root is not None else self.root
+        )
         if max_cached_sequences <= 0:
             raise ValueError("max_cached_sequences must be positive")
         self.max_cached_sequences = max_cached_sequences
@@ -115,7 +121,7 @@ class Rellis3DDataset:
         ref = refs.get(str(frame_id))
         if ref is None:
             raise FileNotFoundError(f"frame {sequence}/{frame_id} does not exist")
-        if ref.label_path is None:
+        if ref.label_path is None and self.require_labels:
             raise FileNotFoundError(
                 f"label file is missing for {sequence}/{frame_id} in {self.label_dir}"
             )
@@ -128,12 +134,17 @@ class Rellis3DDataset:
         points = raw_points.reshape((-1, 4))
         if not np.all(np.isfinite(points)):
             raise ValueError(f"scan contains non-finite XYZI values: {ref.scan_path}")
-        raw_labels = np.fromfile(ref.label_path, dtype=np.uint32)
-        if raw_labels.shape[0] != points.shape[0]:
-            raise ValueError(
-                f"scan/label length mismatch for {sequence}/{frame_id}: "
-                f"{points.shape[0]} != {raw_labels.shape[0]}"
-            )
+        if ref.label_path is None:
+            raw_labels = np.zeros(points.shape[0], dtype=np.uint32)
+            label_source = "absent"
+        else:
+            raw_labels = np.fromfile(ref.label_path, dtype=np.uint32)
+            if raw_labels.shape[0] != points.shape[0]:
+                raise ValueError(
+                    f"scan/label length mismatch for {sequence}/{frame_id}: "
+                    f"{points.shape[0]} != {raw_labels.shape[0]}"
+                )
+            label_source = "dataset"
 
         timestamp, timestamp_source = self._timestamp(sequence, frame_id)
         pose, pose_source, calibration_source = self._world_pose(
@@ -180,6 +191,7 @@ class Rellis3DDataset:
                 timestamp_source=timestamp_source,
                 pose_source=pose_source,
                 calibration_source=calibration_source,
+                label_source=label_source,
             ),
         )
 

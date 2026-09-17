@@ -49,10 +49,14 @@ def asset_manifest() -> dict[str, Any]:
     }
 
 
-def verify_download(path: Path, *, sha256: str, max_bytes: int = MAX_SCAN_BYTES) -> None:
+def verify_download(
+    path: Path, *, sha256: str, max_bytes: int = MAX_SCAN_BYTES
+) -> None:
     size = path.stat().st_size
     if size > max_bytes:
-        raise ValueError(f"asset exceeds bounded download limit: {size} > {max_bytes} bytes")
+        raise ValueError(
+            f"asset exceeds bounded download limit: {size} > {max_bytes} bytes"
+        )
     actual = hashlib.sha256(path.read_bytes()).hexdigest()
     if actual != sha256:
         raise ValueError(f"asset sha256 mismatch: expected {sha256}, got {actual}")
@@ -65,7 +69,10 @@ def download_asset(url: str, destination: Path, *, sha256: str) -> Path:
         return destination
     temporary = destination.with_name(destination.name + ".part")
     try:
-        with urllib.request.urlopen(url, timeout=60) as response, temporary.open("wb") as output:
+        with (
+            urllib.request.urlopen(url, timeout=60) as response,
+            temporary.open("wb") as output,
+        ):
             content_length = response.headers.get("Content-Length")
             if content_length is not None and int(content_length) > MAX_SCAN_BYTES:
                 raise ValueError("asset Content-Length exceeds bounded download limit")
@@ -85,7 +92,9 @@ def download_asset(url: str, destination: Path, *, sha256: str) -> Path:
 def load_scan_frame(path: Path) -> ObservationFrame:
     values = np.fromfile(path, dtype=np.float32)
     if values.size == 0 or values.size % 4:
-        raise ValueError("real scan must contain a non-empty float32 XYZ+intensity stream")
+        raise ValueError(
+            "real scan must contain a non-empty float32 XYZ+intensity stream"
+        )
     points = values.reshape((-1, 4))
     if not np.isfinite(points).all():
         raise ValueError("real scan contains non-finite values")
@@ -114,7 +123,9 @@ def load_scan_frame(path: Path) -> ObservationFrame:
     )
 
 
-def taxonomy_range_report(points: np.ndarray, frame: ObservationFrame) -> dict[str, Any]:
+def taxonomy_range_report(
+    points: np.ndarray, frame: ObservationFrame
+) -> dict[str, Any]:
     """Report observable taxonomy/range validity without inventing labels."""
     ranges = np.linalg.norm(points[:, :3], axis=1)
     classes = np.asarray(frame.semantic_class)
@@ -129,19 +140,25 @@ def taxonomy_range_report(points: np.ndarray, frame: ObservationFrame) -> dict[s
             {
                 "min_m": lower,
                 "max_m": upper,
-                "points": int(np.count_nonzero(
-                    (ranges >= lower)
-                    & (ranges < upper if upper is not None else True)
-                )),
+                "points": int(
+                    np.count_nonzero(
+                        (ranges >= lower)
+                        & (ranges < upper if upper is not None else True)
+                    )
+                ),
             }
             for lower, upper in bins
         ],
     }
 
 
-def correspondence_report(input_frame: ObservationFrame, output_frame: ObservationFrame) -> dict[str, Any]:
+def correspondence_report(
+    input_frame: ObservationFrame, output_frame: ObservationFrame
+) -> dict[str, Any]:
     same_shape = input_frame.points.shape == output_frame.points.shape
-    same_points = same_shape and bool(np.array_equal(input_frame.points, output_frame.points))
+    same_points = same_shape and bool(
+        np.array_equal(input_frame.points, output_frame.points)
+    )
     aligned_fields = (
         "semantic_class",
         "semantic_confidence",
@@ -159,7 +176,8 @@ def correspondence_report(input_frame: ObservationFrame, output_frame: Observati
         "raw_semantic_class",
     )
     field_alignment = {
-        name: np.asarray(getattr(output_frame, name)).shape[0] == len(input_frame.points)
+        name: np.asarray(getattr(output_frame, name)).shape[0]
+        == len(input_frame.points)
         for name in aligned_fields
     }
     return {
@@ -179,7 +197,10 @@ def max_rss_bytes() -> int:
 
 def _load_pipeline(repo: Path, config_path: Path, intensity_scale: float | None):
     config = yaml.safe_load(config_path.read_text())
-    if not isinstance(config, dict) or config.get("semantic", {}).get("mode") != "salsanext":
+    if (
+        not isinstance(config, dict)
+        or config.get("semantic", {}).get("mode") != "salsanext"
+    ):
         raise ValueError("perception regression requires explicit SalsaNext config")
     if intensity_scale is None:
         raise ValueError(
@@ -210,7 +231,11 @@ def run(args: argparse.Namespace) -> dict[str, Any]:
     scan_path = (
         Path(args.scan).resolve()
         if args.scan
-        else download_asset(manifest["url"], Path(args.cache_dir).resolve() / "000000.bin", sha256=manifest["sha256"])
+        else download_asset(
+            manifest["url"],
+            Path(args.cache_dir).resolve() / "000000.bin",
+            sha256=manifest["sha256"],
+        )
     )
     verify_download(scan_path, sha256=manifest["sha256"])
     config_path = (repo / args.perception_config).resolve()
@@ -221,7 +246,11 @@ def run(args: argparse.Namespace) -> dict[str, Any]:
     started = time.perf_counter_ns()
     output = pipeline.process(source)
     total_ns = time.perf_counter_ns() - started
-    if output.status.semantic != "model" or output.status.ground in {"disabled", "unavailable"} or output.status.terrain in {"disabled", "unavailable"}:
+    if (
+        output.status.semantic != "model"
+        or output.status.ground in {"disabled", "unavailable"}
+        or output.status.terrain in {"disabled", "unavailable"}
+    ):
         raise RuntimeError(f"required perception stage missing: {output.status}")
     correspondence = correspondence_report(source, output.frame)
     if not all(correspondence.values()):
@@ -229,13 +258,16 @@ def run(args: argparse.Namespace) -> dict[str, Any]:
     return {
         "regression_schema_version": 2,
         "status": "real_data_perception_single_frame",
-        "asset": manifest | {"local_sha256": hashlib.sha256(scan_path.read_bytes()).hexdigest()},
+        "asset": manifest
+        | {"local_sha256": hashlib.sha256(scan_path.read_bytes()).hexdigest()},
         "input_scan": {
             "points": len(source.points),
             "intensity_min": float(source.points[:, 3].min()),
             "intensity_max": float(source.points[:, 3].max()),
             "intensity_mean": float(source.points[:, 3].mean()),
-            "intensity_values_above_one": int(np.count_nonzero(source.points[:, 3] > 1.0)),
+            "intensity_values_above_one": int(
+                np.count_nonzero(source.points[:, 3] > 1.0)
+            ),
         },
         "pipeline": {
             "config": str(config_path.relative_to(repo)),
@@ -261,15 +293,28 @@ def run(args: argparse.Namespace) -> dict[str, Any]:
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--repo", default=Path(__file__).resolve().parents[1])
-    parser.add_argument("--cache-dir", default=os.environ.get("VEYRA_BENCHMARK_CACHE", ".cache/veyra-perception"))
+    parser.add_argument(
+        "--cache-dir",
+        default=os.environ.get("VEYRA_BENCHMARK_CACHE", ".cache/veyra-perception"),
+    )
     parser.add_argument("--scan")
-    parser.add_argument("--perception-config", default="configs/perception-salsanext.yaml")
+    parser.add_argument(
+        "--perception-config", default="configs/perception-salsanext.yaml"
+    )
     parser.add_argument("--intensity-scale", type=float)
     parser.add_argument("--output", type=Path)
     args = parser.parse_args()
     try:
         result = run(args)
-    except (OSError, ValueError, RuntimeError, KeyError, TypeError, yaml.YAMLError, json.JSONDecodeError) as error:
+    except (
+        OSError,
+        ValueError,
+        RuntimeError,
+        KeyError,
+        TypeError,
+        yaml.YAMLError,
+        json.JSONDecodeError,
+    ) as error:
         print(f"veyra perception regression: {error}", file=sys.stderr)
         return 2
     rendered = json.dumps(result, indent=2, sort_keys=True, allow_nan=False) + "\n"

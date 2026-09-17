@@ -2,11 +2,11 @@
 
 from __future__ import annotations
 
-from collections import defaultdict
 from dataclasses import dataclass
 from typing import Any
 
 import numpy as np
+from scipy.ndimage import convolve
 
 
 @dataclass(frozen=True)
@@ -94,117 +94,155 @@ class TerrainAnalyzer:
         step = np.full(count, np.nan, dtype=np.float32)
         result = np.full(count, "unknown", dtype="U12")
         output_confidence = np.zeros(count, dtype=np.float32)
-        radius_squared = self.neighborhood_radius**2
+        if count == 0:
+            return TerrainEvidence(
+                slope=slope,
+                roughness=roughness,
+                height_complexity=complexity,
+                step=step,
+                drivable=result,
+                confidence=output_confidence,
+            )
 
-        # A cell width equal to the query radius means a query can only touch
-        # the 3x3 neighbouring buckets.  This bounds candidate discovery for
-        # normal LiDAR densities without introducing a heavyweight dependency.
-        bucket_size = self.neighborhood_radius
-        buckets: dict[tuple[int, int], list[int]] = defaultdict(list)
-        bucket_coords = np.floor(xyz[:, :2] / bucket_size).astype(np.int64)
-        for index, bucket in enumerate(bucket_coords):
-            buckets[(int(bucket[0]), int(bucket[1]))].append(index)
+        # Aggregate into a compact world-aligned raster first.  All local
+        # sufficient statistics are then reduced by compiled ndimage kernels;
+        # this removes the per-bucket Python candidate lists and least-squares
+        # loop that dominated full LiDAR scans.
+        cell_size = self.neighborhood_radius / 2.0
+        cell_coords = np.floor(xyz[:, :2] / cell_size).astype(np.int64)
+        min_cell = cell_coords.min(axis=0)
+        max_cell = cell_coords.max(axis=0)
+        width = int(max_cell[0] - min_cell[0] + 1)
+        height = int(max_cell[1] - min_cell[1] + 1)
+        flat_cells = (cell_coords[:, 1] - min_cell[1]) * width + (
+            cell_coords[:, 0] - min_cell[0]
+        )
+        cell_count = width * height
+        if cell_count > 4_000_000:
+            raise ValueError(
+                "terrain point extent is too large for the bounded raster analyzer"
+            )
 
-        # Fit once per query bucket, then broadcast to points in that bucket.
-        # This keeps work proportional to occupied buckets and bounds the
-        # amount of data used by a fit for pathological dense returns.
-        max_fit_points = max(32, self.min_ground_neighbors * 16)
-        for (bx, by), bucket_points in buckets.items():
-            bucket_indices = np.asarray(bucket_points, dtype=np.intp)
-            if not np.any(mask[bucket_indices]):
-                continue
-            candidates = [
-                candidate
-                for dx in (-1, 0, 1)
-                for dy in (-1, 0, 1)
-                for candidate in buckets.get((int(bx + dx), int(by + dy)), ())
+        support_mask = mask.astype(np.float64)
+        flat_size = cell_count
+
+        def aggregate(values: np.ndarray) -> np.ndarray:
+            return np.bincount(
+                flat_cells, weights=values * support_mask, minlength=flat_size
+            ).reshape(height, width)
+
+        counts = aggregate(np.ones(count, dtype=np.float64))
+        sums = [aggregate(xyz[:, axis]) for axis in range(3)]
+        second_moments = [
+            aggregate(xyz[:, 0] * xyz[:, 0]),
+            aggregate(xyz[:, 0] * xyz[:, 1]),
+            aggregate(xyz[:, 1] * xyz[:, 1]),
+            aggregate(xyz[:, 0] * xyz[:, 2]),
+            aggregate(xyz[:, 1] * xyz[:, 2]),
+            aggregate(xyz[:, 2] * xyz[:, 2]),
+        ]
+        confidence_sum = aggregate(confidence)
+        ground_z = xyz[:, 2].copy()
+        ground_z[~mask] = np.inf
+        ground_min = np.full(flat_size, np.inf, dtype=np.float64)
+        np.minimum.at(ground_min, flat_cells, ground_z)
+        ground_z[~mask] = -np.inf
+        ground_max = np.full(flat_size, -np.inf, dtype=np.float64)
+        np.maximum.at(ground_max, flat_cells, ground_z)
+        ground_min = ground_min.reshape(height, width)
+        ground_max = ground_max.reshape(height, width)
+
+        radius_cells = int(np.ceil(self.neighborhood_radius / cell_size))
+        kernel_width = 2 * radius_cells + 1
+        kernel = np.ones((kernel_width, kernel_width), dtype=np.float64)
+        local = [
+            convolve(values, kernel, mode="constant")
+            for values in (*sums, *second_moments, counts, confidence_sum)
+        ]
+        sx, sy, sz, sxx, sxy, syy, sxz, syz, szz, local_count, local_confidence = local
+        enough = local_count >= self.min_ground_neighbors
+        with np.errstate(divide="ignore", invalid="ignore"):
+            mean_x = sx / local_count
+            mean_y = sy / local_count
+            mean_z = sz / local_count
+            cxx = sxx - sx * mean_x
+            cxy = sxy - sx * mean_y
+            cyy = syy - sy * mean_y
+            cxz = sxz - sx * mean_z
+            cyz = syz - sy * mean_z
+            czz = szz - sz * mean_z
+            determinant = cxx * cyy - cxy * cxy
+            valid = enough & np.isfinite(determinant) & (np.abs(determinant) > 1e-12)
+            gradient_x = np.divide(
+                cyy * cxz - cxy * cyz,
+                determinant,
+                where=valid,
+                out=np.zeros_like(determinant),
+            )
+            gradient_y = np.divide(
+                cxx * cyz - cxy * cxz,
+                determinant,
+                where=valid,
+                out=np.zeros_like(determinant),
+            )
+            residual_sum = czz - gradient_x * cxz - gradient_y * cyz
+            roughness_grid = np.sqrt(np.maximum(residual_sum / local_count, 0.0))
+            slope_grid = np.arctan(np.hypot(gradient_x, gradient_y))
+            complexity_grid = np.tanh(np.sqrt(np.maximum(szz / local_count, 0.0)))
+            confidence_grid = np.divide(
+                local_confidence,
+                local_count,
+                where=local_count > 0,
+                out=np.zeros_like(local_count),
+            ) * np.minimum(1.0, local_count / (self.min_ground_neighbors * 2.0))
+
+        # A discontinuity is represented by adjacent raster-cell height
+        # changes, while the in-cell range retains isolated curb/return
+        # hazards that averaging alone would hide.
+        cell_mean_z = np.divide(
+            sums[2], counts, where=counts > 0, out=np.zeros_like(counts)
+        )
+        neighbor_step = np.zeros_like(cell_mean_z)
+        for axis, direction in ((0, 1), (0, -1), (1, 1), (1, -1)):
+            shifted = np.roll(cell_mean_z, direction, axis=axis)
+            boundary = [slice(None), slice(None)]
+            boundary[axis] = 0 if direction > 0 else -1
+            shifted[tuple(boundary)] = cell_mean_z[tuple(boundary)]
+            neighbor_step = np.maximum(neighbor_step, np.abs(cell_mean_z - shifted))
+        cell_range = np.where(
+            counts > 0,
+            np.maximum(0.0, ground_max - ground_min),
+            0.0,
+        )
+        step_grid = np.maximum(neighbor_step, cell_range)
+        valid &= np.isfinite(slope_grid + roughness_grid + complexity_grid)
+
+        point_x = cell_coords[:, 0] - min_cell[0]
+        point_y = cell_coords[:, 1] - min_cell[1]
+        point_cell = (point_y * width + point_x).astype(np.intp)
+        valid_flat = valid.ravel()
+        ground_points = mask & valid_flat[point_cell]
+        if np.any(ground_points):
+            slope[ground_points] = slope_grid.ravel()[point_cell[ground_points]]
+            roughness[ground_points] = roughness_grid.ravel()[point_cell[ground_points]]
+            complexity[ground_points] = complexity_grid.ravel()[
+                point_cell[ground_points]
             ]
-            candidates = [candidate for candidate in candidates if mask[candidate]]
-            if not candidates:
-                continue
-            candidate_indices = np.asarray(candidates, dtype=np.intp)
-            center = xyz[bucket_points, :2].mean(axis=0)
-            offsets = xyz[candidate_indices, :2] - center
-            local = np.einsum("ij,ij->i", offsets, offsets) <= radius_squared * 2.0
-            neighbor_indices = candidate_indices[local]
-            if neighbor_indices.size > max_fit_points:
-                # Uniform caps are unsafe: a small height hazard can fall
-                # between samples. Always retain both local height extrema,
-                # then fill the remaining budget deterministically.
-                hazard_indices = neighbor_indices[
-                    [
-                        np.argmin(xyz[neighbor_indices, 2]),
-                        np.argmax(xyz[neighbor_indices, 2]),
-                    ]
-                ]
-                sample_budget = max_fit_points - len(np.unique(hazard_indices))
-                selected = np.linspace(
-                    0,
-                    neighbor_indices.size - 1,
-                    max(0, sample_budget),
-                    dtype=np.intp,
-                )
-                neighbor_indices = np.unique(
-                    np.concatenate((hazard_indices, neighbor_indices[selected]))
-                )
-            neighbors = xyz[neighbor_indices, :3]
-            if len(neighbors) < self.min_ground_neighbors:
-                continue
-
-            centered = neighbors - neighbors.sum(axis=0) / len(neighbors)
-            xy = centered[:, :2]
-            z = centered[:, 2]
-            normal_matrix = xy.T @ xy
-            rhs = xy.T @ z
-            determinant = (
-                normal_matrix[0, 0] * normal_matrix[1, 1]
-                - normal_matrix[0, 1] * normal_matrix[1, 0]
+            step[ground_points] = step_grid.ravel()[point_cell[ground_points]]
+            output_confidence[ground_points] = confidence_grid.ravel()[
+                point_cell[ground_points]
+            ]
+            drivable = (
+                (slope[ground_points] <= self.max_slope)
+                & (roughness[ground_points] <= self.max_roughness)
+                & (step[ground_points] <= self.max_step)
+                & (output_confidence[ground_points] > 0.0)
             )
-            if not np.isfinite(determinant) or np.isclose(determinant, 0.0):
-                continue
-            gradient = np.array(
-                (
-                    (normal_matrix[1, 1] * rhs[0] - normal_matrix[0, 1] * rhs[1])
-                    / determinant,
-                    (normal_matrix[0, 0] * rhs[1] - normal_matrix[1, 0] * rhs[0])
-                    / determinant,
-                )
-            )
-            predicted = xy @ gradient
-            residuals = np.abs(z - predicted)
-            slope_value = float(np.arctan(np.linalg.norm(gradient)))
-            roughness_value = float(np.sqrt(np.sum(residuals**2) / len(residuals)))
-            # The map/policy contract consumes a unit-interval evidence score.
-            # Preserve ordering for large local height variation while
-            # preventing world-frame elevation scale from invalidating the
-            # downstream protocol.
-            raw_complexity = float(np.sqrt(np.sum(z**2) / len(z)))
-            complexity_value = float(np.tanh(raw_complexity))
-            # A continuous slope has a large raw height range but no step;
-            # use deviation from the locally fitted surface instead.
-            step_value = float(np.max(residuals))
-
-            support = min(1.0, len(neighbors) / (self.min_ground_neighbors * 2.0))
-            confidence_value = float(np.mean(confidence[neighbor_indices]) * support)
-            # Geometry is fitted from ground support, but it must not be
-            # broadcast to obstacle/non-ground points sharing the XY bucket.
-            indices = bucket_indices[mask[bucket_indices]]
-            if indices.size == 0:
-                continue
-            slope[indices] = slope_value
-            roughness[indices] = roughness_value
-            complexity[indices] = complexity_value
-            step[indices] = step_value
-            output_confidence[indices] = confidence_value
-            if confidence_value > 0.0:
-                if (
-                    slope_value <= self.max_slope
-                    and roughness_value <= self.max_roughness
-                    and step_value <= self.max_step
-                ):
-                    result[indices] = "drivable"
-                else:
-                    result[indices] = "non_drivable"
+            ground_indices = np.flatnonzero(ground_points)
+            confident_indices = ground_indices[output_confidence[ground_points] > 0.0]
+            confident_drivable = drivable[output_confidence[ground_points] > 0.0]
+            result[confident_indices[confident_drivable]] = "drivable"
+            result[confident_indices[~confident_drivable]] = "non_drivable"
 
         return TerrainEvidence(
             slope=slope,

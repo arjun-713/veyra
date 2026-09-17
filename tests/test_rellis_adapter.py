@@ -23,6 +23,20 @@ def write_frame(root: Path, sequence: str, frame_id: str, xs: list[float]) -> No
 
 
 class Rellis3DAdapterTests(unittest.TestCase):
+    def test_optional_labels_are_explicitly_unknown(self):
+        with tempfile.TemporaryDirectory() as raw:
+            root = Path(raw)
+            write_frame(root, "00000", "0", [1.0])
+            (
+                root / "00000" / "vel_cloud_node_semantickitti_label_id" / "0.label"
+            ).unlink()
+
+            frame = Rellis3DDataset(root, require_labels=False).load_frame("00000", "0")
+
+        np.testing.assert_array_equal(frame.semantic_class, [0])
+        np.testing.assert_array_equal(frame.semantic_confidence, [0.0])
+        self.assertEqual(frame.provenance.label_source, "absent")
+
     def test_reuses_one_explicit_sequence_index_for_frame_selection(self):
         with tempfile.TemporaryDirectory() as raw:
             root = Path(raw)
@@ -35,7 +49,9 @@ class Rellis3DAdapterTests(unittest.TestCase):
                 (root / "00000" / "vel_cloud_node_kitti_bin" / "10.bin").read_bytes()
             )
 
-            self.assertEqual([ref.frame_id for ref in adapter.list_frames("00000")], ["2", "10"])
+            self.assertEqual(
+                [ref.frame_id for ref in adapter.list_frames("00000")], ["2", "10"]
+            )
             self.assertIs(adapter.list_frames("00000"), first)
 
     def test_rejects_malformed_timestamp_and_pose_without_reparsing_each_frame(self):
@@ -124,15 +140,17 @@ class Rellis3DAdapterTests(unittest.TestCase):
             np.testing.assert_array_equal(frame.semantic_confidence, [1.0, 1.0, 0.0])
 
     def test_uses_explicit_metadata_root_and_rejects_unmatched_pose_rows(self):
-        with tempfile.TemporaryDirectory() as raw, tempfile.TemporaryDirectory() as metadata:
+        with (
+            tempfile.TemporaryDirectory() as raw,
+            tempfile.TemporaryDirectory() as metadata,
+        ):
             root = Path(raw)
             metadata_root = Path(metadata)
             write_frame(root, "00000", "0", [1.0])
             sequence_metadata = metadata_root / "00000"
             sequence_metadata.mkdir()
             (sequence_metadata / "poses.txt").write_text(
-                "1 0 0 0 0 1 0 0 0 0 1 0\n"
-                "1 0 0 1 0 1 0 0 0 0 1 0\n"
+                "1 0 0 0 0 1 0 0 0 0 1 0\n" "1 0 0 1 0 1 0 0 0 0 1 0\n"
             )
             (sequence_metadata / "calib.txt").write_text(
                 "P0: 1 0 0 0 0 1 0 0 0 0 1 0\n"

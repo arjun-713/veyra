@@ -38,15 +38,21 @@ class ManifestDataset:
         if point_schema.get("coordinate_frame") != "sensor":
             raise ValueError("manifest point_schema.coordinate_frame must be sensor")
         if not isinstance(point_schema.get("intensity_semantics"), str):
-            raise ValueError("manifest must declare intensity_semantics")
+            raise ValueError(  # noqa: TRY004 - malformed manifests use one public error type
+                "manifest must declare intensity_semantics"
+            )
         taxonomy = data.get("taxonomy")
         if not isinstance(taxonomy, dict) or not isinstance(
             taxonomy.get("version"), str
         ):
-            raise ValueError("manifest must declare taxonomy.version")
+            raise ValueError(  # noqa: TRY004 - malformed manifests use one public error type
+                "manifest must declare taxonomy.version"
+            )
         mapping = taxonomy.get("mapping")
         if not isinstance(mapping, dict):
-            raise ValueError("manifest taxonomy.mapping must be an object")
+            raise ValueError(  # noqa: TRY004 - malformed manifests use one public error type
+                "manifest taxonomy.mapping must be an object"
+            )
         self._mapping = self._parse_mapping(mapping)
         frames = data.get("frames")
         if not isinstance(frames, list) or not frames:
@@ -56,7 +62,9 @@ class ManifestDataset:
         self._frames: dict[tuple[str, str], dict[str, object]] = {}
         for item in frames:
             if not isinstance(item, dict):
-                raise ValueError("manifest frame entries must be objects")
+                raise ValueError(  # noqa: TRY004 - malformed manifests use one public error type
+                    "manifest frame entries must be objects"
+                )
             sequence, frame_id = item.get("sequence"), item.get("frame_id")
             if (
                 not isinstance(sequence, str)
@@ -216,8 +224,10 @@ class ManifestDataset:
             raise ValueError("invalid range bounds")
         points = self._read_points(item["points"])
         labels = np.zeros(len(points), dtype=np.int64)
+        label_source = "absent"
         if item.get("labels") is not None:
             labels = self._read_labels(item["labels"], len(points))
+            label_source = "dataset"
         keep = np.linalg.norm(points[:, :3], axis=1) >= min_range_m
         if max_range_m is not None:
             keep &= np.linalg.norm(points[:, :3], axis=1) <= max_range_m
@@ -240,6 +250,7 @@ class ManifestDataset:
                 timestamp_source="dataset" if timestamp is not None else "absent",
                 pose_source="dataset",
                 calibration_source="identity_absent",
+                label_source=label_source,
             )
         else:
             pose = PoseSE3.identity(timestamp)
@@ -248,6 +259,7 @@ class ManifestDataset:
                 timestamp_source="dataset" if timestamp is not None else "absent",
                 pose_source="identity_absent",
                 calibration_source="identity_absent",
+                label_source=label_source,
             )
         unknown = np.full(len(points), "unknown")
         nan = np.full(len(points), np.nan, dtype=np.float32)

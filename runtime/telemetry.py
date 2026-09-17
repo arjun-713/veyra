@@ -22,6 +22,12 @@ def summary(values):
 def rss_bytes(pid):
     if pid is None:
         return None
+    try:
+        with open(f"/proc/{pid}/statm") as stream:
+            fields = stream.read(256).split()
+        return int(fields[1]) * os.sysconf("SC_PAGE_SIZE")
+    except (OSError, ValueError, IndexError, AttributeError):
+        return None
 
 
 def cpu_seconds(pid):
@@ -35,11 +41,6 @@ def cpu_seconds(pid):
         fields = stat[stat.rfind(")") + 2 :].split()
         return (int(fields[11]) + int(fields[12])) / os.sysconf("SC_CLK_TCK")
     except (OSError, ValueError, IndexError, AttributeError):
-        return None
-    try:
-        with open(f"/proc/{pid}/statm") as stream:
-            return int(stream.read(256).split()[1]) * os.sysconf("SC_PAGE_SIZE")
-    except (OSError, ValueError, AttributeError):
         return None
 
 
@@ -57,6 +58,7 @@ class Telemetry:
         metrics = frame.get("map", {}).get("metrics", {})
         snapshot = frame.get("map", {}).get("snapshot", {})
         timings = frame.get("perception_timings_ms", {})
+        pipeline_status = frame.get("pipeline_status", {})
         latency = metrics.get("map_update_latency_ns") or {}
         levels = snapshot.get("levels", {})
         topology = metrics.get("topology", {})
@@ -140,4 +142,12 @@ class Telemetry:
             "governor": frame.get("map", {}).get("governor")
             or {"state": "unavailable", "budget": None},
             "perception_stages_ms": timings,
+            "perception": {
+                "status": {
+                    name: pipeline_status.get(name, "unavailable")
+                    for name in ("semantic", "ground", "terrain", "temporal")
+                },
+                "provenance": frame.get("pose", {}).get("provenance", {}),
+                "backend": pipeline_status.get("semantic", "unavailable"),
+            },
         }

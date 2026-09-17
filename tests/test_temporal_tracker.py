@@ -23,9 +23,7 @@ def scan(x: float, semantic_class: int = 1) -> tuple[np.ndarray, np.ndarray]:
 
 class TemporalTrackerTests(unittest.TestCase):
     def test_radius_components_empty_input_returns_no_components(self):
-        self.assertEqual(
-            TemporalTracker._radius_components(np.empty((0, 2)), 0.5), []
-        )
+        self.assertEqual(TemporalTracker._radius_components(np.empty((0, 2)), 0.5), [])
 
     def test_qhull_coplanar_omission_uses_exact_fallback(self):
         class FakeTriangulation:
@@ -61,13 +59,86 @@ class TemporalTrackerTests(unittest.TestCase):
             ([[0.0, 0.0]], 1),
             ([[0.0, 0.0], [0.0, 0.0], [1.0, 0.0]], 2),
         ):
-            points = np.asarray(
-                [[x, y, 0.0, 1.0] for x, y in values], dtype=np.float32
-            )
+            points = np.asarray([[x, y, 0.0, 1.0] for x, y in values], dtype=np.float32)
             labels = np.ones(len(points), dtype=np.int32)
             tracker.reset()
             tracker.update(points, labels, np.eye(4), timestamp=0.0)
             self.assertEqual(tracker.active_track_count, expected)
+
+    def test_large_radius_components_use_compiled_spatial_connectivity(self):
+        """Dense scans must not build a global Delaunay graph per class."""
+        points = np.asarray(
+            [
+                [x, y, 0.0, 1.0]
+                for x in np.linspace(-2.0, 2.0, 25)
+                for y in np.linspace(-2.0, 2.0, 25)
+            ],
+            dtype=np.float32,
+        )
+        labels = np.ones(len(points), dtype=np.int32)
+        tracker = TemporalTracker(cluster_tolerance_m=0.5)
+
+        with patch(
+            "scipy.spatial.Delaunay",
+            side_effect=AssertionError("large scans must use compiled connectivity"),
+        ):
+            components = tracker._clusters(points[:, :3].astype(np.float64), labels)
+
+        self.assertEqual(len(components), 1)
+        self.assertEqual(len(components[0]), len(points))
+
+    def test_large_radius_components_build_csr_without_coo_conversion(self):
+        """The dense path must avoid an avoidable COO-to-CSR conversion."""
+        points = np.asarray(
+            [
+                [x, y, 0.0, 1.0]
+                for x in np.linspace(-2.0, 2.0, 25)
+                for y in np.linspace(-2.0, 2.0, 25)
+            ],
+            dtype=np.float32,
+        )
+        labels = np.ones(len(points), dtype=np.int32)
+        tracker = TemporalTracker(cluster_tolerance_m=0.5)
+
+        with patch(
+            "scipy.sparse.coo_matrix",
+            side_effect=AssertionError(
+                "dense connectivity must construct CSR directly"
+            ),
+        ):
+            components = tracker._clusters(points[:, :3].astype(np.float64), labels)
+
+        self.assertEqual(len(components), 1)
+        self.assertEqual(len(components[0]), len(points))
+
+    def test_large_radius_components_match_bruteforce_connectivity(self):
+        """The compiled fast path must preserve exact radius semantics."""
+        rng = np.random.default_rng(17)
+        points = rng.uniform(-3.0, 3.0, size=(520, 2))
+        tolerance = 0.5
+        parent = np.arange(len(points), dtype=np.intp)
+
+        def find(index):
+            while parent[index] != index:
+                parent[index] = parent[parent[index]]
+                index = parent[index]
+            return index
+
+        for left in range(len(points)):
+            for right in range(left + 1, len(points)):
+                if np.linalg.norm(points[left] - points[right]) <= tolerance:
+                    left_root, right_root = find(left), find(right)
+                    if left_root != right_root:
+                        parent[max(left_root, right_root)] = min(left_root, right_root)
+        expected = {}
+        for index in range(len(points)):
+            expected.setdefault(find(index), []).append(index)
+
+        actual = TemporalTracker._radius_components(points, tolerance)
+        self.assertEqual(
+            {tuple(sorted(component.tolist())) for component in actual},
+            {tuple(sorted(members)) for members in expected.values()},
+        )
 
     def test_collinear_and_near_collinear_components_are_deterministic(self):
         tracker = TemporalTracker(cluster_tolerance_m=0.41)
@@ -168,9 +239,8 @@ class TemporalTrackerTests(unittest.TestCase):
             "moving_speed_mps": np.nan,
         }
         for name, value in config.items():
-            with self.subTest(name=name):
-                with self.assertRaises(ValueError):
-                    TemporalTracker(**{name: value})
+            with self.subTest(name=name), self.assertRaises(ValueError):
+                TemporalTracker(**{name: value})
 
         with self.assertRaises(ValueError):
             MotionEvidence(
@@ -214,7 +284,9 @@ class TemporalTrackerTests(unittest.TestCase):
 
         tracker.reset()
         order = np.array([2, 0, 1])
-        permuted = tracker.update(points[order], labels[order], np.eye(4), timestamp=0.0)
+        permuted = tracker.update(
+            points[order], labels[order], np.eye(4), timestamp=0.0
+        )
         np.testing.assert_array_equal(permuted.state, first.state[order])
         np.testing.assert_array_equal(permuted.persistence, first.persistence[order])
 

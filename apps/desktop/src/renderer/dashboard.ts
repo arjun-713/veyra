@@ -9,6 +9,11 @@ export function profileConfig(current:Json,name:string):Json{
  return {...current,map:{...(current.map??{}),resource_profile:selected.resource_profile,governor_override:'automatic'},visualization:selected.visualization};
 }
 export function layerUnavailable(frame:WireFrame|null,mode:string){return ['ground','terrain','motion','utility'].includes(mode)&&!evidenceAvailable(frame?.metadata.layers?.[mode]);}
+export function perceptionStages(frame:WireFrame|null){
+ const status=frame?.metadata.pipeline_status??{};
+ const timings=frame?.metadata.perception_timings_ms??{};
+ return [['Semantic','semantic'],['Ground','ground'],['Terrain','terrain'],['Temporal','temporal']].map(([label,key])=>({label,status:status[key]??'unavailable',latency:typeof timings[key]==='number'?timings[key]:null}));
+}
 export function mapActivity(telemetry:Json):[string,unknown][]{return [['Active cells',telemetry.map?.active_cells],['Logical bytes',telemetry.map?.logical_bytes],['Allocated bytes',telemetry.map?.allocated_bytes],['Topology changes',telemetry.map?.topology_changes],['Splits / second',telemetry.map?.splits_per_second],['Merges / second',telemetry.map?.merges_per_second]];}
 export function recordEvent(events:DashboardEvent[],event:Json,now=Date.now()):DashboardEvent[]{
  if(!['status','benchmark','governor'].includes(event.type))return events;

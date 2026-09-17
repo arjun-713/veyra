@@ -48,7 +48,7 @@ export class RollingTelemetry {
 }
 export function validateVisualization(metadata:Json,payload:Uint8Array){
   for(const key of ['points','cells']){
-    const s=metadata[key];const expected=key==='points'?32:36;if(!s||s.stride!==expected)throw new Error('Invalid visualization stride');
+    const s=metadata[key];const expected=key==='points'?68:36;if(!s||s.stride!==expected)throw new Error('Invalid visualization stride');
     if(!Number.isSafeInteger(s.count)||!Number.isSafeInteger(s.offset)||s.count<0||s.count>100000||s.offset<0||s.offset%4||s.offset+s.count*s.stride>payload.byteLength)throw new Error('Visualization section outside bounds');
   }
 }

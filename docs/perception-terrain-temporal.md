@@ -3,14 +3,14 @@
 Source: `AGENTS.md` §§9–11 and `README.md` Perception / Dynamic /
 Terrain Understanding.
 
-## Semantic provider (interface, not architecture)
+## Semantic provider
 
-```cpp
-class SemanticProvider {
-public:
-    virtual SemanticFrame infer(const LidarFrame& scan) = 0;
-};
-```
+The live provider boundary is the Python `perception.semantic.SemanticProvider`
+protocol. It consumes XYZI arrays plus optional dataset labels and returns an
+aligned `SemanticResult` containing unified class IDs, confidence, and backend
+mode. Implementations currently include `GroundTruthSemanticProvider`,
+`OnnxSemanticProvider`, and the SalsaNext adapter; the mapper consumes only the
+result fields and does not depend on a network-specific implementation.
 
 Mapper must not depend on one network. Candidates: SalsaNext, FRNet,
 Cylinder3D, compatible ONNX models. Pretrained first; custom LiDAR

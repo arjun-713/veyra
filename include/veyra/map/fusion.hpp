@@ -13,6 +13,10 @@ struct FusionStats {
   std::size_t accepted = 0;
   std::size_t rejected_out_of_range = 0;
   std::size_t rejected_non_finite = 0;
+  // The canonical Observation supports uint16 semantic ids while the legacy
+  // compact TileGrid cell stores uint8. Such a point still contributes
+  // geometry, but this counter prevents the label from being truncated.
+  std::size_t semantic_labels_unrepresentable = 0;
   std::size_t cells_touched = 0;
   std::size_t cells_created = 0;
 

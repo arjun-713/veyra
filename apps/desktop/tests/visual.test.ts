@@ -2,7 +2,7 @@ import {test} from 'node:test';import assert from 'node:assert/strict';
 import {pointColor,cellColor,displayPosition} from '../src/renderer/colors.ts';
 test('missing evidence renders neutral and unknown traversability remains distinct',()=>{
  assert.deepEqual(pointColor('ground',[0,0,0,1,2,1,1,0],{ground:'unavailable'}),[0.35,0.4,0.45]);
- assert.notDeepEqual(pointColor('terrain',[0,0,0,1,2,1,0,0],{terrain:'available'}),pointColor('terrain',[0,0,0,1,2,1,1,0],{terrain:'available'}));
+ assert.notDeepEqual(pointColor('terrain',[0,0,0,1,2,42,0,0],{terrain:'available'}),pointColor('terrain',[0,0,0,1,2,42,0,1],{terrain:'available'}));
 });
 test('ground-truth semantic status renders its measured class color',()=>{
  assert.notDeepEqual(pointColor('semantic',[0,0,0,1,9,0,0,0],{semantic:'ground_truth'}),[.35,.4,.45]);

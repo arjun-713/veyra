@@ -45,6 +45,7 @@ class FrameProvenance:
     timestamp_source: str = "unspecified"
     pose_source: str = "unspecified"
     calibration_source: str = "unspecified"
+    label_source: str = "unspecified"
 
     def __post_init__(self) -> None:
         if self.coordinate_frame not in {
@@ -59,6 +60,8 @@ class FrameProvenance:
         for name in ("pose_source", "calibration_source"):
             if getattr(self, name) not in {"dataset", "identity_absent", "unspecified"}:
                 raise ValueError(f"{name} is invalid")
+        if self.label_source not in {"dataset", "absent", "unspecified"}:
+            raise ValueError("label_source is invalid")
         if self.coordinate_frame == "world" and self.pose_source != "dataset":
             raise ValueError("world coordinates require a dataset pose")
 

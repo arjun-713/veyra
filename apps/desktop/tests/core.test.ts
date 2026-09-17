@@ -29,9 +29,9 @@ test('rolling history evicts old samples and preserves unavailable measurements'
 });
 
 test('visualization rejects out-of-bounds sections and invalid strides', () => {
-  validateVisualization({points:{count:1,offset:0,stride:32},cells:{count:1,offset:32,stride:36}},new Uint8Array(68));
-  assert.throws(()=>validateVisualization({points:{count:2,offset:0,stride:32},cells:{count:0,offset:64,stride:36}},new Uint8Array(32)), /bounds/);
-  assert.throws(()=>validateVisualization({points:{count:1,offset:0,stride:4},cells:{count:0,offset:32,stride:36}},new Uint8Array(32)), /stride/);
+  validateVisualization({points:{count:1,offset:0,stride:68},cells:{count:1,offset:68,stride:36}},new Uint8Array(104));
+  assert.throws(()=>validateVisualization({points:{count:2,offset:0,stride:68},cells:{count:0,offset:136,stride:36}},new Uint8Array(68)), /bounds/);
+  assert.throws(()=>validateVisualization({points:{count:1,offset:0,stride:32},cells:{count:0,offset:68,stride:36}},new Uint8Array(68)), /stride/);
 });
 
 test('desktop accepts every dataset adapter exposed by the runtime',()=>{

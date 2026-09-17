@@ -5,29 +5,45 @@ data/raw/semanticposs/dataset --sequence 00 --count 10 --config
 configs/perception-salsanext.yaml --output benchmark-results/poss-perception.json
 """
 
+# ruff: noqa: E402 - the bootstrap below intentionally precedes repository imports
+
 from __future__ import annotations
 
 import argparse
-from dataclasses import asdict
-from datetime import datetime, timezone
 import hashlib
 import json
 import os
-from pathlib import Path
 import platform
 import resource
 import subprocess
+import sys
+from dataclasses import asdict
+from datetime import datetime, timezone
+from pathlib import Path
 from time import perf_counter
+
+# Keep the documented module invocation and the direct script invocation
+# equivalent.  When Python executes a file under ``scripts/``, it places that
+# directory—not the repository root—on sys.path, which otherwise prevents the
+# sibling ``benchmarks`` and ``datasets`` packages from being imported.
+_REPO_ROOT = Path(__file__).resolve().parents[1]
+if str(_REPO_ROOT) not in sys.path:
+    sys.path.insert(0, str(_REPO_ROOT))
 
 import numpy as np
 import yaml
 
-from datasets.rellis import Rellis3DDataset
-from datasets.generic import ManifestDataset
-from datasets.semanticposs import SemanticPOSSDataset
-from datasets.semantickitti import SemanticKITTIDataset
 from benchmarks.protocol import frame_records
+from datasets.generic import ManifestDataset
+from datasets.rellis import Rellis3DDataset
+from datasets.semantickitti import SemanticKITTIDataset
+from datasets.semanticposs import SemanticPOSSDataset
+from perception.ground.quality import (
+    aggregate_ground_quality_reports,
+    ground_quality_report,
+)
 from perception.pipeline import PerceptionPipeline
+from perception.semantic.salsanext import SalsaNextSemanticProvider, project_scan
 
 
 def _sha256_file(path: Path) -> str | None:
@@ -127,10 +143,41 @@ def latency_summary(values):
 
 
 def confusion_report(confusion):
+    confusion = np.asarray(confusion)
+    if confusion.shape != (20, 20) or confusion.dtype.kind not in "iuf":
+        raise ValueError("confusion must be a 20x20 integer matrix")
+    if confusion.dtype.kind == "f":
+        if not np.isfinite(confusion).all() or np.any(confusion != np.floor(confusion)):
+            raise ValueError("confusion must be a 20x20 integer matrix")
+        confusion = confusion.astype(np.int64)
+    if np.any(confusion < 0):
+        raise ValueError("confusion counts must be non-negative")
     total = int(confusion.sum())
     intersection = np.diag(confusion)
     union = confusion.sum(0) + confusion.sum(1) - intersection
     valid = (union > 0) & (np.arange(20) != 0)
+    per_class = {}
+    for class_id in np.flatnonzero(valid):
+        true_positive = int(intersection[class_id])
+        false_positive = int(confusion[:, class_id].sum() - true_positive)
+        false_negative = int(confusion[class_id, :].sum() - true_positive)
+        denominator = 2 * true_positive + false_positive + false_negative
+        per_class[str(int(class_id))] = {
+            "support": int(confusion[class_id, :].sum()),
+            "true_positive": true_positive,
+            "precision": (
+                true_positive / (true_positive + false_positive)
+                if true_positive + false_positive
+                else None
+            ),
+            "recall": (
+                true_positive / (true_positive + false_negative)
+                if true_positive + false_negative
+                else None
+            ),
+            "f1": true_positive * 2 / denominator if denominator else None,
+            "iou": float(intersection[class_id] / union[class_id]),
+        }
     return {
         "evaluated_points": total,
         "accuracy": float(intersection.sum() / total) if total else None,
@@ -138,6 +185,36 @@ def confusion_report(confusion):
         if valid.any()
         else None,
         "classes_in_iou": np.flatnonzero(valid).tolist(),
+        "confusion_matrix": confusion.tolist(),
+        "per_class": per_class,
+    }
+
+
+def semantic_evaluation_report(
+    all_confusion: np.ndarray,
+    model_fov_confusion: np.ndarray,
+    *,
+    total_points: int,
+    supported_points: int,
+) -> dict:
+    """Report model quality without hiding returns outside its sensor contract.
+
+    SalsaNext's published checkpoint is trained for a fixed HDL-64 vertical
+    field of view.  Veyra intentionally emits unknown for returns outside
+    that FOV; reporting only the FOV score would hide operational coverage,
+    while reporting only the all-return score conflates coverage with model
+    quality.  Keep both views explicit.
+    """
+    if not isinstance(total_points, int) or not isinstance(supported_points, int):
+        raise TypeError("point counts must be integers")
+    if total_points < 0 or supported_points < 0 or supported_points > total_points:
+        raise ValueError("point counts must satisfy 0 <= supported <= total")
+    return {
+        "coverage_fraction": (
+            float(supported_points / total_points) if total_points else None
+        ),
+        "all_returns": confusion_report(all_confusion),
+        "model_fov_only": confusion_report(model_fov_confusion),
     }
 
 
@@ -168,6 +245,13 @@ def validate(args):
     records = []
     boundaries = [(0, 10), (10, 30), (30, 60), (60, 100.0001)]
     confusion = [np.zeros((20, 20), np.int64) for _ in boundaries]
+    overall_confusion = np.zeros((20, 20), np.int64)
+    supported_confusion = [np.zeros((20, 20), np.int64) for _ in boundaries]
+    supported_overall_confusion = np.zeros((20, 20), np.int64)
+    total_points = 0
+    supported_points = 0
+    ground_reports = []
+    ground_by_range = [[] for _ in boundaries]
     while True:
         started = perf_counter()
         try:
@@ -187,15 +271,52 @@ def validate(args):
         sensor = frame.points[:, :3]
         if frame.provenance.coordinate_frame in {"world", "calibrated_lidar"}:
             sensor = (sensor - frame.pose.matrix[:3, 3]) @ frame.pose.matrix[:3, :3]
+        if isinstance(pipeline.semantic_provider, SalsaNextSemanticProvider):
+            sensor_xyzi = np.column_stack((sensor, frame.points[:, 3]))
+            _, _, _, model_fov = project_scan(
+                sensor_xyzi,
+                intensity_scale=pipeline.semantic_provider.intensity_scale,
+            )
+        else:
+            model_fov = np.ones(frame.points.shape[0], dtype=bool)
+        total_points += frame.points.shape[0]
+        supported_points += int(model_fov.sum())
         distances = np.linalg.norm(sensor, axis=1)
+        if args.dataset == "semanticposs":
+            reference_ground = frame.raw_semantic_class == 22
+            ground_reports.append(
+                ground_quality_report(output.frame.ground, reference_ground)
+            )
+            for report, (lower, upper) in zip(ground_by_range, boundaries):
+                report.append(
+                    ground_quality_report(
+                        output.frame.ground,
+                        reference_ground,
+                        valid=(distances >= lower) & (distances < upper),
+                    )
+                )
         gt, pred = frame.semantic_class, output.frame.semantic_class
-        for matrix, (lower, upper) in zip(confusion, boundaries):
+        for range_index, (matrix, (lower, upper)) in enumerate(
+            zip(confusion, boundaries)
+        ):
             keep = (distances >= lower) & (distances < upper) & (gt > 0) & (gt < 20)
             if np.any((pred < 0) | (pred >= 20)):
                 raise RuntimeError("output class outside canonical taxonomy")
             matrix += np.bincount(gt[keep] * 20 + pred[keep], minlength=400).reshape(
                 20, 20
             )
+            supported_keep = keep & model_fov
+            supported_confusion[range_index] += np.bincount(
+                gt[supported_keep] * 20 + pred[supported_keep], minlength=400
+            ).reshape(20, 20)
+        keep = (gt > 0) & (gt < 20)
+        overall_confusion += np.bincount(
+            gt[keep] * 20 + pred[keep], minlength=400
+        ).reshape(20, 20)
+        supported_keep = keep & model_fov
+        supported_overall_confusion += np.bincount(
+            gt[supported_keep] * 20 + pred[supported_keep], minlength=400
+        ).reshape(20, 20)
         bridge_started = perf_counter()
         bridge_records = frame_records(output.frame)
         bridge_ms = (perf_counter() - bridge_started) * 1000
@@ -221,6 +342,7 @@ def validate(args):
                 "known_motion_fraction": float(
                     (output.frame.motion_state != "unknown").mean()
                 ),
+                "semantic_model_fov_fraction": float(model_fov.mean()),
                 "semantic_classes": np.unique(pred).tolist(),
             }
         )
@@ -266,6 +388,32 @@ def validate(args):
             "by_range": [
                 {"range_m": [a, min(b, 100)], **confusion_report(c)}
                 for (a, b), c in zip(boundaries, confusion)
+            ],
+            "overall": confusion_report(overall_confusion),
+            "model_fov": semantic_evaluation_report(
+                overall_confusion,
+                supported_overall_confusion,
+                total_points=total_points,
+                supported_points=supported_points,
+            ),
+            "model_fov_by_range": [
+                {"range_m": [a, min(b, 100)], **confusion_report(c)}
+                for (a, b), c in zip(boundaries, supported_confusion)
+            ],
+        },
+        "ground_evaluation": {
+            "reference": (
+                "SemanticPOSS raw semantic label 22 (ground)"
+                if args.dataset == "semanticposs"
+                else None
+            ),
+            "overall": aggregate_ground_quality_reports(ground_reports),
+            "by_range": [
+                {
+                    "range_m": [a, min(b, 100)],
+                    "metrics": aggregate_ground_quality_reports(reports),
+                }
+                for (a, b), reports in zip(boundaries, ground_by_range)
             ],
         },
         "temporal_proven": all(

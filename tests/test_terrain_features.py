@@ -82,6 +82,16 @@ class TerrainAnalyzerTests(unittest.TestCase):
         self.assertGreater(float(np.max(evidence.step)), 0.0)
         self.assertTrue(np.any(evidence.height_complexity > 0.1))
 
+    def test_step_indicator_preserves_large_discontinuity_magnitude(self):
+        points = grid(
+            size=17, spacing=0.25, height=lambda x, y: np.where(x >= 0.0, 0.8, 0.0)
+        )
+        evidence = TerrainAnalyzer().analyze(
+            points, GroundEvidence(np.ones(len(points)), np.ones(len(points)))
+        )
+
+        self.assertGreater(float(np.nanmax(evidence.step)), 0.5)
+
     def test_height_complexity_is_bounded_for_map_evidence(self):
         points = grid(height=lambda x, y: 2.0 * x)
         evidence = TerrainAnalyzer().analyze(
@@ -159,9 +169,8 @@ class TerrainAnalyzerTests(unittest.TestCase):
             "max_roughness",
             "max_step",
         ):
-            with self.subTest(keyword=keyword):
-                with self.assertRaises(ValueError):
-                    TerrainAnalyzer(**{keyword: np.nan})
+            with self.subTest(keyword=keyword), self.assertRaises(ValueError):
+                TerrainAnalyzer(**{keyword: np.nan})
 
         with self.assertRaises(ValueError):
             TerrainAnalyzer(min_ground_neighbors=2.5)
@@ -189,6 +198,23 @@ class TerrainAnalyzerTests(unittest.TestCase):
 
         self.assertEqual(evidence.drivable[1], "non_drivable")
         self.assertGreater(float(evidence.step[1]), 0.2)
+
+    def test_realistic_scan_size_completes_with_aligned_outputs(self):
+        rng = np.random.default_rng(20250915)
+        points = np.column_stack(
+            (
+                rng.uniform(-45.0, 45.0, 60_000),
+                rng.uniform(-45.0, 45.0, 60_000),
+                rng.normal(0.0, 0.02, 60_000),
+            )
+        )
+        ground = GroundEvidence(np.ones(len(points)), np.ones(len(points)))
+
+        evidence = TerrainAnalyzer().analyze(points, ground)
+
+        self.assertEqual(evidence.drivable.shape, (60_000,))
+        self.assertEqual(evidence.confidence.shape, (60_000,))
+        self.assertTrue(np.any(evidence.drivable != "unknown"))
 
 
 if __name__ == "__main__":

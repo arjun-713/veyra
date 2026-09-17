@@ -13,7 +13,7 @@ from pathlib import Path
 
 import numpy as np
 
-from benchmarks.protocol import stream_bytes
+from benchmarks.protocol import stream_bytes, stream_file
 from benchmarks.run_benchmark import (
     POLICY_ADAPTERS,
     PUBLIC_POLICY_NAMES,
@@ -73,6 +73,21 @@ def frame(
 
 
 class RuntimeTests(unittest.TestCase):
+    def test_stream_file_is_byte_identical_to_in_memory_protocol_stream(self):
+        expected, digest = stream_bytes([frame()])
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "stream.bin"
+            self.assertEqual(stream_file([frame()], path), digest)
+            self.assertEqual(path.read_bytes(), expected)
+
+    def test_stream_file_consumes_a_one_shot_frame_iterator(self):
+        expected, digest = stream_bytes([frame(), frame(frame_id="000011")])
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "stream.bin"
+            iterator = (item for item in [frame(), frame(frame_id="000011")])
+            self.assertEqual(stream_file(iterator, path), digest)
+            self.assertEqual(path.read_bytes(), expected)
+
     def test_dataset_selection_uses_checked_in_perception_pipeline(self):
         repo = Path(__file__).resolve().parents[1]
         dataset_root = repo / "data" / "raw" / "rellis3d" / "Rellis-3D"
@@ -96,7 +111,7 @@ class RuntimeTests(unittest.TestCase):
                 "point_count": 2,
                 "nonspatial_prior_point_count": 0,
                 "invariant_no_parent_descendant_overlap": True,
-                "leaves": [{"level": 0, "ix": 0, "iy": 0, "count": 2, "mean_z": 1.1}],
+                "leaves": [{"level": 1, "ix": 0, "iy": 0, "count": 2, "mean_z": 1.1}],
             },
             fine_reference={"mean_z_by_cell": {(0, 0): 1.1}},
         )
@@ -104,7 +119,11 @@ class RuntimeTests(unittest.TestCase):
         self.assertTrue(report["point_conservation"]["holds"])
         self.assertTrue(report["duplicate_ownership"]["holds"])
         self.assertTrue(report["split_merge_conservation"]["holds"])
+        self.assertEqual(report["mixed_resolution_topology"]["status"], "valid")
+        self.assertEqual(report["field_retention"]["status"], "unavailable")
         self.assertEqual(report["elevation_vs_fine_reference"]["sample_count"], 1)
+        self.assertIn("semantic", report["field_retention"])
+        self.assertIn("terrain_hazard", report["field_retention"])
 
     def test_config_validation_rejects_non_odom_distance_config(self):
         with self.assertRaisesRegex(ValueError, "frame must be odom"):

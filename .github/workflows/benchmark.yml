@@ -16,11 +16,6 @@ on:
         required: false
         default: "488"
         type: string
-      semanticposs_perception_count:
-        description: Perception frames; defaults to map count
-        required: false
-        default: "488"
-        type: string
       perception_mode:
         description: Semantic provider mode
         required: false
@@ -55,7 +50,6 @@ jobs:
     env:
       SEMANTIC_POSS_SEQUENCE: ${{ inputs.semanticposs_sequence || '00' }}
       SEMANTIC_POSS_COUNT: ${{ inputs.semanticposs_count || (github.event_name == 'pull_request' && '64' || '488') }}
-      SEMANTIC_POSS_PERCEPTION_COUNT: ${{ inputs.semanticposs_perception_count || (github.event_name == 'pull_request' && '64' || '488') }}
       PERCEPTION_MODE: ${{ inputs.perception_mode || 'salsanext' }}
       BENCHMARK_POLICIES: ${{ inputs.policies || (github.event_name == 'schedule' && 'uniform5,uniform40,distance_lod,ablation_distance,ablation_geometry,ablation_semantics,ablation_motion,utility_lod') || 'uniform5,uniform40,distance_lod,utility_lod' }}
       BENCHMARK_REPETITIONS: ${{ inputs.repetitions || '1' }}
@@ -85,15 +79,19 @@ jobs:
       - name: Acquire and verify official SemanticPOSS archive
         run: |
           set -euo pipefail
+          echo "archive_started_epoch=$(date +%s)" >> artifacts/workflow-provenance.env
           mkdir -p .cache/semanticposs
-          if [[ ! -f .cache/semanticposs/SemanticPOSS_dataset.zip ]]; then
+          archive=.cache/semanticposs/SemanticPOSS_dataset.zip
+          temporary="$archive.tmp"
+          if [[ ! -f "$archive" ]]; then
             curl --fail --location --retry 3 --max-time 1800 --max-filesize 3000000000 \
-              "$SEMANTIC_POSS_URL" --output .cache/semanticposs/SemanticPOSS_dataset.zip.tmp
-            mv .cache/semanticposs/SemanticPOSS_dataset.zip.tmp .cache/semanticposs/SemanticPOSS_dataset.zip
+              "$SEMANTIC_POSS_URL" --output "$temporary"
+            mv "$temporary" "$archive"
           fi
-          test "$(stat -c '%s' .cache/semanticposs/SemanticPOSS_dataset.zip)" = "$SEMANTIC_POSS_ARCHIVE_BYTES"
-          printf '%s  %s\n' "$SEMANTIC_POSS_ARCHIVE_SHA256" .cache/semanticposs/SemanticPOSS_dataset.zip | sha256sum --check
+          test "$(stat -c '%s' "$archive")" = "$SEMANTIC_POSS_ARCHIVE_BYTES"
+          printf '%s  %s\n' "$SEMANTIC_POSS_ARCHIVE_SHA256" "$archive" | sha256sum --check
           printf '%s\n' "$SEMANTIC_POSS_ARCHIVE_SHA256" > artifacts/semanticposs-archive.sha256
+          echo "archive_finished_epoch=$(date +%s)" >> artifacts/workflow-provenance.env
       - name: Save verified SemanticPOSS archive cache
         if: success() && steps.dataset-cache.outputs.cache-hit != 'true'
         uses: actions/cache/save@v4
@@ -103,6 +101,7 @@ jobs:
       - name: Extract dataset idempotently
         run: |
           set -euo pipefail
+          echo "extraction_started_epoch=$(date +%s)" >> artifacts/workflow-provenance.env
           if [[ ! -f .cache/semanticposs/.extracted-$SEMANTIC_POSS_ARCHIVE_SHA256 ]]; then
             rm -rf .cache/semanticposs/extracted
             mkdir -p .cache/semanticposs/extracted
@@ -115,6 +114,7 @@ jobs:
           mkdir -p data/raw/semanticposs
           ln -sfn "$(realpath "$dataset_root")" data/raw/semanticposs/dataset
           test -d data/raw/semanticposs/dataset/sequences/"$SEMANTIC_POSS_SEQUENCE"
+          echo "extraction_finished_epoch=$(date +%s)" >> artifacts/workflow-provenance.env
       - name: Install benchmark dependencies
         run: python -m pip install -r requirements.txt -r requirements-dev.txt
       - name: Fetch latest trusted main benchmark baseline
@@ -125,22 +125,31 @@ jobs:
           baseline_run="$(gh run list --repo "$GITHUB_REPOSITORY" --workflow benchmark.yml --branch main --status success --json databaseId --limit 1 --jq '.[0].databaseId // empty')"
           if [[ -n "$baseline_run" ]]; then
             mkdir -p artifacts/baseline
-            gh run download "$baseline_run" --repo "$GITHUB_REPOSITORY" --name veyra-semanticposs-benchmark --dir artifacts/baseline || true
+            if ! gh run download "$baseline_run" --repo "$GITHUB_REPOSITORY" \
+              --name veyra-semanticposs-benchmark --dir artifacts/baseline; then
+              echo "warning: trusted baseline run $baseline_run could not be downloaded" >&2
+              echo "baseline_download=failed" >> artifacts/workflow-provenance.env
+            else
+              echo "baseline_download=success" >> artifacts/workflow-provenance.env
+            fi
+          else
+            echo "baseline_download=not_available" >> artifacts/workflow-provenance.env
           fi
       - name: Fetch pinned SalsaNext model
         if: env.PERCEPTION_MODE == 'salsanext'
         run: python -m scripts.fetch_semantic_model
-      - name: Run perception benchmark on official data
+      - name: Build benchmark binary
         run: |
-          config=configs/perception.yaml
-          if [[ "$PERCEPTION_MODE" == "salsanext" ]]; then config=configs/perception-salsanext.yaml; fi
-          python -m scripts.validate_perception \
-            --dataset semanticposs --root data/raw/semanticposs/dataset \
-            --sequence "$SEMANTIC_POSS_SEQUENCE" --count "$SEMANTIC_POSS_PERCEPTION_COUNT" \
-            --config "$config" --dataset-sha256 "$SEMANTIC_POSS_ARCHIVE_SHA256" \
-            --output artifacts/semanticposs-perception.json
-      - name: Run policy map benchmark on shared perception output
+          set -euo pipefail
+          echo "build_started_epoch=$(date +%s)" >> artifacts/workflow-provenance.env
+          cmake -S . -B "$RUNNER_TEMP/veyra-build" \
+            -DCMAKE_BUILD_TYPE=Release -DBUILD_TESTING=ON -DVEYRA_BUILD_APPS=ON
+          cmake --build "$RUNNER_TEMP/veyra-build" --target veyra_benchmark --parallel
+          echo "build_finished_epoch=$(date +%s)" >> artifacts/workflow-provenance.env
+      - name: Run shared perception and four-policy map benchmark
         run: |
+          set -euo pipefail
+          echo "benchmark_started_epoch=$(date +%s)" >> artifacts/workflow-provenance.env
           config=configs/perception.yaml
           if [[ "$PERCEPTION_MODE" == "salsanext" ]]; then config=configs/perception-salsanext.yaml; fi
           rc=1
@@ -150,32 +159,52 @@ jobs:
               --sequence "$SEMANTIC_POSS_SEQUENCE" --count "$SEMANTIC_POSS_COUNT" \
               --warmup-frames 10 --repetitions "$BENCHMARK_REPETITIONS" \
               --policies "$BENCHMARK_POLICIES" --perception-config "$config" \
+              --perception-output "$GITHUB_WORKSPACE/artifacts/semanticposs-perception.json" \
               --dataset-sha256 "$SEMANTIC_POSS_ARCHIVE_SHA256" --build-type Release \
-              --build-dir "$RUNNER_TEMP/veyra-build" --output-dir "$GITHUB_WORKSPACE/artifacts/map"; then
+              --build-dir "$RUNNER_TEMP/veyra-build" --output-dir "$GITHUB_WORKSPACE/artifacts/map" \
+              --skip-build; then
               rc=0
               break
             fi
             rc=$?
-            echo "map benchmark attempt $attempt failed with exit $rc; retrying once for transient runner failures"
+            if [[ "$rc" != 124 && "$rc" != 137 && "$rc" != 143 ]]; then
+              echo "map benchmark failed with non-transient exit $rc" >&2
+              exit "$rc"
+            fi
+            if [[ "$attempt" == 2 ]]; then
+              echo "map benchmark remained resource-terminated after one retry" >&2
+              exit "$rc"
+            fi
+            echo "map benchmark attempt $attempt was resource-terminated with exit $rc; retrying once"
             sleep 5
           done
+          echo "benchmark_finished_epoch=$(date +%s)" >> artifacts/workflow-provenance.env
           exit "$rc"
       - name: Render Actions job summary
         if: always()
         run: |
-          python -m benchmarks.render_report \
-            --map "$(find artifacts/map -name '*.json' -print -quit 2>/dev/null || true)" \
-            --perception artifacts/semanticposs-perception.json \
-            --baseline "$(find artifacts/baseline -name '*.json' -print -quit 2>/dev/null || true)" \
-            --output artifacts/summary.md || true
-          cat artifacts/summary.md 2>/dev/null >> "$GITHUB_STEP_SUMMARY" || true
-          python -m benchmarks.render_report \
-            --map "$(find artifacts/map -name '*.json' -print -quit 2>/dev/null || true)" \
-            --perception artifacts/semanticposs-perception.json \
-            --fail-on-correctness
+          set -euo pipefail
+          map_path="$(find artifacts/map -type f -name '*.json' -print -quit)"
+          perception_path="$GITHUB_WORKSPACE/artifacts/semanticposs-perception.json"
+          if [[ -z "$map_path" || ! -f "$perception_path" ]]; then
+            echo "benchmark evidence is incomplete: map=${map_path:-missing}, perception=$perception_path" >&2
+            exit 1
+          fi
+          baseline_path=""
+          if candidate="$(find artifacts/baseline -type f -name '*.json' -print -quit)"; then
+            baseline_path="$candidate"
+          fi
+          render_args=(--map "$map_path" --perception "$perception_path")
+          if [[ -n "$baseline_path" ]]; then
+            render_args+=(--baseline "$baseline_path")
+          fi
+          python -m benchmarks.render_report "${render_args[@]}" --output artifacts/summary.md
+          cat artifacts/summary.md >> "$GITHUB_STEP_SUMMARY"
+          python -m benchmarks.render_report "${render_args[@]}" --fail-on-correctness
           echo "" >> "$GITHUB_STEP_SUMMARY"
           df --output=avail -B1 . | tail -1 | tr -d ' ' | sed 's/^/free_disk_after_bytes=/' >> artifacts/workflow-provenance.env
           echo "benchmark_finished_at=$(date --iso-8601=seconds)" >> artifacts/workflow-provenance.env
+          echo "artifact_bytes=$(du -sb artifacts | cut -f1)" >> artifacts/workflow-provenance.env
       - name: Capture benchmark failure diagnostics
         if: failure()
         run: |

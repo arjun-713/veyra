@@ -46,7 +46,11 @@ class RegressionHarnessTests(unittest.TestCase):
 
             path.write_bytes(b"x" * (MAX_SCAN_BYTES + 1))
             with self.assertRaises(ValueError):
-                verify_download(path, sha256=hashlib.sha256(path.read_bytes()).hexdigest(), max_bytes=MAX_SCAN_BYTES)
+                verify_download(
+                    path,
+                    sha256=hashlib.sha256(path.read_bytes()).hexdigest(),
+                    max_bytes=MAX_SCAN_BYTES,
+                )
 
     def test_load_scan_frame_preserves_missing_pose_and_time(self):
         with tempfile.TemporaryDirectory() as directory:
@@ -66,19 +70,28 @@ class RegressionHarnessTests(unittest.TestCase):
     def test_perception_report_requires_exact_input_output_point_alignment(self):
         with tempfile.TemporaryDirectory() as directory:
             path = Path(directory) / "scan.bin"
-            points = np.array([[3.0, 4.0, 0.0, 0.25], [0.0, 0.0, 2.0, 0.5]], dtype=np.float32)
+            points = np.array(
+                [[3.0, 4.0, 0.0, 0.25], [0.0, 0.0, 2.0, 0.5]], dtype=np.float32
+            )
             points.tofile(path)
             frame = load_scan_frame(path)
 
         report = correspondence_report(frame, frame)
         self.assertTrue(report["xyz_intensity_exactly_preserved"])
         self.assertTrue(report["per_point_fields_aligned"])
-        self.assertEqual(taxonomy_range_report(points, frame)["ground_truth_accuracy"], None)
         self.assertEqual(
-            sum(bucket["points"] for bucket in taxonomy_range_report(points, frame)["range_bins"]),
+            taxonomy_range_report(points, frame)["ground_truth_accuracy"], None
+        )
+        self.assertEqual(
+            sum(
+                bucket["points"]
+                for bucket in taxonomy_range_report(points, frame)["range_bins"]
+            ),
             len(points),
         )
-        self.assertIsNone(taxonomy_range_report(points, frame)["range_bins"][-1]["max_m"])
+        self.assertIsNone(
+            taxonomy_range_report(points, frame)["range_bins"][-1]["max_m"]
+        )
         json.dumps(taxonomy_range_report(points, frame), allow_nan=False)
 
 

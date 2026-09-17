@@ -13,7 +13,9 @@ class TaxonomyTests(unittest.TestCase):
 
         mapped = map_dataset_labels(raw, RELLIS_LABELS)
 
-        np.testing.assert_array_equal(mapped, [15, 15, 18, 0, 5, 9, 13, 16, 6, 14, 15, 17])
+        np.testing.assert_array_equal(
+            mapped, [15, 15, 18, 0, 5, 9, 13, 16, 6, 14, 15, 17]
+        )
 
     def test_mapping_preserves_shape_contract_and_handles_large_ids_without_lut(self):
         raw = np.array([[3, 2**63 - 1], [-7, 999999999999]], dtype=np.int64)
