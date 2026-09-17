@@ -131,6 +131,43 @@ def nearest_rank_summary(samples: list[int | float]) -> dict[str, int | float]:
     }
 
 
+# Nearest-rank tails on tiny samples are just the max. These thresholds mark
+# when a published p95/p99 deserves to be read as a tail rather than as
+# "the largest of a handful of frames". Advisory only: short runs (e.g. the
+# 2-frame product-CI ablation smoke) remain valid executions.
+MIN_SAMPLES_FOR_P95 = 20
+MIN_SAMPLES_FOR_P99 = 100
+
+
+def tail_reliability(count: int) -> dict[str, bool | int]:
+    """Flag whether nearest-rank tails on ``count`` samples are meaningful."""
+    samples = int(count)
+    return {
+        "samples": samples,
+        "p95_reliable": samples >= MIN_SAMPLES_FOR_P95,
+        "p99_reliable": samples >= MIN_SAMPLES_FOR_P99,
+    }
+
+
+def sample_adequacy_report(
+    measured_frames_per_run: int, repetitions: int
+) -> dict[str, Any]:
+    """Describe tail reliability for the per-policy sample budgets of a run."""
+    return {
+        "measured_frames_per_run": int(measured_frames_per_run),
+        "repetitions": int(repetitions),
+        "stage_latency_samples_per_policy": tail_reliability(
+            int(measured_frames_per_run) * int(repetitions)
+        ),
+        "fps_samples_per_policy": tail_reliability(int(repetitions)),
+        "note": (
+            "nearest-rank p95 needs >=20 samples and p99 >=100; "
+            "short-run tails equal the max and are descriptive only, "
+            "not SLO evidence"
+        ),
+    }
+
+
 def _sha256_file(path: Path) -> str:
     return hashlib.sha256(path.read_bytes()).hexdigest()
 
@@ -1549,6 +1586,7 @@ def run(args: argparse.Namespace) -> dict[str, Any]:
             "reason": "paired adapter labels are unavailable for this selection",
         }
     )
+    measured_frames_per_run = max(0, selection["frames"] - args.warmup_frames)
     return {
         "schema_version": SCHEMA_VERSION,
         "provenance": {
@@ -1577,6 +1615,9 @@ def run(args: argparse.Namespace) -> dict[str, Any]:
             "hardware": hardware_metadata(args.hardware_profile),
             "repetitions": args.repetitions,
             "warmup_frames": args.warmup_frames,
+            "sample_adequacy": sample_adequacy_report(
+                measured_frames_per_run, args.repetitions
+            ),
             "policy_execution_order": execution_order,
             "map_window_radius_m": window_radius_m,
             "measurement_scope": {
@@ -1593,7 +1634,7 @@ def run(args: argparse.Namespace) -> dict[str, Any]:
         "sequence": args.sequence,
         "start": args.start,
         "input_frames": selection["frames"],
-        "measured_frames_per_run": max(0, selection["frames"] - args.warmup_frames),
+        "measured_frames_per_run": measured_frames_per_run,
         "shared_stage_latency_ns": {
             "perception": nearest_rank_summary(selection["perception_ns"])
             if selection["perception_ns"]
