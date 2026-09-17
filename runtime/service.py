@@ -28,8 +28,10 @@ COMMANDS = {
     "reset": (),
     "sequence": ("sequence",),
     "policy": ("policy",),
+    "layer": ("layer",),
     "speed": ("speed",),
     "status": (),
+    "metrics": (),
     "shutdown": (),
     "governor": ("mode",),
     "benchmark": (
@@ -54,11 +56,13 @@ class ProductRuntime:
         self.session = None
         self.config = None
         self.state = "unconfigured"
+        self.layer = "semantic"
         self.index = -1
         self.generation = 0
         self.error = None
         self.dropped_frames = 0
         self.telemetry = Telemetry()
+        self.last_telemetry = None
         self.last_visual = 0.0
         self.next_frame = 0.0
         self.stopping = threading.Event()
@@ -78,6 +82,7 @@ class ProductRuntime:
             "index": self.index,
             "frames": frames,
             "policy": self.config["map"]["policy"] if self.config else "distance_lod",
+            "layer": self.layer,
             "speed": self.config["playback"]["speed"] if self.config else 1,
             "generation": self.generation,
             "queue_depth": self.commands.qsize(),
@@ -201,6 +206,8 @@ class ProductRuntime:
     def _execute(self, command, args):
         if command == "status":
             return self.status()
+        if command == "metrics":
+            return self.last_telemetry or {"status": "unavailable", "reason": "no frame processed"}
         if command == "shutdown":
             self.stopping.set()
             return None
@@ -223,6 +230,19 @@ class ProductRuntime:
             return {"config": config, "config_digest": config_digest(config)}
         if command == "configure":
             return self._configure(args["config"])
+        if command == "layer":
+            layer = args["layer"]
+            if layer not in (
+                "semantic",
+                "elevation",
+                "traversability",
+                "motion",
+                "lod",
+                "utility",
+            ):
+                raise ValueError("unsupported layer")
+            self.layer = layer
+            return {"layer": self.layer}
         if self.session is None:
             raise ValueError("configure a dataset before playback")
         if command == "benchmark":
@@ -318,11 +338,10 @@ class ProductRuntime:
                 self.last_visual = time.monotonic()
             self.telemetry.record((time.perf_counter() - started) * 1000)
             self._publish_status()
-            self.outbox.publish(
-                self.telemetry.report(
-                    self.status(), frame, visual_ms, self.session.map_runner.pid
-                )
+            self.last_telemetry = self.telemetry.report(
+                self.status(), frame, visual_ms, self.session.map_runner.pid
             )
+            self.outbox.publish(self.last_telemetry)
         except Exception as error:
             self.state = "error"
             self.error = {

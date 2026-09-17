@@ -12,12 +12,18 @@
     "package": "electron-forge package",
     "make": "electron-forge make",
     "check": "svelte-check --tsconfig ./tsconfig.json",
-    "test":
-        "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON --experimental-strip-types --test tests/*.test.ts",
+    "test": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON --experimental-strip-types --test tests/*.test.ts",
     "build": "vite build --config vite.renderer.config.ts",
-    "test:e2e": "playwright test"
+    "test:e2e": "playwright test",
+    "tauri:dev:frontend": "vite --config vite.renderer.config.ts --host 127.0.0.1",
+    "tauri:build:frontend": "vite build --config vite.renderer.config.ts",
+    "tauri:dev": "node ../../tools/tauri.mjs dev --config src-tauri/tauri.conf.json",
+    "tauri:build": "node ../../tools/tauri.mjs build --config src-tauri/tauri.conf.json"
   },
   "dependencies": {
+    "@tauri-apps/api": "^2.11.1",
+    "@tauri-apps/plugin-dialog": "^2.7.3",
+    "@tauri-apps/plugin-fs": "^2.5.2",
     "svelte": "^5.0.0",
     "three": "^0.183.0",
     "uplot": "^1.6.32"
@@ -31,6 +37,7 @@
     "@electron-forge/plugin-vite": "^7.11.0",
     "@playwright/test": "^1.63.0",
     "@sveltejs/vite-plugin-svelte": "^6.0.0",
+    "@tauri-apps/cli": "^2.11.4",
     "@types/node": "^24.0.0",
     "@types/three": "^0.183.0",
     "electron": "^40.0.0",

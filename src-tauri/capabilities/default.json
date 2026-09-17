@@ -1,0 +1,24 @@
+{
+  "$schema": "../gen/schemas/desktop-schema.json",
+  "identifier": "main-window",
+  "description": "Minimal capabilities for the Veyra desktop window",
+  "windows": ["main"],
+  "permissions": [
+    "core:default",
+    "dialog:default",
+    "fs:allow-read-text-file",
+    "fs:allow-write-text-file",
+    "fs:allow-write-file",
+    {
+      "identifier": "fs:scope",
+      "allow": [
+        {"path": "$HOME/**"},
+        {"path": "$DOCUMENT/**"},
+        {"path": "$DOWNLOAD/**"},
+        {"path": "$DESKTOP/**"},
+        {"path": "$APPDATA/**"},
+        {"path": "$APPCONFIG/**"}
+      ]
+    }
+  ]
+}

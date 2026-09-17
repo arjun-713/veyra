@@ -269,6 +269,26 @@ class ProductServiceTests(unittest.TestCase):
         self.assertEqual(response["status"]["state"], "unconfigured")
         service.close()
 
+    def test_layer_command_is_safe_before_a_dataset_is_open(self):
+        from runtime.service import ProductRuntime
+
+        service = ProductRuntime(Path.cwd())
+        response = service.handle(
+            {"id": "layer", "command": "layer", "args": {"layer": "lod"}}
+        )
+        self.assertTrue(response["ok"], response)
+        self.assertEqual(response["status"]["layer"], "lod")
+        service.close()
+
+    def test_metrics_command_returns_explicit_unavailable_state_before_frames(self):
+        from runtime.service import ProductRuntime
+
+        service = ProductRuntime(Path.cwd())
+        response = service.handle({"id": "metrics", "command": "metrics", "args": {}})
+        self.assertTrue(response["ok"], response)
+        self.assertEqual(response["result"]["status"], "unavailable")
+        service.close()
+
     def test_real_dataset_playback_seek_policy_reset_and_visualization(self):
         from runtime.service import ProductRuntime
         from tests.test_runtime_player import _write_frame

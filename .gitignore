@@ -99,6 +99,10 @@ downloads/
 # --- Generated maps / benchmarks / viewer output (never commit) ---
 maps/
 benchmark-results/
+src-tauri/resources/backend/*
+!src-tauri/resources/backend/.gitkeep
+src-tauri/target/
+apps/desktop/dist/
 *.pcd.gz
 benchmarks/results/
 benchmarks/dumps/

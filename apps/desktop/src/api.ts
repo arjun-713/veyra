@@ -9,7 +9,7 @@ export interface DesktopAPI {
  saveConfig(config:Json):Promise<boolean>;
  openReport():Promise<Json|null>;
  exportReport(report:Json):Promise<boolean>;
- diagnostics():Promise<boolean>;
+ diagnostics():Promise<Json|boolean>;
  screenshot():Promise<boolean>;
  restart():Promise<Json>;
  onEvent(callback:(event:Json)=>void):()=>void;
