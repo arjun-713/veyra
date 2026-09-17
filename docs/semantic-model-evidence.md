@@ -92,6 +92,63 @@ numerical compatibility with the current source have **not** been verified.
 It is therefore not downloaded, packaged, enabled, or represented as a Veyra
 backend yet.
 
+## Native checkpoint verification (`agent/semantic-finetune`)
+
+The externally hosted CENet SemanticPOSS bundle was downloaded and verified
+against the pinned source. All digests below are measured, not quoted.
+
+| Property | Verified value |
+| --- | --- |
+| Source | `https://github.com/huixiancheng/CENet` @ `9a84103d186a1f93637cae3d96426760deb04140` (MIT, `LICENSE` in repo) |
+| Checkpoint URL | `https://drive.google.com/file/d/1DC66ky6k2aBpVg1Md1AR2tjqHzSYL5xC/view?usp=sharing` (README "POSS Result") |
+| Archive size | 291,128,300 bytes |
+| Archive SHA-256 | `d466d387a69933ce87d380e106b3f4d3b45734bf236391280d2894b09bc416c2` |
+| Weights file | `res/SENet_valid_best`, 54,393,487 bytes, SHA-256 `9c07ceadcd005a11bddc6c92b61d6f7724339f9519ef177afdebc3c59ffbb0ce` |
+| Weights format | torch.save dict (`epoch`, `state_dict` with 248 tensors, `optimizer`, `info`, `scheduler`); loads under torch 2.14 CPU |
+| Architecture | `ResNet_34` (`modules/network/ResNet.py`), `pipeline: "res"`, LeakyReLU→Hardswish swap, 14 learning classes, 5-channel `(64,5,3,3)` stem |
+| Training log | `res/log.txt`: 45-epoch schedule, best valid mIoU **0.486–0.503** on the author's split (train `0,1,3,4,5` / valid `2`), per-class IoU person 0.75 / car 0.78 / plants 0.72 / ground 0.79 / pole 0.31 / cone 0.15–0.26 |
+| Native taxonomy | `res/data_cfg.yaml` `learning_map`: raw `{4,5}→1 person, 6→2 rider, 7→3 car, 8→4 trunk, 9→5 plants, {10,11,12}→6 sign, 13→7 pole, 14→8 trashcan, 15→9 building, 16→10 cone, 17→11 fence, 21→12 bike, 22→13 ground`, rest→0 |
+| Local data fit | Local `sequences/00/tag/*.tag` files satisfy the parser's tag requirement; local `read_data.py` `LABEL_DICT` matches the bundle labels |
+
+Porting notes (measured while executing the checkpoint on CPU): the 2021
+code uses removed NumPy aliases (`np.float`, `np.bool` in
+`common/posslaserscan.py`) and unconditionally calls `.cuda()` in
+`infer_subset`; both need a CPU-port patch before the stock script runs on
+the current stack. The KNN post-processor (`postproc/KNN.py`) itself is
+device-agnostic. No weight license file ships inside the bundle; the code
+is MIT but the weight grant is unstated, so the weights stay out of git
+regardless of quality.
+
+Measured local quality: `reports/closure/semantic-finetune/cenet-poss-metrics.json`
+(same 16 seq-00 frames as the SalsaNext closure; CNN-only and KNN paths
+scored separately). Because seq 00 is the checkpoint author's *training*
+sequence, those numbers are a compatibility proof, not a generalization
+claim; the fine-tune spec below requires a seq-02 (author-valid) run
+before any enable decision.
+
+## Native lightweight baseline: per-point MLP (`agent/semantic-finetune`)
+
+A dependency-free MLP (`perception/semantic/pandora.py`,
+`PandoraNativeSemanticProvider`, NumPy-only inference) was trained
+natively on SemanticPOSS seqs 01/02/03 (340k balanced samples, 6
+per-point features, sklearn MLP 128x64, temperature 2.76) and measured on
+the closure frames (`reports/closure/semantic-finetune/
+pandora-native-metrics.json`, repro spec + sha256 in
+`configs/semantic-pandora-native-model.json`):
+
+| Metric | Value |
+| --- | --- |
+| Resampled-val accuracy (train distribution) | 0.727 |
+| Seq-00 test accuracy / Veyra mIoU | 0.3125 / **0.0961** |
+| Group mIoU (only drivable usable, IoU 0.55) | 0.1846 |
+| Quality gate (mIoU >= 0.30) | **FAIL** |
+
+Per-point features without spatial context do not transfer across
+sequences. This negative result is kept as evidence (not a backend): it
+bounds the lightweight option and justifies the CENet (spatial-context)
+path above. The provider remains in-tree as a tested, reproducible,
+dependency-free fallback, explicitly marked not-recommended.
+
 ## Acceptance before enabling a native checkpoint
 
 1. Record source URL, source revision, asset license/provenance, archive size,

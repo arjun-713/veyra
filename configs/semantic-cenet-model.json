@@ -1,0 +1,27 @@
+{
+  "name": "CENet SemanticPOSS ResNet-pipeline weights (res/SENet_valid_best)",
+  "publisher": "huixiancheng/CENet (ICME 2022)",
+  "source_commit": "9a84103d186a1f93637cae3d96426760deb04140",
+  "source_license": "MIT (code; no separate weight-license file ships in the bundle)",
+  "bundle_url": "https://drive.google.com/file/d/1DC66ky6k2aBpVg1Md1AR2tjqHzSYL5xC/view?usp=sharing",
+  "bundle_sha256": "d466d387a69933ce87d380e106b3f4d3b45734bf236391280d2894b09bc416c2",
+  "bundle_bytes": 291128300,
+  "weights_file": "res/SENet_valid_best",
+  "weights_bytes": 54393487,
+  "weights_sha256": "9c07ceadcd005a11bddc6c92b61d6f7724339f9519ef177afdebc3c59ffbb0ce",
+  "arch_cfg_sha256_prefix": "82e9c9733ace1665",
+  "data_cfg_sha256_prefix": "5a38e674ddfd7b53",
+  "contract": {
+    "architecture": "ResNet_34 pipeline=res, LeakyReLU->Hardswish, 248 state_dict tensors",
+    "input": "1x5x40x1800 (range, x, y, z, raw-byte remission)",
+    "fov_degrees": {"up": 7, "down": -16},
+    "sensor": "Hesai-Pandora",
+    "normalization_means": [22.26779, 0.51144063, 1.5727469, -0.6350901, 13.875261],
+    "normalization_stds": [17.735949, 17.422485, 22.217215, 1.6433295, 14.0925865],
+    "classes": "14 SemanticPOSS learning IDs (learning_map in bundle res/data_cfg.yaml)",
+    "postprocessing": "none in provider (per-point argmax); upstream KNN optional"
+  },
+  "provider": "perception.semantic.cenet.CENetSemanticProvider (vendored arch, CPU torch)",
+  "local_path": "data/cache/models/cenet-poss/SENet_valid_best",
+  "note": "Weights are never committed (see .gitignore). This manifest pins the expected payload; the provider refuses to run anything that does not strictly match the vendored contract."
+}
