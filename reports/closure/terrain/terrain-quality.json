@@ -1,0 +1,280 @@
+[
+  {
+    "dataset": "semanticposs",
+    "sequence": "00",
+    "frames": 10,
+    "evaluated_points": 659737,
+    "terrain_state_counts": {
+      "drivable": 185412,
+      "non_drivable": 36996,
+      "unknown": 437329
+    },
+    "terrain_state_fractions": {
+      "drivable": 0.28103926261525425,
+      "non_drivable": 0.056076891246057144,
+      "unknown": 0.6628838461386886
+    },
+    "reference_ground_points": 184911,
+    "reference_nonground_points": 474826,
+    "states_given_reference_ground": {
+      "drivable": 0.9105028905797924,
+      "non_drivable": 0.037910129738090215,
+      "unknown": 0.05158697968211734
+    },
+    "states_given_reference_nonground": {
+      "drivable": 0.035907890469350875,
+      "non_drivable": 0.06315155446416161,
+      "unknown": 0.9009405550664875
+    },
+    "features_on_trusted_ground": {
+      "slope_rad": {
+        "n_finite": 175372,
+        "p50": 0.014455851167440414,
+        "p95": 0.09685184806585312,
+        "max": 1.2410396337509155
+      },
+      "roughness_m": {
+        "n_finite": 175372,
+        "p50": 0.0079627251252532,
+        "p95": 0.059988394379615784,
+        "max": 0.869904637336731
+      },
+      "step_m": {
+        "n_finite": 175372,
+        "p50": 0.017835402861237526,
+        "p95": 0.12629355341196036,
+        "max": 3.877828359603882
+      },
+      "height_spread_tanh_std": {
+        "n_finite": 175372,
+        "p50": 0.016805557534098625,
+        "p95": 0.09052732586860657,
+        "max": 0.8912989497184753
+      }
+    },
+    "per_raw_label_states": {
+      "0": {
+        "drivable": 639,
+        "non_drivable": 1014,
+        "unknown": 12763,
+        "n": 14416
+      },
+      "4": {
+        "drivable": 4,
+        "non_drivable": 30,
+        "unknown": 2499,
+        "n": 2533
+      },
+      "5": {
+        "drivable": 21,
+        "non_drivable": 12,
+        "unknown": 1541,
+        "n": 1574
+      },
+      "6": {
+        "drivable": 17,
+        "non_drivable": 9,
+        "unknown": 714,
+        "n": 740
+      },
+      "7": {
+        "drivable": 4913,
+        "non_drivable": 16188,
+        "unknown": 92551,
+        "n": 113652
+      },
+      "9": {
+        "drivable": 4510,
+        "non_drivable": 5659,
+        "unknown": 153120,
+        "n": 163289
+      },
+      "10": {
+        "drivable": 99,
+        "non_drivable": 63,
+        "unknown": 3943,
+        "n": 4105
+      },
+      "11": {
+        "drivable": 0,
+        "non_drivable": 0,
+        "unknown": 121,
+        "n": 121
+      },
+      "12": {
+        "drivable": 0,
+        "non_drivable": 7,
+        "unknown": 1485,
+        "n": 1492
+      },
+      "13": {
+        "drivable": 0,
+        "non_drivable": 45,
+        "unknown": 6471,
+        "n": 6516
+      },
+      "14": {
+        "drivable": 6,
+        "non_drivable": 79,
+        "unknown": 359,
+        "n": 444
+      },
+      "15": {
+        "drivable": 2447,
+        "non_drivable": 4807,
+        "unknown": 112657,
+        "n": 119911
+      },
+      "16": {
+        "drivable": 3,
+        "non_drivable": 2,
+        "unknown": 66,
+        "n": 71
+      },
+      "17": {
+        "drivable": 3801,
+        "non_drivable": 1376,
+        "unknown": 24622,
+        "n": 29799
+      },
+      "20": {
+        "drivable": 34,
+        "non_drivable": 6,
+        "unknown": 704,
+        "n": 744
+      },
+      "21": {
+        "drivable": 556,
+        "non_drivable": 689,
+        "unknown": 14174,
+        "n": 15419
+      },
+      "22": {
+        "drivable": 168362,
+        "non_drivable": 7010,
+        "unknown": 9539,
+        "n": 184911
+      }
+    },
+    "terrain_quality_metrics": null,
+    "terrain_quality_note": "precision/recall/F1/IoU unavailable: no dataset provides documented drivable/non-drivable/unknown point labels"
+  },
+  {
+    "dataset": "rellis3d",
+    "sequence": "00000",
+    "frames": 10,
+    "evaluated_points": 363503,
+    "terrain_state_counts": {
+      "drivable": 120923,
+      "non_drivable": 37411,
+      "unknown": 205169
+    },
+    "terrain_state_fractions": {
+      "drivable": 0.332660253147842,
+      "non_drivable": 0.10291799517473033,
+      "unknown": 0.5644217516774277
+    },
+    "reference_ground_points": 0,
+    "reference_nonground_points": 0,
+    "states_given_reference_ground": {
+      "drivable": null,
+      "non_drivable": null,
+      "unknown": null
+    },
+    "states_given_reference_nonground": {
+      "drivable": null,
+      "non_drivable": null,
+      "unknown": null
+    },
+    "features_on_trusted_ground": {
+      "slope_rad": {
+        "n_finite": 158334,
+        "p50": 0.05283401533961296,
+        "p95": 0.3591023087501526,
+        "max": 1.1142592430114746
+      },
+      "roughness_m": {
+        "n_finite": 158334,
+        "p50": 0.0354791097342968,
+        "p95": 0.20248012244701385,
+        "max": 0.3994632363319397
+      },
+      "step_m": {
+        "n_finite": 158334,
+        "p50": 0.06895877420902252,
+        "p95": 0.40105706453323364,
+        "max": 1.4689656496047974
+      },
+      "height_spread_tanh_std": {
+        "n_finite": 158334,
+        "p50": 0.06090078875422478,
+        "p95": 0.2619663178920746,
+        "max": 0.8339084386825562
+      }
+    },
+    "per_raw_label_states": {
+      "0": {
+        "drivable": 56651,
+        "non_drivable": 21277,
+        "unknown": 109483,
+        "n": 187411
+      },
+      "3": {
+        "drivable": 22347,
+        "non_drivable": 6254,
+        "unknown": 7567,
+        "n": 36168
+      },
+      "4": {
+        "drivable": 5342,
+        "non_drivable": 7289,
+        "unknown": 52948,
+        "n": 65579
+      },
+      "17": {
+        "drivable": 21,
+        "non_drivable": 0,
+        "unknown": 2726,
+        "n": 2747
+      },
+      "18": {
+        "drivable": 579,
+        "non_drivable": 262,
+        "unknown": 3125,
+        "n": 3966
+      },
+      "19": {
+        "drivable": 1527,
+        "non_drivable": 1319,
+        "unknown": 27735,
+        "n": 30581
+      },
+      "23": {
+        "drivable": 32226,
+        "non_drivable": 897,
+        "unknown": 1565,
+        "n": 34688
+      },
+      "31": {
+        "drivable": 1787,
+        "non_drivable": 0,
+        "unknown": 0,
+        "n": 1787
+      },
+      "33": {
+        "drivable": 443,
+        "non_drivable": 113,
+        "unknown": 14,
+        "n": 570
+      },
+      "5": {
+        "drivable": 0,
+        "non_drivable": 0,
+        "unknown": 6,
+        "n": 6
+      }
+    },
+    "terrain_quality_metrics": null,
+    "terrain_quality_note": "precision/recall/F1/IoU unavailable: no dataset provides documented drivable/non-drivable/unknown point labels"
+  }
+]
