@@ -1,5 +1,6 @@
 mod commands;
 pub mod control;
+mod control_host;
 mod desktop_control;
 pub mod supervisor;
 
@@ -14,7 +15,14 @@ pub fn run() {
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_fs::init())
         .setup(|app| {
-            let control = DesktopControlService::from_env();
+            let config_dir = app.path().app_config_dir().map_err(|error| {
+                format!("cannot resolve protected control storage directory: {error}")
+            })?;
+            let repo = app
+                .path()
+                .resource_dir()
+                .unwrap_or_else(|_| std::env::current_dir().unwrap_or_default());
+            let control = DesktopControlService::bootstrap(repo, &config_dir);
             let startup_diagnostic = control.startup_diagnostic().map(str::to_owned);
             app.manage(Mutex::new(control));
             if let Some(message) = startup_diagnostic {
@@ -49,7 +57,7 @@ pub fn run() {
             if let Some(state) = app_handle.try_state::<Mutex<DesktopControlService>>() {
                 match state.lock() {
                     Ok(mut service) => {
-                        if let Err(error) = service.request("shutdown", serde_json::json!({})) {
+                        if let Err(error) = service.shutdown() {
                             eprintln!("control daemon shutdown unavailable: {error}");
                         }
                     }

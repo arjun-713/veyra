@@ -1,6 +1,7 @@
 use serde_json::Value;
 
 use crate::control::{ControlClient, ControlClientError};
+use crate::control_host::{ClientConfig, ControlHost, ControlHostError};
 
 #[derive(Debug, PartialEq)]
 pub(crate) struct DesktopControlRequest {
@@ -11,18 +12,23 @@ pub(crate) struct DesktopControlRequest {
 pub(crate) struct DesktopControlService {
     client: Option<ControlClient>,
     unavailable: Option<String>,
+    host: Option<ControlHost>,
 }
 
 impl DesktopControlService {
-    pub(crate) fn from_env() -> Self {
-        match ControlClient::from_env() {
-            Ok(client) => Self {
+    pub(crate) fn bootstrap(repo: std::path::PathBuf, config_dir: &std::path::Path) -> Self {
+        match ControlHost::start(repo, config_dir)
+            .and_then(|host| client_from_config(host.config()).map(|client| (host, client)))
+        {
+            Ok((host, client)) => Self {
                 client: Some(client),
                 unavailable: None,
+                host: Some(host),
             },
             Err(error) => Self {
                 client: None,
-                unavailable: Some(control_error_message(error)),
+                unavailable: Some(control_host_error_message(error)),
+                host: None,
             },
         }
     }
@@ -42,6 +48,27 @@ impl DesktopControlService {
         })?;
         client.request(command, args).map_err(control_error_message)
     }
+
+    pub(crate) fn shutdown(&mut self) -> Result<(), String> {
+        if let Some(client) = self.client.as_mut() {
+            client
+                .request("shutdown", serde_json::json!({}))
+                .map_err(control_error_message)?;
+        }
+        if let Some(host) = self.host.as_mut() {
+            host.join_after_shutdown()?;
+        }
+        Ok(())
+    }
+}
+
+fn client_from_config(config: &ClientConfig) -> Result<ControlClient, ControlHostError> {
+    ControlClient::from_endpoint_and_token_file(config.endpoint, &config.token_file)
+        .map_err(|error| ControlHostError::Start(error.to_string()))
+}
+
+fn control_host_error_message(error: ControlHostError) -> String {
+    error.to_string()
 }
 
 pub(crate) fn request_for(command: &str, args: Value) -> DesktopControlRequest {
@@ -140,6 +167,7 @@ mod tests {
         let service = super::DesktopControlService {
             client: None,
             unavailable: Some("missing control endpoint".to_owned()),
+            host: None,
         };
         assert_eq!(
             service.startup_diagnostic(),

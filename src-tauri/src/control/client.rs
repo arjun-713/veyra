@@ -37,6 +37,36 @@ pub struct ControlClient {
 }
 
 impl ControlClient {
+    pub fn from_endpoint_and_token(
+        endpoint: SocketAddr,
+        token: impl Into<String>,
+    ) -> Result<Self, ControlClientError> {
+        if !endpoint.ip().is_loopback() || endpoint.ip().is_unspecified() {
+            return Err(ControlClientError::Configuration(
+                "control endpoint must use a loopback address".to_owned(),
+            ));
+        }
+        let token = validate_token(token.into().into_bytes())?;
+        Ok(Self {
+            endpoint,
+            token,
+            next_id: 1,
+        })
+    }
+
+    pub fn from_endpoint_and_token_file(
+        endpoint: SocketAddr,
+        token_path: &std::path::Path,
+    ) -> Result<Self, ControlClientError> {
+        let token = std::fs::read(token_path).map_err(|error| {
+            ControlClientError::Configuration(format!(
+                "cannot read control token file {}: {error}",
+                token_path.display()
+            ))
+        })?;
+        Self::from_endpoint_and_token(endpoint, validate_token(token)?)
+    }
+
     pub fn from_env() -> Result<Self, ControlClientError> {
         let endpoint = std::env::var("VEYRA_CONTROL_ENDPOINT").map_err(|_| {
             ControlClientError::Configuration(
@@ -49,12 +79,7 @@ impl ControlClient {
                 "VEYRA_CONTROL_TOKEN_FILE is required for the local control daemon".to_owned(),
             )
         })?;
-        let token = read_token(&token_path)?;
-        Ok(Self {
-            endpoint,
-            token,
-            next_id: 1,
-        })
+        Self::from_endpoint_and_token_file(endpoint, std::path::Path::new(&token_path))
     }
 
     pub fn request(&mut self, command: &str, args: Value) -> Result<Value, ControlClientError> {
@@ -128,10 +153,7 @@ fn parse_endpoint(value: &str) -> Result<SocketAddr, ControlClientError> {
     Ok(endpoint)
 }
 
-fn read_token(path: &str) -> Result<String, ControlClientError> {
-    let mut token = std::fs::read(path).map_err(|error| {
-        ControlClientError::Configuration(format!("cannot read control token file {path}: {error}"))
-    })?;
+fn validate_token(mut token: Vec<u8>) -> Result<String, ControlClientError> {
     while matches!(token.last(), Some(b'\r' | b'\n')) {
         token.pop();
     }
@@ -230,7 +252,7 @@ mod tests {
     use std::io::Cursor;
 
     use super::{
-        parse_endpoint, read_response, read_token, validate_response, ControlClient,
+        parse_endpoint, read_response, validate_response, validate_token, ControlClient,
         ControlClientError, MAX_FRAME_BYTES,
     };
     use serde_json::json;
@@ -260,9 +282,14 @@ mod tests {
     fn token_is_trimmed_and_bounded_without_exposing_contents_in_errors() {
         let path = std::env::temp_dir().join(format!("veyra-token-{}", std::process::id()));
         std::fs::write(&path, b"12345678901234567890123456789012\r\n").unwrap();
-        assert_eq!(read_token(path.to_str().unwrap()).unwrap().len(), 32);
+        assert_eq!(
+            validate_token(std::fs::read(&path).unwrap()).unwrap().len(),
+            32
+        );
         std::fs::write(&path, b"short\n").unwrap();
-        let error = read_token(path.to_str().unwrap()).unwrap_err().to_string();
+        let error = validate_token(std::fs::read(&path).unwrap())
+            .unwrap_err()
+            .to_string();
         assert!(!error.contains("short"));
         std::fs::remove_file(path).unwrap();
     }
@@ -303,6 +330,21 @@ mod tests {
             client.request("status", json!([])),
             Err(ControlClientError::Protocol(message)) if message == "args must be an object"
         ));
+    }
+
+    #[test]
+    fn explicit_client_construction_requires_loopback_without_environment_changes() {
+        let client = ControlClient::from_endpoint_and_token(
+            "127.0.0.1:8765".parse().unwrap(),
+            "12345678901234567890123456789012",
+        )
+        .unwrap();
+        assert_eq!(client.endpoint, "127.0.0.1:8765".parse().unwrap());
+        assert!(ControlClient::from_endpoint_and_token(
+            "0.0.0.0:8765".parse().unwrap(),
+            "12345678901234567890123456789012",
+        )
+        .is_err());
     }
 
     #[test]

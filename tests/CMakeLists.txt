@@ -73,6 +73,13 @@ target_compile_options(test_randomized_map_invariants PRIVATE -Wall -Wextra -Wpe
 target_link_libraries(test_randomized_map_invariants PRIVATE veyra_map)
 add_test(NAME randomized_map_invariants COMMAND test_randomized_map_invariants)
 
+add_executable(test_map_public_properties test_map_public_properties.cpp)
+target_include_directories(test_map_public_properties PRIVATE ${PROJECT_SOURCE_DIR}/include)
+target_compile_features(test_map_public_properties PRIVATE cxx_std_20)
+target_compile_options(test_map_public_properties PRIVATE -Wall -Wextra -Wpedantic -UNDEBUG)
+target_link_libraries(test_map_public_properties PRIVATE veyra_map)
+add_test(NAME map_public_properties COMMAND test_map_public_properties)
+
 add_executable(test_boundary_neighbors test_boundary_neighbors.cpp)
 target_include_directories(test_boundary_neighbors PRIVATE ${PROJECT_SOURCE_DIR}/include)
 target_compile_features(test_boundary_neighbors PRIVATE cxx_std_20)
