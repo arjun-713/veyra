@@ -20,9 +20,20 @@ enum CliOperation {
 }
 
 fn run(args: Vec<String>) -> Result<Value, ControlClientError> {
+    // Output is always the JSON envelope printed by `main`; accept a trailing
+    // `--json` on every command so scripts can request machine output uniformly.
+    let args = strip_json_flag(args);
     let operation = parse_args(&args)?;
     let mut client = ControlClient::from_env()?;
     execute(&mut client, operation)
+}
+
+fn strip_json_flag(args: Vec<String>) -> Vec<String> {
+    if matches!(args.last(), Some(flag) if flag == "--json") {
+        args[..args.len() - 1].to_vec()
+    } else {
+        args
+    }
 }
 
 fn error_json(error: &ControlClientError) -> Value {
@@ -115,7 +126,7 @@ fn parse_args(args: &[String]) -> Result<CliOperation, ControlClientError> {
                 "configure <json> | config validate <json> | dataset info <format> <root> | ",
                 "dataset open <format> <root> [sequence] | ",
                 "playback play|pause|seek <frame> | policy set <policy> | ",
-                "layer set <layer> | diagnostics"
+                "layer set <layer> | diagnostics | benchmark run"
             )
             .to_owned(),
         )),
@@ -186,6 +197,29 @@ mod tests {
     use super::{error_json, parse_args, CliOperation};
     use serde_json::json;
     use veyra_lib::control::ControlClientError;
+
+    #[test]
+    fn trailing_json_flag_is_stripped_from_every_command() {
+        assert_eq!(
+            super::strip_json_flag(vec!["status".to_owned(), "--json".to_owned()]),
+            vec!["status".to_owned()]
+        );
+        assert_eq!(
+            super::strip_json_flag(vec!["status".to_owned()]),
+            vec!["status".to_owned()]
+        );
+        assert!(super::strip_json_flag(vec![]).is_empty());
+        // parse_args then accepts the stripped form as the plain command.
+        let stripped =
+            super::strip_json_flag(vec!["diagnostics".to_owned(), "--json".to_owned()]);
+        assert_eq!(
+            parse_args(&stripped),
+            Ok(CliOperation::Request {
+                command: "diagnostics",
+                args: json!({}),
+            })
+        );
+    }
 
     #[test]
     fn parses_metrics_json_as_the_same_status_alias() {
