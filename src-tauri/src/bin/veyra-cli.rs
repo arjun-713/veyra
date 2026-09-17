@@ -92,9 +92,9 @@ fn parse_args(args: &[String]) -> Result<CliOperation, ControlClientError> {
             Ok(command_request("layer", json!({"layer": layer})))
         }
         [command] if command == "diagnostics" => Ok(request("diagnostics", json!({}))),
-        [command, action] if command == "benchmark" && action == "run" => Err(unsupported(
-            "benchmark run is unavailable because the control daemon does not expose a benchmark operation",
-        )),
+        [command, action] if command == "benchmark" && action == "run" => {
+            Ok(command_request("benchmark", json!({})))
+        }
         [command, action, path] if command == "config" && action == "validate" => {
             let config = read_json(path)?;
             Ok(request("config_validate", json!({"config": config})))
@@ -244,12 +244,14 @@ mod tests {
     }
 
     #[test]
-    fn unsupported_benchmark_is_structured_and_does_not_fallback_to_command() {
-        let error = parse_args(&["benchmark".to_owned(), "run".to_owned()]).unwrap_err();
-        assert_eq!(error, ControlClientError::Daemon {
-            code: "UNSUPPORTED_OPERATION".to_owned(),
-            message: "benchmark run is unavailable because the control daemon does not expose a benchmark operation".to_owned(),
-        });
+    fn benchmark_run_uses_the_shared_runtime_benchmark_operation() {
+        assert_eq!(
+            parse_args(&["benchmark".to_owned(), "run".to_owned()]),
+            Ok(CliOperation::Request {
+                command: "command",
+                args: json!({"name": "benchmark", "args": {}}),
+            })
+        );
     }
 
     #[test]
