@@ -1,10 +1,10 @@
 <script lang="ts">
  import {onMount} from 'svelte';
- import MapCanvas from './MapCanvas.svelte';import Chart from './Chart.svelte';import Dashboard from './Dashboard.svelte';import Icon from './Icon.svelte';import {datasetFormats,layerUnavailable,mapActivity,perceptionStages,profileConfig,recordEvent,type DashboardEvent} from './dashboard';
+ import MapCanvas from './MapCanvas.svelte';import Chart from './Chart.svelte';import Dashboard from './Dashboard.svelte';import Icon from './Icon.svelte';import {datasetFormats,defaultSessionConfig,layerUnavailable,mapActivity,perceptionStages,profileConfig,recordEvent,type DashboardEvent} from './dashboard';
  import {policies,type Json,type WireFrame} from '../core';import {nativeRuntimeUnavailableMessage} from '../api';
  let workspace=$state('Dashboard'),status=$state<Json>({state:'unconfigured',index:0,frames:0,policy:'distance_lod',speed:1}),telemetry=$state<Json>({}),desktop=$state<Json>({}),render=$state<Json>({}),info=$state<Json>({});
  let frame=$state.raw<WireFrame|null>(null),samples=$state<Json[]>([]),error=$state(''),notice=$state(''),busy=$state(false),catalog=$state<Json|null>(null),inspector=$state<Json|null>(null);
- let dataset=$state('generic'),sequence=$state(''),config=$state<Json>({dataset:'generic',dataset_root:'',sequence:'',pipeline:{semantic:{mode:'ground_truth'}},map:{policy:'distance_lod',window_radius_m:100.001,resource_profile:'balanced',governor_override:'automatic'},playback:{fps:10,speed:1},visualization:{point_budget:50000,cell_budget:20000,update_hz:15}});
+ let dataset=$state('generic'),sequence=$state(''),config=$state<Json>(defaultSessionConfig());
  let configText=$state(''),mode=$state('semantic'),showPoints=$state(true),showCells=$state(true),boundaries=$state(false),view=$state('orbit'),follow=$state(false),seekIndex=$state(0),preset=$state('Balanced');
  let report=$state<Json|null>(null),previousReport=$state<Json|null>(null),benchmarkState=$state('idle'),benchmarkCount=$state(100);
  let events=$state<DashboardEvent[]>([]);

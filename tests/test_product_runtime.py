@@ -65,6 +65,25 @@ class ProductProtocolTests(unittest.TestCase):
 
 
 class ProductConfigTests(unittest.TestCase):
+    def test_default_session_pipeline_enables_ground_and_terrain_evidence(self):
+        from runtime.config import validate_config
+
+        config = validate_config(
+            {
+                "dataset": "generic",
+                "dataset_root": "/tmp",
+                "sequence": "00",
+                "pipeline": {"semantic": {"mode": "ground_truth"}},
+            },
+            Path.cwd(),
+            check_paths=False,
+        )
+
+        self.assertEqual(config["pipeline"]["semantic"], {"mode": "ground_truth"})
+        self.assertTrue(config["pipeline"]["ground"]["enabled"])
+        self.assertTrue(config["pipeline"]["terrain"]["enabled"])
+        self.assertFalse(config["pipeline"]["temporal"]["enabled"])
+
     def test_rejects_unsafe_and_nonfinite_configuration(self):
         from runtime.config import validate_config
 

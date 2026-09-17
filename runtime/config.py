@@ -1,6 +1,7 @@
 """Strict product configuration composed around existing subsystem settings."""
 
 from __future__ import annotations
+import copy
 import hashlib
 import json
 import math
@@ -8,6 +9,15 @@ from pathlib import Path
 
 POLICIES = ("uniform5", "uniform40", "distance_lod", "utility_lod")
 DATASETS = ("rellis3d", "semanticposs", "semantickitti", "generic")
+DEFAULT_PIPELINE = {
+    "semantic": {"mode": "ground_truth"},
+    "ground": {
+        "enabled": True,
+        "parameter_overrides": {"min_range": 0.0, "max_range": 100.0},
+    },
+    "terrain": {"enabled": True},
+    "temporal": {"enabled": False},
+}
 PRESETS = {
     "Performance": {
         "map": {"resource_profile": "performance", "governor_override": "automatic"},
@@ -49,6 +59,22 @@ def number(value, name, minimum, maximum, integer=False):
     if not minimum <= value <= maximum or (integer and int(value) != value):
         raise ValueError(f"{name} must be between {minimum} and {maximum}")
     return int(value) if integer else float(value)
+
+
+def normalized_pipeline(value):
+    """Apply explicit production defaults without sharing mutable config state."""
+
+    if value is None:
+        return copy.deepcopy(DEFAULT_PIPELINE)
+    if not isinstance(value, dict):
+        raise ValueError("pipeline must be an object")
+    pipeline = copy.deepcopy(DEFAULT_PIPELINE)
+    for name, settings in value.items():
+        if name in pipeline and isinstance(settings, dict):
+            pipeline[name].update(copy.deepcopy(settings))
+        else:
+            pipeline[name] = copy.deepcopy(settings)
+    return pipeline
 
 
 def validate_config(config, repo: Path, *, check_paths=True):
@@ -113,9 +139,7 @@ def validate_config(config, repo: Path, *, check_paths=True):
     governor_override = map_config.get("governor_override", "automatic")
     if governor_override not in ("automatic", "disabled", "conserve"):
         raise ValueError("unsupported governor override")
-    pipeline = config.get("pipeline", {"semantic": {"mode": "ground_truth"}})
-    if not isinstance(pipeline, dict):
-        raise ValueError("pipeline must be an object")
+    pipeline = normalized_pipeline(config.get("pipeline"))
     playback = dict(config.get("playback", {}))
     _keys(playback, ("fps", "speed"), "playback")
     playback = {

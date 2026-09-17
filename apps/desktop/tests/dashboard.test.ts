@@ -1,5 +1,5 @@
 import {test} from 'node:test';import assert from 'node:assert/strict';
-import {comparisonMetrics,datasetFormats,layerUnavailable,mapActivity,perceptionStages,profileConfig,recordEvent,summarizeVisual} from '../src/renderer/dashboard.ts';
+import {comparisonMetrics,datasetFormats,defaultSessionConfig,layerUnavailable,mapActivity,perceptionStages,profileConfig,recordEvent,summarizeVisual} from '../src/renderer/dashboard.ts';
 test('comparison requires measured matching policy reports and never fabricates reduction',()=>{
  assert.equal(comparisonMetrics(null).memoryReduction,null);
  assert.equal(comparisonMetrics({policies:{uniform5:{aggregate:{peak_rss_bytes:100}},utility_lod:{aggregate:{peak_rss_bytes:25}}}}).memoryReduction,75);
@@ -22,6 +22,10 @@ test('product presets coordinate display and runtime governor budgets',()=>{
  assert.deepEqual(performance.map,{policy:'utility_lod',resource_profile:'performance',governor_override:'automatic'});
  assert.deepEqual(performance.visualization,{point_budget:20000,cell_budget:10000,update_hz:10});
  assert.equal(profileConfig(current,'Quality').map.resource_profile,'quality');
+});
+test('new desktop sessions request ground and terrain evidence by default',()=>{
+ const config=defaultSessionConfig();
+ assert.deepEqual(config.pipeline,{semantic:{mode:'ground_truth'},ground:{enabled:true,parameter_overrides:{min_range:0,max_range:100}},terrain:{enabled:true},temporal:{enabled:false}});
 });
 test('supported runtime datasets and snapshot layer availability stay aligned',()=>{
  assert.deepEqual(datasetFormats.map(item=>item[0]),['generic','semanticposs','semantickitti','rellis3d']);
