@@ -1,0 +1,37 @@
+# Native Pandora / SemanticPOSS semantic provider (MLP, NumPy-only inference).
+#
+# Pipeline wiring note: PerceptionPipeline.from_config does not know
+# `mode: pandora_native` yet (pipeline.py is outside this change set, and its
+# interface is preserved). Until that follow-up lands, inject the provider
+# explicitly:
+#
+#     from perception.semantic import PandoraNativeSemanticProvider
+#     from perception.pipeline import PerceptionPipeline
+#     provider = PandoraNativeSemanticProvider(
+#         "data/cache/models/pandora-mlp/pandora_mlp_seed0.npz")
+#     pipeline = PerceptionPipeline(semantic_provider=provider, ...)
+#
+# The provider declares supported_datasets == {"semanticposs"}, so the
+# existing dataset gate accepts POSS frames and refuses anything else.
+semantic:
+  mode: pandora_native
+  checkpoint: data/cache/models/pandora-mlp/pandora_mlp_seed0.npz
+  # Checkpoint sha256 is recorded in
+  # reports/closure/semantic-finetune/pandora-native-metrics.json and
+  # configs/semantic-pandora-native-model.json (weights are never committed).
+ground:
+  enabled: true
+  parameter_overrides:
+    min_range: 0.0
+    max_range: 100.0
+terrain:
+  enabled: true
+temporal:
+  enabled: false
+required_stages: [semantic, ground, terrain]
+# Same conservative floors as the SalsaNext config: a completed process is
+# not a valid semantic-perception result by itself.
+quality_gate:
+  min_model_fov_mean_iou: 0.30
+  min_model_fov_coverage_fraction: 0.90
+  min_ground_f1: 0.75

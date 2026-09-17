@@ -1,5 +1,7 @@
 """Swappable semantic inference providers."""
 
+from .cenet import CENetSemanticProvider
+from .pandora import PandoraNativeSemanticProvider
 from .semantic_provider import (
     GroundTruthSemanticProvider,
     OnnxSemanticProvider,
@@ -10,8 +12,10 @@ from .semantic_provider import (
 )
 
 __all__ = [
+    "CENetSemanticProvider",
     "GroundTruthSemanticProvider",
     "OnnxSemanticProvider",
+    "PandoraNativeSemanticProvider",
     "SemanticProvider",
     "SemanticProviderConfigurationError",
     "SemanticProviderUnavailableError",

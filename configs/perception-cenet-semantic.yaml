@@ -1,0 +1,40 @@
+# Native Pandora / SemanticPOSS semantic provider (CENet checkpoint, CPU torch).
+#
+# Pipeline wiring note: PerceptionPipeline.from_config does not know
+# `mode: cenet` yet (pipeline.py is outside this change set, and its
+# interface is preserved). Until that follow-up lands, inject the provider
+# explicitly:
+#
+#     from perception.semantic import CENetSemanticProvider
+#     from perception.pipeline import PerceptionPipeline
+#     provider = CENetSemanticProvider(
+#         "data/cache/models/cenet-poss/SENet_valid_best", threads=4)
+#     pipeline = PerceptionPipeline(semantic_provider=provider, ...)
+#
+# The provider declares supported_datasets == {"semanticposs"}, so the
+# existing dataset gate accepts POSS frames and refuses anything else.
+# Weights live under data/cache (git-ignored, never committed); the sha256
+# pinned here must match before use.
+semantic:
+  mode: cenet
+  checkpoint: data/cache/models/cenet-poss/SENet_valid_best
+  checkpoint_sha256: 9c07ceadcd005a11bddc6c92b61d6f7724339f9519ef177afdebc3c59ffbb0ce
+  threads: 4
+ground:
+  enabled: true
+  parameter_overrides:
+    min_range: 0.0
+    max_range: 100.0
+terrain:
+  enabled: true
+temporal:
+  enabled: false
+required_stages: [semantic, ground, terrain]
+# Same conservative floors as the SalsaNext config: a completed process is
+# not a valid semantic-perception result by itself. The CENet provider path
+# clears all three on the closure frames (see reports/closure/semantic-
+# finetune/RESULT.md); the SalsaNext path does not.
+quality_gate:
+  min_model_fov_mean_iou: 0.30
+  min_model_fov_coverage_fraction: 0.90
+  min_ground_f1: 0.75
