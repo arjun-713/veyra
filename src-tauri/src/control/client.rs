@@ -58,6 +58,7 @@ impl ControlClient {
         endpoint: SocketAddr,
         token_path: &std::path::Path,
     ) -> Result<Self, ControlClientError> {
+        validate_token_file(token_path)?;
         let token = std::fs::read(token_path).map_err(|error| {
             ControlClientError::Configuration(format!(
                 "cannot read control token file {}: {error}",
@@ -137,6 +138,30 @@ impl ControlClient {
         let response = read_response(&mut reader)?;
         validate_response(&response, &id)
     }
+}
+
+fn validate_token_file(token_path: &std::path::Path) -> Result<(), ControlClientError> {
+    let metadata = std::fs::metadata(token_path).map_err(|error| {
+        ControlClientError::Configuration(format!(
+            "cannot inspect control token file {}: {error}",
+            token_path.display()
+        ))
+    })?;
+    if !metadata.is_file() {
+        return Err(ControlClientError::Configuration(
+            "control token path must be a regular file".to_owned(),
+        ));
+    }
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        if metadata.permissions().mode() & 0o077 != 0 {
+            return Err(ControlClientError::Configuration(
+                "control token file permissions must deny group and other access".to_owned(),
+            ));
+        }
+    }
+    Ok(())
 }
 
 fn parse_endpoint(value: &str) -> Result<SocketAddr, ControlClientError> {
@@ -345,6 +370,24 @@ mod tests {
             "12345678901234567890123456789012",
         )
         .is_err());
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn token_file_client_rejects_group_or_world_readable_secret() {
+        use std::os::unix::fs::PermissionsExt;
+
+        let path = std::env::temp_dir().join(format!("veyra-client-token-{}", std::process::id()));
+        std::fs::write(&path, b"12345678901234567890123456789012").unwrap();
+        std::fs::set_permissions(&path, std::fs::Permissions::from_mode(0o644)).unwrap();
+        let result =
+            ControlClient::from_endpoint_and_token_file("127.0.0.1:8765".parse().unwrap(), &path);
+        let error = match result {
+            Ok(_) => panic!("insecure token file was accepted"),
+            Err(error) => error,
+        };
+        assert!(error.to_string().contains("permissions"));
+        std::fs::remove_file(path).unwrap();
     }
 
     #[test]
