@@ -1,0 +1,1091 @@
+{
+  "title": "CENet provider semantic quality, overall + range-binned (critical groups)",
+  "provenance": {
+    "source_artifact": "reports/closure/semantic-finetune/cenet-poss-metrics.json",
+    "method": "direct CENetSemanticProvider.infer on sensor-frame points (tag-free beam projection, per-point argmax, no KNN); provider dataset gate accepts semanticposs",
+    "provider": "perception/semantic/cenet.py CENetSemanticProvider (tag-free beam projection, per-point argmax, no KNN)",
+    "checkpoint_sha256": "9c07ceadcd005a11bddc6c92b61d6f7724339f9519ef177afdebc3c59ffbb0ce",
+    "dataset": {
+      "name": "semanticposs",
+      "sequence": "00",
+      "frames": [
+        "000000",
+        "000001",
+        "000002",
+        "000003",
+        "000004",
+        "000005",
+        "000006",
+        "000007",
+        "000008",
+        "000009",
+        "000010",
+        "000011",
+        "000012",
+        "000013",
+        "000014",
+        "000015"
+      ],
+      "num_frames": 16,
+      "total_points": 1065314,
+      "labelled_points": 1029238,
+      "unlabeled_points": 36076
+    },
+    "hardware": {
+      "cpu": "Intel(R) Core(TM) i5-8350U CPU @ 1.70GHz",
+      "platform": "Linux-7.2.5-200.fc44.x86_64-x86_64-with-glibc2.43",
+      "python": "3.14.7"
+    },
+    "commit_branch_base": "agent/semantic-finetune @ ae16e02",
+    "bin_definition": "labelled points only (GT class != 0); depth = ||xyz|| sensor frame; bins 0-10/10-30/30-60/60m+",
+    "bin_caveat_60m": "60m+ bin includes a 100m+ tail (10,660 raw returns, ~1% of frames); cannot split 60-100 without per-point re-inference",
+    "derived_fields": "per-bin accuracy_labelled = sum(recall*support)/bin_points; exact (validated: reproduces reported overall 0.8942)"
+  },
+  "overall": {
+    "accuracy_labelled": 0.8942,
+    "veyra_miou_1_19": 0.6504,
+    "group_accuracy_all_returns": 0.8702,
+    "group_miou": 0.6195,
+    "per_class_veyra": {
+      "1": {
+        "iou": 0.8766,
+        "precision": 0.979,
+        "recall": 0.8933,
+        "f1": 0.9342,
+        "support": 179347
+      },
+      "2": {
+        "iou": 0.6142,
+        "precision": 0.6855,
+        "recall": 0.8551,
+        "f1": 0.761,
+        "support": 26053
+      },
+      "3": {
+        "iou": null,
+        "precision": null,
+        "recall": null,
+        "f1": null,
+        "support": 0
+      },
+      "4": {
+        "iou": null,
+        "precision": null,
+        "recall": null,
+        "f1": null,
+        "support": 0
+      },
+      "5": {
+        "iou": null,
+        "precision": null,
+        "recall": null,
+        "f1": null,
+        "support": 0
+      },
+      "6": {
+        "iou": 0.6979,
+        "precision": 0.8555,
+        "recall": 0.7912,
+        "f1": 0.8221,
+        "support": 6900
+      },
+      "7": {
+        "iou": 0.3959,
+        "precision": 0.8993,
+        "recall": 0.4143,
+        "f1": 0.5672,
+        "support": 1207
+      },
+      "8": {
+        "iou": null,
+        "precision": null,
+        "recall": null,
+        "f1": null,
+        "support": 0
+      },
+      "9": {
+        "iou": null,
+        "precision": null,
+        "recall": null,
+        "f1": null,
+        "support": 0
+      },
+      "10": {
+        "iou": null,
+        "precision": null,
+        "recall": null,
+        "f1": null,
+        "support": 0
+      },
+      "11": {
+        "iou": null,
+        "precision": null,
+        "recall": null,
+        "f1": null,
+        "support": 0
+      },
+      "12": {
+        "iou": 0.884,
+        "precision": 0.9703,
+        "recall": 0.9086,
+        "f1": 0.9385,
+        "support": 297541
+      },
+      "13": {
+        "iou": 0.7732,
+        "precision": 0.8874,
+        "recall": 0.8573,
+        "f1": 0.8721,
+        "support": 190195
+      },
+      "14": {
+        "iou": 0.6246,
+        "precision": 0.7215,
+        "recall": 0.8231,
+        "f1": 0.7689,
+        "support": 49028
+      },
+      "15": {
+        "iou": 0.7891,
+        "precision": 0.8338,
+        "recall": 0.9364,
+        "f1": 0.8821,
+        "support": 259064
+      },
+      "16": {
+        "iou": 0.0,
+        "precision": 0.0,
+        "recall": 0.0,
+        "f1": 0.0,
+        "support": 0
+      },
+      "17": {
+        "iou": null,
+        "precision": null,
+        "recall": null,
+        "f1": null,
+        "support": 0
+      },
+      "18": {
+        "iou": 0.7628,
+        "precision": 0.9312,
+        "recall": 0.8083,
+        "f1": 0.8654,
+        "support": 10585
+      },
+      "19": {
+        "iou": 0.7357,
+        "precision": 0.9653,
+        "recall": 0.7556,
+        "f1": 0.8477,
+        "support": 9318
+      }
+    },
+    "critical_groups": {
+      "0": {
+        "iou": 0.8838,
+        "precision": 0.9699,
+        "recall": 0.9086,
+        "f1": 0.9383,
+        "support": 297541
+      },
+      "1": {
+        "iou": 0.2893,
+        "precision": 0.9041,
+        "recall": 0.2984,
+        "f1": 0.4487,
+        "support": 821
+      },
+      "2": {
+        "iou": 0.6828,
+        "precision": 0.7681,
+        "recall": 0.8601,
+        "f1": 0.8115,
+        "support": 239223
+      },
+      "3": {
+        "iou": 0.7499,
+        "precision": 0.9451,
+        "recall": 0.7841,
+        "f1": 0.8571,
+        "support": 19903
+      },
+      "4": {
+        "iou": 0.855,
+        "precision": 0.9449,
+        "recall": 0.8999,
+        "f1": 0.9218,
+        "support": 206607
+      },
+      "5": {
+        "iou": 0.6951,
+        "precision": 0.8514,
+        "recall": 0.7912,
+        "f1": 0.8202,
+        "support": 6900
+      },
+      "6": {
+        "iou": 0.773,
+        "precision": 0.8155,
+        "recall": 0.9368,
+        "f1": 0.872,
+        "support": 259064
+      },
+      "7": {
+        "iou": 0.0271,
+        "precision": 0.8303,
+        "recall": 0.0272,
+        "f1": 0.0527,
+        "support": 35255
+      }
+    },
+    "group_members": {
+      "0": "drivable (POSS ground raw22)",
+      "1": "non-drivable (trashcan raw14, cone raw16)",
+      "2": "static structure (building raw15, fence raw17)",
+      "3": "pole/thin (pole raw13, signs raw10/11/12)",
+      "4": "vehicle (car raw7, bike raw21, rider raw6)",
+      "5": "pedestrian (person raw4/5; repo groups rider raw6 under vehicle)",
+      "6": "vegetation (plants raw9, trunk raw8)",
+      "7": "unknown (GT unlabeled raw0; low IoU by construction)"
+    }
+  },
+  "bins": {
+    "0-10m": {
+      "points_labelled": 168240,
+      "accuracy_labelled_derived": 0.9453,
+      "group_accuracy_labelled_derived": 0.9515,
+      "veyra_miou_1_19": 0.3576,
+      "group_miou": 0.359,
+      "critical_groups": {
+        "0": {
+          "iou": 0.9108,
+          "precision": 0.9923,
+          "recall": 0.9173,
+          "f1": 0.9533,
+          "support": 77270
+        },
+        "1": {
+          "iou": 0.0,
+          "precision": 0.0,
+          "recall": 0.0,
+          "f1": 0.0,
+          "support": 0
+        },
+        "2": {
+          "iou": 0.6294,
+          "precision": 0.6487,
+          "recall": 0.9548,
+          "f1": 0.7725,
+          "support": 11587
+        },
+        "3": {
+          "iou": null,
+          "precision": null,
+          "recall": null,
+          "f1": null,
+          "support": 0
+        },
+        "4": {
+          "iou": 0.9729,
+          "precision": 0.9882,
+          "recall": 0.9844,
+          "f1": 0.9863,
+          "support": 79383
+        },
+        "5": {
+          "iou": 0.0,
+          "precision": 0.0,
+          "recall": 0.0,
+          "f1": 0.0,
+          "support": 0
+        },
+        "6": {
+          "iou": 0.0,
+          "precision": 0.0,
+          "recall": 0.0,
+          "f1": 0.0,
+          "support": 0
+        },
+        "7": {
+          "iou": 0.0,
+          "precision": 0.0,
+          "recall": 0.0,
+          "f1": 0.0,
+          "support": 0
+        }
+      },
+      "per_class_veyra": {
+        "1": {
+          "iou": 0.9629,
+          "precision": 0.9913,
+          "recall": 0.9712,
+          "f1": 0.9811,
+          "support": 79383
+        },
+        "2": {
+          "iou": 0.0,
+          "precision": 0.0,
+          "recall": 0.0,
+          "f1": 0.0,
+          "support": 0
+        },
+        "3": {
+          "iou": null,
+          "precision": null,
+          "recall": null,
+          "f1": null,
+          "support": 0
+        },
+        "4": {
+          "iou": null,
+          "precision": null,
+          "recall": null,
+          "f1": null,
+          "support": 0
+        },
+        "5": {
+          "iou": null,
+          "precision": null,
+          "recall": null,
+          "f1": null,
+          "support": 0
+        },
+        "6": {
+          "iou": 0.0,
+          "precision": 0.0,
+          "recall": 0.0,
+          "f1": 0.0,
+          "support": 0
+        },
+        "7": {
+          "iou": 0.0,
+          "precision": 0.0,
+          "recall": 0.0,
+          "f1": 0.0,
+          "support": 0
+        },
+        "8": {
+          "iou": null,
+          "precision": null,
+          "recall": null,
+          "f1": null,
+          "support": 0
+        },
+        "9": {
+          "iou": null,
+          "precision": null,
+          "recall": null,
+          "f1": null,
+          "support": 0
+        },
+        "10": {
+          "iou": null,
+          "precision": null,
+          "recall": null,
+          "f1": null,
+          "support": 0
+        },
+        "11": {
+          "iou": null,
+          "precision": null,
+          "recall": null,
+          "f1": null,
+          "support": 0
+        },
+        "12": {
+          "iou": 0.9108,
+          "precision": 0.9923,
+          "recall": 0.9173,
+          "f1": 0.9533,
+          "support": 77270
+        },
+        "13": {
+          "iou": null,
+          "precision": null,
+          "recall": null,
+          "f1": null,
+          "support": 0
+        },
+        "14": {
+          "iou": 0.6294,
+          "precision": 0.6487,
+          "recall": 0.9548,
+          "f1": 0.7725,
+          "support": 11587
+        },
+        "15": {
+          "iou": 0.0,
+          "precision": 0.0,
+          "recall": 0.0,
+          "f1": 0.0,
+          "support": 0
+        },
+        "16": {
+          "iou": null,
+          "precision": null,
+          "recall": null,
+          "f1": null,
+          "support": 0
+        },
+        "17": {
+          "iou": null,
+          "precision": null,
+          "recall": null,
+          "f1": null,
+          "support": 0
+        },
+        "18": {
+          "iou": null,
+          "precision": null,
+          "recall": null,
+          "f1": null,
+          "support": 0
+        },
+        "19": {
+          "iou": null,
+          "precision": null,
+          "recall": null,
+          "f1": null,
+          "support": 0
+        }
+      }
+    },
+    "10-30m": {
+      "points_labelled": 598869,
+      "accuracy_labelled_derived": 0.9074,
+      "group_accuracy_labelled_derived": 0.9114,
+      "veyra_miou_1_19": 0.7118,
+      "group_miou": 0.7067,
+      "critical_groups": {
+        "0": {
+          "iou": 0.8984,
+          "precision": 0.9712,
+          "recall": 0.923,
+          "f1": 0.9465,
+          "support": 201273
+        },
+        "1": {
+          "iou": null,
+          "precision": null,
+          "recall": null,
+          "f1": null,
+          "support": 0
+        },
+        "2": {
+          "iou": 0.7996,
+          "precision": 0.9159,
+          "recall": 0.8629,
+          "f1": 0.8886,
+          "support": 142408
+        },
+        "3": {
+          "iou": 0.8191,
+          "precision": 0.9583,
+          "recall": 0.8494,
+          "f1": 0.9006,
+          "support": 16884
+        },
+        "4": {
+          "iou": 0.8375,
+          "precision": 0.9149,
+          "recall": 0.9082,
+          "f1": 0.9115,
+          "support": 97449
+        },
+        "5": {
+          "iou": 0.7941,
+          "precision": 0.8679,
+          "recall": 0.9033,
+          "f1": 0.8852,
+          "support": 5024
+        },
+        "6": {
+          "iou": 0.7983,
+          "precision": 0.8292,
+          "recall": 0.9553,
+          "f1": 0.8878,
+          "support": 135831
+        },
+        "7": {
+          "iou": 0.0,
+          "precision": 0.0,
+          "recall": 0.0,
+          "f1": 0.0,
+          "support": 0
+        }
+      },
+      "per_class_veyra": {
+        "1": {
+          "iou": 0.8657,
+          "precision": 0.9726,
+          "recall": 0.8873,
+          "f1": 0.928,
+          "support": 78096
+        },
+        "2": {
+          "iou": 0.6524,
+          "precision": 0.693,
+          "recall": 0.9177,
+          "f1": 0.7897,
+          "support": 19071
+        },
+        "3": {
+          "iou": null,
+          "precision": null,
+          "recall": null,
+          "f1": null,
+          "support": 0
+        },
+        "4": {
+          "iou": null,
+          "precision": null,
+          "recall": null,
+          "f1": null,
+          "support": 0
+        },
+        "5": {
+          "iou": null,
+          "precision": null,
+          "recall": null,
+          "f1": null,
+          "support": 0
+        },
+        "6": {
+          "iou": 0.7941,
+          "precision": 0.8679,
+          "recall": 0.9033,
+          "f1": 0.8852,
+          "support": 5024
+        },
+        "7": {
+          "iou": 0.702,
+          "precision": 0.9138,
+          "recall": 0.7518,
+          "f1": 0.8249,
+          "support": 282
+        },
+        "8": {
+          "iou": null,
+          "precision": null,
+          "recall": null,
+          "f1": null,
+          "support": 0
+        },
+        "9": {
+          "iou": null,
+          "precision": null,
+          "recall": null,
+          "f1": null,
+          "support": 0
+        },
+        "10": {
+          "iou": null,
+          "precision": null,
+          "recall": null,
+          "f1": null,
+          "support": 0
+        },
+        "11": {
+          "iou": null,
+          "precision": null,
+          "recall": null,
+          "f1": null,
+          "support": 0
+        },
+        "12": {
+          "iou": 0.8984,
+          "precision": 0.9712,
+          "recall": 0.923,
+          "f1": 0.9465,
+          "support": 201273
+        },
+        "13": {
+          "iou": 0.8158,
+          "precision": 0.9342,
+          "recall": 0.8656,
+          "f1": 0.8986,
+          "support": 119510
+        },
+        "14": {
+          "iou": 0.6674,
+          "precision": 0.7914,
+          "recall": 0.8098,
+          "f1": 0.8005,
+          "support": 22898
+        },
+        "15": {
+          "iou": 0.7983,
+          "precision": 0.8293,
+          "recall": 0.9553,
+          "f1": 0.8878,
+          "support": 135831
+        },
+        "16": {
+          "iou": 0.0,
+          "precision": 0.0,
+          "recall": 0.0,
+          "f1": 0.0,
+          "support": 0
+        },
+        "17": {
+          "iou": null,
+          "precision": null,
+          "recall": null,
+          "f1": null,
+          "support": 0
+        },
+        "18": {
+          "iou": 0.8407,
+          "precision": 0.9391,
+          "recall": 0.8891,
+          "f1": 0.9134,
+          "support": 8730
+        },
+        "19": {
+          "iou": 0.7946,
+          "precision": 0.9816,
+          "recall": 0.8066,
+          "f1": 0.8856,
+          "support": 8154
+        }
+      }
+    },
+    "30-60m": {
+      "points_labelled": 229003,
+      "accuracy_labelled_derived": 0.8517,
+      "group_accuracy_labelled_derived": 0.8584,
+      "veyra_miou_1_19": 0.5099,
+      "group_miou": 0.5319,
+      "critical_groups": {
+        "0": {
+          "iou": 0.6579,
+          "precision": 0.8646,
+          "recall": 0.7335,
+          "f1": 0.7936,
+          "support": 18632
+        },
+        "1": {
+          "iou": 0.0,
+          "precision": 0.0,
+          "recall": 0.0,
+          "f1": 0.0,
+          "support": 0
+        },
+        "2": {
+          "iou": 0.7399,
+          "precision": 0.8546,
+          "recall": 0.8466,
+          "f1": 0.8505,
+          "support": 73369
+        },
+        "3": {
+          "iou": 0.4003,
+          "precision": 0.8349,
+          "recall": 0.4347,
+          "f1": 0.5717,
+          "support": 2710
+        },
+        "4": {
+          "iou": 0.6544,
+          "precision": 0.925,
+          "recall": 0.691,
+          "f1": 0.7911,
+          "support": 27682
+        },
+        "5": {
+          "iou": 0.4584,
+          "precision": 0.8326,
+          "recall": 0.5049,
+          "f1": 0.6286,
+          "support": 1822
+        },
+        "6": {
+          "iou": 0.8126,
+          "precision": 0.8488,
+          "recall": 0.9502,
+          "f1": 0.8966,
+          "support": 104788
+        },
+        "7": {
+          "iou": null,
+          "precision": null,
+          "recall": null,
+          "f1": null,
+          "support": 0
+        }
+      },
+      "per_class_veyra": {
+        "1": {
+          "iou": 0.654,
+          "precision": 0.9453,
+          "recall": 0.6797,
+          "f1": 0.7908,
+          "support": 20196
+        },
+        "2": {
+          "iou": 0.6122,
+          "precision": 0.8089,
+          "recall": 0.7157,
+          "f1": 0.7595,
+          "support": 6620
+        },
+        "3": {
+          "iou": null,
+          "precision": null,
+          "recall": null,
+          "f1": null,
+          "support": 0
+        },
+        "4": {
+          "iou": null,
+          "precision": null,
+          "recall": null,
+          "f1": null,
+          "support": 0
+        },
+        "5": {
+          "iou": null,
+          "precision": null,
+          "recall": null,
+          "f1": null,
+          "support": 0
+        },
+        "6": {
+          "iou": 0.4584,
+          "precision": 0.8326,
+          "recall": 0.5049,
+          "f1": 0.6286,
+          "support": 1822
+        },
+        "7": {
+          "iou": 0.3284,
+          "precision": 0.9632,
+          "recall": 0.3326,
+          "f1": 0.4944,
+          "support": 866
+        },
+        "8": {
+          "iou": null,
+          "precision": null,
+          "recall": null,
+          "f1": null,
+          "support": 0
+        },
+        "9": {
+          "iou": null,
+          "precision": null,
+          "recall": null,
+          "f1": null,
+          "support": 0
+        },
+        "10": {
+          "iou": null,
+          "precision": null,
+          "recall": null,
+          "f1": null,
+          "support": 0
+        },
+        "11": {
+          "iou": null,
+          "precision": null,
+          "recall": null,
+          "f1": null,
+          "support": 0
+        },
+        "12": {
+          "iou": 0.6579,
+          "precision": 0.8646,
+          "recall": 0.7335,
+          "f1": 0.7936,
+          "support": 18632
+        },
+        "13": {
+          "iou": 0.755,
+          "precision": 0.8721,
+          "recall": 0.849,
+          "f1": 0.8604,
+          "support": 61346
+        },
+        "14": {
+          "iou": 0.5578,
+          "precision": 0.6902,
+          "recall": 0.7441,
+          "f1": 0.7161,
+          "support": 12023
+        },
+        "15": {
+          "iou": 0.8125,
+          "precision": 0.8492,
+          "recall": 0.9495,
+          "f1": 0.8965,
+          "support": 104788
+        },
+        "16": {
+          "iou": 0.0,
+          "precision": 0.0,
+          "recall": 0.0,
+          "f1": 0.0,
+          "support": 0
+        },
+        "17": {
+          "iou": null,
+          "precision": null,
+          "recall": null,
+          "f1": null,
+          "support": 0
+        },
+        "18": {
+          "iou": 0.4411,
+          "precision": 0.8612,
+          "recall": 0.4748,
+          "f1": 0.6121,
+          "support": 1647
+        },
+        "19": {
+          "iou": 0.3316,
+          "precision": 0.7753,
+          "recall": 0.3669,
+          "f1": 0.4981,
+          "support": 1063
+        }
+      }
+    },
+    "60m+": {
+      "points_labelled": 33126,
+      "accuracy_labelled_derived": 0.6918,
+      "group_accuracy_labelled_derived": 0.7045,
+      "veyra_miou_1_19": 0.2372,
+      "group_miou": 0.2645,
+      "critical_groups": {
+        "0": {
+          "iou": 0.0911,
+          "precision": 0.328,
+          "recall": 0.112,
+          "f1": 0.167,
+          "support": 366
+        },
+        "1": {
+          "iou": null,
+          "precision": null,
+          "recall": null,
+          "f1": null,
+          "support": 0
+        },
+        "2": {
+          "iou": 0.5408,
+          "precision": 0.6149,
+          "recall": 0.8179,
+          "f1": 0.702,
+          "support": 11859
+        },
+        "3": {
+          "iou": 0.2614,
+          "precision": 0.8113,
+          "recall": 0.2783,
+          "f1": 0.4145,
+          "support": 309
+        },
+        "4": {
+          "iou": 0.0701,
+          "precision": 0.7123,
+          "recall": 0.0721,
+          "f1": 0.131,
+          "support": 2093
+        },
+        "5": {
+          "iou": 0.0161,
+          "precision": 0.1111,
+          "recall": 0.0185,
+          "f1": 0.0317,
+          "support": 54
+        },
+        "6": {
+          "iou": 0.6075,
+          "precision": 0.7904,
+          "recall": 0.7242,
+          "f1": 0.7559,
+          "support": 18445
+        },
+        "7": {
+          "iou": null,
+          "precision": null,
+          "recall": null,
+          "f1": null,
+          "support": 0
+        }
+      },
+      "per_class_veyra": {
+        "1": {
+          "iou": 0.0595,
+          "precision": 0.9091,
+          "recall": 0.0598,
+          "f1": 0.1122,
+          "support": 1672
+        },
+        "2": {
+          "iou": 0.0918,
+          "precision": 0.3824,
+          "recall": 0.1077,
+          "f1": 0.1681,
+          "support": 362
+        },
+        "3": {
+          "iou": null,
+          "precision": null,
+          "recall": null,
+          "f1": null,
+          "support": 0
+        },
+        "4": {
+          "iou": null,
+          "precision": null,
+          "recall": null,
+          "f1": null,
+          "support": 0
+        },
+        "5": {
+          "iou": null,
+          "precision": null,
+          "recall": null,
+          "f1": null,
+          "support": 0
+        },
+        "6": {
+          "iou": 0.0161,
+          "precision": 0.1111,
+          "recall": 0.0185,
+          "f1": 0.0317,
+          "support": 54
+        },
+        "7": {
+          "iou": 0.0,
+          "precision": 0.0,
+          "recall": 0.0,
+          "f1": 0.0,
+          "support": 59
+        },
+        "8": {
+          "iou": null,
+          "precision": null,
+          "recall": null,
+          "f1": null,
+          "support": 0
+        },
+        "9": {
+          "iou": null,
+          "precision": null,
+          "recall": null,
+          "f1": null,
+          "support": 0
+        },
+        "10": {
+          "iou": null,
+          "precision": null,
+          "recall": null,
+          "f1": null,
+          "support": 0
+        },
+        "11": {
+          "iou": null,
+          "precision": null,
+          "recall": null,
+          "f1": null,
+          "support": 0
+        },
+        "12": {
+          "iou": 0.0911,
+          "precision": 0.328,
+          "recall": 0.112,
+          "f1": 0.167,
+          "support": 366
+        },
+        "13": {
+          "iou": 0.4987,
+          "precision": 0.5667,
+          "recall": 0.8061,
+          "f1": 0.6655,
+          "support": 9339
+        },
+        "14": {
+          "iou": 0.5625,
+          "precision": 0.7242,
+          "recall": 0.7159,
+          "f1": 0.72,
+          "support": 2520
+        },
+        "15": {
+          "iou": 0.606,
+          "precision": 0.7904,
+          "recall": 0.722,
+          "f1": 0.7547,
+          "support": 18445
+        },
+        "16": {
+          "iou": 0.0,
+          "precision": 0.0,
+          "recall": 0.0,
+          "f1": 0.0,
+          "support": 0
+        },
+        "17": {
+          "iou": null,
+          "precision": null,
+          "recall": null,
+          "f1": null,
+          "support": 0
+        },
+        "18": {
+          "iou": 0.0569,
+          "precision": 0.8,
+          "recall": 0.0577,
+          "f1": 0.1076,
+          "support": 208
+        },
+        "19": {
+          "iou": 0.6271,
+          "precision": 0.8132,
+          "recall": 0.7327,
+          "f1": 0.7708,
+          "support": 101
+        }
+      }
+    }
+  },
+  "generalization_reference_NOT_provider_path": {
+    "note": "exact-projection (author tags) on seq02 valid split, 16 frames; upper reference only, different method from provider path",
+    "overall": {
+      "accuracy_labelled": 0.8651,
+      "veyra_miou_1_19": 0.6473,
+      "group_miou": 0.6784
+    },
+    "bins": {
+      "0-10m": {
+        "points": 128262,
+        "veyra_miou_1_19": 0.3636,
+        "group_miou": 0.4066
+      },
+      "10-30m": {
+        "points": 600374,
+        "veyra_miou_1_19": 0.6777,
+        "group_miou": 0.5765
+      },
+      "30-60m": {
+        "points": 272627,
+        "veyra_miou_1_19": 0.397,
+        "group_miou": 0.4787
+      },
+      "60m+": {
+        "points": 47213,
+        "veyra_miou_1_19": 0.2709,
+        "group_miou": 0.4718
+      }
+    }
+  },
+  "gaps": [
+    "provider-path seq02/04/05 sweep not run (RESULT.md gap 4); bins here are seq00 provider path only",
+    "60-100m vs 100m+ split needs per-point re-inference; 100m+ tail is ~1% of raw returns",
+    "per-bin confidence calibration not measured; confidence only reported overall (0.962 correct / 0.774 wrong)",
+    "CPU-only profile (i5-8350U); no accelerator numbers"
+  ]
+}
