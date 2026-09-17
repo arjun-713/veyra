@@ -30,6 +30,47 @@ requires model-FOV mIoU >= 0.30, FOV coverage >= 0.90, and overall ground F1
 >= 0.75. The current SemanticPOSS run fails the semantic mIoU floor, as it
 should.
 
+## Closure verification: geometry is correct, checkpoint is wrong-domain
+
+`agent/perception-semantic` verified every suspected mismatch dimension
+against the training sources and closed the neural-correctness question as a
+sensor/taxonomy incompatibility, not a projection bug. Raw artifact:
+`reports/closure/semantic/salsanext-poss-metrics.json`, reproduced with
+`python3 scripts/measure_salsanext_cross_domain.py`.
+
+| Dimension | Training spec (verified source) | Local finding | Verdict |
+| --- | --- | --- | --- |
+| Yaw/row projection | `yaw=-atan2(y,x)`, `row=floor((1-(pitch-down)/(up-down))*H)` (`TiagoCortinhal/SalsaNext` `train/common/laserscan.py`, MIT) | `project_scan` matches pixel-for-pixel on 500 seeded in-FOV points; nearest return wins; stable tie-break keeps first input return | Correct |
+| Tensor layout | `1x5x64x2048` range/XYZ/remission, `(x-means)/stds`, `*=mask` (`qualcomm/ai-hub-models` `salsanext/app.py` v0.62.1) | Channel order, means `[12.12, 10.88, 0.23, -1.04, 0.21]`, stds `[12.32, 11.47, 6.91, 0.86, 0.16]`, empty pixels exactly zero | Correct |
+| Unprojection | `argmax[p_y, p_x]` per point, no KNN (same `app.py`) | `unproject_scores` reads each point's own pixel in input order; collisions share the nearest return's prediction; no second softmax | Correct |
+| ONNX export | Input `lidar [1,5,64,2048]`, output `predict [1,20,64,2048]` float | Runtime metadata matches; outputs are probabilities summing to 1; sha `067086f8...` | Matches |
+| Learning map / class IDs | `semantic-kitti.yaml` `learning_map` + `learning_map_inv` order | `datasets/common/taxonomy.py` equals upstream map entry-for-entry; 20 channel names equal `learning_map_inv` order; class 0 is the training-ignored label and is reported at zero confidence | Correct |
+| Sensor vertical FOV | KITTI HDL-64E training FOV `-25` to `+3` deg | 16 real POSS frames span `-15.54` to `+7.30` deg (Pandora nominal `-16` to `+7`); only **90.5%** of returns fall inside the model FOV, the upper band is forced unknown | **Mismatch** |
+| Vertical resolution | 64 rows over 28 deg (`0.44` deg/row) | 40-beam Pandora fills only **30/64 rows**; 34 rows are always empty | **Mismatch** |
+| Intensity | KITTI float remission, training mean 0.21 | POSS byte `1..255` (255 distinct values); `/255` mean `0.05`, i.e. ~1 std below training mean | **Shift** (scale handled, distribution not) |
+| Range | KITTI training mean 12.12 m | POSS mean 26.2 m, max 199 m (`+1.1` std on the range channel; normalized extremes to `15` sigma) | **Shift** |
+| Taxonomy | 20 KITTI learning classes incl. road/parking/sidewalk split | POSS has one `ground` class mapped to other-ground (12): 245,782 model `road` predictions score IoU `0.0`; POSS has no other-vehicle class while the model predicts 150,650 of them; raw 20 (don't-care) maps to unknown | **Collision** (unfixable without retraining) |
+| Confidence | Softmax probabilities, uncalibrated cross-domain | Mean **0.86** / p50 **0.97** on predicted-known at 29% accuracy | Overconfident; unknown stays failure-safe at 0 |
+| Point order | Original order via `proj_x`/`proj_y` | Round-trip tests pin per-point order through projection and unprojection | Correct |
+
+Closure run (SemanticPOSS v1.0, sequence 00, frames 000000-000015,
+1,065,314 points; i5-8350U CPU, ORT 1.30.0, threads 2, shared host under
+load average ~16): **all-return mIoU 8.72%**, **model-FOV mIoU 9.41%**,
+**labelled accuracy 29.3%**, per-class IoU car 0.45 / building 0.39 /
+road 0.00 / other-ground 0.06, near-field (0-10 m) mIoU 0.065,
+latency p50/p95 **3.0 s / 4.4 s** per frame, peak RSS 783 MB. The
+prediction histogram spans 15 classes (not degenerate), so the backend
+executes correctly; it is simply answering a different sensor's question.
+
+Deliberate deviations from upstream, kept: out-of-FOV and zero-range
+returns are explicit unknown at zero confidence (upstream clamps them to
+edge rows); point index 0 is included in the valid mask (upstream's
+`proj_idx > 0` mask drops it); over-range intensity raises instead of
+silently shifting the remission channel. The pipeline dataset gate
+(`supported_datasets == {"semantickitti"}`) continues to refuse POSS
+frames; the closure measurement calls the provider directly and records
+that bypass in its artifact.
+
 ## Native SemanticPOSS candidate under review
 
 [CENet](https://github.com/huixiancheng/CENet) at source commit

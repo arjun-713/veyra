@@ -104,6 +104,26 @@ class SemanticProviderTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             provider.infer(points)
 
+    def test_unknown_maps_to_zero_confidence_while_known_passes_through(self):
+        # Failure-safe contract the SalsaNext path relies on: class 0 is
+        # absence of evidence, never a confident prediction, even when the
+        # backend reports high confidence for it.
+        session = _Session(
+            input_shape=[None, 4],
+            output_shapes=[[None], [None]],
+            outputs=([1, 2, 99], [0.8, 0.99, 0.6]),
+        )
+        provider = OnnxSemanticProvider(session=session, mapping={1: 9})
+        result = provider.infer(np.zeros((3, 4), dtype=np.float32))
+        np.testing.assert_array_equal(result.semantic_class, [9, 0, 0])
+        np.testing.assert_allclose(result.semantic_confidence, [0.8, 0.0, 0.0])
+        self.assertEqual(result.mode, "model")
+
+    def test_semantic_result_zeroes_unknown_confidence_despite_backend_value(self):
+        result = SemanticResult(np.array([0, 9]), np.array([0.99, 0.7]), "model")
+        np.testing.assert_array_equal(result.semantic_class, [0, 9])
+        np.testing.assert_allclose(result.semantic_confidence, [0.0, 0.7])
+
 
 class _ValueInfo:
     def __init__(self, shape):
