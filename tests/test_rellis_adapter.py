@@ -241,6 +241,25 @@ class Rellis3DAdapterTests(unittest.TestCase):
         self.assertIn("00000", sequences)
         self.assertTrue(adapter.list_frames("00000"))
 
+    def test_malformed_paths_report_useful_reason(self):
+        with tempfile.TemporaryDirectory() as raw:
+            root = Path(raw)
+            missing = root / "does-not-exist"
+            with self.assertRaisesRegex(FileNotFoundError, "root does not exist"):
+                Rellis3DDataset(missing)
+
+            (root / "00000").mkdir()
+            with self.assertRaisesRegex(FileNotFoundError, "scan directory"):
+                Rellis3DDataset(root).list_frames("00000")
+
+            write_frame(root, "00000", "0", [1.0])
+            with self.assertRaisesRegex(FileNotFoundError, "does not exist"):
+                Rellis3DDataset(root).load_frame("00000", "no-such-frame")
+
+            (root / "00000" / "vel_cloud_node_semantickitti_label_id" / "0.label").unlink()
+            with self.assertRaisesRegex(FileNotFoundError, "label file is missing"):
+                Rellis3DDataset(root, require_labels=True).load_frame("00000", "0")
+
 
 if __name__ == "__main__":
     unittest.main()
