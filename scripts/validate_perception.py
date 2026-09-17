@@ -50,6 +50,15 @@ GROUND_TERRAIN_EVALUATOR_VERSION = "ground-terrain-evaluator-v1"
 _TERRAIN_STATES = ("drivable", "non_drivable", "unknown")
 
 
+def bridge_timing_scope() -> dict[str, str]:
+    """Describe the local encoding timing without calling it bridge latency."""
+    return {
+        "stage": "python_record_encoding",
+        "operation": "benchmarks.protocol.frame_records and ASCII encoding",
+        "attribution": "outside_perception",
+    }
+
+
 def ground_reference_spec(dataset: str) -> dict[str, object]:
     """Describe only dataset labels whose meaning supports ground evaluation."""
     if dataset == "semanticposs":
@@ -435,7 +444,7 @@ def validate(args):
         ).reshape(20, 20)
         bridge_started = perf_counter()
         bridge_records = frame_records(output.frame)
-        bridge_ms = (perf_counter() - bridge_started) * 1000
+        bridge_encode_ms = (perf_counter() - bridge_started) * 1000
         records.append(
             {
                 "frame_id": frame.frame_id,
@@ -445,7 +454,7 @@ def validate(args):
                 "timings_ms": {
                     **output.timings_ms,
                     "load": load_ms,
-                    "bridge": bridge_ms,
+                    "bridge_encode": bridge_encode_ms,
                     "end_to_end": load_ms + output.timings_ms["total"],
                 },
                 "bridge_bytes": sum(
@@ -494,6 +503,7 @@ def validate(args):
             "machine": platform.machine(),
             "python": platform.python_version(),
         },
+        "bridge_timing_scope": bridge_timing_scope(),
         "timings": timings,
         "fps": 1000 / timings["end_to_end"]["mean_ms"],
         "peak_rss_bytes": resource.getrusage(resource.RUSAGE_SELF).ru_maxrss

@@ -11,6 +11,7 @@ import numpy as np
 
 from scripts.fetch_semantic_model import fetch
 from scripts.validate_perception import (
+    bridge_timing_scope,
     confusion_report,
     ground_reference_spec,
     quality_gate_report,
@@ -22,6 +23,13 @@ from scripts.validate_perception import (
 
 
 class PerceptionValidationTests(unittest.TestCase):
+    def test_bridge_timing_scope_is_not_attributed_to_perception(self):
+        scope = bridge_timing_scope()
+
+        self.assertEqual(scope["stage"], "python_record_encoding")
+        self.assertIn("frame_records", scope["operation"])
+        self.assertEqual(scope["attribution"], "outside_perception")
+
     def test_ground_reference_is_verified_only_for_semanticposs_ground_label(self):
         semanticposs = ground_reference_spec("semanticposs")
         self.assertEqual(semanticposs["status"], "verified")
