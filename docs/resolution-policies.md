@@ -24,7 +24,8 @@ is **DistanceLOD vs UtilityLOD**. Do not compare only against a
 strawman dense 3D map.
 
 The benchmark runner also accepts `ablation_distance`,
-`ablation_geometry`, `ablation_semantics`, and `ablation_motion`.
+`ablation_geometry`, `ablation_semantics`, `ablation_motion`, and
+`ablation_traversability`.
 These isolate each promotion signal with the same frame selection,
 thresholds, hysteresis, and resource governor; `utility_lod` is the
 full weighted policy. A detail delta proves only that promotion

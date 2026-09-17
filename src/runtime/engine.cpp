@@ -967,7 +967,9 @@ std::string render(const Result& result) {
       if (index > 0) out << ',';
       const auto& leaf = snapshot.leaves[index];
       out << "{\"level\":" << leaf.id.level << ",\"ix\":" << leaf.id.ix << ",\"iy\":" << leaf.id.iy
-          << ",\"count\":" << leaf.stats.count << ",\"mean_z\":" << leaf.stats.mean_z << '}';
+          << ",\"count\":" << leaf.stats.count << ",\"mean_z\":" << leaf.stats.mean_z
+          << ",\"semantic_class\":" << leaf.stats.semantic_class
+          << ",\"drivable_evidence\":" << leaf.stats.drivable_evidence << '}';
     }
     out << ']';
   }
