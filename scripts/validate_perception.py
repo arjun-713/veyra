@@ -5,8 +5,6 @@ data/raw/semanticposs/dataset --sequence 00 --count 10 --config
 configs/perception-salsanext.yaml --output benchmark-results/poss-perception.json
 """
 
-# ruff: noqa: E402 - the bootstrap below intentionally precedes repository imports
-
 from __future__ import annotations
 
 import argparse
