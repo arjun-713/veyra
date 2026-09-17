@@ -14,6 +14,12 @@ from perception.semantic.salsanext import (
 )
 
 
+_REPO = Path(__file__).parents[1]
+_DEFAULT_MODEL = _REPO / "data/cache/models/salsanext-onnx-float/salsanext.onnx"
+_REAL_MODEL = Path(os.environ.get("VEYRA_SALSANEXT_MODEL", _DEFAULT_MODEL))
+_REAL_SEMANTICPOSS = _REPO / "data/raw/semanticposs/dataset"
+
+
 class SalsaNextTests(unittest.TestCase):
     def test_pinned_contract_matches_upstream_salsanext_sensor_and_learning_ids(self):
         contract = model_contract()
@@ -99,17 +105,15 @@ class SalsaNextTests(unittest.TestCase):
                 SalsaNextSemanticProvider(path)
 
     @unittest.skipUnless(
-        os.environ.get("VEYRA_SALSANEXT_MODEL"),
-        "requires downloaded pretrained SalsaNext",
+        _REAL_MODEL.is_file() and _REAL_SEMANTICPOSS.is_dir(),
+        "requires pinned local SalsaNext asset and original SemanticPOSS data",
     )
     def test_real_cpu_model_runs_original_semanticposs_frame(self):
         from datasets.semanticposs import SemanticPOSSDataset
 
-        dataset = SemanticPOSSDataset("data/raw/semanticposs/dataset")
+        dataset = SemanticPOSSDataset(_REAL_SEMANTICPOSS)
         frame = next(dataset.replay("00", end=1, max_range_m=100))
-        model = SalsaNextSemanticProvider(
-            os.environ["VEYRA_SALSANEXT_MODEL"], threads=2, intensity_scale=255
-        )
+        model = SalsaNextSemanticProvider(_REAL_MODEL, threads=2, intensity_scale=255)
         sensor = frame.points.copy()
         sensor[:, :3] = (sensor[:, :3] - frame.pose.matrix[:3, 3]) @ frame.pose.matrix[
             :3, :3
