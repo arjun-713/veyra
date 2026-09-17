@@ -7,7 +7,12 @@ Philosophy.
 
 - **SemanticKITTI** — primary dev + quantitative benchmark
   (sequential LiDAR, poses, semantic + moving/static labels,
-  range-based eval).
+  range-based eval). Validation status 2026-09-17
+  (`reports/closure/kitti/RESULT.md`): official val sequence 08 labels +
+  poses verified (4071/4071, taxonomy + sequential motion); Velodyne scans,
+  `calib.txt`, and `times.txt` gated on KITTI login, so dataset timestamps
+  stay absent and full scan replay is proven via the same-contract local
+  SemanticPOSS sequence 00 instead.
 - **RELLIS-3D** — off-road terrain validation.
 - **Great Outdoors** — longer-term unstructured / UGV validation.
 
