@@ -126,6 +126,30 @@ sequence, those numbers are a compatibility proof, not a generalization
 claim; the fine-tune spec below requires a seq-02 (author-valid) run
 before any enable decision.
 
+### Native-provider verdict: CENet measured, SalsaNext refusal stands (`agent/semantic-finetune` integration)
+
+On the same 16 seq-00 frames where SalsaNext scored 0.087 / 0.29, the
+vendored CPU CENet provider (`perception/semantic/cenet.py`, tag-free beam
+projection, per-point argmax, no KNN) measures **Veyra mIoU 0.6504 /
+labelled accuracy 0.8942** (1,065,314 pts; group mIoU 0.6195; confidence
+0.962 on correct vs 0.774 on wrong) — a 7.5x mIoU recovery that passes the
+`configs/perception-cenet-semantic.yaml` floors (mIoU >= 0.30, FOV coverage
+≈ 1.00, ground-as-drivable F1 0.938). Range-binned Veyra mIoU: 0–10 m
+**0.358** / 10–30 m **0.712** / 30–60 m **0.510** / 60 m+ **0.237**;
+near-field and far-field bins are the known-weak regions. Evidence:
+`reports/closure/semantic-finetune/RESULT.md` +
+`reports/closure/semantic-finetune/quality-ranges.json` (committed
+`cenet-poss-metrics.json`). The seq-02 exact-projection reference
+(author-valid split, different method) holds the same mIoU family (0.6473 /
+0.8651), so the number is not a train-sequence artifact — but 16-frame
+windows are closure evidence, not release qualification (full seq-02/04/05
+sweep pending). The SalsaNext gate refusal for POSS frames is unchanged:
+SalsaNext stays wrong-domain (geometry correct, sensor/taxonomy mismatch)
+and is never retried by forcing. CPU-only cost on i5-8350U is
+seconds/frame (provider infer p50 ~8.6 s, RSS +683 MB), so real-time needs
+the documented GPU/TensorRT port; weights stay out of git (no
+weight-license grant in the bundle).
+
 ## Native lightweight baseline: per-point MLP (`agent/semantic-finetune`)
 
 A dependency-free MLP (`perception/semantic/pandora.py`,
