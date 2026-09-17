@@ -114,6 +114,7 @@ UTILITY_ABLATION_POLICY_NAMES = (
     "ablation_geometry",
     "ablation_semantics",
     "ablation_motion",
+    "ablation_traversability",
     "utility_lod",
 )
 
