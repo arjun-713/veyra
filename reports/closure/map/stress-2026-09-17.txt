@@ -1,0 +1,49 @@
+=== ctest slice (mission regex) ===
+4/9 Test  #9: rolling_window ...................   Passed    0.04 sec
+    Start 10: parent_child_exclusivity
+5/9 Test #10: parent_child_exclusivity .........   Passed    0.01 sec
+    Start 11: randomized_map_invariants
+6/9 Test #11: randomized_map_invariants ........   Passed    1.58 sec
+    Start 12: map_public_properties
+7/9 Test #12: map_public_properties ............   Passed    0.01 sec
+    Start 16: snapshot
+8/9 Test #16: snapshot .........................   Passed    0.02 sec
+    Start 18: map_hardening_stress
+9/9 Test #18: map_hardening_stress .............   Passed   27.80 sec
+
+100% tests passed, 0 tests failed out of 9
+
+Total Test time (real) =  29.81 sec
+
+=== remaining map-scope ===
+    Start 13: boundary_neighbors
+3/5 Test #13: boundary_neighbors ...............   Passed    0.01 sec
+    Start 14: near_field_protection
+4/5 Test #14: near_field_protection ............   Passed    0.01 sec
+    Start 15: resolution_pass
+5/5 Test #15: resolution_pass ..................   Passed    0.56 sec
+
+100% tests passed, 0 tests failed out of 5
+
+Total Test time (real) =   0.59 sec
+
+=== test_map_hardening_stress stderr ===
+[churn] step=2000 leaves=1547 tiles=379 splits=398 merges=271
+[churn] step=3000 leaves=2228 tiles=422 splits=607 merges=420
+[churn] step=4000 leaves=2866 tiles=439 splits=818 merges=585
+[churn] FINAL leaves=4086 tiles=458 points=3577 splits=1212 merges=887 L0=2105 L1=558 L2=799 L3=624
+[boundary] L0-sweep done leaves=53 points=224
+[boundary] band-seam fuzz done leaves=16
+[drive] x=0 leaves=84 tiles=20
+[drive] x=100 leaves=986 tiles=63
+[drive] x=200 leaves=941 tiles=63
+[drive] x=300 leaves=986 tiles=63
+[drive] x=400 leaves=987 tiles=63
+[drive] FINAL leaves=987 tiles=63 maxLeaves=988 ceiling=2010619
+[churn-cycles] parents=3 cycles=200 splits=600 merges=600
+[numeric] 120 merge-grouping trials preserved
+[governor] near-field L0 held across 30 hostile rounds
+[replay] synthetic-lidar accepted=4096 leaves=4096 tiles=334 L0=360 L1=832 L2=1256 L3=1648
+[map-hardening-stress] ALL PASS
+./build/tests/test_map_hardening_stress 2>&1  20.47s user 2.87s system 86% cpu 26.879 total
+tail -25  0.00s user 0.00s system 0% cpu 26.881 total

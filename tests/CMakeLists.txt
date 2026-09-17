@@ -120,3 +120,11 @@ target_link_libraries(test_policy_adapter PRIVATE veyra_map veyra_policy veyra_m
 target_compile_definitions(test_policy_adapter PRIVATE VEYRA_SOURCE_DIR="${PROJECT_SOURCE_DIR}")
 target_compile_options(test_policy_adapter PRIVATE -Wall -Wextra -Wpedantic -UNDEBUG)
 add_test(NAME policy_adapter COMMAND test_policy_adapter)
+
+add_executable(test_map_hardening_stress test_map_hardening_stress.cpp)
+target_include_directories(test_map_hardening_stress PRIVATE ${PROJECT_SOURCE_DIR}/include)
+target_compile_features(test_map_hardening_stress PRIVATE cxx_std_20)
+target_compile_options(test_map_hardening_stress PRIVATE -Wall -Wextra -Wpedantic -UNDEBUG)
+target_link_libraries(test_map_hardening_stress PRIVATE veyra_map)
+add_test(NAME map_hardening_stress COMMAND test_map_hardening_stress)
+set_tests_properties(map_hardening_stress PROPERTIES TIMEOUT 600)
