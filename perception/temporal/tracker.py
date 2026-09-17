@@ -3,6 +3,13 @@
 The tracker accepts points already expressed in the stable world frame and the
 source pose for each frame. Semantic classes are used only to avoid associating
 incompatible clusters; they never imply motion.
+
+Motion states are consistency-confirmed: the first velocity estimate of a
+track is reported by speed exactly as measured, but from the third
+observation on a track must show a regime-consistent velocity (same speed
+regime, aligned direction) to keep a ``static`` or ``moving`` verdict.
+Anything uncertain collapses to ``possibly_moving`` — never to ``static`` —
+so downstream static-map consumers only ever see confirmed rest.
 """
 
 from __future__ import annotations
@@ -49,6 +56,19 @@ class MotionEvidence:
         object.__setattr__(self, "persistence", persistence)
 
 
+@dataclass(frozen=True)
+class TrackSnapshot:
+    """Read-only view of one live track for validation and metrics."""
+
+    track_id: int
+    semantic_class: int
+    persistence: int
+    missed_frames: int
+    speed_mps: float
+    motion_valid: bool
+    confirmed: bool
+
+
 @dataclass
 class _Track:
     track_id: int
@@ -59,6 +79,7 @@ class _Track:
     persistence: int = 1
     missed_frames: int = 0
     motion_valid: bool = False
+    confirmed: bool = True
 
 
 class TemporalTracker:
@@ -69,6 +90,11 @@ class TemporalTracker:
     ego-motion compensation has already happened at the observation boundary.
     Association is nearest-centroid, one-to-one, and deterministic by input
     cluster order and track id.
+
+    ``exclude_classes`` lists semantic classes that never form tracks (for
+    example ground-surface classes already consumed by the terrain branch).
+    Excluded points keep aligned ``unknown`` evidence rows without asserting
+    any motion verdict.
     """
 
     def __init__(
@@ -79,12 +105,17 @@ class TemporalTracker:
         static_speed_mps: float = 0.15,
         moving_speed_mps: float = 0.5,
         stale_after_frames: int = 3,
+        consistency_cosine: float = 0.5,
+        consistency_ratio: float = 4.0,
+        exclude_classes: tuple[int, ...] = (),
     ) -> None:
         thresholds = (
             cluster_tolerance_m,
             association_distance_m,
             static_speed_mps,
             moving_speed_mps,
+            consistency_cosine,
+            consistency_ratio,
         )
         if not all(np.isfinite(value) for value in thresholds):
             raise ValueError("tracker thresholds must be finite")
@@ -94,11 +125,23 @@ class TemporalTracker:
             raise ValueError("speed thresholds must satisfy 0 <= static < moving")
         if stale_after_frames < 1:
             raise ValueError("stale_after_frames must be positive")
+        if not -1.0 <= consistency_cosine <= 1.0:
+            raise ValueError("consistency_cosine must lie in [-1, 1]")
+        if consistency_ratio < 1.0:
+            raise ValueError("consistency_ratio must be at least 1")
+        excluded = tuple(int(value) for value in exclude_classes)
+        if any(value < 0 for value in excluded):
+            raise ValueError("exclude_classes must contain non-negative class IDs")
+        if len(set(excluded)) != len(excluded):
+            raise ValueError("exclude_classes must not contain duplicates")
         self.cluster_tolerance_m = float(cluster_tolerance_m)
         self.association_distance_m = float(association_distance_m)
         self.static_speed_mps = float(static_speed_mps)
         self.moving_speed_mps = float(moving_speed_mps)
         self.stale_after_frames = int(stale_after_frames)
+        self.consistency_cosine = float(consistency_cosine)
+        self.consistency_ratio = float(consistency_ratio)
+        self.exclude_classes = excluded
         self._tracks: dict[int, _Track] = {}
         self._next_track_id = 0
         self._last_timestamp: float | None = None
@@ -106,6 +149,28 @@ class TemporalTracker:
     @property
     def active_track_count(self) -> int:
         return len(self._tracks)
+
+    def active_tracks(self) -> tuple[TrackSnapshot, ...]:
+        """Return deterministic read-only snapshots of live tracks.
+
+        Snapshots are sorted by track id and expose no mutable state; they
+        exist so validation can measure persistence, ghost lifetime, and
+        velocity without touching tracker internals.
+        """
+        return tuple(
+            TrackSnapshot(
+                track_id=track.track_id,
+                semantic_class=track.semantic_class,
+                persistence=track.persistence,
+                missed_frames=track.missed_frames,
+                speed_mps=float(np.linalg.norm(track.velocity_xy))
+                if track.motion_valid
+                else 0.0,
+                motion_valid=track.motion_valid,
+                confirmed=track.confirmed,
+            )
+            for track in sorted(self._tracks.values(), key=lambda item: item.track_id)
+        )
 
     def reset(self) -> None:
         """Drop all temporal state before starting a new sequence."""
@@ -146,7 +211,17 @@ class TemporalTracker:
             raise ValueError("timestamps must be non-decreasing within a sequence")
         self._last_timestamp = float(timestamp)
         world = points[:, :3].astype(np.float64, copy=False)
-        clusters = self._clusters(world, labels)
+        if self.exclude_classes:
+            tracked_mask = ~np.isin(labels, self.exclude_classes)
+            tracked_index = np.flatnonzero(tracked_mask)
+            clusters = [
+                tracked_index[component]
+                for component in self._clusters(
+                    world[tracked_mask], labels[tracked_mask]
+                )
+            ]
+        else:
+            clusters = self._clusters(world, labels)
         assignments: dict[int, _Track] = {}
         used: set[int] = set()
         track_bucket_size = self.association_distance_m / np.sqrt(2.0)
@@ -194,12 +269,22 @@ class TemporalTracker:
                     if motion_valid
                     else np.zeros(2)
                 )
+                if motion_valid and candidate.motion_valid:
+                    confirmed = self._velocity_confirmed(
+                        candidate.velocity_xy, velocity
+                    )
+                else:
+                    # First velocity estimate (or a repeated timestamp with no
+                    # new information): report by speed exactly as measured.
+                    # Confirmation applies from the third observation on.
+                    confirmed = True
                 candidate.centroid = centroid
                 candidate.velocity_xy = velocity
                 candidate.last_timestamp = float(timestamp)
                 candidate.persistence += 1
                 candidate.missed_frames = 0
                 candidate.motion_valid = motion_valid
+                candidate.confirmed = confirmed and motion_valid
                 used.add(candidate.track_id)
             else:
                 candidate = _Track(
@@ -237,7 +322,9 @@ class TemporalTracker:
             speed = float(np.linalg.norm(track.velocity_xy))
             probability[indices] = self._probability(speed)
             velocity[indices] = track.velocity_xy
-            state[indices] = self._state(speed)
+            state[indices] = (
+                self._state(speed) if track.confirmed else "possibly_moving"
+            )
             persistence[indices] = track.persistence
         return MotionEvidence(probability, velocity, state, persistence)
 
@@ -427,6 +514,41 @@ class TemporalTracker:
             for _, members in sorted(groups.items(), key=lambda item: item[1][0])
         ]
 
+    def _regime(self, speed: float) -> int:
+        """Quantize a speed into rest (0), slow (1), or fast (2) bands."""
+        if speed <= self.static_speed_mps:
+            return 0
+        if speed < self.moving_speed_mps:
+            return 1
+        return 2
+
+    def _velocity_confirmed(
+        self, previous: np.ndarray, current: np.ndarray
+    ) -> bool:
+        """Check whether two consecutive velocity estimates agree.
+
+        Agreement means the same speed regime plus an aligned direction and
+        a bounded speed ratio. Resampling jitter and wrong-neighbour
+        associations flip direction or jump in magnitude between frames, so
+        they fail here and collapse to ``possibly_moving`` instead of
+        asserting ``static`` or ``moving``.
+        """
+        previous_speed = float(np.linalg.norm(previous))
+        current_speed = float(np.linalg.norm(current))
+        if self._regime(previous_speed) != self._regime(current_speed):
+            return False
+        if self._regime(current_speed) == 0:
+            return True
+        if current_speed <= 0.0 or previous_speed <= 0.0:
+            return False
+        cosine = float(np.dot(previous, current) / (previous_speed * current_speed))
+        if cosine < self.consistency_cosine:
+            return False
+        ratio = max(previous_speed, current_speed) / min(
+            previous_speed, current_speed
+        )
+        return bool(ratio <= self.consistency_ratio)
+
     def _probability(self, speed: float) -> float:
         if speed <= self.static_speed_mps:
             return 0.0
@@ -444,4 +566,4 @@ class TemporalTracker:
         return "possibly_moving"
 
 
-__all__ = ["MotionEvidence", "TemporalTracker"]
+__all__ = ["MotionEvidence", "TemporalTracker", "TrackSnapshot"]

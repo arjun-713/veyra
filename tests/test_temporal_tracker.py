@@ -290,6 +290,112 @@ class TemporalTrackerTests(unittest.TestCase):
         np.testing.assert_array_equal(permuted.state, first.state[order])
         np.testing.assert_array_equal(permuted.persistence, first.persistence[order])
 
+    def test_active_tracks_snapshot_is_deterministic_and_read_only(self) -> None:
+        tracker = TemporalTracker(cluster_tolerance_m=0.3, stale_after_frames=2)
+        points, labels = scan(2.0)
+        tracker.update(points, labels, translation(0.0), timestamp=0.0)
+
+        first = tracker.active_tracks()
+        self.assertEqual(len(first), 1)
+        self.assertEqual(first[0].missed_frames, 0)
+        self.assertEqual(first[0].persistence, 1)
+        self.assertFalse(first[0].motion_valid)
+        with self.assertRaises(Exception):
+            first[0].persistence = 99  # frozen snapshot, not tracker state
+
+        tracker.update(points, labels, translation(0.0), timestamp=1.0)
+        second = tracker.active_tracks()
+        self.assertEqual(second[0].track_id, first[0].track_id)
+        self.assertEqual(second[0].persistence, 2)
+        self.assertTrue(second[0].motion_valid)
+
+        empty = np.empty((0, 4), dtype=np.float32)
+        tracker.update(empty, np.empty(0, dtype=np.int32), np.eye(4), timestamp=2.0)
+        ghost = tracker.active_tracks()
+        self.assertEqual(len(ghost), 1)
+        self.assertEqual(ghost[0].missed_frames, 1)
+        tracker.update(empty, np.empty(0, dtype=np.int32), np.eye(4), timestamp=3.0)
+        self.assertEqual(tracker.active_tracks(), ())
+
+    def test_confirmed_motion_survives_consistent_frames(self) -> None:
+        tracker = TemporalTracker(cluster_tolerance_m=0.3, moving_speed_mps=0.5)
+        first, labels = scan(10.0)
+        tracker.update(first, labels, translation(0.0), timestamp=0.0)
+        second, _ = scan(11.0)
+        tracker.update(second, labels, translation(0.0), timestamp=1.0)
+        third, _ = scan(12.0)
+        evidence = tracker.update(third, labels, translation(0.0), timestamp=2.0)
+
+        self.assertTrue(np.all(evidence.state == "moving"))
+        snapshots = tracker.active_tracks()
+        self.assertEqual(len(snapshots), 1)
+        self.assertTrue(snapshots[0].confirmed)
+
+    def test_direction_flip_demotes_to_possibly_moving_never_static(self) -> None:
+        tracker = TemporalTracker(cluster_tolerance_m=0.3, moving_speed_mps=0.5)
+        first, labels = scan(10.0)
+        tracker.update(first, labels, translation(0.0), timestamp=0.0)
+        second, _ = scan(11.0)
+        tracker.update(second, labels, translation(0.0), timestamp=1.0)
+        # Same distance, opposite direction: resampling jitter, not motion.
+        third, _ = scan(10.0)
+        evidence = tracker.update(third, labels, translation(0.0), timestamp=2.0)
+
+        self.assertTrue(np.all(evidence.state == "possibly_moving"))
+        self.assertFalse(tracker.active_tracks()[0].confirmed)
+
+    def test_regime_change_demotes_without_asserting_static(self) -> None:
+        tracker = TemporalTracker(cluster_tolerance_m=0.3, moving_speed_mps=0.5)
+        first, labels = scan(10.0)
+        tracker.update(first, labels, translation(0.0), timestamp=0.0)
+        second, _ = scan(11.0)
+        tracker.update(second, labels, translation(0.0), timestamp=1.0)
+        # Sudden stop after fast motion: uncertain, not confirmed rest.
+        third, _ = scan(11.0)
+        evidence = tracker.update(third, labels, translation(0.0), timestamp=2.0)
+
+        self.assertTrue(np.all(evidence.state == "possibly_moving"))
+
+    def test_confirmed_rest_recovers_after_consistent_frames(self) -> None:
+        tracker = TemporalTracker(cluster_tolerance_m=0.3, moving_speed_mps=0.5)
+        points, labels = scan(10.0)
+        tracker.update(points, labels, translation(0.0), timestamp=0.0)
+        tracker.update(points, labels, translation(0.0), timestamp=1.0)
+        evidence = tracker.update(points, labels, translation(0.0), timestamp=2.0)
+
+        self.assertTrue(np.all(evidence.state == "static"))
+        self.assertTrue(tracker.active_tracks()[0].confirmed)
+
+    def test_confirmation_parameters_are_validated(self) -> None:
+        with self.assertRaises(ValueError):
+            TemporalTracker(consistency_cosine=1.5)
+        with self.assertRaises(ValueError):
+            TemporalTracker(consistency_cosine=np.nan)
+        with self.assertRaises(ValueError):
+            TemporalTracker(consistency_ratio=0.5)
+
+    def test_excluded_classes_keep_alignment_without_tracks(self) -> None:
+        tracker = TemporalTracker(cluster_tolerance_m=0.3, exclude_classes=(7,))
+        points = np.array(
+            [[10.0, 0.0, 0.0, 1.0], [10.1, 0.0, 0.0, 1.0]], dtype=np.float32
+        )
+        labels = np.array([7, 7], dtype=np.int32)
+        evidence = tracker.update(points, labels, np.eye(4), timestamp=0.0)
+
+        self.assertEqual(tracker.active_track_count, 0)
+        self.assertTrue(np.all(evidence.state == "unknown"))
+        self.assertEqual(evidence.persistence.tolist(), [1, 1])
+
+        mixed_labels = np.array([7, 1], dtype=np.int32)
+        tracker.update(points, mixed_labels, np.eye(4), timestamp=1.0)
+        self.assertEqual(tracker.active_track_count, 1)
+
+    def test_excluded_classes_are_validated(self) -> None:
+        with self.assertRaises(ValueError):
+            TemporalTracker(exclude_classes=(-1,))
+        with self.assertRaises(ValueError):
+            TemporalTracker(exclude_classes=(2, 2))
+
     def test_original_semanticposs_frame_stays_within_temporal_update_budget(self):
         root = Path("data/raw/semanticposs/dataset")
         if not root.is_dir():

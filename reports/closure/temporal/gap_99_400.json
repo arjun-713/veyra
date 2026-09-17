@@ -1,0 +1,78 @@
+{
+  "gap": "000099->000400",
+  "dt_s": 31.249769999999998,
+  "steps": [
+    {
+      "frame_id": "000098",
+      "timestamp_s": 10.18686,
+      "points": 124577,
+      "active_tracks": 2192,
+      "continued": 0,
+      "new": 2192,
+      "missed_hist": {
+        "0": 2192
+      },
+      "persistence_max": 1,
+      "latency_ms": 3467.459419000079
+    },
+    {
+      "frame_id": "000099",
+      "timestamp_s": 10.29086,
+      "points": 124664,
+      "active_tracks": 2710,
+      "continued": 2192,
+      "new": 518,
+      "missed_hist": {
+        "0": 2166,
+        "1": 544
+      },
+      "persistence_max": 2,
+      "latency_ms": 2711.876003999805
+    },
+    {
+      "frame_id": "000400",
+      "timestamp_s": 41.54063,
+      "points": 126285,
+      "active_tracks": 4289,
+      "continued": 2710,
+      "new": 1579,
+      "missed_hist": {
+        "0": 1579,
+        "1": 2166,
+        "2": 544
+      },
+      "persistence_max": 2,
+      "latency_ms": 4777.255622999746
+    },
+    {
+      "frame_id": "000401",
+      "timestamp_s": 41.64489,
+      "points": 126026,
+      "active_tracks": 4158,
+      "continued": 3745,
+      "new": 413,
+      "missed_hist": {
+        "0": 1605,
+        "1": 387,
+        "2": 2166
+      },
+      "persistence_max": 2,
+      "latency_ms": 3259.3326320002234
+    },
+    {
+      "frame_id": "000402",
+      "timestamp_s": 41.74904,
+      "points": 125733,
+      "active_tracks": 2274,
+      "continued": 1992,
+      "new": 282,
+      "missed_hist": {
+        "0": 1587,
+        "1": 459,
+        "2": 228
+      },
+      "persistence_max": 3,
+      "latency_ms": 3927.6337219998823
+    }
+  ]
+}
