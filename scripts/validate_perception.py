@@ -5,7 +5,9 @@ data/raw/semanticposs/dataset --sequence 00 --count 10 --config
 configs/perception-salsanext.yaml --output benchmark-results/poss-perception.json
 """
 
-# ruff: noqa: E402 - the bootstrap below intentionally precedes repository imports
+# ruff: noqa: E402, RUF100 - sys.path bootstrap precedes sibling imports (E402
+# fires under CI-pinned ruff 0.8.0 defaults); RUF100 silences newer ruff where
+# E402 is not enabled and this directive would otherwise read as unused.
 
 from __future__ import annotations
 
@@ -293,7 +295,7 @@ def quality_gate_report(report: dict, gate: dict | None) -> dict:
             "failures": [],
         }
     if not isinstance(gate, dict):
-        raise ValueError("quality_gate must be a mapping")
+        raise TypeError("quality_gate must be a mapping")
 
     ground_overall = report["ground_evaluation"].get("overall") or {}
     metric_paths = {
@@ -319,7 +321,7 @@ def quality_gate_report(report: dict, gate: dict | None) -> dict:
     failures: list[str] = []
     for threshold_name, value in gate.items():
         if isinstance(value, bool) or not isinstance(value, (int, float)):
-            raise ValueError(f"{threshold_name} must be a finite number in [0, 1]")
+            raise TypeError(f"{threshold_name} must be a finite number in [0, 1]")
         threshold = float(value)
         if not np.isfinite(threshold) or not 0 <= threshold <= 1:
             raise ValueError(f"{threshold_name} must be a finite number in [0, 1]")
