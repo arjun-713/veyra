@@ -39,7 +39,12 @@ Format (`ruff format`, applied ONLY to the files above plus):
 
 ## Pre-existing — DO NOT touch here, owner suggestion
 
-Check (CI `ruff check` exact still reports these 3; out of lintfix scope):
+Check (CI `ruff check` exact still reports these 3; out of lintfix scope).
+**Update 2026-09-18 (agent/validate-lint, 7929319): all three FIXED and
+merged — both ruff 0.8.0 and 0.16.2 pass. Correction: the E402 noqa was
+load-bearing under 0.8.0 (E402 in 0.8.0 defaults; sys.path bootstrap
+precedes sibling imports), so the fix is `# ruff: noqa: E402, RUF100` with
+justification, not removal. TRIAGE items below are historical record:**
 
 - `scripts/validate_perception.py:8` — RUF100, unused `# noqa: E402`
   (from `a16fdc5`, 2026-09-15). Owner: perception/CI gate owner
@@ -55,7 +60,8 @@ Format (`ruff format --check benchmarks perception datasets` still lists
 these 4; failing lines predate the 2026-09-18 closure wave):
 
 - `datasets/semanticposs/adapter.py:318` — blame `aafa045`
-  (2026-09-17). Owner: datasets adapter owner.
+  (2026-09-17). **Fixed 2026-09-18 by orchestrator (single-line form,
+  test-green).** Owner: datasets adapter owner.
 - `perception/semantic/cenet.py` (many hunks, e.g. `:106`) — blame
   `35be56f` (agent/semantic-finetune survey, 2026-09-17).
   Owner: agent/semantic-finetune.
