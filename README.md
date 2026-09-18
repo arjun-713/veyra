@@ -31,6 +31,7 @@ cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
 cmake --build build -j
 ctest --test-dir build --output-on-failure
 python -m venv .venv && source .venv/bin/activate
+python -m pip install -r requirements.txt -r requirements-dev.txt
 ```
 
 Core needs only C++20/CMake; CUDA optional. The long-running runtime and
