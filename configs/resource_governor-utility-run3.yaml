@@ -1,0 +1,19 @@
+# Utility-run3 operating point (RERUN.md gaps #1, i5-8350U).
+# Goal: hold the LATENCY governor out of the way at the unclamped semantics
+# working set (rerun frame_time spikes to ~900 ms latched pressure/overload
+# at the 500 ms recipe target) so allow_optional_splits stays true and the
+# five utility legs can diverge. Cell budget unchanged from the rerun recipe
+# (cell/logical ratios were fine at 0.33-0.37 / 0.20-0.23).
+# Near-field floor, hysteresis, and op cap are NON-NEGOTIABLE and unchanged
+# from the default. Do NOT overwrite resource_governor.yaml. Diagnostic only;
+# re-arm a deployment budget from the measured unclamped set afterwards.
+max_active_cells: 750000
+max_logical_bytes: 134217728
+near_field_radius_m: 10.0
+max_actions_per_frame: 64
+max_rss_bytes: 0
+target_frame_time_ms: 1200.0
+pressure_ratio: 0.90
+recovery_ratio: 0.75
+overload_consecutive_frames: 3
+recovery_consecutive_frames: 5
