@@ -24,7 +24,7 @@
    "blockers": [
     "python_unittest stall (deadlock/infinite/network/dataset-scan/leak?)"
    ],
-   "current": 95,
+   "current": 97,
    "deps": [],
    "evidence": "reports/closure/test-gate/*.log + fix commit",
    "id": "test-gate",
@@ -183,7 +183,7 @@
    "blockers": [
     "reason-to-exist unproven"
    ],
-   "current": 78,
+   "current": 82,
    "deps": [
     "map",
     "semantic-quality",
@@ -195,13 +195,13 @@
     "src/policy/*",
     "benchmarks/*"
    ],
-   "status": "PARTIAL"
+   "status": "REFUTED-SCOPED"
   },
   {
    "acceptance": "RAM/latency/cell budgets: quality loss, misses, churn, recovery measured; near/high-risk detail survives",
    "area": "Resource governor",
    "blockers": [],
-   "current": 70,
+   "current": 78,
    "deps": [
     "map"
    ],
@@ -211,7 +211,7 @@
     "src/runtime/*",
     "src/map/*govern*"
    ],
-   "status": "PARTIAL"
+   "status": "INTEGRATED"
   },
   {
    "acceptance": "Sparse high-res 3D reference measured (RSS/alloc/latency/elements) on same input; ANALYTICAL vs MEASURED labeled",
@@ -237,7 +237,7 @@
    "blockers": [
     "short samples only"
    ],
-   "current": 75,
+   "current": 78,
    "deps": [
     "map",
     "baseline-3d"
@@ -373,7 +373,7 @@
    "acceptance": "Live GitHub CI validates real Tauri product; Electron CI removed after parity; artifacts uploaded; all required checks green",
    "area": "CI + release + Electron removal",
    "blockers": [],
-   "current": 65,
+   "current": 70,
    "deps": [
     "platform",
     "tauri"

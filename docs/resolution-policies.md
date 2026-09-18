@@ -102,3 +102,24 @@ measured capacity claims. They cover mapper resources; perception and the
 desktop renderer require separate process measurements. If the protected
 map alone exceeds the budget, the governor reports pressure and preserves
 safety rather than promising an unattainable frame rate or memory ceiling.
+
+## UtilityLOD verdict — REFUTED on SemanticPOSS seq00 f0–29 (2026-09-18)
+
+Four controlled matrices on one pinned stream (digest `4cd60ac5`, 3 reps,
+`--retain-frames`): default budget, 750k-cell/500 ms recipe, 750k/1200 ms,
+and governor-disabled diagnostic (100M cells/1000000 ms). Evidence:
+`reports/closure/utility/{RESULT,RERUN,RUN3_A,RUN3_B}.md` + matrices.
+
+Result: full UtilityLOD is byte-identical to DistanceLOD (ΔRMSE 0.00000 m,
+±0 bins, ±0 leaves, ×3 reps) with the governor provably absent — the
+composition's combined gate rejects 100% of promotable evidence. The
+isolated semantics signal is real (ped +1170 bins, RMSE −0.103 m) but costs
+~Uniform5 resources for mixed overall quality; geometry promoted nothing
+with a clean live shot. Motion/traversability/hazard legs were structurally
+untestable on this selection (no timestamps, terrain unavailable, 0
+non-drivable bins).
+
+Standing: DistanceLOD remains the shipping baseline. UtilityLOD ships
+OFF/disabled-by-default pending a re-gated composition proven on a
+hazard/motion-bearing selection with this same committed recipe. Revival is
+a new claim, not a rerun.
