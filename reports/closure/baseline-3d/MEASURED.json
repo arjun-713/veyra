@@ -1,0 +1,188 @@
+{
+  "analytical_3d_reference": {
+    "bounds_max_m": [
+      98.00399780273438,
+      103.33965301513672,
+      18.11607551574707
+    ],
+    "bounds_min_m": [
+      -96.7965316772461,
+      -97.51241302490234,
+      -12.656717300415039
+    ],
+    "dense_voxel_count": 9665960254,
+    "dimensions": [
+      3898,
+      4019,
+      617
+    ],
+    "estimated_bytes_per_voxel": 16,
+    "estimated_dense_bytes": 154655364064,
+    "executed_through_map_engine": false,
+    "representation": "dense_uniform_3d_voxels",
+    "status": "analytical_only",
+    "voxel_size_m": 0.05,
+    "warning": "memory estimate only; no dense grid was allocated or timed"
+  },
+  "comparison": {
+    "accounted_sparse_bytes_measured": 40960448,
+    "bytes_ratio_measured_over_analytical": 0.0002648498372358401,
+    "dense_voxels_analytical": 9665960254,
+    "estimated_dense_bytes_analytical": 154655364064,
+    "occupied_voxels_measured": 1280014,
+    "peak_rss_bytes_measured": 862752768,
+    "sparsity_occupied_over_dense": 0.00013242491861792006,
+    "table_markdown": "| quantity | ANALYTICAL (dense, never allocated/timed) | MEASURED (sparse voxel-hash) |\n| --- | --- | --- |\n| representation | dense_uniform_3d_voxels | sparse_voxel_hash_occupancy_5cm |\n| voxel size | 0.05 m | 0.05 m |\n| elements | 9665960254 dense voxels | 1280014 occupied voxels |\n| memory | 154655364064 B estimated | 40960448 B accounted (ratio 0.000265) |\n| peak RSS | n/a (never ran) | 862752768 B (process peak, incl. interpreter) |\n| update latency p50/p95/p99 | n/a (never ran) | 43.652/93.567/174.660 ms (n=30) |\n| sparsity occupied/dense | \u2014 | 0.000132 |"
+  },
+  "elements": {
+    "occupied_voxels": 1280014,
+    "per_frame_new_voxels": [
+      62840,
+      53740,
+      53173,
+      51380,
+      50531,
+      49378,
+      46227,
+      44713,
+      41886,
+      40245,
+      39770,
+      38417,
+      36021,
+      37132,
+      39080,
+      36344,
+      35842,
+      34702,
+      33819,
+      36778,
+      41072,
+      43691,
+      39748,
+      45383,
+      43852,
+      41580,
+      41164,
+      41331,
+      40188,
+      39987
+    ],
+    "per_frame_points": [
+      66021,
+      66049,
+      66035,
+      65970,
+      65978,
+      65930,
+      65963,
+      65989,
+      65886,
+      65916,
+      65947,
+      65943,
+      65875,
+      65768,
+      65741,
+      65706,
+      65717,
+      65616,
+      65554,
+      65482,
+      65409,
+      65361,
+      65402,
+      65387,
+      65296,
+      65427,
+      65275,
+      65239,
+      65229,
+      65226
+    ]
+  },
+  "input": {
+    "bounds_max_m": [
+      98.00399780273438,
+      103.33965301513672,
+      18.11607551574707
+    ],
+    "bounds_min_m": [
+      -96.7965316772461,
+      -97.51241302490234,
+      -12.656717300415039
+    ],
+    "count": 30,
+    "dataset": "semanticposs",
+    "dataset_root": "/home/arjun/Captain/SIH/Lidar/data/raw/semanticposs/dataset",
+    "expected_digest_prefix": "4cd60ac5",
+    "frames_voxelized": 30,
+    "load_latency_ns": 1562572737,
+    "perception_executed": true,
+    "perception_latency_ns": {
+      "count": 30,
+      "max": 24837076.0,
+      "mean": 18185770.966666665,
+      "min": 12610045.0,
+      "p50": 17752406.0,
+      "p95": 23919907.0,
+      "p99": 24837076.0
+    },
+    "point_count": 1970337,
+    "sequence": "00",
+    "start": 0,
+    "stream_digest": "4cd60ac5a5746bbc142d56e36fdbc4a89b8707e6cb905c8dae4f9d4f9c8c43dc",
+    "stream_digest_matches_closure_4cd60ac5": true,
+    "window_radius_m": 100.32599715838586
+  },
+  "measurement_scope": "per-frame update latency covers voxelize (floor+pack+unique) + hash-insert only; dataset load and perception are timed separately and excluded, mirroring the map_update stage scope",
+  "memory_accounting": {
+    "accounted_bytes": 40960448,
+    "bytes_per_entry": 32,
+    "method": "accounted, not malloc-hooked: occupied_voxels * 32 B (8 B packed key + 8 B occupancy/count payload + 16 B open-addressing hash-slot overhead). Python set object overhead is excluded from this figure; process-level cost is reported separately as peak RSS."
+  },
+  "provenance": {
+    "cpu_count": 8,
+    "git_sha": "b5f1ace75c04e947ffeb2880594b719c4c5cee9c",
+    "host": "mallik-fedora",
+    "mem_total_bytes": 16489127936,
+    "platform": "Linux-7.2.5-200.fc44.x86_64-x86_64-with-glibc2.43",
+    "python": "3.14.7",
+    "timestamp_utc": "2026-09-18T07:30:28.509203+00:00",
+    "voxel_size_m": 0.05
+  },
+  "representation": "sparse_voxel_hash_occupancy_5cm",
+  "rss": {
+    "base_ru_maxrss_bytes_before_voxel_loop": 43163648,
+    "note": "process peak incl. interpreter + retained frames + voxel set; accounted voxel bytes are the comparator against the analytical dense estimate, not RSS",
+    "peak_rss_bytes": 862752768,
+    "ru_maxrss_bytes": 861933568,
+    "vmhwm_bytes": 862752768
+  },
+  "schema": "veyra-baseline-3d/1",
+  "status": "measured",
+  "tail_reliability": {
+    "p95_reliable": true,
+    "p99_reliable": false,
+    "samples": 30
+  },
+  "update_latency_ms": {
+    "count": 30,
+    "max": 174.659555,
+    "mean": 50.32122116666667,
+    "min": 34.240767,
+    "p50": 43.652116,
+    "p95": 93.566829,
+    "p99": 174.659555
+  },
+  "update_latency_ns": {
+    "count": 30,
+    "max": 174659555.0,
+    "mean": 50321221.166666664,
+    "min": 34240767.0,
+    "p50": 43652116.0,
+    "p95": 93566829.0,
+    "p99": 174659555.0
+  },
+  "voxel_size_m": 0.05
+}
