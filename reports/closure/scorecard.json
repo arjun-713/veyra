@@ -338,7 +338,7 @@
    "acceptance": "Capabilities/CSP/fs-scopes/sidecar/path-traversal/injection/MCP+CLI validation fixed, not just reported",
    "area": "Security/reliability",
    "blockers": [],
-   "current": 75,
+   "current": 82,
    "deps": [
     "control-api",
     "tauri"
