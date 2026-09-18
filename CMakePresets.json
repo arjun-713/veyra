@@ -10,6 +10,17 @@
         "CMAKE_BUILD_TYPE": "Release",
         "CMAKE_EXPORT_COMPILE_COMMANDS": "ON"
       }
+    },
+    {
+      "name": "strict",
+      "displayName": "Strict (Ninja, Release, -Werror)",
+      "generator": "Ninja",
+      "binaryDir": "${sourceDir}/build-strict",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Release",
+        "CMAKE_EXPORT_COMPILE_COMMANDS": "ON",
+        "CMAKE_CXX_FLAGS": "-Wall -Wextra -Wpedantic -Werror"
+      }
     }
   ]
 }
