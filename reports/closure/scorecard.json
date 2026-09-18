@@ -43,7 +43,7 @@
     "projection geometry unproven",
     "taxonomy/learning-map unproven"
    ],
-   "current": 85,
+   "current": 88,
    "deps": [
     "datasets"
    ],
@@ -112,7 +112,7 @@
    "acceptance": "SemanticPOSS 488-500f/seq replay preserved; ground ratio ~33% sane; adapter contract holds",
    "area": "SemanticPOSS + generic adapters",
    "blockers": [],
-   "current": 85,
+   "current": 86,
    "deps": [],
    "evidence": "reports/closure/datasets/*.json",
    "id": "datasets",
@@ -390,7 +390,7 @@
    "acceptance": "Fresh-clone setup/build/test/validate/benchmark/launch from docs only; docs claims match evidence; provenance recorded; packaged demo rehearsal all policies/layers/telemetry",
    "area": "Docs + reproducibility + demo",
    "blockers": [],
-   "current": 66,
+   "current": 68,
    "deps": [
     "benchmark",
     "tauri",
