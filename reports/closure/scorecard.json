@@ -356,7 +356,7 @@
    "acceptance": "Ubuntu .deb+AppImage smoke; Fedora .rpm smoke; Windows installer smoke; macOS .app/.dmg smoke (native CI where local impossible)",
    "area": "Cross-platform",
    "blockers": [],
-   "current": 58,
+   "current": 68,
    "deps": [
     "tauri",
     "control-api"
@@ -390,7 +390,7 @@
    "acceptance": "Fresh-clone setup/build/test/validate/benchmark/launch from docs only; docs claims match evidence; provenance recorded; packaged demo rehearsal all policies/layers/telemetry",
    "area": "Docs + reproducibility + demo",
    "blockers": [],
-   "current": 74,
+   "current": 76,
    "deps": [
     "benchmark",
     "tauri",
