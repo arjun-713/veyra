@@ -390,7 +390,7 @@
    "acceptance": "Fresh-clone setup/build/test/validate/benchmark/launch from docs only; docs claims match evidence; provenance recorded; packaged demo rehearsal all policies/layers/telemetry",
    "area": "Docs + reproducibility + demo",
    "blockers": [],
-   "current": 68,
+   "current": 72,
    "deps": [
     "benchmark",
     "tauri",
@@ -405,6 +405,25 @@
     "scripts/validate_sih.sh"
    ],
    "status": "PARTIAL"
+  },
+  {
+   "id": "electron-removal",
+   "area": "Electron removal",
+   "current": 10,
+   "target": 100,
+   "blockers": [
+    "parity sign-off + removal unexecuted"
+   ],
+   "deps": [
+    "tauri",
+    "ui-telemetry"
+   ],
+   "evidence": "reports/closure/electron/*.md",
+   "owner_files": [
+    "apps/*electron*",
+    ".github/workflows/product.yml"
+   ],
+   "status": "OPEN"
   }
  ],
  "objective": "100% on all 14 audit areas + 0 P0/P1 + READY verdict via independent audit",
