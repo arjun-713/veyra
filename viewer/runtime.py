@@ -403,7 +403,7 @@ def build_pipeline(
         semantic = dict(semantic)
         for key in ("model_path", "checkpoint"):
             value = semantic.get(key)
-            if repo_root is not None and isinstance(value, str):
+            if repo_root is not None and isinstance(value, str) and value.strip():
                 model = Path(value)
                 if not model.is_absolute():
                     semantic[key] = str(Path(repo_root) / model)
