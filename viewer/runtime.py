@@ -401,11 +401,12 @@ def build_pipeline(
         raise RuntimeConfigurationError("pipeline.semantic must be an object")
     else:
         semantic = dict(semantic)
-        model_path = semantic.get("model_path")
-        if repo_root is not None and isinstance(model_path, str):
-            model = Path(model_path)
-            if not model.is_absolute():
-                semantic["model_path"] = str(Path(repo_root) / model)
+        for key in ("model_path", "checkpoint"):
+            value = semantic.get(key)
+            if repo_root is not None and isinstance(value, str):
+                model = Path(value)
+                if not model.is_absolute():
+                    semantic[key] = str(Path(repo_root) / model)
         config["semantic"] = semantic
     try:
         return PerceptionPipeline.from_config(config)
