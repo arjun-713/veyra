@@ -127,9 +127,9 @@ class TerrainAnalyzer:
         flat_size = cell_count
 
         def aggregate(values: np.ndarray) -> np.ndarray:
-            return np.bincount(
-                flat_cells, weights=values, minlength=flat_size
-            ).reshape(height, width)
+            return np.bincount(flat_cells, weights=values, minlength=flat_size).reshape(
+                height, width
+            )
 
         scaled = np.stack(
             (
@@ -165,9 +165,7 @@ class TerrainAnalyzer:
         # Exact zero-padded box sums via one stacked integral image.  This is
         # O(K*H*W) for K aggregated fields instead of K scipy convolutions at
         # O(K*H*W*k^2), which dominated full LiDAR scans.
-        stacked = np.stack(
-            (*sums, *second_moments, counts, confidence_sum), axis=0
-        )
+        stacked = np.stack((*sums, *second_moments, counts, confidence_sum), axis=0)
         extent = 2 * radius_cells + 1
         integral = np.zeros(
             (stacked.shape[0], height + extent, width + extent), dtype=np.float64
@@ -220,9 +218,7 @@ class TerrainAnalyzer:
             # bounded tanh map.  It must use the centered variance (czz), not
             # the raw second moment (szz): the latter grows with absolute
             # elevation and would mark flat but elevated ground as complex.
-            complexity_grid = np.tanh(
-                np.sqrt(np.maximum(czz / local_count, 0.0))
-            )
+            complexity_grid = np.tanh(np.sqrt(np.maximum(czz / local_count, 0.0)))
             confidence_grid = np.divide(
                 local_confidence,
                 local_count,

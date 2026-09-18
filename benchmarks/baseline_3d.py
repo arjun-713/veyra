@@ -42,7 +42,6 @@ from __future__ import annotations
 import argparse
 import json
 import platform
-import resource
 import subprocess
 import sys
 import tempfile
@@ -54,9 +53,9 @@ import numpy as np
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from benchmarks.protocol import binary_stream_file  # noqa: E402
-from benchmarks.regression import max_rss_bytes  # noqa: E402
-from benchmarks.run_benchmark import (  # noqa: E402
+from benchmarks.protocol import binary_stream_file
+from benchmarks.regression import max_rss_bytes
+from benchmarks.run_benchmark import (
     analytical_3d_reference_bounds,
     load_selection,
     nearest_rank_summary,
@@ -246,7 +245,9 @@ def run_baseline(args: argparse.Namespace, repo: Path) -> dict:
             ),
             "load_latency_ns": load_elapsed_ns,
             "dataset_root": (
-                str(Path(args.dataset_root).resolve()) if args.dataset_root else entry.get("root")
+                str(Path(args.dataset_root).resolve())
+                if args.dataset_root
+                else entry.get("root")
             ),
             "stream_digest": digest,
             "stream_digest_matches_closure_4cd60ac5": digest.startswith(
@@ -326,20 +327,30 @@ def render_table(result: dict) -> str:
     lines = [
         "| quantity | ANALYTICAL (dense, never allocated/timed) | MEASURED (sparse voxel-hash) |",
         "| --- | --- | --- |",
-        f"| representation | dense_uniform_3d_voxels | sparse_voxel_hash_occupancy_5cm |",
+        "| representation | dense_uniform_3d_voxels | sparse_voxel_hash_occupancy_5cm |",
         f"| voxel size | 0.05 m | {result['voxel_size_m']} m |",
-        f"| elements | {comparison['dense_voxels_analytical']} dense voxels | "
-        f"{comparison['occupied_voxels_measured']} occupied voxels |",
-        f"| memory | {comparison['estimated_dense_bytes_analytical']} B estimated | "
-        f"{comparison['accounted_sparse_bytes_measured']} B accounted "
-        f"(ratio {comparison['bytes_ratio_measured_over_analytical']:.6f}) |",
-        f"| peak RSS | n/a (never ran) | {rss['peak_rss_bytes']} B "
-        f"(process peak, incl. interpreter) |",
-        f"| update latency p50/p95/p99 | n/a (never ran) | "
-        f"{latency['p50']:.3f}/{latency['p95']:.3f}/{latency['p99']:.3f} ms "
-        f"(n={latency['count']}) |",
-        f"| sparsity occupied/dense | — | "
-        f"{comparison['sparsity_occupied_over_dense']:.6f} |",
+        (
+            f"| elements | {comparison['dense_voxels_analytical']} dense voxels | "
+            f"{comparison['occupied_voxels_measured']} occupied voxels |"
+        ),
+        (
+            f"| memory | {comparison['estimated_dense_bytes_analytical']} B estimated | "
+            f"{comparison['accounted_sparse_bytes_measured']} B accounted "
+            f"(ratio {comparison['bytes_ratio_measured_over_analytical']:.6f}) |"
+        ),
+        (
+            f"| peak RSS | n/a (never ran) | {rss['peak_rss_bytes']} B "
+            "(process peak, incl. interpreter) |"
+        ),
+        (
+            f"| update latency p50/p95/p99 | n/a (never ran) | "
+            f"{latency['p50']:.3f}/{latency['p95']:.3f}/{latency['p99']:.3f} ms "
+            f"(n={latency['count']}) |"
+        ),
+        (
+            f"| sparsity occupied/dense | — | "
+            f"{comparison['sparsity_occupied_over_dense']:.6f} |"
+        ),
     ]
     return "\n".join(lines)
 

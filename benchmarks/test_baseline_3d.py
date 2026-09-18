@@ -23,7 +23,9 @@ class Baseline3DTests(unittest.TestCase):
             [[0, 0, 0], [-2000, 1500, -300], [1939, 2066, 362], [1, -1, 2]],
             dtype=np.int64,
         )
-        np.testing.assert_array_equal(unpack_voxel_keys(pack_voxel_keys(indices)), indices)
+        np.testing.assert_array_equal(
+            unpack_voxel_keys(pack_voxel_keys(indices)), indices
+        )
 
     def test_pack_is_injective(self):
         indices = np.array([[i, -i, 2 * i] for i in range(-500, 500)], dtype=np.int64)
@@ -69,7 +71,9 @@ class Baseline3DTests(unittest.TestCase):
             [[x * 0.05 + 0.01, 0.0, 0.0] for x in range(10)], dtype=np.float64
         )
         occupied = len(frame_voxel_keys(points))
-        reference = analytical_3d_reference_bounds(points.min(axis=0), points.max(axis=0))
+        reference = analytical_3d_reference_bounds(
+            points.min(axis=0), points.max(axis=0)
+        )
         self.assertEqual(reference["status"], "analytical_only")
         self.assertLessEqual(occupied, reference["dense_voxel_count"])
 
