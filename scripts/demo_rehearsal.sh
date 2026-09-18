@@ -262,7 +262,13 @@ step_preflight() {
       PREFLIGHT_OK=0
       log "preflight: FAILURES PRESENT — downstream steps will SKIP, see summary"
     fi
+    # The closing pipeline runs this brace group in a subshell, so persist
+    # parent-consumed state to files; the parent re-reads them below.
+    printf '%s\n' "${PREFLIGHT_OK}" > "${EVIDENCE_DIR}/.preflight_ok"
+    printf '%s\n' "${HAVE_TORCH_PYTHON}" > "${EVIDENCE_DIR}/.have_torch_python"
   } 2>&1 | tee "${step_log}" | tee -a "${MAIN_LOG}"
+  PREFLIGHT_OK="$(cat "${EVIDENCE_DIR}/.preflight_ok" 2>/dev/null || printf '0')"
+  HAVE_TORCH_PYTHON="$(cat "${EVIDENCE_DIR}/.have_torch_python" 2>/dev/null || printf '')"
 }
 
 # --------------------------------------------------------------- step 2 ---
@@ -676,6 +682,12 @@ step_summary() {
       total=$((total + 1))
       if [ "${status}" = "FAIL" ]; then fails=$((fails + 1)); fi
     done < "${CHECKLIST_TSV}" || true
+    # A skipped core session outside --preflight-only means nothing was
+    # exercised; that must fail loudly, never pass as PASS-or-SKIP.
+    local core_skipped=0
+    if [ "${PREFLIGHT_ONLY}" != "1" ] && grep -q "^headless\.session"$'\t'"SKIP" "${CHECKLIST_TSV}" 2>/dev/null; then
+      core_skipped=1
+    fi
 
     {
       printf '# Demo rehearsal summary\n\n'
@@ -739,6 +751,10 @@ print('checklist.json: %d pass / %d fail / %d skip' % (doc['passes'], doc['fails
 
     if [ "${fails}" -gt 0 ]; then
       log "RESULT: FAIL (${fails}/${total} checks failed)"
+      return 1
+    fi
+    if [ "${core_skipped}" = "1" ]; then
+      log "RESULT: FAIL (headless.session SKIPPED outside --preflight-only; nothing was exercised)"
       return 1
     fi
     log "RESULT: PASS-or-SKIP (${total} checks, 0 fail)"
