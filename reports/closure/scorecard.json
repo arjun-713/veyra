@@ -130,7 +130,7 @@
     "no real temporal proof",
     "synthetic-only insufficient"
    ],
-   "current": 70,
+   "current": 82,
    "deps": [
     "datasets",
     "kitti"
@@ -142,7 +142,7 @@
     "tests/test_temporal_tracker.py",
     "tests/test_validate_temporal.py"
    ],
-   "status": "PARTIAL"
+   "status": "INTEGRATED"
   },
   {
    "acceptance": "slope/roughness/step/height-spread/semantic -> DRIVABLE/NON_DRIVABLE/UNKNOWN (unknown!=free); quantified where labels permit; terrain p95 optimized",
@@ -308,7 +308,7 @@
    "acceptance": "All documented commands + --json work against shared authority",
    "area": "CLI",
    "blockers": [],
-   "current": 80,
+   "current": 82,
    "deps": [
     "control-api"
    ],
@@ -323,7 +323,7 @@
    "acceptance": "Typed schemas, no arbitrary shell/fs/process, real integration vs running instance",
    "area": "MCP",
    "blockers": [],
-   "current": 75,
+   "current": 85,
    "deps": [
     "control-api"
    ],
@@ -332,7 +332,7 @@
    "owner_files": [
     "mcp/*"
    ],
-   "status": "PARTIAL"
+   "status": "INTEGRATED"
   },
   {
    "acceptance": "Capabilities/CSP/fs-scopes/sidecar/path-traversal/injection/MCP+CLI validation fixed, not just reported",
