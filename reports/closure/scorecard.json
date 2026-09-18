@@ -274,7 +274,7 @@
    "acceptance": "Every visible control inventoried (allowed states/command/backend/UI/E2E); dead/dup/fake removed",
    "area": "UI + renderer + telemetry + supervisor",
    "blockers": [],
-   "current": 72,
+   "current": 78,
    "deps": [
     "tauri",
     "control-api"
