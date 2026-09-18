@@ -629,7 +629,8 @@ def field_retention_report(
             relevant_bins = [
                 key
                 for key, item in fine.items()
-                if item["classes"] and max(item["classes"], key=item["classes"].get) in classes
+                if item["classes"]
+                and max(item["classes"], key=item["classes"].get) in classes
             ]
             retained_bins = sum(
                 int(int(owners[key][0]["semantic_class"]) in classes)
@@ -1229,8 +1230,7 @@ def _command(
     ranges = distance_config["ranges_m"]
     governor_path = (
         Path(governor_config)
-        if governor_config is not None
-        and Path(governor_config).is_absolute()
+        if governor_config is not None and Path(governor_config).is_absolute()
         else repo / str(governor_config or "configs/resource_governor.yaml")
     )
     return [
@@ -1661,9 +1661,7 @@ def run(args: argparse.Namespace) -> dict[str, Any]:
         else repo / governor_config_arg
     )
     if not governor_config_path.is_file():
-        raise ValueError(
-            f"governor config does not exist: {governor_config_path}"
-        )
+        raise ValueError(f"governor config does not exist: {governor_config_path}")
     config_paths = [
         repo / args.perception_config,
         repo / "configs/datasets.yaml",

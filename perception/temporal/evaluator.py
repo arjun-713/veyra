@@ -37,6 +37,7 @@ Honesty rules (fail closed, never invent):
 
 from __future__ import annotations
 
+import itertools
 from dataclasses import dataclass
 
 import numpy as np
@@ -192,9 +193,10 @@ def evaluate_motion(
                 ),
                 frames_seen=len(frames),
             )
-        if getattr(frame, "raw_semantic_class", None) is None or getattr(
-            frame, "instance_id", None
-        ) is None:
+        if (
+            getattr(frame, "raw_semantic_class", None) is None
+            or getattr(frame, "instance_id", None) is None
+        ):
             return unknown_report(
                 dataset or "unknown",
                 sequence,
@@ -206,7 +208,7 @@ def evaluate_motion(
             )
 
     timestamps = [float(frame.timestamp) for frame in frames]
-    if any(b <= a for a, b in zip(timestamps, timestamps[1:])):
+    if any(b <= a for a, b in itertools.pairwise(timestamps)):
         raise MotionEvaluationError("dataset timestamps must strictly increase")
 
     per_class: dict[str, dict] = {}
@@ -250,7 +252,9 @@ def evaluate_motion(
             )
         timestamp = float(frame.timestamp)
         evidence = tracker.update(
-            points, labels, np.asarray(frame.pose.matrix, dtype=np.float64),
+            points,
+            labels,
+            np.asarray(frame.pose.matrix, dtype=np.float64),
             timestamp=timestamp,
         )
         state = np.asarray(evidence.state)
@@ -259,33 +263,49 @@ def evaluate_motion(
         gt_points_total += int(gt_mask.sum())
         gt_points_moving_state += int(np.count_nonzero(gt_mask & (state == "moving")))
         gt_points_nonstatic_state += int(
-            np.count_nonzero(gt_mask & ((state == "moving") | (state == "possibly_moving")))
+            np.count_nonzero(
+                gt_mask & ((state == "moving") | (state == "possibly_moving"))
+            )
         )
         is_moving = state == "moving"
         moving_points_total += int(np.count_nonzero(is_moving))
         moving_points_gt += int(np.count_nonzero(is_moving & gt_mask))
         gt_veyra = map_dataset_labels(raw, SEMANTICKITTI_LABELS)
-        for veyra in sorted(set(np.unique(labels).tolist()) | set(np.unique(gt_veyra[gt_mask]).tolist())) if gt_mask.any() or is_moving.any() else ():
+        for veyra in (
+            sorted(
+                set(np.unique(labels).tolist())
+                | set(np.unique(gt_veyra[gt_mask]).tolist())
+            )
+            if gt_mask.any() or is_moving.any()
+            else ()
+        ):
             bucket = class_bucket(int(veyra))
             cell_gt = gt_mask & (gt_veyra == veyra)
             cell_moving = is_moving & (labels == veyra)
-            bucket["point_gt_points"] = bucket.get("point_gt_points", 0) + int(cell_gt.sum())
+            bucket["point_gt_points"] = bucket.get("point_gt_points", 0) + int(
+                cell_gt.sum()
+            )
             bucket["point_recalled"] = bucket.get("point_recalled", 0) + int(
                 np.count_nonzero(cell_gt & is_moving)
             )
-            bucket["point_moving"] = bucket.get("point_moving", 0) + int(cell_moving.sum())
+            bucket["point_moving"] = bucket.get("point_moving", 0) + int(
+                cell_moving.sum()
+            )
             bucket["point_moving_gt"] = bucket.get("point_moving_gt", 0) + int(
                 np.count_nonzero(cell_moving & gt_mask)
             )
         for raw_id in sorted(np.unique(raw[gt_mask]).tolist()) if gt_mask.any() else ():
             cell = per_raw_recall.setdefault(
-                str(int(raw_id)), {"gt_points": 0, "moving_state": 0, "non_static_state": 0}
+                str(int(raw_id)),
+                {"gt_points": 0, "moving_state": 0, "non_static_state": 0},
             )
             mask = raw == raw_id
             cell["gt_points"] += int(mask.sum())
             cell["moving_state"] += int(np.count_nonzero(mask & (state == "moving")))
             cell["non_static_state"] += int(
-                np.count_nonzero(mask & ((state == "moving") | (state == "possibly_moving")))
+                np.count_nonzero(
+                    mask & ((state == "moving") | (state == "possibly_moving"))
+                )
             )
         for raw_id in KITTI_STATIC_CONTROL_RAW_IDS:
             mask = raw == raw_id
@@ -298,7 +318,9 @@ def evaluate_motion(
             cell["moving_state"] += int(np.count_nonzero(mask & (state == "moving")))
 
         objects, fragments = _gt_objects(
-            raw, instance, points[:, :2].astype(np.float64),
+            raw,
+            instance,
+            points[:, :2].astype(np.float64),
             min_object_points=min_object_points,
         )
         fragments_total += fragments
@@ -311,7 +333,9 @@ def evaluate_motion(
         ]
         claimed: set[int] = set()
         current: dict[tuple[int, int], _GTObject] = {}
-        for obj in sorted(objects, key=lambda item: (item.instance_id, item.raw_majority)):
+        for obj in sorted(
+            objects, key=lambda item: (item.instance_id, item.raw_majority)
+        ):
             current[(obj.instance_id, obj.raw_majority)] = obj
             bucket = class_bucket(obj.veyra_class)
             bucket["gt_objects"] += 1

@@ -178,9 +178,7 @@ class PerceptionPipeline:
     CENET_CHECKPOINT_ENV_VAR = "VEYRA_CENET_CHECKPOINT"
 
     @classmethod
-    def _cenet_provider(
-        cls, semantic_config: dict[str, Any]
-    ) -> tuple[Any, str | None]:
+    def _cenet_provider(cls, semantic_config: dict[str, Any]) -> tuple[Any, str | None]:
         """Build the native CENet provider with failure-safe fallback.
 
         torch stays an optional dependency: it is imported only inside the
@@ -195,11 +193,7 @@ class PerceptionPipeline:
         """
 
         threads = semantic_config.get("threads", 4)
-        if (
-            isinstance(threads, bool)
-            or not isinstance(threads, int)
-            or threads < 1
-        ):
+        if isinstance(threads, bool) or not isinstance(threads, int) or threads < 1:
             raise PerceptionConfigurationError(
                 "cenet threads must be a positive integer"
             )
@@ -263,7 +257,10 @@ class PerceptionPipeline:
             )
         try:
             return CENetSemanticProvider(path, threads=threads), None
-        except Exception as error:  # backend failures vary by release; fall back, never crash
+        except Exception as error:  # noqa: BLE001 -- backend ctor raises
+            # release-specific exception types (torch/ONNX/CUDA); the fallback
+            # contract is failure-safe by design (never crash, return
+            # ground_truth + reason), so narrowing would reintroduce crashes.
             return _fallback(
                 f"mode 'cenet' requested but {source} backend unavailable "
                 f"({type(error).__name__}: {error}); fell back to ground_truth"
