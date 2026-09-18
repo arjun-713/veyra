@@ -16,6 +16,28 @@ export function perceptionStages(frame:WireFrame|null){
  return [['Semantic','semantic'],['Ground','ground'],['Terrain','terrain'],['Temporal','temporal']].map(([label,key])=>({label,status:status[key]??'unavailable',latency:typeof timings[key]==='number'?timings[key]:null}));
 }
 export function mapActivity(telemetry:Json):[string,unknown][]{return [['Active cells',telemetry.map?.active_cells],['Logical bytes',telemetry.map?.logical_bytes],['Allocated bytes',telemetry.map?.allocated_bytes],['Topology changes',telemetry.map?.topology_changes],['Splits / second',telemetry.map?.splits_per_second],['Merges / second',telemetry.map?.merges_per_second]];}
+export const MEMORY_DOMAIN_NOTE='Live process RSS (OS), map logical/allocated bytes (C++ snapshot), and benchmark peak RSS (harness) measure different domains — do not compare across tables.';
+export const FIRST_CPU_SAMPLE_NOTE='First CPU sample after (re)start shows — by construction: CPU% needs two /proc samples.';
+export function renderAgeMs(render:Json,now=Date.now()):number|null{
+ const t=(render as Json)?.updated_at;
+ if(typeof t!=='number'||!Number.isFinite(t))return null;
+ const age=now-t;
+ if(!Number.isFinite(age)||age<0)return null;
+ return age;
+}
+export function isRenderStale(render:Json,now=Date.now(),maxAgeMs=2500):boolean{
+ const hasData=typeof (render as Json)?.fps==='number'||typeof (render as Json)?.latency_ms==='number';
+ if(!hasData)return false;
+ const age=renderAgeMs(render,now);
+ if(age==null)return true;
+ return age>maxAgeMs;
+}
+export function formatRenderAge(render:Json,now=Date.now()):string{
+ const age=renderAgeMs(render,now);
+ if(age==null)return '—';
+ if(age<1000)return `${Math.round(age)} ms ago`;
+ return `${(age/1000).toFixed(1)} s ago`;
+}
 export function inputTargetFps(config:Json,status:Json):number|null{
  const fps=config?.playback?.fps,speed=status?.speed??1;
  if(typeof fps!=='number'||!Number.isFinite(fps)||fps<=0)return null;

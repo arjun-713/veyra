@@ -1,5 +1,5 @@
 import {test} from 'node:test';import assert from 'node:assert/strict';
-import {comparisonMetrics,datasetFormats,defaultSessionConfig,inputTargetFps,layerUnavailable,mapActivity,perceptionStages,profileConfig,recordEvent,summarizeVisual} from '../src/renderer/dashboard.ts';
+import {comparisonMetrics,datasetFormats,defaultSessionConfig, FIRST_CPU_SAMPLE_NOTE, formatRenderAge, inputTargetFps,isRenderStale,layerUnavailable,mapActivity,MEMORY_DOMAIN_NOTE,perceptionStages,profileConfig,recordEvent, renderAgeMs,summarizeVisual} from '../src/renderer/dashboard.ts';
 test('comparison requires measured matching policy reports and never fabricates reduction',()=>{
  assert.equal(comparisonMetrics(null).memoryReduction,null);
  assert.equal(comparisonMetrics({policies:{uniform5:{aggregate:{peak_rss_bytes:100}},utility_lod:{aggregate:{peak_rss_bytes:25}}}}).memoryReduction,75);
@@ -58,4 +58,24 @@ test('input target rate derives from session playback fps and speed without fabr
  assert.equal(inputTargetFps({playback:{fps:10}},{speed:0}),null);
  assert.equal(inputTargetFps({playback:{fps:NaN}},{speed:1}),null);
  assert.equal(inputTargetFps({playback:{fps:10}},{speed:NaN}),null);
+});
+test('memory domains carry an incomparability caption (G-3)',()=>{
+ assert.match(MEMORY_DOMAIN_NOTE,/different domains/);
+ assert.match(MEMORY_DOMAIN_NOTE,/do not compare/);
+});
+test('first CPU sample documents its by-construction em-dash (G-7)',()=>{
+ assert.match(FIRST_CPU_SAMPLE_NOTE,/by construction/);
+ assert.match(FIRST_CPU_SAMPLE_NOTE,/two/);
+});
+test('render stats persist with timestamp and mark stale off-Map (G-4)',()=>{
+ assert.equal(renderAgeMs({} as any,1000),null);
+ assert.equal(renderAgeMs({updated_at:900} as any,1000),100);
+ assert.equal(renderAgeMs({updated_at:1100} as any,1000),null);
+ assert.equal(isRenderStale({} as any,1000),false);
+ assert.equal(isRenderStale({fps:60} as any,1000),true);
+ assert.equal(isRenderStale({fps:60,updated_at:900} as any,1000),false);
+ assert.equal(isRenderStale({fps:60,updated_at:0} as any,10000),true);
+ assert.equal(formatRenderAge({} as any,1000),'—');
+ assert.equal(formatRenderAge({updated_at:900} as any,1000),'100 ms ago');
+ assert.equal(formatRenderAge({updated_at:0} as any,2500),'2.5 s ago');
 });
