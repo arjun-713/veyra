@@ -1,5 +1,5 @@
 import {test} from 'node:test';import assert from 'node:assert/strict';
-import {comparisonMetrics,datasetFormats,defaultSessionConfig,layerUnavailable,mapActivity,perceptionStages,profileConfig,recordEvent,summarizeVisual} from '../src/renderer/dashboard.ts';
+import {comparisonMetrics,datasetFormats,defaultSessionConfig,inputTargetFps,layerUnavailable,mapActivity,perceptionStages,profileConfig,recordEvent,summarizeVisual} from '../src/renderer/dashboard.ts';
 test('comparison requires measured matching policy reports and never fabricates reduction',()=>{
  assert.equal(comparisonMetrics(null).memoryReduction,null);
  assert.equal(comparisonMetrics({policies:{uniform5:{aggregate:{peak_rss_bytes:100}},utility_lod:{aggregate:{peak_rss_bytes:25}}}}).memoryReduction,75);
@@ -50,4 +50,12 @@ test('perception stage summary keeps backend state distinct from timing',()=>{
 test('performance activity exposes measured split and merge rates',()=>{
  const activity=mapActivity({map:{splits_per_second:12.5,merges_per_second:3.25}} as any);
  assert.deepEqual(activity.slice(-2),[['Splits / second',12.5],['Merges / second',3.25]]);
+});
+test('input target rate derives from session playback fps and speed without fabrication',()=>{
+ assert.equal(inputTargetFps({playback:{fps:10}},{speed:2}),20);
+ assert.equal(inputTargetFps({playback:{fps:10}},{}),10);
+ assert.equal(inputTargetFps({},{speed:1}),null);
+ assert.equal(inputTargetFps({playback:{fps:10}},{speed:0}),null);
+ assert.equal(inputTargetFps({playback:{fps:NaN}},{speed:1}),null);
+ assert.equal(inputTargetFps({playback:{fps:10}},{speed:NaN}),null);
 });
