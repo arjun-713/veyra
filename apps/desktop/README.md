@@ -1,8 +1,9 @@
 # Veyra desktop
 
-Electron + Svelte 5 + TypeScript + Vite, with Three.js and uPlot. Mapping and
+Tauri 2 + Svelte 5 + TypeScript + Vite, with Three.js and uPlot. Mapping and
 perception run in separate backend processes. The desktop consumes the product
-runtime protocol in `../../runtime/`.
+runtime protocol in `../../runtime/` through Tauri commands and events
+(`src-tauri/`).
 
 ## Run from source
 
@@ -12,7 +13,7 @@ requirements into a virtual environment. Then:
 ```sh
 cd apps/desktop
 npm ci
-VEYRA_PYTHON=/absolute/path/to/venv/bin/python npm start
+VEYRA_PYTHON=/absolute/path/to/venv/bin/python npm run tauri:dev
 ```
 
 On Windows, set `VEYRA_PYTHON` to the environment's `python.exe`. Without this
@@ -22,8 +23,10 @@ configuration cannot replace the trusted C++ executable. Generic datasets use
 the existing manifest adapter; real external poses remain required by mapping.
 
 Map provides point/cell layers, camera presets, follow mode, cell inspection,
-playback, seek and policy switching. Performance reports backend and Electron
-process measurements separately. Missing measurements remain unavailable.
+presets, follow mode, cell inspection,
+playback, seek and policy switching. Performance reports backend
+measurements; desktop-shell process rows are unavailable in Tauri builds,
+which emit no `desktop_telemetry`. Missing measurements remain unavailable.
 Benchmarks consumes existing schema-2 reports. Configuration imports, validates
 and saves session JSON; all display budgets are bounded independently from map
 input. The Utility heatmap displays the normalized score exported by the engine.
@@ -34,21 +37,21 @@ input. The Utility heatmap displays the normalized score exported by the engine.
 npm test
 npm run check
 npm run build
-npm run package
-npm run test:e2e
 ```
 
-E2E launches the real Electron app from the built Forge entries, so run
-`npm run package` first. Linux CI needs a display, for example `xvfb-run -a npm
-run test:e2e`. The test can run without datasets and verifies startup/error
-presentation and IPC isolation. Data/engine acceptance remains in the root
-runtime test suite.
+`npm run build` compiles the renderer frontend consumed by the Tauri shell
+(`npm run tauri:build:frontend` is the same build under its Tauri alias).
+End-to-end desktop coverage is the Rust packaged suite in `src-tauri/`
+(real-data flow on the staged bundle; see `reports/closure/tauri/RESULT.md`).
+Data/engine acceptance remains in the root runtime test suite.
 
 ## Packaging
 
-Forge has Linux deb/zip, Windows Squirrel, and macOS DMG/zip makers. Run
-`npm run make` on the target OS. A release package must set
-`VEYRA_BACKEND_BUNDLE` to a directory created by `scripts/package_backend.py`.
+Tauri builds the Linux deb/rpm/AppImage, Windows NSIS, and macOS DMG bundles
+(see `src-tauri/tauri.conf.json` and `.github/workflows/release-tauri.yml`).
+Run `npm run tauri:build` on the target OS. A release package must stage a
+backend directory with `scripts/stage_tauri_backend.py` (built on
+`scripts/package_backend.py`).
 The staging command copies only the allowlisted application packages, configs,
 native mapper and supplied Python runtime. It rejects mapper paths outside the
 checkout and writes a size/SHA-256 manifest that packaged startup validates.
@@ -70,22 +73,26 @@ most three times with exponential delay; a stable 30-second session resets that
 budget. Forced shutdown terminates the runtime process group so mapper children
 do not survive the app.
 
-`.github/workflows/release.yml` builds Linux x64, Windows x64, macOS ARM64 and
-macOS x64 packages on their native runners, stages the backend, runs product
-checks, emits `SHA256SUMS`, and creates or updates a GitHub Release. Tags with a
+`.github/workflows/release-tauri.yml` builds the Tauri bundles on their native
+runners, stages the backend, runs product
+checks, emits `SHA256SUMS`, and uploads the bundles as CI artifacts. (GitHub
+Release publishing and bundle signing remain future work there; the retained
+`.github/workflows/release.yml` Electron track is stale — see
+`reports/closure/electron/REMOVAL.md`.) The channel/signing sentences below
+describe that retained Electron track: tags with a
 suffix and manual prerelease runs use the prerelease channel. Windows signing
 is enabled only when the `WINDOWS_CERTIFICATE_BASE64` and
 `WINDOWS_CERTIFICATE_PASSWORD` secrets exist. macOS signing/notarization is
 enabled only when the Apple certificate, identity, account password and team
-secrets exist; unsigned builds remain clearly ordinary release artifacts.
+secrets exist; Tauri bundles ship unsigned until signing lands there.
 
 ## Boundaries
 
-The preload exposes named operations only. Renderer requests have an allowlist;
-main-frame sender validation, context isolation, sandboxing, disabled Node
-integration, navigation denial and a CSP are enabled. Main owns native pickers,
-export paths, the trusted backend command and three rotating 1 MiB diagnostic
-logs.
+The Tauri frontend talks to named Rust commands only (`open_dataset`,
+`command`, event subscription over `veyra://event`). Renderer requests carry
+no shell or process APIs; the Svelte side cannot launch programs. The Rust
+side owns native pickers, export paths, the trusted backend command and
+rotating diagnostic logs.
 
 Runtime stdout is decoded with version and length limits. Visualization has a
 single latest pending update plus one in flight, acknowledged after delivery;

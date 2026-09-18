@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Create and verify the allowlisted backend directory consumed by Electron Forge."""
+"""Create and verify the allowlisted backend directory consumed by the desktop shell packagers (Tauri staging; formerly Electron Forge)."""
 
 from __future__ import annotations
 
