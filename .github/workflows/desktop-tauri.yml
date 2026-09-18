@@ -11,6 +11,10 @@ jobs:
   build:
     name: Tauri ${{ matrix.os }}
     runs-on: ${{ matrix.os }}
+    # CI-hardening: bound hosted-runner spend. No retention-days here by
+    # design — this job is compile-only (--no-bundle) and uploads no
+    # artifacts.
+    timeout-minutes: 30
     strategy:
       fail-fast: false
       matrix:
