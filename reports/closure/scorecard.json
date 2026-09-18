@@ -183,7 +183,7 @@
    "blockers": [
     "reason-to-exist unproven"
    ],
-   "current": 75,
+   "current": 78,
    "deps": [
     "map",
     "semantic-quality",
@@ -356,7 +356,7 @@
    "acceptance": "Ubuntu .deb+AppImage smoke; Fedora .rpm smoke; Windows installer smoke; macOS .app/.dmg smoke (native CI where local impossible)",
    "area": "Cross-platform",
    "blockers": [],
-   "current": 55,
+   "current": 58,
    "deps": [
     "tauri",
     "control-api"
@@ -373,7 +373,7 @@
    "acceptance": "Live GitHub CI validates real Tauri product; Electron CI removed after parity; artifacts uploaded; all required checks green",
    "area": "CI + release + Electron removal",
    "blockers": [],
-   "current": 55,
+   "current": 65,
    "deps": [
     "platform",
     "tauri"
@@ -390,7 +390,7 @@
    "acceptance": "Fresh-clone setup/build/test/validate/benchmark/launch from docs only; docs claims match evidence; provenance recorded; packaged demo rehearsal all policies/layers/telemetry",
    "area": "Docs + reproducibility + demo",
    "blockers": [],
-   "current": 55,
+   "current": 62,
    "deps": [
     "benchmark",
     "tauri",
