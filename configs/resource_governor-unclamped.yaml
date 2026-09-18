@@ -1,0 +1,16 @@
+# Effectively-disabled governor for the utility-rerun Disabled cross-check.
+# Caps are set orders of magnitude above any measured working set on the
+# seq00 frames 0-29 selection (Uniform5 worst case: 631k leaves, ~68 MB
+# logical, p99 544 ms), so the governor stays Normal with
+# allow_optional_splits=true and ~0 actions: pure-policy deltas.
+# Diagnostic only; never a deployment budget.
+max_active_cells: 100000000
+max_logical_bytes: 107374182400
+near_field_radius_m: 10.0
+max_actions_per_frame: 64
+max_rss_bytes: 0
+target_frame_time_ms: 1000000.0
+pressure_ratio: 0.90
+recovery_ratio: 0.75
+overload_consecutive_frames: 3
+recovery_consecutive_frames: 5
