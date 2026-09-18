@@ -23,7 +23,7 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - {label: Linux x64, os: ubuntu-24.04, platform: linux, arch: x64, mapper: build/apps/runtime/veyra_runtime, bundles: deb,rpm,appimage}
+          - {label: Linux x64, os: ubuntu-24.04, platform: linux, arch: x64, mapper: build/apps/runtime/veyra_runtime, bundles: "deb,rpm,appimage"}
           - {label: Windows x64, os: windows-2025, platform: win32, arch: x64, mapper: build/apps/runtime/Release/veyra_runtime.exe, bundles: nsis}
           - {label: macOS ARM64, os: macos-15, platform: darwin, arch: arm64, mapper: build/apps/runtime/veyra_runtime, bundles: dmg}
           # macOS x64 kept in parity with release.yml (Electron) until an
