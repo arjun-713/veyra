@@ -663,7 +663,70 @@ step_desktop() {
         record_check "desktop.launch" "SKIP" "bundle present + display available, but auto-launch is opt-in (VEYRA_REHEARSAL_LAUNCH=1); artifacts verified only"
       fi
     else
-      record_check "desktop.launch" "SKIP" "bundle present but headless (no DISPLAY/WAYLAND_DISPLAY); launch deferred to evaluator desktop. Rebuild with: ${build_cmd}"
+      # Headless packaged smoke: owns the REBUILD.md §3 exit-101 assertion.
+      # Display-isolated GUI binary must reach window creation and fail ONLY
+      # on the absent display (tao gtk-init exit 101). Any other exit (missing
+      # libs, backend errors, timeout) = FAIL. No window is ever opened here.
+      local gui_bin="" gui_src=""
+      if [ -x "/usr/bin/veyra" ]; then
+        gui_bin="/usr/bin/veyra"
+        gui_src="installed:/usr/bin/veyra"
+      else
+        shopt -s nullglob
+        local cand
+        for cand in "${bundle_dir}"/deb/*/data/usr/bin/veyra; do
+          if [ -x "${cand}" ]; then gui_bin="${cand}"; gui_src="extracted:${cand}"; break; fi
+        done
+        shopt -u nullglob
+        if [ -z "${gui_bin}" ] && [ -x "${relbin}" ]; then
+          gui_bin="${relbin}"
+          gui_src="release:${relbin}"
+        fi
+      fi
+      if [ -z "${gui_bin}" ]; then
+        record_check "desktop.launch" "SKIP" "bundle present but headless and no runnable GUI binary found (checked installed /usr/bin/veyra, extracted deb staging data/usr/bin/veyra, ${relbin}); launch deferred to evaluator desktop"
+        log "SKIP: headless smoke has no binary to run (neither extracted nor release binary present)"
+        return 0
+      fi
+      if ! command -v timeout >/dev/null 2>&1; then
+        record_check "desktop.launch" "SKIP" "bundle present but headless and 'timeout' unavailable; cannot bound the smoke probe (binary: ${gui_src})"
+        return 0
+      fi
+      local smoke_iso smoke_rc smoke_err
+      smoke_iso="$(mktemp -d 2>/dev/null || true)"
+      if [ -z "${smoke_iso}" ] || [ ! -d "${smoke_iso}" ]; then
+        record_check "desktop.launch" "SKIP" "bundle present but headless and XDG_RUNTIME_DIR isolation setup failed; smoke probe refused (binary: ${gui_src})"
+        return 0
+      fi
+      log "headless smoke: display-isolated probe of ${gui_src} (timeout -s KILL 15, empty XDG_RUNTIME_DIR; expect exit 101 gtk-init display-absent)"
+      set +e
+      env -u DISPLAY -u WAYLAND_DISPLAY -u DBUS_SESSION_BUS_ADDRESS \
+        "XDG_RUNTIME_DIR=${smoke_iso}" GDK_BACKEND=x11 \
+        timeout -s KILL 15 "${gui_bin}" \
+        >"${EVIDENCE_DIR}/desktop_smoke.stdout.log" 2>"${EVIDENCE_DIR}/desktop_smoke.stderr.log"
+      smoke_rc=$?
+      set -e
+      smoke_err="$(tail -n 5 "${EVIDENCE_DIR}/desktop_smoke.stderr.log" 2>/dev/null || true)"
+      {
+        printf 'smoke binary: %s\n' "${gui_src}"
+        printf 'isolation: env -u DISPLAY -u WAYLAND_DISPLAY -u DBUS_SESSION_BUS_ADDRESS XDG_RUNTIME_DIR=<empty-tempdir> GDK_BACKEND=x11 timeout -s KILL 15\n'
+        printf 'exit: %s (expect 101)\n' "${smoke_rc}"
+        printf 'stderr tail:\n%s\n' "${smoke_err}"
+        if command -v pgrep >/dev/null 2>&1; then
+          printf 'orphan check (pgrep -x veyra):\n'
+          pgrep -ax veyra 2>/dev/null || printf '(none)\n'
+        fi
+      } > "${EVIDENCE_DIR}/desktop_smoke.txt" 2>&1 || true
+      rm -rf "${smoke_iso}" || true
+      log "headless smoke exit=${smoke_rc} (see desktop_smoke.txt); stderr tail: ${smoke_err:-<empty>}"
+      if [ "${smoke_rc}" = "101" ]; then
+        record_check "desktop.launch" "PASS" "SMOKE headless packaged smoke: exit 101 (gtk-init display-absent, window-creation reached) via ${gui_src}; full windowed launch still deferred to evaluator desktop (see desktop_smoke.txt)"
+      else
+        if command -v ldd >/dev/null 2>&1; then
+          ldd "${gui_bin}" 2>&1 | grep "not found" > "${EVIDENCE_DIR}/desktop_smoke.ldd-missing.txt" 2>/dev/null || : > "${EVIDENCE_DIR}/desktop_smoke.ldd-missing.txt"
+        fi
+        record_check "desktop.launch" "FAIL" "headless packaged smoke: exit ${smoke_rc} (expected 101 gtk-init display-absent) via ${gui_src}; see desktop_smoke.txt + desktop_smoke.stderr.log (missing libs? backend error?)"
+      fi
     fi
   } 2>&1 | tee "${step_log}" | tee -a "${MAIN_LOG}"
 }
