@@ -1,6 +1,8 @@
 import json
 import os
+import socketserver
 import tempfile
+import threading
 import unittest
 from io import BytesIO
 from pathlib import Path
@@ -72,6 +74,46 @@ class McpServerTests(unittest.TestCase):
         )
         self.transport.start()
         self.server = McpServer(".")
+
+    def test_tool_call_reaches_a_live_loopback_daemon(self):
+        # No socket mocking: proves ControlClient completes a real TCP
+        # round-trip. Regression: the parsed endpoint host was an ipaddress,
+        # not str, so the first live call died in getaddrinfo (TypeError).
+        received = {}
+
+        class LiveHandler(socketserver.StreamRequestHandler):
+            def handle(self):
+                request = json.loads(self.rfile.readline(64 * 1024 + 1))
+                received.update(request)
+                reply = {
+                    "ok": True,
+                    "id": request.get("id"),
+                    "result": {"state": "live"},
+                }
+                self.wfile.write((json.dumps(reply) + "\n").encode())
+
+        daemon = socketserver.TCPServer(("127.0.0.1", 0), LiveHandler)
+        thread = threading.Thread(target=daemon.handle_request, daemon=True)
+        thread.start()
+        os.environ["VEYRA_CONTROL_ENDPOINT"] = (
+            f"127.0.0.1:{daemon.server_address[1]}"
+        )
+        server = McpServer(".")
+        try:
+            response = server.handle(
+                {
+                    "jsonrpc": "2.0",
+                    "id": 9,
+                    "method": "tools/call",
+                    "params": {"name": "get_runtime_status", "arguments": {}},
+                }
+            )
+        finally:
+            thread.join(timeout=5)
+            daemon.server_close()
+        self.assertFalse(response["result"]["isError"])
+        self.assertIn("live", response["result"]["content"][0]["text"])
+        self.assertEqual(received["command"], "status")
 
     def test_server_has_no_direct_product_runtime_ownership(self):
         source = Path(__file__).parents[1].joinpath("mcp", "server.py").read_text()
