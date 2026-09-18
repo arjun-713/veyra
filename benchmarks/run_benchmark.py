@@ -1224,8 +1224,15 @@ def _command(
     window_radius_m: float,
     warmup_frames: int,
     repo: Path,
+    governor_config: str | Path | None = None,
 ) -> list[str]:
     ranges = distance_config["ranges_m"]
+    governor_path = (
+        Path(governor_config)
+        if governor_config is not None
+        and Path(governor_config).is_absolute()
+        else repo / str(governor_config or "configs/resource_governor.yaml")
+    )
     return [
         binary,
         "--policy",
@@ -1242,7 +1249,7 @@ def _command(
         "--utility-config",
         str(repo / "configs" / adapter.utility_config),
         "--governor-config",
-        str(repo / "configs" / "resource_governor.yaml"),
+        str(governor_path),
         "--include-leaf-details",
     ]
 
@@ -1290,6 +1297,11 @@ def _execute_policy_runs(
                             window_radius_m,
                             args.warmup_frames,
                             repo,
+                            getattr(
+                                args,
+                                "governor_config",
+                                "configs/resource_governor.yaml",
+                            ),
                         ),
                         stdin=stream_input,
                         capture_output=True,
@@ -1640,6 +1652,18 @@ def run(args: argparse.Namespace) -> dict[str, Any]:
             "runs": runs,
             "aggregate": _aggregate_policy_runs(runs),
         }
+    governor_config_arg = getattr(
+        args, "governor_config", "configs/resource_governor.yaml"
+    )
+    governor_config_path = (
+        Path(governor_config_arg)
+        if Path(governor_config_arg).is_absolute()
+        else repo / governor_config_arg
+    )
+    if not governor_config_path.is_file():
+        raise ValueError(
+            f"governor config does not exist: {governor_config_path}"
+        )
     config_paths = [
         repo / args.perception_config,
         repo / "configs/datasets.yaml",
@@ -1648,7 +1672,7 @@ def run(args: argparse.Namespace) -> dict[str, Any]:
             repo / "configs" / POLICY_ADAPTERS[policy].utility_config
             for policy in requested
         },
-        repo / "configs/resource_governor.yaml",
+        governor_config_path,
         repo / "configs/benchmark.yaml",
         repo / "configs/hardware_profiles.yaml",
     ]
@@ -1954,6 +1978,13 @@ def main() -> int:
     parser.add_argument("--dataset-sha256")
     parser.add_argument("--build-type", default="Release")
     parser.add_argument("--perception-config", default="configs/perception.yaml")
+    parser.add_argument(
+        "--governor-config",
+        default="configs/resource_governor.yaml",
+        help="Governor budget file passed to the C++ benchmark binary "
+        "(relative paths resolve against --repo; default keeps the "
+        "deployed budget)",
+    )
     parser.add_argument(
         "--perception-output",
         type=Path,

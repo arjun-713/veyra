@@ -6,17 +6,20 @@ task-quality evidence (pole/pedestrian/vehicle/hazard retention, elevation
 RMSE) against measured cost (latency, RSS, bytes, cells, churn), plus
 deltas of every leg versus the ablation_distance control.
 
-Usage: python3 reports/closure/utility/build_matrix.py
+Usage: python3 reports/closure/utility/build_matrix.py [benchmark.json [matrix.json]]
+Defaults preserve the original closure artifacts (benchmark_semanticposs00.json
+-> ablation_matrix.json); the utility rerun passes its own pair.
 """
 
 from __future__ import annotations
 
 import json
+import sys
 from pathlib import Path
 
 HERE = Path(__file__).resolve().parent
-REPORT = HERE / "benchmark_semanticposs00.json"
-OUTPUT = HERE / "ablation_matrix.json"
+REPORT = Path(sys.argv[1]) if len(sys.argv) > 1 else HERE / "benchmark_semanticposs00.json"
+OUTPUT = Path(sys.argv[2]) if len(sys.argv) > 2 else HERE / "ablation_matrix.json"
 
 ABLATION_ORDER = [
     "ablation_distance",
