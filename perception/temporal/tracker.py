@@ -67,6 +67,7 @@ class TrackSnapshot:
     speed_mps: float
     motion_valid: bool
     confirmed: bool
+    centroid_xy: tuple[float, float] = (0.0, 0.0)
 
 
 @dataclass
@@ -168,6 +169,7 @@ class TemporalTracker:
                 else 0.0,
                 motion_valid=track.motion_valid,
                 confirmed=track.confirmed,
+                centroid_xy=(float(track.centroid[0]), float(track.centroid[1])),
             )
             for track in sorted(self._tracks.values(), key=lambda item: item.track_id)
         )
