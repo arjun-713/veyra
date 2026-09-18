@@ -315,9 +315,7 @@ class SemanticPOSSDataset:
         if path is None:
             return PoseSE3.identity(timestamp), False
         lines = self._cached_lines(self._metadata(sequence), path)
-        frame_index = self._frame_index(
-            sequence, frame_id, total_lines=len(lines)
-        )
+        frame_index = self._frame_index(sequence, frame_id, total_lines=len(lines))
         if frame_index >= len(lines):
             raise ValueError(f"pose file has no value for {sequence}/{frame_id}")
         try:
