@@ -16,6 +16,12 @@ export function perceptionStages(frame:WireFrame|null){
  return [['Semantic','semantic'],['Ground','ground'],['Terrain','terrain'],['Temporal','temporal']].map(([label,key])=>({label,status:status[key]??'unavailable',latency:typeof timings[key]==='number'?timings[key]:null}));
 }
 export function mapActivity(telemetry:Json):[string,unknown][]{return [['Active cells',telemetry.map?.active_cells],['Logical bytes',telemetry.map?.logical_bytes],['Allocated bytes',telemetry.map?.allocated_bytes],['Topology changes',telemetry.map?.topology_changes],['Splits / second',telemetry.map?.splits_per_second],['Merges / second',telemetry.map?.merges_per_second]];}
+export function inputTargetFps(config:Json,status:Json):number|null{
+ const fps=config?.playback?.fps,speed=status?.speed??1;
+ if(typeof fps!=='number'||!Number.isFinite(fps)||fps<=0)return null;
+ if(typeof speed!=='number'||!Number.isFinite(speed)||speed<=0)return null;
+ return fps*speed;
+}
 export function recordEvent(events:DashboardEvent[],event:Json,now=Date.now()):DashboardEvent[]{
  if(!['status','benchmark','governor'].includes(event.type))return events;
  const message=event.error?`${event.error.process??'Runtime'}: ${event.error.message??event.error}`:event.type==='benchmark'?`Benchmark ${event.state}`:event.type==='governor'?`Governor: ${event.state??event.mode}`:`Runtime ${event.state}${event.sequence?' · '+event.sequence:''}${typeof event.index==='number'?' · frame '+event.index:''}`;
