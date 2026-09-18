@@ -87,7 +87,9 @@ class ControlClient:
             raise ControlProtocolError("control request exceeds 64 KiB")
 
         try:
-            with socket.create_connection(self.endpoint, CONNECT_TIMEOUT) as stream:
+            with socket.create_connection(
+                (str(self.endpoint[0]), self.endpoint[1]), CONNECT_TIMEOUT
+            ) as stream:
                 stream.settimeout(IO_TIMEOUT)
                 stream.sendall(frame)
                 response_frame = stream.makefile("rb").readline(MAX_FRAME_BYTES + 1)
