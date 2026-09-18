@@ -219,7 +219,7 @@
    "blockers": [
     "not genuinely measured"
    ],
-   "current": 55,
+   "current": 80,
    "deps": [
     "map"
    ],
@@ -237,7 +237,7 @@
    "blockers": [
     "short samples only"
    ],
-   "current": 70,
+   "current": 75,
    "deps": [
     "map",
     "baseline-3d"
@@ -274,7 +274,7 @@
    "acceptance": "Every visible control inventoried (allowed states/command/backend/UI/E2E); dead/dup/fake removed",
    "area": "UI + renderer + telemetry + supervisor",
    "blockers": [],
-   "current": 60,
+   "current": 72,
    "deps": [
     "tauri",
     "control-api"
