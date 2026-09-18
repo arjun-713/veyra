@@ -481,6 +481,26 @@ class CenetModeTests(unittest.TestCase):
                 )
             )
 
+    def test_cenet_build_pipeline_keeps_blank_checkpoint_unresolved(self):
+        from viewer.runtime import build_pipeline
+
+        for blank in ("", "   "):
+            with mock.patch.dict(os.environ):
+                os.environ.pop("VEYRA_CENET_CHECKPOINT", None)
+                pipeline = build_pipeline(
+                    {
+                        "semantic": {"mode": "cenet", "checkpoint": blank},
+                        "ground": {"enabled": False},
+                        "terrain": {"enabled": False},
+                        "temporal": {"enabled": False},
+                    },
+                    repo_root="/tmp/RT2",
+                )
+            self.assertIsInstance(
+                pipeline.semantic_provider, GroundTruthSemanticProvider
+            )
+            self.assertIn("no checkpoint configured", pipeline.semantic_fallback_reason or "")
+
 
 if __name__ == "__main__":
     unittest.main()
