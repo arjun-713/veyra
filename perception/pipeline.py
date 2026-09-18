@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import os
 from dataclasses import dataclass, field
 from pathlib import Path
 from time import perf_counter
@@ -58,8 +59,12 @@ class PerceptionPipeline:
         terrain_enabled: bool | None = None,
         temporal_enabled: bool | None = None,
         required_stages: tuple[str, ...] = (),
+        semantic_requested_mode: str | None = None,
+        semantic_fallback_reason: str | None = None,
     ) -> None:
         self.semantic_provider = semantic_provider or GroundTruthSemanticProvider()
+        self.semantic_requested_mode = semantic_requested_mode
+        self.semantic_fallback_reason = semantic_fallback_reason
         self.ground_segmenter = ground_segmenter
         self.terrain_analyzer = terrain_analyzer
         self.temporal_tracker = temporal_tracker
@@ -82,11 +87,13 @@ class PerceptionPipeline:
             raise PerceptionConfigurationError("perception config must be a mapping")
         semantic_config = cls._config_section(config, "semantic")
         mode = semantic_config.get("mode")
-        if mode not in {"ground_truth", "salsanext", "onnx"}:
+        if mode not in {"ground_truth", "salsanext", "onnx", "cenet"}:
             raise PerceptionConfigurationError(
                 "semantic.mode must be explicitly configured as ground_truth, "
-                "salsanext, or onnx"
+                "salsanext, onnx, or cenet"
             )
+        semantic_requested_mode = str(mode)
+        semantic_fallback_reason: str | None = None
         if mode == "ground_truth":
             semantic_provider = GroundTruthSemanticProvider()
         elif mode == "salsanext":
@@ -117,6 +124,10 @@ class PerceptionPipeline:
                 mapping={int(key): int(value) for key, value in mapping.items()},
                 default_class=int(semantic_config.get("default_class", 0)),
                 providers=providers,
+            )
+        elif mode == "cenet":
+            semantic_provider, semantic_fallback_reason = cls._cenet_provider(
+                semantic_config
             )
         else:
             raise PerceptionConfigurationError(f"unsupported semantic mode: {mode}")
@@ -159,7 +170,104 @@ class PerceptionPipeline:
             terrain_enabled=terrain_enabled,
             temporal_enabled=temporal_enabled,
             required_stages=tuple(required),
+            semantic_requested_mode=semantic_requested_mode,
+            semantic_fallback_reason=semantic_fallback_reason,
         )
+
+    #: Environment override for the CENet checkpoint; wins over config.
+    CENET_CHECKPOINT_ENV_VAR = "VEYRA_CENET_CHECKPOINT"
+
+    @classmethod
+    def _cenet_provider(
+        cls, semantic_config: dict[str, Any]
+    ) -> tuple[Any, str | None]:
+        """Build the native CENet provider with failure-safe fallback.
+
+        torch stays an optional dependency: it is imported only inside the
+        CENet provider constructor, never at pipeline import time, so the
+        core mapper runs without it. When the weights file is absent or the
+        backend cannot be constructed, return an explicit
+        ``GroundTruthSemanticProvider`` plus a human-readable fallback
+        reason (surfaced per-frame in ``PipelineStatus.diagnostics``)
+        instead of raising, so a missing optional asset can never crash a
+        session. Status therefore stays honest: ``model`` only when CENet
+        actually runs, ``ground_truth`` on fallback.
+        """
+
+        threads = semantic_config.get("threads", 4)
+        if (
+            isinstance(threads, bool)
+            or not isinstance(threads, int)
+            or threads < 1
+        ):
+            raise PerceptionConfigurationError(
+                "cenet threads must be a positive integer"
+            )
+        expected_sha = semantic_config.get("checkpoint_sha256")
+        if expected_sha is not None and not isinstance(expected_sha, str):
+            raise PerceptionConfigurationError(
+                "cenet checkpoint_sha256 must be a hex string"
+            )
+        env_checkpoint = os.environ.get(cls.CENET_CHECKPOINT_ENV_VAR, "").strip()
+        configured = semantic_config.get("checkpoint")
+        if configured is None:
+            configured = semantic_config.get("model_path", "")
+        checkpoint = env_checkpoint or (
+            configured if isinstance(configured, str) else ""
+        )
+        source = (
+            f"env {cls.CENET_CHECKPOINT_ENV_VAR}"
+            if env_checkpoint
+            else "config checkpoint"
+        )
+
+        def _fallback(reason: str) -> tuple[Any, str]:
+            return GroundTruthSemanticProvider(), reason
+
+        if not checkpoint.strip():
+            return _fallback(
+                "mode 'cenet' requested but no checkpoint configured "
+                "(set semantic.checkpoint or VEYRA_CENET_CHECKPOINT); "
+                "fell back to ground_truth"
+            )
+        path = Path(checkpoint)
+        if not path.is_file():
+            return _fallback(
+                f"mode 'cenet' requested but {source} weights absent: {path}; "
+                "fell back to ground_truth"
+            )
+        if expected_sha:
+            import hashlib
+
+            digest = hashlib.sha256()
+            try:
+                with open(path, "rb") as stream:
+                    for chunk in iter(lambda: stream.read(1 << 20), b""):
+                        digest.update(chunk)
+            except OSError as error:
+                return _fallback(
+                    f"mode 'cenet' requested but {source} weights unreadable: "
+                    f"{path} ({error}); fell back to ground_truth"
+                )
+            if digest.hexdigest() != expected_sha.strip().lower():
+                return _fallback(
+                    f"mode 'cenet' requested but {source} weights failed "
+                    f"sha256 verification: {path}; fell back to ground_truth"
+                )
+        try:
+            from perception.semantic.cenet import CENetSemanticProvider
+        except ImportError as error:
+            return _fallback(
+                f"mode 'cenet' requested but the CENet provider is unavailable "
+                f"({error}); fell back to ground_truth"
+            )
+        try:
+            return CENetSemanticProvider(path, threads=threads), None
+        except Exception as error:  # backend failures vary by release; fall back, never crash
+            return _fallback(
+                f"mode 'cenet' requested but {source} backend unavailable "
+                f"({type(error).__name__}: {error}); fell back to ground_truth"
+            )
 
     @staticmethod
     def _config_section(config: dict[str, Any], name: str) -> dict[str, Any]:
@@ -221,6 +329,10 @@ class PerceptionPipeline:
         ground = None
         ground_status = "unavailable"
         diagnostics: list[str] = []
+        if self.semantic_fallback_reason is not None:
+            diagnostics.append(
+                f"semantic fallback to ground_truth: {self.semantic_fallback_reason}"
+            )
         stage_started = perf_counter()
         if self._ground_enabled is False:
             ground_status = "disabled"

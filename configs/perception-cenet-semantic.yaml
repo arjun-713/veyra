@@ -1,20 +1,18 @@
 # Native Pandora / SemanticPOSS semantic provider (CENet checkpoint, CPU torch).
 #
-# Pipeline wiring note: PerceptionPipeline.from_config does not know
-# `mode: cenet` yet (pipeline.py is outside this change set, and its
-# interface is preserved). Until that follow-up lands, inject the provider
-# explicitly:
-#
-#     from perception.semantic import CENetSemanticProvider
-#     from perception.pipeline import PerceptionPipeline
-#     provider = CENetSemanticProvider(
-#         "data/cache/models/cenet-poss/SENet_valid_best", threads=4)
-#     pipeline = PerceptionPipeline(semantic_provider=provider, ...)
+# Wired into PerceptionPipeline.from_config as `mode: cenet`: checkpoint
+# resolution is `VEYRA_CENET_CHECKPOINT` env (when set, wins) else this
+# `checkpoint` (`model_path` also accepted as an alias); torch is imported
+# lazily by the provider constructor. When weights/torch are absent the
+# factory falls back to ground_truth with explicit provenance
+# (status.semantic == "ground_truth" plus a diagnostics entry) instead of
+# crashing the session — neural output is never relabelled: status reads
+# "model" only when CENet actually runs.
 #
 # The provider declares supported_datasets == {"semanticposs"}, so the
 # existing dataset gate accepts POSS frames and refuses anything else.
-# Weights live under data/cache (git-ignored, never committed); the sha256
-# pinned here must match before use.
+# Weights live under data/cache (git-ignored, never committed); when
+# checkpoint_sha256 is set the factory verifies it before loading.
 semantic:
   mode: cenet
   checkpoint: data/cache/models/cenet-poss/SENet_valid_best
