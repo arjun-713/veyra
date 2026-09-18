@@ -373,7 +373,7 @@
    "acceptance": "Live GitHub CI validates real Tauri product; Electron CI removed after parity; artifacts uploaded; all required checks green",
    "area": "CI + release + Electron removal",
    "blockers": [],
-   "current": 70,
+   "current": 72,
    "deps": [
     "platform",
     "tauri"
@@ -390,7 +390,7 @@
    "acceptance": "Fresh-clone setup/build/test/validate/benchmark/launch from docs only; docs claims match evidence; provenance recorded; packaged demo rehearsal all policies/layers/telemetry",
    "area": "Docs + reproducibility + demo",
    "blockers": [],
-   "current": 72,
+   "current": 74,
    "deps": [
     "benchmark",
     "tauri",
@@ -409,7 +409,7 @@
   {
    "id": "electron-removal",
    "area": "Electron removal",
-   "current": 10,
+   "current": 90,
    "target": 100,
    "blockers": [
     "parity sign-off + removal unexecuted"
@@ -423,7 +423,7 @@
     "apps/*electron*",
     ".github/workflows/product.yml"
    ],
-   "status": "OPEN"
+   "status": "INTEGRATED"
   }
  ],
  "objective": "100% on all 14 audit areas + 0 P0/P1 + READY verdict via independent audit",
