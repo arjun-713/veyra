@@ -230,7 +230,13 @@ jobs:
         run: |
           set -euo pipefail
           benchmark_outcome="${{ steps.benchmark.outcome }}"
-          report_rc=1
+          # The render step writes `report_exit_code`, so that is the name read
+          # back here. Defaulting a differently-named `report_rc` to 1 and
+          # sourcing the file left it at 1 forever: the job failed on every run
+          # whose report actually succeeded, which is every run since the
+          # benchmark started building. The status file is the contract between
+          # the two steps, so both ends use the same key.
+          report_exit_code=1
           if [[ -f artifacts/report-status.env ]]; then
             # shellcheck disable=SC1091
             source artifacts/report-status.env
@@ -239,9 +245,9 @@ jobs:
             echo "SemanticPOSS benchmark execution failed; see the benchmark step and artifacts." >&2
             exit 1
           fi
-          if [[ "$report_rc" != 0 ]]; then
-            echo "SemanticPOSS benchmark report generation failed with exit code $report_rc." >&2
-            exit "$report_rc"
+          if [[ "$report_exit_code" != 0 ]]; then
+            echo "SemanticPOSS benchmark report generation failed with exit code $report_exit_code." >&2
+            exit "$report_exit_code"
           fi
       - name: Capture benchmark failure diagnostics
         if: failure()
