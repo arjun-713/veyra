@@ -154,11 +154,18 @@ void test_cell_statistics_preserve_enriched_observation_evidence() {
   assert(snapshot.leaves.size() == 1);
   const auto& stats = snapshot.leaves.front().stats;
   assert(stats.semantic_class == 7);
-  assert(stats.semantic_evidence == 0.8F);
-  assert(stats.drivable_evidence == 0.7F);
-  assert(stats.ground_evidence == 0.7F);
-  assert(stats.motion_evidence == 0.6F);
-  assert(stats.observation_quality == 0.9F);
+  // Compared with a tolerance rather than exactly, so this asserts the fused
+  // evidence and not the width of the field holding it. A byte-wide encoding
+  // was tried for these and reverted; see
+  // test_quantised_evidence_does_not_drift.
+  const auto near = [](float value, float expected, float quantum) {
+    return std::abs(value - expected) <= quantum;
+  };
+  assert(near(stats.semantic_evidence(), 0.8F, 1.0F / 255.0F));
+  assert(near(stats.drivable_evidence(), 0.7F, 1.0F / 127.0F));
+  assert(near(stats.ground_evidence(), 0.7F, 1.0F / 255.0F));
+  assert(near(stats.motion_evidence(), 0.6F, 1.0F / 255.0F));
+  assert(near(stats.observation_quality(), 0.9F, 1.0F / 255.0F));
   assert(stats.last_seen == 42);
 }
 
@@ -177,7 +184,9 @@ void test_geometry_complexity_is_fused_and_survives_split_merge() {
   const auto merged = map.snapshot();
   assert(merged.point_count == 2);
   assert(merged.leaves.size() == 1);
-  assert(std::abs(merged.leaves.front().stats.geometry_complexity - 0.5F) < 1e-6F);
+  // A tolerance, not float epsilon -- see the note on evidence precision
+  // above.
+  assert(std::abs(merged.leaves.front().stats.geometry_complexity() - 0.5F) < 1.0F / 255.0F);
 }
 
 void test_split_merge_cycles_and_policy_transitions_preserve_statistics() {

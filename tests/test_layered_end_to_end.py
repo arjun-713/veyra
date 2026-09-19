@@ -305,6 +305,138 @@ class InteractiveEngineEndToEnd(unittest.TestCase):
         )
 
 
+def _wall_scene(
+    obstacle_present: bool, *, frame_id: str, timestamp: float
+) -> ObservationFrame:
+    """A wall at 20 m, a road, and optionally a person standing at 10 m.
+
+    When the person is absent the beams that used to stop at them reach the
+    wall instead, which is exactly the evidence that should clear their cells.
+    """
+    rows = []
+    ground = []
+    hag = []
+
+    # Road out to 25 m along +x, a few columns wide.
+    for x in np.arange(2.0, 25.0, 0.25):
+        for y in (-0.5, 0.0, 0.5):
+            rows.append((x, y, 0.0))
+            ground.append(True)
+            hag.append(0.0)
+
+    # Wall at 20 m, spanning the heights a torso occupies.
+    for z in np.arange(0.2, 2.4, 0.05):
+        for y in (-0.5, 0.0, 0.5):
+            rows.append((20.0, y, float(z)))
+            ground.append(False)
+            hag.append(float(z))
+
+    if obstacle_present:
+        # A person at 10 m, occluding the wall behind them.
+        for z in np.arange(0.2, 1.8, 0.05):
+            for y in (-0.5, 0.0, 0.5):
+                rows.append((10.0, y, float(z)))
+                ground.append(False)
+                hag.append(float(z))
+
+    xyz = np.array(rows, dtype=np.float32)
+    return _frame(
+        xyz,
+        np.array(ground, dtype=bool),
+        np.array(hag, dtype=np.float32),
+        frame_id=frame_id,
+        timestamp=timestamp,
+    )
+
+
+class VisibilityClearingEndToEnd(unittest.TestCase):
+    """The depth-image clearing pass, driven from the real ingest loop.
+
+    Everything else about clearing is tested in-process. This asserts it is
+    actually wired into the engine and running on stream data -- the check that
+    would have caught the layers being dormant behind the V2 protocol.
+    """
+
+    def setUp(self) -> None:
+        self.engine = _engine()
+        if self.engine is None:
+            self.skipTest("veyra_benchmark not built")
+
+    def _run(self, frames: list[ObservationFrame], *, clearing: bool) -> dict:
+        payload, _ = stream_bytes(frames)
+        command = [str(self.engine), "--policy", "uniform5"]
+        if clearing:
+            command.append("--clear-free-space")
+        completed = subprocess.run(
+            command, input=payload, capture_output=True, timeout=180
+        )
+        self.assertEqual(
+            completed.returncode, 0, completed.stderr.decode()[:1500]
+        )
+        return json.loads(completed.stdout.decode())
+
+    def test_clearing_is_off_unless_requested(self) -> None:
+        report = self._run(
+            [
+                _wall_scene(True, frame_id="0", timestamp=1.0),
+                _wall_scene(False, frame_id="1", timestamp=2.0),
+            ],
+            clearing=False,
+        )
+        self.assertNotIn(
+            "clearing",
+            report["snapshot"],
+            "a pass that changes dynamic-object behaviour must be opted into",
+        )
+
+    def test_departed_obstacle_is_cleared_from_a_real_stream(self) -> None:
+        frames = [_wall_scene(True, frame_id="0", timestamp=1.0)]
+        # The person leaves; repeated frames supply the repeated contradiction
+        # that clamped log-odds requires before releasing a cell.
+        frames += [
+            _wall_scene(False, frame_id=str(index), timestamp=1.0 + index)
+            for index in range(1, 12)
+        ]
+        report = self._run(frames, clearing=True)
+
+        clearing = report["snapshot"]["clearing"]
+        self.assertGreater(
+            clearing["examined"], 0, "the pass ran and looked at obstacle cells"
+        )
+        self.assertGreater(
+            clearing["cleared"],
+            0,
+            "the departed person's cells were contradicted by beams reaching the wall",
+        )
+        self.assertGreater(
+            report["snapshot"]["layers"]["free_cells"],
+            0,
+            "and that contradiction reached the occupancy accumulator",
+        )
+
+    def test_the_wall_itself_is_never_cleared(self) -> None:
+        """Clearing must not eat the structure that produced the evidence."""
+        frames = [
+            _wall_scene(False, frame_id=str(index), timestamp=1.0 + index)
+            for index in range(12)
+        ]
+        report = self._run(frames, clearing=True)
+        clearing = report["snapshot"]["clearing"]
+
+        # Every frame sees the wall and nothing beyond it, so the wall's own
+        # cells are occluded-or-confirmed, never contradicted.
+        self.assertGreater(
+            clearing["occluded"] + clearing["no_evidence"],
+            0,
+            "the wall is confirmed or left alone, not contradicted",
+        )
+        self.assertEqual(
+            report["snapshot"]["layers"]["occluded_ground_cells"],
+            0,
+            "and the road in front of it stays observed",
+        )
+
+
 class ProtocolVersionCoupling(unittest.TestCase):
     """Every writer must announce the version of the records it writes.
 

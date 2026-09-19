@@ -604,39 +604,43 @@ void CellStats::add(const Observation& observation, double envelope_m) {
   const double previous_count = static_cast<double>(count);
   if (count == 0) {
     semantic_class = observation.semantic_class;
-    semantic_evidence = observation.semantic_confidence;
-    semantic_confidence = observation.semantic_confidence;
-    drivable_evidence = observation.drivable == 1   ? observation.terrain_confidence
-                        : observation.drivable == 2 ? -observation.terrain_confidence
-                                                    : 0.0F;
-    ground_evidence = observation.ground == 1 ? observation.terrain_confidence : 0.0F;
-    terrain_confidence = observation.terrain_confidence;
-    geometry_complexity = observation.geometry_complexity;
-    motion_evidence = observation.motion_probability;
-    observation_quality = observation.observation_quality;
+    semantic_evidence_v = observation.semantic_confidence;
+    semantic_confidence_v = observation.semantic_confidence;
+    drivable_evidence_v = observation.drivable == 1   ? observation.terrain_confidence
+                                     : observation.drivable == 2 ? -observation.terrain_confidence
+                                                                 : 0.0F;
+    ground_evidence_v = observation.ground == 1 ? observation.terrain_confidence : 0.0F;
+    terrain_confidence_v = observation.terrain_confidence;
+    geometry_complexity_v = observation.geometry_complexity;
+    motion_evidence_v = observation.motion_probability;
+    observation_quality_v = observation.observation_quality;
   } else {
     const double next_count = previous_count + 1.0;
-    if (observation.semantic_confidence > semantic_evidence) {
+    // Averages are computed in float and stored back quantised. The update
+    // weights the old value by previous/next < 1, so re-quantising each step
+    // is contractive: the error stays around one quantum instead of
+    // accumulating over a cell's lifetime.
+    const auto blend = [previous_count, next_count](float current, float sample) {
+      return static_cast<float>((static_cast<double>(current) * previous_count +
+                                 static_cast<double>(sample)) /
+                                next_count);
+    };
+    if (observation.semantic_confidence > semantic_evidence()) {
       semantic_class = observation.semantic_class;
-      semantic_evidence = observation.semantic_confidence;
+      semantic_evidence_v = observation.semantic_confidence;
     }
-    semantic_confidence = static_cast<float>(
-        (semantic_confidence * previous_count + observation.semantic_confidence) / next_count);
+    semantic_confidence_v =
+        blend(semantic_confidence(), observation.semantic_confidence);
     const float drivable = observation.drivable == 1   ? observation.terrain_confidence
                            : observation.drivable == 2 ? -observation.terrain_confidence
                                                        : 0.0F;
     const float ground = observation.ground == 1 ? observation.terrain_confidence : 0.0F;
-    drivable_evidence =
-        static_cast<float>((drivable_evidence * previous_count + drivable) / next_count);
-    ground_evidence = static_cast<float>((ground_evidence * previous_count + ground) / next_count);
-    terrain_confidence = static_cast<float>(
-        (terrain_confidence * previous_count + observation.terrain_confidence) / next_count);
-    geometry_complexity = static_cast<float>(
-        (geometry_complexity * previous_count + observation.geometry_complexity) / next_count);
-    motion_evidence = static_cast<float>(
-        (motion_evidence * previous_count + observation.motion_probability) / next_count);
-    observation_quality = static_cast<float>(
-        (observation_quality * previous_count + observation.observation_quality) / next_count);
+    drivable_evidence_v = blend(drivable_evidence(), drivable);
+    ground_evidence_v = blend(ground_evidence(), ground);
+    terrain_confidence_v = blend(terrain_confidence(), observation.terrain_confidence);
+    geometry_complexity_v = blend(geometry_complexity(), observation.geometry_complexity);
+    motion_evidence_v = blend(motion_evidence(), observation.motion_probability);
+    observation_quality_v = blend(observation_quality(), observation.observation_quality);
   }
   assign_to_layer(observation, envelope_m);
   // An accepted return is positive evidence that a surface is here. This
@@ -670,25 +674,26 @@ void CellStats::merge(const CellStats& other) {
   const double right_count = static_cast<double>(other.count);
   count += other.count;
   last_seen = std::max(last_seen, other.last_seen);
-  if (other.semantic_evidence > semantic_evidence) {
+  if (other.semantic_evidence() > semantic_evidence()) {
     semantic_class = other.semantic_class;
-    semantic_evidence = other.semantic_evidence;
+    semantic_evidence_v = other.semantic_evidence_v;
   }
   const double total = left_count + right_count;
-  semantic_confidence = static_cast<float>(
-      (semantic_confidence * left_count + other.semantic_confidence * right_count) / total);
-  drivable_evidence = static_cast<float>(
-      (drivable_evidence * left_count + other.drivable_evidence * right_count) / total);
-  ground_evidence = static_cast<float>(
-      (ground_evidence * left_count + other.ground_evidence * right_count) / total);
-  terrain_confidence = static_cast<float>(
-      (terrain_confidence * left_count + other.terrain_confidence * right_count) / total);
-  geometry_complexity = static_cast<float>(
-      (geometry_complexity * left_count + other.geometry_complexity * right_count) / total);
-  motion_evidence = static_cast<float>(
-      (motion_evidence * left_count + other.motion_evidence * right_count) / total);
-  observation_quality = static_cast<float>(
-      (observation_quality * left_count + other.observation_quality * right_count) / total);
+  const auto weighted = [left_count, right_count, total](float mine, float theirs) {
+    return static_cast<float>(
+        (static_cast<double>(mine) * left_count + static_cast<double>(theirs) * right_count) /
+        total);
+  };
+  semantic_confidence_v =
+      weighted(semantic_confidence(), other.semantic_confidence());
+  drivable_evidence_v = weighted(drivable_evidence(), other.drivable_evidence());
+  ground_evidence_v = weighted(ground_evidence(), other.ground_evidence());
+  terrain_confidence_v = weighted(terrain_confidence(), other.terrain_confidence());
+  geometry_complexity_v =
+      weighted(geometry_complexity(), other.geometry_complexity());
+  motion_evidence_v = weighted(motion_evidence(), other.motion_evidence());
+  observation_quality_v =
+      weighted(observation_quality(), other.observation_quality());
 
   // Layer-wise, never pooled. Merging the three layers separately is what
   // makes a coarsened cell still able to answer "how high is the ground here"
@@ -829,6 +834,45 @@ void Map::merge_children(core::CellId parent) {
   ++impl_->merge_count;
 }
 
+ClearingStats Map::clear_free_space(const DepthImage& image, const SensorPose& pose) {
+  ClearingStats stats;
+  impl_->tiles.for_each_tile([&](TileKey, Tile& tile) {
+    for (int level = 0; level <= kMaxLevel; ++level) {
+      for (StoredCell& entry : tile.leaves[level]) {
+        if (entry.stats.obstacle.empty()) continue;
+        ++stats.examined;
+
+        // Cell centre, matching the geometry cell_intersects_window uses.
+        const double resolution = core::resolution_m(entry.id.level);
+        const double centre_x = (static_cast<double>(entry.id.ix) + 0.5) * resolution;
+        const double centre_y = (static_cast<double>(entry.id.iy) + 0.5) * resolution;
+
+        switch (test_cell_against_scan(entry.stats, centre_x, centre_y, image, pose,
+                                       impl_->config.clearing_margin_m)) {
+          case ClearingOutcome::Cleared:
+            // One step toward free, not a deletion. Clamped log-odds means a
+            // wall needs repeated contradiction before it is released, so a
+            // single bad frame cannot erase it.
+            entry.stats.observe_free();
+            ++stats.cleared;
+            break;
+          case ClearingOutcome::Occluded:
+            ++stats.occluded;
+            break;
+          case ClearingOutcome::SparedByElevation:
+            ++stats.spared_by_elevation;
+            break;
+          case ClearingOutcome::NoEvidence:
+          case ClearingOutcome::NoObstacle:
+            ++stats.no_evidence;
+            break;
+        }
+      }
+    }
+  });
+  return stats;
+}
+
 MapSnapshot Map::snapshot() const {
   MapSnapshot snapshot;
   impl_->tiles.for_each_tile([&](TileKey, const Tile& tile) {
@@ -902,6 +946,10 @@ void Uniform5Map::set_window_center(double x, double y) { map_.set_window_center
 void Uniform5Map::evict_stale_before(std::uint64_t timestamp) {
   map_.evict_stale_before(timestamp);
 }
+ClearingStats Uniform5Map::clear_free_space(const DepthImage& image, const SensorPose& pose) {
+  return map_.clear_free_space(image, pose);
+}
+
 MapSnapshot Uniform5Map::snapshot() const { return map_.snapshot(); }
 
 Uniform40Map::Uniform40Map(MapConfig config) : map_(ResolutionPolicy::Uniform40, config) {}
@@ -915,6 +963,10 @@ void Uniform40Map::set_window_center(double x, double y) { map_.set_window_cente
 void Uniform40Map::evict_stale_before(std::uint64_t timestamp) {
   map_.evict_stale_before(timestamp);
 }
+ClearingStats Uniform40Map::clear_free_space(const DepthImage& image, const SensorPose& pose) {
+  return map_.clear_free_space(image, pose);
+}
+
 MapSnapshot Uniform40Map::snapshot() const { return map_.snapshot(); }
 
 DistanceLodMap::DistanceLodMap(MapConfig config) : map_(ResolutionPolicy::DistanceLod, config) {}
@@ -931,6 +983,10 @@ void DistanceLodMap::evict_stale_before(std::uint64_t timestamp) {
 }
 void DistanceLodMap::split(core::CellId id) { map_.split(id); }
 void DistanceLodMap::merge_children(core::CellId parent) { map_.merge_children(parent); }
+ClearingStats DistanceLodMap::clear_free_space(const DepthImage& image, const SensorPose& pose) {
+  return map_.clear_free_space(image, pose);
+}
+
 MapSnapshot DistanceLodMap::snapshot() const { return map_.snapshot(); }
 
 }  // namespace veyra::map

@@ -7,6 +7,7 @@
 #include <vector>
 
 #include "veyra/core/types.hpp"
+#include "veyra/map/depth_image.hpp"
 #include "veyra/map/height_layer.hpp"
 #include "veyra/map/occupancy.hpp"
 #include "veyra/map/sensor_model.hpp"
@@ -21,17 +22,42 @@ struct CellStats {
   std::uint64_t count = 0;
   std::uint64_t last_seen = 0;
   std::uint16_t semantic_class = 0;
-  float semantic_evidence = 0.0F;
-  float semantic_confidence = 0.0F;
+  // Evidence fields. These stay 32-bit floats, and that is a decision, not an
+  // oversight: quantising them to one byte was implemented, measured and
+  // reverted.
+  //
+  // These are running averages, x <- (x*n + v)/(n+1). Once n is large the
+  // per-update change is (v - x)/n, and at 1/255 resolution that falls below
+  // one quantum at a few hundred returns -- after which every update rounds
+  // straight back and the field stops moving. Measured: 20,000 observations of
+  // 0.20 against a stored 0.73 moved it by exactly zero, where the true mean
+  // is 0.465. It is the failure veyra::map::Cell's own comment warns about for
+  // float means, in a coarser form: a plausible-looking wrong value that no
+  // assertion catches.
+  //
+  // float puts that cliff at ~10^7 updates, far outside a cell's life in a
+  // rolling window. The 24 bytes it costs buy evidence that can still change
+  // its mind. test_quantised_evidence_does_not_drift guards this.
+  float semantic_evidence_v = 0.0F;
+  float semantic_confidence_v = 0.0F;
   // Signed traversability evidence: positive is drivable, negative is
   // non-drivable, zero is unknown or insufficient confidence.
-  float drivable_evidence = 0.0F;
-  float ground_evidence = 0.0F;
-  float terrain_confidence = 0.0F;
+  float drivable_evidence_v = 0.0F;
+  float ground_evidence_v = 0.0F;
+  float terrain_confidence_v = 0.0F;
   // Count-weighted aggregate of the point-local height-complexity signal.
-  float geometry_complexity = 0.0F;
-  float motion_evidence = 0.0F;
-  float observation_quality = 0.0F;
+  float geometry_complexity_v = 0.0F;
+  float motion_evidence_v = 0.0F;
+  float observation_quality_v = 0.0F;
+
+  [[nodiscard]] float semantic_evidence() const { return semantic_evidence_v; }
+  [[nodiscard]] float semantic_confidence() const { return semantic_confidence_v; }
+  [[nodiscard]] float drivable_evidence() const { return drivable_evidence_v; }
+  [[nodiscard]] float ground_evidence() const { return ground_evidence_v; }
+  [[nodiscard]] float terrain_confidence() const { return terrain_confidence_v; }
+  [[nodiscard]] float geometry_complexity() const { return geometry_complexity_v; }
+  [[nodiscard]] float motion_evidence() const { return motion_evidence_v; }
+  [[nodiscard]] float observation_quality() const { return observation_quality_v; }
 
   // Physically separated elevation evidence. The pooled fields above remain
   // the map's accounting record -- point conservation and the existing
@@ -205,6 +231,16 @@ struct MapConfig {
   // grow only for observed cells and retained parent aggregates.
   double tile_size_m = 10.0;
   std::array<double, 3> distance_boundaries_m{10.0, 30.0, 60.0};
+  // Height of the sensor above the pose origin the protocol reports, metres.
+  //
+  // A calibration constant, so it lives in config rather than on the wire.
+  // Visibility clearing needs the sensor's own position: the pose gives x and
+  // y, and getting z wrong tilts every beam elevation and would clear the
+  // wrong cells.
+  double sensor_height_m = 1.8;
+  // Range slack before a measured return counts as lying beyond a cell.
+  // Without it, range noise on a surface lets that surface clear itself.
+  double clearing_margin_m = 0.10;
   // Height above the fitted ground at which a return stops being an obstacle
   // the vehicle strikes and becomes overhead structure it passes under. This
   // is a property of the platform the map is built for; classify() refuses
@@ -243,6 +279,16 @@ class Map {
   void set_window_center(double x, double y);
   // Drops cells whose newest evidence predates `minimum_timestamp`.
   void evict_stale_before(std::uint64_t minimum_timestamp);
+  // Contradicts obstacle evidence the current scan saw through.
+  //
+  // Walks the active leaves once and applies the depth-image test to each.
+  // Only cells the scan positively contradicts move toward free; occlusion,
+  // absent returns, and beams that passed over or under an obstacle all leave
+  // the cell alone, which is what keeps a timeout from ever producing free
+  // space. Returns what happened, because a clearing pass that cannot report
+  // how many cells it spared is not auditable.
+  ClearingStats clear_free_space(const DepthImage& image, const SensorPose& pose);
+
   // Refinement is meaningful for a dyadic map regardless of policy. It is
   // public for deterministic topology tests and controlled refinements.
   void split(core::CellId id);
@@ -267,6 +313,7 @@ class Uniform5Map {
   void update(const Observation& observation);
   void set_window_center(double x, double y);
   void evict_stale_before(std::uint64_t minimum_timestamp);
+  ClearingStats clear_free_space(const DepthImage& image, const SensorPose& pose);
   [[nodiscard]] MapSnapshot snapshot() const;
 
  private:
@@ -286,6 +333,7 @@ class Uniform40Map {
   void update(const Observation& observation);
   void set_window_center(double x, double y);
   void evict_stale_before(std::uint64_t minimum_timestamp);
+  ClearingStats clear_free_space(const DepthImage& image, const SensorPose& pose);
   [[nodiscard]] MapSnapshot snapshot() const;
 
  private:
@@ -306,6 +354,7 @@ class DistanceLodMap {
   void update(const Observation& observation);
   void set_window_center(double x, double y);
   void evict_stale_before(std::uint64_t minimum_timestamp);
+  ClearingStats clear_free_space(const DepthImage& image, const SensorPose& pose);
   void split(core::CellId id);
   void merge_children(core::CellId parent);
   [[nodiscard]] MapSnapshot snapshot() const;

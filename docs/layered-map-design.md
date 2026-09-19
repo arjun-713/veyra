@@ -177,6 +177,9 @@ it was wrong. **Measured, on the implemented code:**
 | `HeightLayer` | — | 32 B | 32 B |
 | `CellStats` | 88 B | 200 B | **168 B** |
 | `Leaf` | 104 B | 216 B | **184 B** |
+
+A byte-wide encoding of the evidence fields would reach 144 B / 160 B.
+It was built, measured, and reverted; see consequence 1 below.
 | `Observation` | 80 B | 80 B | 80 B — the new field fit in tail padding |
 
 `sizeof(Leaf)` is what `MapMemoryAccounting::logical_payload_bytes`
@@ -204,11 +207,22 @@ Three consequences that must be stated plainly and not buried:
    doing so this remains a net memory regression.** It should not be
    presented otherwise.
 
-   Two further reductions are identified and not taken: quantising the
-   eight `[0,1]` confidence floats to `uint8` as `veyra::map::Cell`
-   already does (−24 B, but it changes stored precision and several
-   exact-value tests), and D-Map's decremental removal of settled cells
-   (see [prior-art.md § 6](prior-art.md)). Both want measurement first.
+   **Quantising the eight evidence floats to one byte was implemented
+   and reverted.** It saved 24 B (`Leaf` would have been 160 B) and it
+   was wrong: those fields are running averages, so once the count is
+   large the per-update change `(v − x)/n` falls below one quantum and
+   every later update rounds straight back. Measured on the
+   implementation: 20,000 observations of 0.20 against a stored 0.73
+   moved the field by **exactly zero**, where the true mean is 0.465.
+   That is the failure `veyra::map::Cell`'s own comment warns about for
+   float means, in a coarser form — a plausible-looking wrong value no
+   assertion catches. `float` puts the cliff near 10⁷ updates, outside a
+   cell's life in a rolling window.
+   `test_quantised_evidence_does_not_drift` is the guard.
+
+   The remaining reduction identified and not taken is D-Map's
+   decremental removal of settled cells (see
+   [prior-art.md § 6](prior-art.md)), which wants measurement first.
 2. The dossier's **94.3 % reduction is an analytical example** assuming
    full coverage and a uniform 32-byte payload. It was never a Veyra
    measurement and it is now definitively not one, since our payload is

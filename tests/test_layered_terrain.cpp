@@ -311,13 +311,51 @@ void test_envelope_mismatch_refuses() {
         "and gets unknown, not a guess");
 }
 
+// Evidence must still change its mind after a cell has accumulated returns.
+//
+// This is the guard on a reverted optimisation. Quantising the eight evidence
+// floats to one byte each saved 24 bytes per cell and was implemented in full
+// before this test was written. It froze them: because the fields are running
+// averages, the per-update change (v - x)/n falls below one quantum after a
+// few hundred returns, and every later update rounds straight back. Twenty
+// thousand observations of 0.20 against a stored 0.73 moved it by exactly
+// zero.
+//
+// Anyone tempted to shrink these fields again should run this test first.
+void test_quantised_evidence_does_not_drift() {
+  veyra::map::CellStats steady;
+  for (int i = 0; i < 20000; ++i) {
+    auto o = ret(0.0, 0.0, 1);
+    o.terrain_confidence = 0.73F;
+    o.observation_quality = 0.61F;
+    steady.add(o, 2.0);
+  }
+  check_close(steady.terrain_confidence(), 0.73, 1e-3,
+              "a constant input is held accurately after 20k updates");
+  check_close(steady.observation_quality(), 0.61, 1e-3,
+              "and so is a second field with a different value");
+
+  // A step change must still be tracked: quantisation must not freeze a cell.
+  for (int i = 0; i < 20000; ++i) {
+    auto o = ret(0.0, 0.0, 1);
+    o.terrain_confidence = 0.20F;
+    steady.add(o, 2.0);
+  }
+  check(steady.terrain_confidence() < 0.50F,
+        "and a sustained change in the input still moves the stored average");
+  check_close(steady.terrain_confidence(), 0.465, 1e-3,
+              "to the true running mean of the whole history");
+}
+
 // The cost of the layers, asserted rather than estimated.
 //
 // The bill, measured at every stage rather than estimated. The layers took
 // CellStats 88 -> 192; occupancy and outlier accounting took it to 200;
 // removing the pooled elevation fields the layers already reconstruct brought
-// it back to 168. Leaf follows at 104 -> 184, so the map is 1.77x its original
-// per-cell size, not the 2.08x it peaked at.
+// it to 168. Leaf follows at 104 -> 184, so the map is 1.77x its original
+// per-cell size, down from the 2.08x it peaked at. Quantising the evidence
+// floats would have reached 144, and was reverted -- see
+// test_quantised_evidence_does_not_drift for why.
 //
 // Pinned here because an estimate is not a measurement: the first draft of
 // docs/layered-map-design.md guessed +60 B by hand and was wrong by most of a
@@ -325,7 +363,7 @@ void test_envelope_mismatch_refuses() {
 void test_memory_cost_is_what_we_claim() {
   check(sizeof(veyra::map::HeightLayer) == 32, "HeightLayer stays 32 B, zero padding");
   check(sizeof(veyra::map::CellStats) == 168, "CellStats is 168 B (was 88)");
-  check(sizeof(veyra::map::Leaf) == 184, "Leaf is 184 B (was 104) -- 1.77x, not 2.08x");
+  check(sizeof(veyra::map::Leaf) == 184, "Leaf is 184 B (was 104) -- 1.77x, down from a 2.08x peak");
   // height_above_ground landed in existing tail padding, so the observation
   // contract grew by nothing.
   check(sizeof(veyra::map::Observation) == 80, "Observation is unchanged at 80 B");
@@ -346,6 +384,7 @@ int main() {
   test_unmodelled_returns_are_counted_and_fail_safe();
   test_envelope_mismatch_refuses();
   test_unset_height_above_ground_is_loud();
+  test_quantised_evidence_does_not_drift();
   test_memory_cost_is_what_we_claim();
 
   if (failures == 0) {

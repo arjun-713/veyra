@@ -119,10 +119,17 @@ so a projected 2D sweep would have cleared it and erased whatever stands
 there. `test_beam_over_a_kerb_does_not_erase_it` asserts both that we
 spare the kerb and that a 2D projection really would have cleared it.
 
-**Still open:** the pass is not yet driven from the live ingest loop.
-It needs the sensor pose per frame, which the protocol does not carry
-yet (points arrive pre-transformed to world). That is a V4 field, the
-same mechanism as V3's `height_above_ground`.
+**Wired live.** No V4 field was needed after all: the frame header
+already carries the pose matrix, and its translation is the sensor
+origin up to a calibration height that belongs in config, not on the
+wire (`MapConfig::sensor_height_m`). The engine rasterises each frame's
+accepted returns, runs `Map::clear_free_space` before publishing the
+snapshot, and reports the outcome — including how many cells were
+*spared* — under `snapshot.clearing`.
+
+It is off by default (`--clear-free-space`), because it changes what the
+map reports about dynamic objects and a policy comparison must opt in on
+both sides rather than inherit it silently.
 
 ### 5. Coarse-to-fine integration — **open**
 

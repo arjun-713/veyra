@@ -13,6 +13,7 @@
 #include <limits>
 #include <map>
 #include <memory>
+#include <numbers>
 #include <optional>
 #include <sstream>
 #include <stdexcept>
@@ -39,6 +40,11 @@ struct Options {
   std::uint64_t warmup_frames = 0;
   bool engine = false;
   bool binary_input = false;
+  // Visibility clearing is off by default. It changes what the map reports
+  // about dynamic objects, so a benchmark comparing policies must opt in
+  // deliberately and on both sides rather than inherit it silently.
+  bool clearing_enabled = false;
+  double sensor_height_m = 1.8;
   bool include_leaf_details = false;
   std::string utility_config = VEYRA_SOURCE_DIR "/configs/utility_lod.yaml";
   std::string governor_config = VEYRA_SOURCE_DIR "/configs/resource_governor.yaml";
@@ -113,6 +119,8 @@ struct Result {
   // even during warmup, when it is intentionally absent from frame_metrics.
   std::optional<InputSummary> last_input;
   std::optional<veyra::policy::GovernorStatus> governor;
+  // Last frame's visibility-clearing outcome. Absent when clearing is off.
+  std::optional<veyra::map::ClearingStats> clearing;
   std::optional<veyra::policy::ResourceGovernorConfig> governor_config;
 };
 
@@ -185,6 +193,17 @@ class MapPolicyAdapter {
     std::visit([x, y](auto& map) { map.set_window_center(x, y); }, map_);
   }
 
+  // Runs visibility clearing on whichever map variant is active.
+  //
+  // Uniform and distance wrappers hold a Map internally, so clearing is
+  // available to every policy rather than only the one that happens to expose
+  // the underlying type -- a dynamic-object correction that applied to just
+  // one policy would make the benchmark comparison meaningless.
+  veyra::map::ClearingStats clear_free_space(const veyra::map::DepthImage& image,
+                                             const veyra::map::SensorPose& pose) {
+    return std::visit([&](auto& map) { return map.clear_free_space(image, pose); }, map_);
+  }
+
   [[nodiscard]] veyra::map::MapSnapshot snapshot() const {
     return std::visit([](const auto& map) { return map.snapshot(); }, map_);
   }
@@ -215,16 +234,16 @@ class MapPolicyAdapter {
         group.candidate.range_m = std::hypot(dx, dy);
       }
       ++group.count;
-      const double risk = leaf.stats.drivable_evidence < 0.0F
-                              ? static_cast<double>(leaf.stats.terrain_confidence)
+      const double risk = leaf.stats.drivable_evidence() < 0.0F
+                              ? static_cast<double>(leaf.stats.terrain_confidence())
                               : 0.0;
-      const double utility = 0.20 * leaf.stats.geometry_complexity +
-                             0.30 * leaf.stats.semantic_confidence +
-                             0.15 * leaf.stats.motion_evidence + 0.25 * risk;
+      const double utility = 0.20 * leaf.stats.geometry_complexity() +
+                             0.30 * leaf.stats.semantic_confidence() +
+                             0.15 * leaf.stats.motion_evidence() + 0.25 * risk;
       group.candidate.utility_score =
           std::max(group.candidate.utility_score, std::clamp(utility, 0.0, 1.0));
       group.candidate.safety_critical =
-          group.candidate.safety_critical || leaf.stats.drivable_evidence < 0.0F;
+          group.candidate.safety_critical || leaf.stats.drivable_evidence() < 0.0F;
     }
     std::vector<veyra::policy::GovernorCandidate> candidates;
     candidates.reserve(groups.size());
@@ -358,6 +377,7 @@ Options parse_options(int argc, char** argv) {
   for (int index = 1; index < argc; ++index) {
     const std::string_view arg(argv[index]);
     const auto needs_value = arg == "--policy" || arg == "--output" || arg == "--window-radius" ||
+                             arg == "--sensor-height" ||
                              arg == "--levels" || arg == "--distance-boundaries" ||
                              arg == "--warmup-frames" || arg == "--utility-config" ||
                              arg == "--governor-config";
@@ -368,6 +388,8 @@ Options parse_options(int argc, char** argv) {
       options.policy = argv[++index];
     } else if (arg == "--output") {
       options.output = argv[++index];
+    } else if (arg == "--sensor-height") {
+      options.sensor_height_m = real_value(argv[++index], "sensor height");
     } else if (arg == "--window-radius") {
       options.window_radius = real_value(argv[++index], "window radius");
     } else if (arg == "--warmup-frames") {
@@ -376,6 +398,8 @@ Options parse_options(int argc, char** argv) {
       options.engine = true;
     } else if (arg == "--binary-input") {
       options.binary_input = true;
+    } else if (arg == "--clear-free-space") {
+      options.clearing_enabled = true;
     } else if (arg == "--include-leaf-details") {
       options.include_leaf_details = true;
     } else if (arg == "--utility-config") {
@@ -623,6 +647,13 @@ Result run(const Options& options) {
   bool open = false;
   bool trailer = false;
   int stream_version = 0;
+  // 1440 x 64 over [-25, +15] degrees: a quarter-degree azimuth step and 64
+  // elevation rows, close to a 64-beam spinning unit. Bins coarser than the
+  // sensor's angular resolution would merge distinct beams; finer would leave
+  // gaps between them that read as "nothing measured" and suppress clearing.
+  veyra::map::DepthImage scan_image{1440, 64, -25.0 * std::numbers::pi / 180.0,
+                                    15.0 * std::numbers::pi / 180.0};
+  veyra::map::SensorPose sensor_pose{};
   std::uint64_t expected_points = 0;
   std::uint64_t points = 0;
   std::uint64_t frame_rejected_before = 0;
@@ -696,9 +727,12 @@ Result run(const Options& options) {
       }
       input_summary = InputSummary{};
       input_summary.timestamp_us = optional_uint_value(timestamp, "frame timestamp");
-      input_summary.pose_available = stream_version == 2;
-      input_summary.enriched_fields_available = stream_version == 2;
-      if (stream_version == 2) {
+      // >= 2, not == 2. V3 is V2 plus a trailing field, so everything V2
+      // carries is still present. Testing for equality here silently reported
+      // V3 streams as having no pose and no enriched evidence.
+      input_summary.pose_available = stream_version >= 2;
+      input_summary.enriched_fields_available = stream_version >= 2;
+      if (stream_version >= 2) {
         input_summary.pose_timestamp_us = optional_uint_value(pose_timestamp, "pose timestamp");
         input_summary.source_index = optional_uint_value(source_index, "source index");
       }
@@ -726,6 +760,10 @@ Result run(const Options& options) {
       points = 0;
       parse_duration = std::chrono::nanoseconds{duration_ns(started)};
       const auto window_started = Clock::now();
+      // Rebuilt, not reallocated: the raster is the same shape every frame, so
+      // clearing it keeps this off the allocator on the hot path.
+      scan_image.clear();
+      sensor_pose = {pose[3], pose[7], pose[11] + options.sensor_height_m};
       map.set_window_center(pose[3], pose[7]);
       map_point_count_before_update = map.snapshot().point_count;
       frame_rejected_before = result.rejected_out_of_window;
@@ -742,6 +780,10 @@ Result run(const Options& options) {
       if (ingest_observation(map, observation, result.rejected_out_of_window)) {
         ++result.input_points;
       }
+      // Every accepted return is one beam's endpoint, so the raster is built
+      // from the same points the map ingests. Rejected points are excluded on
+      // purpose: a return outside the window cannot license clearing inside it.
+      scan_image.insert(observation, sensor_pose);
       update_duration += std::chrono::nanoseconds{duration_ns(update_started)};
       ++points;
     } else if (kind == "E") {
@@ -751,6 +793,15 @@ Result run(const Options& options) {
         throw std::invalid_argument("frame point count mismatch");
       }
       parse_duration += std::chrono::nanoseconds{duration_ns(parse_started)};
+      // Visibility clearing runs after the frame is integrated and before the
+      // snapshot, so the published map reflects both what this scan added and
+      // what it contradicted. Its cost is counted in update_duration, where
+      // every other per-frame map cost already is.
+      if (options.clearing_enabled) {
+        const auto clearing_started = Clock::now();
+        result.clearing = map.clear_free_space(scan_image, sensor_pose);
+        update_duration += std::chrono::nanoseconds{duration_ns(clearing_started)};
+      }
       const auto snapshot_started = Clock::now();
       auto snapshot = map.snapshot();
       map.apply_governor(
@@ -983,6 +1034,17 @@ std::string render(const Result& result) {
       << ",\"occluded_ground_cells\":" << snapshot.layers.occluded_ground_cells
       << ",\"occupied_cells\":" << snapshot.layers.occupied_cells
       << ",\"free_cells\":" << snapshot.layers.free_cells << '}';
+  if (result.clearing.has_value()) {
+    // Reported in full, not just the cleared count. "Spared by elevation" is
+    // the number that says how often a projected 2D sweep would have erased
+    // something real, and a clearing pass that cannot show its refusals is
+    // not auditable.
+    const auto& clearing = *result.clearing;
+    out << ",\"clearing\":{\"examined\":" << clearing.examined
+        << ",\"cleared\":" << clearing.cleared << ",\"occluded\":" << clearing.occluded
+        << ",\"no_evidence\":" << clearing.no_evidence
+        << ",\"spared_by_elevation\":" << clearing.spared_by_elevation << '}';
+  }
   if (result.include_leaf_details) {
     out << ",\"leaves\":[";
     for (std::size_t index = 0; index < snapshot.leaves.size(); ++index) {
@@ -1512,32 +1574,32 @@ std::string render_cells(const veyra::map::MapSnapshot& snapshot, std::size_t bu
   bool first = true;
   for (std::size_t index = 0; index < total; index += stride) {
     const auto& leaf = snapshot.leaves[index];
-    const double risk = leaf.stats.drivable_evidence < 0.0F
-                            ? static_cast<double>(leaf.stats.terrain_confidence)
+    const double risk = leaf.stats.drivable_evidence() < 0.0F
+                            ? static_cast<double>(leaf.stats.terrain_confidence())
                             : 0.0;
     const double semantic =
-        leaf.stats.semantic_class == 0 ? 0.0 : static_cast<double>(leaf.stats.semantic_confidence);
-    const bool quality_gate = leaf.stats.observation_quality >= config.min_observation_quality;
+        leaf.stats.semantic_class == 0 ? 0.0 : static_cast<double>(leaf.stats.semantic_confidence());
+    const bool quality_gate = leaf.stats.observation_quality() >= config.min_observation_quality;
     const double utility =
         quality_gate
             ? std::clamp(
-                  static_cast<double>(leaf.stats.geometry_complexity) * config.geometry_weight +
+                  static_cast<double>(leaf.stats.geometry_complexity()) * config.geometry_weight +
                       semantic * config.semantic_weight +
-                      static_cast<double>(leaf.stats.motion_evidence) * config.motion_weight +
+                      static_cast<double>(leaf.stats.motion_evidence()) * config.motion_weight +
                       risk * config.traversability_risk_weight +
-                      (1.0 - static_cast<double>(leaf.stats.semantic_confidence)) *
+                      (1.0 - static_cast<double>(leaf.stats.semantic_confidence())) *
                           config.uncertainty_weight,
                   0.0, 1.0)
             : 0.0;
     if (!std::exchange(first, false)) out << ',';
     out << "{\"l\":" << leaf.id.level << ",\"ix\":" << leaf.id.ix << ",\"iy\":" << leaf.id.iy
         << ",\"z\":" << leaf.stats.mean_z() << ",\"c\":" << leaf.stats.semantic_class
-        << ",\"semantic_confidence\":" << leaf.stats.semantic_confidence
-        << ",\"ground_evidence\":" << leaf.stats.ground_evidence
-        << ",\"terrain_confidence\":" << leaf.stats.terrain_confidence
-        << ",\"geometry_complexity\":" << leaf.stats.geometry_complexity
-        << ",\"m\":" << leaf.stats.motion_evidence << ",\"q\":" << leaf.stats.observation_quality
-        << ",\"drivable_evidence\":" << leaf.stats.drivable_evidence << ",\"u\":" << utility << '}';
+        << ",\"semantic_confidence\":" << leaf.stats.semantic_confidence()
+        << ",\"ground_evidence\":" << leaf.stats.ground_evidence()
+        << ",\"terrain_confidence\":" << leaf.stats.terrain_confidence()
+        << ",\"geometry_complexity\":" << leaf.stats.geometry_complexity()
+        << ",\"m\":" << leaf.stats.motion_evidence() << ",\"q\":" << leaf.stats.observation_quality()
+        << ",\"drivable_evidence\":" << leaf.stats.drivable_evidence() << ",\"u\":" << utility << '}';
   }
   out << "]}";
   return out.str();

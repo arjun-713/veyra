@@ -82,6 +82,12 @@ overhead) alongside the pooled accumulator. Design and rationale:
     A merge averages children's log-odds rather than summing, so
     coarsening buys no additional inertia.
 
+15. **Evidence fields must remain able to change** — the count-weighted
+    evidence averages are stored as `float`, not quantised. A running
+    average whose per-update change falls below its storage quantum
+    freezes silently. Guarded by
+    `test_quantised_evidence_does_not_drift`.
+
 14. **Only a beam through the claimed extent clears a cell** — visibility
     clearing compares a cell's obstacle extent against the scan at each
     beam's own elevation, using that beam's crossing range
@@ -89,6 +95,6 @@ overhead) alongside the pooled accumulator. Design and rationale:
     that passes over or under the extent reports
     `ClearingOutcome::SparedByElevation` and changes nothing.
 
-Tests: `test_layered_terrain` (13 cases), `test_occupancy_uncertainty`
-(9 cases) and `test_depth_image_clearing` (8 cases) cover all eight, plus
+Tests: `test_layered_terrain` (14 cases), `test_occupancy_uncertainty`
+(9 cases) and `test_depth_image_clearing` (8 cases) cover all nine, plus
 the measured per-cell memory cost so it cannot drift silently.
