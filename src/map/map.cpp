@@ -1,5 +1,7 @@
 #include "veyra/map/map.hpp"
 
+#include "veyra/map/terrain_query.hpp"
+
 #include <algorithm>
 #include <array>
 #include <cmath>
@@ -249,6 +251,9 @@ struct Map::Impl {
     if (!(config.window_radius_m > 0.0) || !std::isfinite(config.window_radius_m)) {
       throw std::invalid_argument("window radius must be finite and positive");
     }
+    if (!(config.clearance_envelope_m > 0.0) || !std::isfinite(config.clearance_envelope_m)) {
+      throw std::invalid_argument("clearance envelope must be finite and positive");
+    }
     if (!(config.tile_size_m > 0.0) || !std::isfinite(config.tile_size_m)) {
       throw std::invalid_argument("tile size must be finite and positive");
     }
@@ -471,6 +476,115 @@ struct Map::Impl {
 };
 
 void CellStats::add(const Observation& observation) {
+  add(observation, MapConfig{}.clearance_envelope_m);
+}
+
+// Sorts one return into exactly one of the three layers.
+//
+// The decision is purely local and loop-free because `height_above_ground`
+// arrives already computed from perception's ground model. Deriving it here
+// would be circular: the layer assignment needs a ground height, and the
+// ground height is the mean of the returns assigned to the ground layer.
+// The single copy of the layer-routing rule.
+//
+// Both the outlier gate and the router need the same answer -- the gate before
+// deciding whether to fold a return in, the router immediately after -- and
+// two copies of a four-branch rule is how the two drift apart. It returns a
+// member pointer so const and non-const callers share one implementation
+// without const_cast and without the compiler re-evaluating the branches.
+HeightLayer CellStats::*CellStats::route(const Observation& observation,
+                                         double envelope_m) noexcept {
+  const float hag = observation.height_above_ground;
+  if (observation.ground == 1) return &CellStats::ground;
+  // A non-finite height means perception had no ground model here. Obstacle is
+  // the fail-safe destination: mistaking clear space for an obstacle costs a
+  // detour, the reverse costs a collision.
+  if (!std::isfinite(hag)) return nullptr;
+  // Below the fitted ground is a depression -- a pothole or a drop -- and
+  // belongs to the ground layer, where it widens the roughness traversability
+  // is scored against. Clamping it away would hide a hazard.
+  if (hag < 0.0F) return &CellStats::ground;
+  if (static_cast<double>(hag) >= envelope_m) return &CellStats::overhead;
+  return &CellStats::obstacle;
+}
+
+const HeightLayer& CellStats::layer_for(const Observation& observation,
+                                        double envelope_m) const {
+  const auto member = route(observation, envelope_m);
+  return member == nullptr ? obstacle : this->*member;
+}
+
+void CellStats::assign_to_layer(const Observation& observation, double envelope_m) {
+  const auto member = route(observation, envelope_m);
+  if (member == nullptr) {
+    // Counted so a degraded ground stage shows up as a number in the snapshot
+    // instead of as a plausible but wrong map.
+    ++unmodelled_returns;
+    obstacle.add(observation.z, observation.timestamp);
+    return;
+  }
+  (this->*member).add(observation.z, observation.timestamp);
+}
+
+void CellStats::observe_occupied() { occupancy_logodds = logodds::hit(occupancy_logodds); }
+
+void CellStats::observe_free() {
+  occupancy_logodds = logodds::miss(occupancy_logodds);
+  ++free_observations;
+}
+
+OccupancyState CellStats::occupancy() const { return logodds::state_of(occupancy_logodds); }
+
+// Range-aware ingestion: the overload a production ingestor should use.
+//
+// Two things happen here that the plain add() cannot do. First, the return is
+// tested against the layer it would join, with a gate widened by the sensor's
+// own modelled uncertainty at that range -- so a far, imprecise return is
+// accepted for disagreeing within its error bars and refused only for
+// disagreeing beyond them. Second, an accepted return is positive evidence of
+// a surface, so it drives the occupancy accumulator toward Occupied.
+//
+// Returns false when the gate refused the return. A refusal is a normal
+// outcome, not an error: it neither throws nor mutates anything but the
+// rejection counter.
+bool CellStats::add(const Observation& observation, double envelope_m,
+                    const SensorNoiseModel& noise, const SensorPose& pose) {
+  noise.validate();
+  const double range = pose.range_to(observation.x, observation.y, observation.z);
+  const HeightLayer& target = layer_for(observation, envelope_m);
+
+  if (target.count >= noise.min_returns_before_gating) {
+    // Total variance is the layer's own spread plus the sensor's modelled
+    // variance at this range. Using only the layer's spread would reject every
+    // genuine far return once a cell had been tightly observed up close; using
+    // only the sensor term would ignore that a rough surface legitimately
+    // scatters. Both sources are real, so both are in the denominator.
+    const double total_variance = target.variance_z() + noise.variance_at(range);
+    const double sigma = std::sqrt(total_variance);
+    if (sigma > 0.0) {
+      const double deviation = std::fabs(observation.z - target.mean_z);
+      if (deviation > noise.mahalanobis_gate * sigma) {
+        if (rejected_outliers < std::numeric_limits<std::uint16_t>::max()) {
+          ++rejected_outliers;
+        }
+        return false;
+      }
+    }
+  }
+
+  add(observation, envelope_m);
+  return true;
+}
+
+void CellStats::add(const Observation& observation, double envelope_m) {
+  if (!std::isfinite(envelope_m) || envelope_m <= 0.0) {
+    throw std::invalid_argument("clearance envelope must be finite and positive");
+  }
+  if (count != 0 && static_cast<double>(envelope_m) != static_cast<double>(sorted_envelope_m)) {
+    // Two returns sorted under different envelopes cannot be reconciled
+    // without the raw points, and the map does not keep raw points.
+    throw std::invalid_argument("cell already sorted under a different clearance envelope");
+  }
   if (!std::isfinite(observation.z)) {
     throw std::invalid_argument("elevation must be finite");
   }
@@ -525,6 +639,16 @@ void CellStats::add(const Observation& observation) {
     observation_quality = static_cast<float>(
         (observation_quality * previous_count + observation.observation_quality) / next_count);
   }
+  assign_to_layer(observation, envelope_m);
+  // An accepted return is positive evidence that a surface is here. This
+  // belongs on the common path, not only on the range-gated overload: whether
+  // a noise model vetted the return changes how much we trust its height, not
+  // whether something was detected. Putting it on the gated overload alone
+  // left occupancy permanently Unknown for every caller of the plain add() --
+  // the live ingestion path included, which is the same dormant-feature trap
+  // the V2 wire format created for the layers.
+  observe_occupied();
+  sorted_envelope_m = static_cast<float>(envelope_m);
   ++count;
   const double delta = observation.z - mean_z;
   mean_z += delta / static_cast<double>(count);
@@ -568,6 +692,39 @@ void CellStats::merge(const CellStats& other) {
       (motion_evidence * left_count + other.motion_evidence * right_count) / total);
   observation_quality = static_cast<float>(
       (observation_quality * left_count + other.observation_quality * right_count) / total);
+
+  // Layer-wise, never pooled. Merging the three layers separately is what
+  // makes a coarsened cell still able to answer "how high is the ground here"
+  // -- a pooled merge would fold the road back into the van roof and rebuild
+  // exactly the defect the layers exist to remove.
+  ground.merge(other.ground);
+  obstacle.merge(other.obstacle);
+  overhead.merge(other.overhead);
+  unmodelled_returns += other.unmodelled_returns;
+  free_observations += other.free_observations;
+  rejected_outliers = static_cast<std::uint16_t>(
+      std::min<std::uint32_t>(static_cast<std::uint32_t>(rejected_outliers) +
+                                  static_cast<std::uint32_t>(other.rejected_outliers),
+                              std::numeric_limits<std::uint16_t>::max()));
+  // Occupancy merges by count-weighted average of log-odds, then re-clamps.
+  //
+  // Summing would be wrong: four children each saturated at the clamp would
+  // give a parent four times the clamp, which is not a probability any child
+  // asserted and would take four times as long to contradict. Averaging keeps
+  // the parent inside the same bounded range as its children, so the "bounded
+  // time to change its mind" property survives coarsening.
+  const double blended =
+      (static_cast<double>(occupancy_logodds) * left_count +
+       static_cast<double>(other.occupancy_logodds) * right_count) / total;
+  occupancy_logodds = logodds::clamp(static_cast<int>(std::lround(blended)));
+  if (sorted_envelope_m == 0.0F) sorted_envelope_m = other.sorted_envelope_m;
+}
+
+HeightLayer CellStats::pooled_from_layers() const {
+  HeightLayer pooled = ground;
+  pooled.merge(obstacle);
+  pooled.merge(overhead);
+  return pooled;
 }
 
 double CellStats::variance_z() const {
@@ -626,7 +783,7 @@ void Map::update_at_level(const Observation& observation, int level) {
   impl_->refine_ancestors(id);
   (void)impl_->coarsen_to(id);
   CellStats one;
-  one.add(observation);
+  one.add(observation, impl_->config.clearance_envelope_m);
   impl_->merge_leaf(id, one);
 }
 
@@ -689,6 +846,30 @@ MapSnapshot Map::snapshot() const {
       for (const StoredCell& entry : tile.leaves[level]) {
         snapshot.leaves.push_back({entry.id, entry.stats});
         snapshot.point_count += entry.stats.count;
+        // Accumulated during the walk the snapshot already performs, rather
+        // than in a second pass over the leaves afterwards.
+        const CellStats& cell = entry.stats;
+        snapshot.layers.ground_points += cell.ground.count;
+        snapshot.layers.obstacle_points += cell.obstacle.count;
+        snapshot.layers.overhead_points += cell.overhead.count;
+        snapshot.layers.unmodelled_returns += cell.unmodelled_returns;
+        snapshot.layers.rejected_outliers += cell.rejected_outliers;
+        if (cell.ground.count > 0) {
+          ++snapshot.layers.cells_with_ground;
+        } else if (cell.obstacle.count > 0 || cell.overhead.count > 0) {
+          // Something was seen here and the floor was not. Unknown, not free.
+          ++snapshot.layers.occluded_ground_cells;
+        }
+        switch (cell.occupancy()) {
+          case OccupancyState::Occupied:
+            ++snapshot.layers.occupied_cells;
+            break;
+          case OccupancyState::Free:
+            ++snapshot.layers.free_cells;
+            break;
+          case OccupancyState::Unknown:
+            break;
+        }
       }
       for (const StoredCell& entry : tile.priors[level]) {
         snapshot.point_count += entry.stats.count;

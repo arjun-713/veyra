@@ -428,7 +428,7 @@ void observe_quality(InputSummary& summary, std::string_view name, std::optional
 // This is the sole protocol-to-map observation mapping. Both batch execution
 // and the long-lived engine consume it, preventing a viewer-specific lossy
 // interpretation of V2 semantic, terrain, motion, and quality evidence.
-veyra::map::Observation observation_values(const std::array<double, 19>& v, InputSummary& summary) {
+veyra::map::Observation observation_values(const std::array<double, 20>& v, InputSummary& summary) {
   for (std::size_t i : {0U, 1U, 2U, 3U, 4U, 5U, 6U, 7U, 14U, 18U}) {
     if (!std::isfinite(v[i])) throw std::invalid_argument("nonfinite required point value");
   }
@@ -447,7 +447,7 @@ veyra::map::Observation observation_values(const std::array<double, 19>& v, Inpu
   summary.ground_true_count += static_cast<std::uint64_t>(v[6]);
   ++summary.drivable_counts.at(static_cast<std::size_t>(v[7]));
   ++summary.motion_state_counts.at(static_cast<std::size_t>(v[14]));
-  const std::array<const char*, 19> names{"x",
+  const std::array<const char*, 20> names{"x",
                                           "y",
                                           "z",
                                           "intensity",
@@ -465,8 +465,9 @@ veyra::map::Observation observation_values(const std::array<double, 19>& v, Inpu
                                           "velocity_x",
                                           "velocity_y",
                                           "observation_quality",
-                                          "raw_semantic_class"};
-  for (std::size_t i : {3U, 4U, 5U, 8U, 9U, 10U, 11U, 12U, 13U, 15U, 16U, 17U, 18U})
+                                          "raw_semantic_class",
+                                          "height_above_ground"};
+  for (std::size_t i : {3U, 4U, 5U, 8U, 9U, 10U, 11U, 12U, 13U, 15U, 16U, 17U, 18U, 19U})
     observe_quality(summary, names[i],
                     std::isnan(v[i]) ? std::nullopt : std::optional<double>{v[i]});
   const auto value = [&](std::size_t i) {
@@ -481,6 +482,11 @@ veyra::map::Observation observation_values(const std::array<double, 19>& v, Inpu
           .semantic_confidence = value(5),
           .drivable = static_cast<std::uint8_t>(v[7]),
           .ground = static_cast<std::uint8_t>(v[6]),
+          // NOT value(19): NaN is the sentinel meaning "perception had no
+          // ground model for this return". value() maps NaN to 0, which is a
+          // genuine height and would silently file the scene into the obstacle
+          // layer. The NaN must survive to CellStats::add, which counts it.
+          .height_above_ground = static_cast<float>(v[19]),
           .terrain_confidence = value(11),
           .geometry_complexity = value(10),
           .motion_probability = value(13),
@@ -506,11 +512,15 @@ veyra::map::Observation parse_observation_record(std::istringstream& input, int 
                                                  InputSummary& summary) {
   std::vector<std::string> fields;
   for (std::string field; input >> field;) fields.push_back(std::move(field));
-  const std::size_t expected_fields = stream_version == 1 ? 6U : 19U;
+  const std::size_t expected_fields = stream_version == 1 ? 6U : (stream_version == 3 ? 20U : 19U);
   if (fields.size() != expected_fields) throw std::invalid_argument("malformed point record");
-  if (stream_version == 2) {
-    std::array<double, 19> values{};
-    for (std::size_t i = 0; i < values.size(); ++i)
+  if (stream_version >= 2) {
+    // V2 records carry no height above ground. It defaults to NaN rather than
+    // 0 so a V2 producer is counted as "ground model unavailable" instead of
+    // being mistaken for one reporting ground level.
+    std::array<double, 20> values{};
+    values[19] = std::numeric_limits<double>::quiet_NaN();
+    for (std::size_t i = 0; i < fields.size(); ++i)
       values[i] = fields[i] == "NA" ? std::numeric_limits<double>::quiet_NaN()
                                     : real_value(fields[i], "point value");
     return observation_values(values, summary);
@@ -642,10 +652,10 @@ Result run(const Options& options) {
       std::string version;
       input >> version;
       require_end(input, "stream header");
-      if (header || (version != "1" && version != "2")) {
+      if (header || (version != "1" && version != "2" && version != "3")) {
         throw std::invalid_argument("invalid stream header");
       }
-      stream_version = version == "1" ? 1 : 2;
+      stream_version = version == "1" ? 1 : (version == "3" ? 3 : 2);
       result.protocol_version = stream_version;
       header = true;
     } else if (kind == "H") {
@@ -960,14 +970,33 @@ std::string render(const Result& result) {
   out << "},\"nonspatial_prior_point_count\":" << snapshot.nonspatial_prior_point_count
       << ",\"split_count\":" << snapshot.split_count << ",\"merge_count\":" << snapshot.merge_count
       << ",\"invariant_no_parent_descendant_overlap\":"
-      << (snapshot.has_no_parent_descendant_overlap() ? "true" : "false");
+      << (snapshot.has_no_parent_descendant_overlap() ? "true" : "false")
+      // Layer telemetry. `unmodelled_returns` is the field that makes a
+      // producer which stopped supplying height_above_ground visible instead
+      // of silently degrading the map into one undifferentiated obstacle blob.
+      << ",\"layers\":{\"ground_points\":" << snapshot.layers.ground_points
+      << ",\"obstacle_points\":" << snapshot.layers.obstacle_points
+      << ",\"overhead_points\":" << snapshot.layers.overhead_points
+      << ",\"unmodelled_returns\":" << snapshot.layers.unmodelled_returns
+      << ",\"rejected_outliers\":" << snapshot.layers.rejected_outliers
+      << ",\"cells_with_ground\":" << snapshot.layers.cells_with_ground
+      << ",\"occluded_ground_cells\":" << snapshot.layers.occluded_ground_cells
+      << ",\"occupied_cells\":" << snapshot.layers.occupied_cells
+      << ",\"free_cells\":" << snapshot.layers.free_cells << '}';
   if (result.include_leaf_details) {
     out << ",\"leaves\":[";
     for (std::size_t index = 0; index < snapshot.leaves.size(); ++index) {
       if (index > 0) out << ',';
       const auto& leaf = snapshot.leaves[index];
       out << "{\"level\":" << leaf.id.level << ",\"ix\":" << leaf.id.ix << ",\"iy\":" << leaf.id.iy
-          << ",\"count\":" << leaf.stats.count << ",\"mean_z\":" << leaf.stats.mean_z << '}';
+          << ",\"count\":" << leaf.stats.count << ",\"mean_z\":" << leaf.stats.mean_z
+          << ",\"ground_count\":" << leaf.stats.ground.count
+          << ",\"ground_mean_z\":" << leaf.stats.ground.mean_z
+          << ",\"obstacle_count\":" << leaf.stats.obstacle.count
+          << ",\"obstacle_min_z\":" << leaf.stats.obstacle.min_z
+          << ",\"overhead_count\":" << leaf.stats.overhead.count
+          << ",\"overhead_min_z\":" << leaf.stats.overhead.min_z
+          << ",\"occupancy_logodds\":" << leaf.stats.occupancy_logodds << '}';
     }
     out << ']';
   }
@@ -1170,7 +1199,11 @@ class PersistentEngineSession {
     result_.governor = map_->governor_status();
   }
 
-  void ingest_binary(std::istream& input, std::size_t count) {
+  void set_protocol_version(int version) { protocol_version_ = version; }
+
+  void ingest_binary(std::istream& input, std::size_t count) { ingest_binary(input, count, 2); }
+
+  void ingest_binary(std::istream& input, std::size_t count, int binary_version) {
     if (count > 2'000'000) throw std::invalid_argument("binary frame exceeds point limit");
     std::ostringstream marker;
     marker << std::setprecision(17);
@@ -1187,7 +1220,8 @@ class PersistentEngineSession {
     begin_frame(frame);
     for (std::size_t point = 0; point < count; ++point) {
       const auto started = Clock::now();
-      std::array<double, 19> values{};
+      std::array<double, 20> values{};
+      values[19] = std::numeric_limits<double>::quiet_NaN();
       for (std::size_t i = 0; i < 4; ++i) values[i] = read_scalar<float>(input);
       values[4] = read_scalar<std::uint32_t>(input);
       values[5] = read_scalar<float>(input);
@@ -1197,6 +1231,9 @@ class PersistentEngineSession {
       values[14] = read_scalar<std::uint8_t>(input);
       for (std::size_t i = 15; i < 18; ++i) values[i] = read_scalar<float>(input);
       values[18] = read_scalar<std::int32_t>(input);
+      // V3 rows carry one trailing float. V2 rows do not, and their NaN
+      // default above is what marks them as lacking a ground model.
+      if (binary_version >= 3) values[19] = read_scalar<float>(input);
       auto observation = observation_values(values, input_summary_);
       observation.timestamp = input_summary_.timestamp_us.value_or(result_.input_frames);
       parse_duration_ += std::chrono::nanoseconds{duration_ns(started)};
@@ -1264,7 +1301,7 @@ class PersistentEngineSession {
   void add_point(std::istringstream& input) {
     const auto parse_started = Clock::now();
     if (!open_) throw std::invalid_argument("engine point outside frame");
-    auto observation = parse_observation_record(input, 2, input_summary_);
+    auto observation = parse_observation_record(input, protocol_version_, input_summary_);
     observation.timestamp = input_summary_.timestamp_us.value_or(result_.input_frames);
     parse_duration_ += std::chrono::nanoseconds{duration_ns(parse_started)};
     const auto update_started = Clock::now();
@@ -1377,6 +1414,11 @@ class PersistentEngineSession {
   std::unique_ptr<veyra::metrics::MetricsCollector> metrics_;
   Result result_;
   bool open_ = false;
+  // Protocol version negotiated at the VEYRA_ENGINE handshake. V2 records
+  // carry no height above ground, so their points reach the map with the NaN
+  // sentinel and are counted as lacking a ground model rather than assumed to
+  // be at ground level.
+  int protocol_version_ = 2;
   std::uint64_t expected_points_ = 0;
   std::uint64_t points_ = 0;
   std::optional<std::uint64_t> previous_timestamp_;
@@ -1403,6 +1445,7 @@ int run_binary(const Options& options) {
   bool header = false;
   bool metadata = false;
   bool trailer = false;
+  int binary_version = 2;
   std::string digest;
   std::string line;
   while (std::getline(std::cin, line)) {
@@ -1414,7 +1457,9 @@ int run_binary(const Options& options) {
       std::string version;
       input >> version;
       require_end(input, "stream header");
-      if (header || version != "2") throw std::invalid_argument("binary stream requires V2");
+      if (header || (version != "2" && version != "3"))
+        throw std::invalid_argument("binary stream requires V2 or V3");
+      binary_version = version == "3" ? 3 : 2;
       header = true;
     } else if (kind == "H") {
       if (!header || metadata || trailer || !(input >> digest) || digest.empty()) {
@@ -1428,7 +1473,7 @@ int run_binary(const Options& options) {
       std::string count;
       if (!(input >> count)) throw std::invalid_argument("malformed binary frame marker");
       require_end(input, "binary frame marker");
-      session.ingest_binary(std::cin, uint_value(count, "binary point count"));
+      session.ingest_binary(std::cin, uint_value(count, "binary point count"), binary_version);
     } else if (kind == "D") {
       std::string trailer_digest;
       input >> trailer_digest;
@@ -1511,14 +1556,18 @@ std::string render_cells(const veyra::map::MapSnapshot& snapshot, std::size_t bu
 int run_engine(const Options& options) {
   PersistentEngineSession session(options);
   bool started = false;
+  int session_version = 2;
   bool draining = false;
   std::string line;
   while (std::getline(std::cin, line)) {
     try {
-      if (line == "VEYRA_ENGINE 2") {
+      if (line == "VEYRA_ENGINE 2" || line == "VEYRA_ENGINE 3") {
         if (started) throw std::invalid_argument("duplicate engine header");
         started = true;
-        std::cout << "{\"status\":\"ready\",\"protocol_version\":2}\n" << std::flush;
+        session_version = line.back() == '3' ? 3 : 2;
+        session.set_protocol_version(session_version);
+        std::cout << "{\"status\":\"ready\",\"protocol_version\":" << session_version << "}\n"
+                  << std::flush;
         continue;
       }
       if (!started) throw std::invalid_argument("missing engine header");
@@ -1563,7 +1612,7 @@ int run_engine(const Options& options) {
         args >> count;
         require_end(args, "binary frame");
         try {
-          session.ingest_binary(std::cin, uint_value(count, "binary point count"));
+          session.ingest_binary(std::cin, uint_value(count, "binary point count"), session_version);
         } catch (const std::exception& error) {
           // A failed binary frame cannot be resynchronized by scanning text.
           std::cout << "{\"status\":\"unavailable\",\"reason\":\"" << escape(error.what())

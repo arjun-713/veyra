@@ -7,6 +7,9 @@
 #include <vector>
 
 #include "veyra/core/types.hpp"
+#include "veyra/map/height_layer.hpp"
+#include "veyra/map/occupancy.hpp"
+#include "veyra/map/sensor_model.hpp"
 #include "veyra/map/observation.hpp"
 
 namespace veyra::map {
@@ -14,6 +17,7 @@ namespace veyra::map {
 // Sufficient elevation statistics only. No observation coordinates or raw
 // point history are retained by the map.
 struct CellStats {
+ public:
   std::uint64_t count = 0;
   double mean_z = 0.0;
   double m2_z = 0.0;
@@ -33,9 +37,93 @@ struct CellStats {
   float motion_evidence = 0.0F;
   float observation_quality = 0.0F;
 
+  // Physically separated elevation evidence. The pooled fields above remain
+  // the map's accounting record -- point conservation and the existing
+  // invariant-4 tolerances are stated over them -- while these three carry the
+  // surfaces a planner actually needs to tell apart.
+  //
+  // `ground` holds returns perception accepted as ground; its mean is the
+  // surface height and its variance is the roughness.
+  // `obstacle` holds non-ground returns inside the vehicle envelope; its
+  // min_z is the base of a kerb or step.
+  // `overhead` holds returns above the envelope; its min_z is the clearance.
+  //
+  // The three are exhaustive and disjoint over accepted returns, so
+  // ground.count + obstacle.count + overhead.count == count, and Chan-merging
+  // them reproduces the pooled statistics. Both are asserted by tests rather
+  // than assumed -- see pooled_from_layers().
+  HeightLayer ground{};
+  HeightLayer obstacle{};
+  HeightLayer overhead{};
+  // Returns whose ground model was unavailable (non-finite height above
+  // ground). They are routed to the obstacle layer, the fail-safe direction,
+  // and counted here so a degraded ground stage is visible rather than silent.
+  std::uint32_t unmodelled_returns = 0;
+  // Returns refused by the Mahalanobis gate because they disagreed with the
+  // layer by more than their own modelled uncertainty could explain. Counted,
+  // never silent: a cell quietly discarding half its returns is a sensor or
+  // calibration fault, and it should be visible as a number.
+  std::uint16_t rejected_outliers = 0;
+  // Bayesian occupancy in fixed-point log-odds. See veyra/map/occupancy.hpp.
+  // Bounded by clamps, so the map can change its mind in bounded time.
+  std::int16_t occupancy_logodds = 0;
+  // Times a beam was observed passing through this cell's obstacle extent.
+  // This is positive evidence of absence, and it is the only thing that may
+  // drive a cell toward Free -- ageing never does.
+  std::uint32_t free_observations = 0;
+
   void add(const Observation& observation);
+  // Folds a return in, sorting it into the ground, obstacle or overhead layer
+  // at `envelope_m` metres above the fitted ground. The one-argument overload
+  // uses the MapConfig default and exists so existing callers keep compiling.
+  void add(const Observation& observation, double envelope_m);
+  // Folds a return in with range-dependent uncertainty and Mahalanobis outlier
+  // rejection. Returns false when the gate refused the return, in which case
+  // only `rejected_outliers` changed. This is the overload a production
+  // ingestor should use; the others assume every return is equally reliable.
+  bool add(const Observation& observation, double envelope_m, const SensorNoiseModel& noise,
+           const SensorPose& pose);
   void merge(const CellStats& other);
+
+  // Positive evidence that a surface is present here.
+  void observe_occupied();
+  // Positive evidence of absence: a beam was observed passing through this
+  // cell's claimed vertical extent. Never called by a timer -- absence of
+  // evidence is not evidence of absence, so ageing produces Unknown, not Free.
+  void observe_free();
+  [[nodiscard]] OccupancyState occupancy() const;
   [[nodiscard]] double variance_z() const;
+
+  // Chan-merges the three layers back into one accumulator.
+  //
+  // This is the claim the layered design rests on: splitting the elevation
+  // evidence by physical surface costs no accounting fidelity, because the
+  // pooled statistics remain exactly recoverable. It is a function rather than
+  // a comment so the test suite can hold it to the invariant-4 tolerances in
+  // docs/map-correctness.md.
+  [[nodiscard]] HeightLayer pooled_from_layers() const;
+
+  // Boundary between the obstacle and overhead layers, in metres above the
+  // fitted ground, that was used when these returns were folded in.
+  //
+  // Stored per cell rather than assumed globally: a cell whose returns were
+  // sorted under one envelope cannot be reinterpreted under another without
+  // the raw points, and the map does not keep raw points. A caller querying
+  // with a taller vehicle than the one that built the map gets a refusal, not
+  // a silently wrong answer.
+  float sorted_envelope_m = 0.0F;
+
+ private:
+  // Routes one return to exactly one layer. Private because the routing rule
+  // and the pooled accumulator must stay in lockstep: every path that touches
+  // one touches the other, in add(), or the reconstruction claim breaks.
+  void assign_to_layer(const Observation& observation, double envelope_m);
+  [[nodiscard]] const HeightLayer& layer_for(const Observation& observation,
+                                             double envelope_m) const;
+  // The one copy of the routing rule. nullptr means "no ground model for this
+  // return", which routes to the obstacle layer and is counted separately.
+  [[nodiscard]] static HeightLayer CellStats::*route(const Observation& observation,
+                                                     double envelope_m) noexcept;
 };
 
 struct Leaf {
@@ -57,6 +145,29 @@ struct MapMemoryAccounting {
   std::size_t allocated_bytes = 0;
 };
 
+// Aggregate layer evidence across the snapshot's active leaves.
+//
+// Exists so the layered representation is observable from outside the process.
+// Without it the layers are real but invisible: a producer that stops
+// supplying height_above_ground would degrade the map silently, and an
+// end-to-end test would have nothing to assert against. `unmodelled_returns`
+// is the number that makes that failure loud.
+struct LayerTotals {
+  std::uint64_t ground_points = 0;
+  std::uint64_t obstacle_points = 0;
+  std::uint64_t overhead_points = 0;
+  // Returns whose ground model was unavailable. Non-zero in a run that should
+  // have a ground stage means the stage or the protocol is not delivering.
+  std::uint64_t unmodelled_returns = 0;
+  std::uint64_t rejected_outliers = 0;
+  // Cells holding obstacle or overhead evidence but no ground evidence: the
+  // floor was never observed. These must never be reported drivable.
+  std::uint64_t occluded_ground_cells = 0;
+  std::uint64_t cells_with_ground = 0;
+  std::uint64_t occupied_cells = 0;
+  std::uint64_t free_cells = 0;
+};
+
 struct MapSnapshot {
   std::vector<Leaf> leaves;
   std::size_t active_leaf_count = 0;
@@ -67,6 +178,7 @@ struct MapSnapshot {
   // Retained for source compatibility; equals the two logical payload fields.
   std::size_t logical_bytes = 0;
   MapMemoryAccounting memory;
+  LayerTotals layers;
   std::uint64_t topology_change_count = 0;
   std::uint64_t split_count = 0;
   std::uint64_t merge_count = 0;
@@ -81,6 +193,11 @@ struct MapConfig {
   // grow only for observed cells and retained parent aggregates.
   double tile_size_m = 10.0;
   std::array<double, 3> distance_boundaries_m{10.0, 30.0, 60.0};
+  // Height above the fitted ground at which a return stops being an obstacle
+  // the vehicle strikes and becomes overhead structure it passes under. This
+  // is a property of the platform the map is built for; classify() refuses
+  // queries from a vehicle taller than the map was sorted for.
+  double clearance_envelope_m = 2.0;
 };
 
 enum class ResolutionPolicy : std::uint8_t {

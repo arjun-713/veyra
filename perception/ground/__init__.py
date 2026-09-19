@@ -1,5 +1,6 @@
 """Ground-segmentation boundaries."""
 
+from .height_above_ground import height_above_ground
 from .patchworkpp import (
     GroundBackendAvailability,
     GroundEvidence,
@@ -15,4 +16,5 @@ __all__ = [
     "PatchworkPPUnavailableError",
     "aggregate_ground_quality_reports",
     "ground_quality_report",
+    "height_above_ground",
 ]

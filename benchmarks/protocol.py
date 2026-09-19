@@ -12,7 +12,7 @@ import numpy as np
 
 from datasets.common.observation import ObservationFrame
 
-PROTOCOL_VERSION = 2
+PROTOCOL_VERSION = 3
 _DRIVABLE = {"unknown": 0, "drivable": 1, "non_drivable": 2}
 _MOTION_STATE = {"static": 0, "possibly_moving": 1, "moving": 2, "unknown": 3}
 
@@ -34,14 +34,17 @@ _BINARY_POINT = np.dtype(
         ("velocity", "<f4", (2,)),
         ("quality", "<f4"),
         ("raw", "<i4"),
+        # V3. NaN means perception had no ground model for this return; the
+        # map counts those rather than treating them as ground level.
+        ("height_above_ground", "<f4"),
     ]
 )
 
 
 def binary_frame_bytes(frame: ObservationFrame) -> bytes:
-    """Encode full aligned evidence, 67 bytes/point; no point text conversion.
+    """Encode full aligned evidence, 71 bytes/point; no point text conversion.
 
-    Handshake is VEYRA_ENGINE 2. B count is followed by a 152-byte frame header
+    Handshake is VEYRA_ENGINE 3. B count is followed by a 152-byte frame header
     and packed rows; the engine responds after consuming the complete frame.
     """
     count = len(frame.points)
@@ -80,6 +83,7 @@ def binary_frame_bytes(frame: ObservationFrame) -> bytes:
         ("velocity", frame.velocity_xy),
         ("quality", frame.observation_quality),
         ("raw", frame.raw_semantic_class),
+        ("height_above_ground", frame.height_above_ground),
     ):
         points[destination] = value
     for field, values, mapping in (
@@ -107,7 +111,7 @@ def _source_index(frame_id: str) -> str:
 
 
 def frame_records(frame: ObservationFrame) -> list[str]:
-    """Encode one observation frame as canonical V2 F/P/E records."""
+    """Encode one observation frame as canonical V3 F/P/E records."""
 
     pose = " ".join(_number(value) for value in frame.pose.matrix.reshape(-1))
     records = [
@@ -132,6 +136,7 @@ def frame_records(frame: ObservationFrame) -> list[str]:
         frame.velocity_xy,
         frame.observation_quality,
         frame.raw_semantic_class,
+        frame.height_above_ground,
         strict=True,
     ):
         (
@@ -150,6 +155,7 @@ def frame_records(frame: ObservationFrame) -> list[str]:
             velocity_xy,
             observation_quality,
             raw_semantic_class,
+            height_above_ground,
         ) = values
         records.append(
             " ".join(
@@ -171,6 +177,7 @@ def frame_records(frame: ObservationFrame) -> list[str]:
                     _number(velocity_xy[1]),
                     _number(observation_quality),
                     str(int(raw_semantic_class)),
+                    _number(height_above_ground),
                 )
             )
             + "\n"

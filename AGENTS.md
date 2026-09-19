@@ -32,6 +32,13 @@ Details: `docs/architecture.md`.
 - Cells hold sufficient statistics only (mean, variance, min/max z,
   count, class + confidence, traversability, motion, last-seen).
   No raw-point history. No pointer-heavy quadtree; no global rebalance.
+- Elevation is split into three `HeightLayer` accumulators per cell:
+  ground / obstacle / overhead. Occluded ground is `unknown`, never
+  drivable. Details: `docs/layered-map-design.md`.
+- Occupancy is clamped log-odds (`unknown/free/occupied`); only an
+  observed beam through a cell may make it `free`, never a timeout.
+  Ingestion gates returns on a range-dependent noise model. Prior art
+  and remaining gaps: `docs/prior-art.md`.
 
 ## Map invariants (non-negotiable)
 
@@ -77,6 +84,8 @@ Standards, DoD, checklists: `docs/development.md`.
 
 ## Docs index
 
-`architecture.md`, `map-correctness.md`, `resolution-policies.md`,
+`architecture.md`, `map-correctness.md`, `layered-map-design.md`,
+`prior-art.md`,
+`resolution-policies.md`,
 `perception-terrain-temporal.md`, `datasets-benchmarks.md`,
 `development.md`, `desktop-electron-audit.md` (Tauri migration reference).
