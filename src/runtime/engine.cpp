@@ -989,7 +989,7 @@ std::string render(const Result& result) {
       if (index > 0) out << ',';
       const auto& leaf = snapshot.leaves[index];
       out << "{\"level\":" << leaf.id.level << ",\"ix\":" << leaf.id.ix << ",\"iy\":" << leaf.id.iy
-          << ",\"count\":" << leaf.stats.count << ",\"mean_z\":" << leaf.stats.mean_z
+          << ",\"count\":" << leaf.stats.count << ",\"mean_z\":" << leaf.stats.mean_z()
           << ",\"ground_count\":" << leaf.stats.ground.count
           << ",\"ground_mean_z\":" << leaf.stats.ground.mean_z
           << ",\"obstacle_count\":" << leaf.stats.obstacle.count
@@ -1531,7 +1531,7 @@ std::string render_cells(const veyra::map::MapSnapshot& snapshot, std::size_t bu
             : 0.0;
     if (!std::exchange(first, false)) out << ',';
     out << "{\"l\":" << leaf.id.level << ",\"ix\":" << leaf.id.ix << ",\"iy\":" << leaf.id.iy
-        << ",\"z\":" << leaf.stats.mean_z << ",\"c\":" << leaf.stats.semantic_class
+        << ",\"z\":" << leaf.stats.mean_z() << ",\"c\":" << leaf.stats.semantic_class
         << ",\"semantic_confidence\":" << leaf.stats.semantic_confidence
         << ",\"ground_evidence\":" << leaf.stats.ground_evidence
         << ",\"terrain_confidence\":" << leaf.stats.terrain_confidence

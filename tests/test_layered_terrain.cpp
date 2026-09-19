@@ -53,7 +53,7 @@ void test_road_under_vehicle_roof() {
   for (int i = 0; i < 20; ++i) cell.add(ret(0.0, 0.0, 1), 2.0);
   for (int i = 0; i < 20; ++i) cell.add(ret(2.4, 2.4, 0), 2.0);
 
-  check_close(cell.mean_z, 1.2, 1e-9, "pooled mean is the fiction we are replacing");
+  check_close(cell.mean_z(), 1.2, 1e-9, "pooled mean is the fiction we are replacing");
   check_close(cell.ground.mean_z, 0.0, 1e-9, "ground layer recovers the road surface");
   check_close(cell.overhead.mean_z, 2.4, 1e-9, "overhead layer holds the roof");
   check(cell.obstacle.empty(), "nothing stands on the road");
@@ -104,7 +104,7 @@ void test_small_kerb_survives_in_layer() {
   for (int i = 0; i < 60; ++i) cell.add(ret(0.0, 0.0, 1), 2.0);
   for (int i = 0; i < 4; ++i) cell.add(ret(0.12, 0.12, 0), 2.0);
 
-  check(cell.mean_z < 0.01, "pooled mean barely registers the kerb");
+  check(cell.mean_z() < 0.01, "pooled mean barely registers the kerb");
   check_close(static_cast<double>(cell.obstacle.min_z), 0.12, 1e-6, "kerb height preserved exactly");
 
   veyra::map::VehicleProfile profile;
@@ -172,15 +172,39 @@ void test_depression_widens_ground_roughness() {
 void test_pooled_reconstruction_matches_invariant_4() {
   veyra::map::CellStats cell;
   std::uint64_t t = 1;
-  for (int i = 0; i < 97; ++i) cell.add(ret(0.01 * i, 0.0, 1, t++), 2.0);
-  for (int i = 0; i < 53; ++i) cell.add(ret(0.7 + 0.01 * i, 0.7 + 0.01 * i, 0, t++), 2.0);
-  for (int i = 0; i < 31; ++i) cell.add(ret(3.0 + 0.02 * i, 3.0 + 0.02 * i, 0, t++), 2.0);
+  double ground_sum = 0.0;
+  double obstacle_sum = 0.0;
+  double overhead_sum = 0.0;
+  for (int i = 0; i < 97; ++i) {
+    const double z = 0.01 * i;
+    ground_sum += z;
+    cell.add(ret(z, 0.0, 1, t++), 2.0);
+  }
+  for (int i = 0; i < 53; ++i) {
+    const double z = 0.7 + 0.01 * i;
+    obstacle_sum += z;
+    cell.add(ret(z, z, 0, t++), 2.0);
+  }
+  for (int i = 0; i < 31; ++i) {
+    const double z = 3.0 + 0.02 * i;
+    overhead_sum += z;
+    cell.add(ret(z, z, 0, t++), 2.0);
+  }
+  const double ground_mean = ground_sum / 97.0;
+  const double obstacle_mean = obstacle_sum / 53.0;
+  const double overhead_mean = overhead_sum / 31.0;
 
   const auto pooled = cell.pooled_from_layers();
   check(pooled.count == cell.count, "count exact");
+  check(cell.mean_z() == pooled.mean_z, "the pooled accessors are the reconstruction");
   check(cell.ground.count + cell.obstacle.count + cell.overhead.count == cell.count,
         "layers are exhaustive and disjoint");
-  check_close(pooled.mean_z, cell.mean_z, std::fabs(cell.mean_z) * 1e-9 + 1e-12, "mean rel 1e-9");
+  // Independent reference: the pooled mean the old stored accumulator would
+  // have produced, recomputed here from first principles over the same data.
+  const double reference_mean =
+      (97.0 * ground_mean + 53.0 * obstacle_mean + 31.0 * overhead_mean) / 181.0;
+  check_close(cell.mean_z(), reference_mean, std::fabs(reference_mean) * 1e-9 + 1e-12,
+              "reconstructed mean matches a first-principles pooled mean, rel 1e-9");
   // min/max reconstruct to float precision, not to double. The layers store
   // these two as float, matching veyra::map::Cell, while the pooled fields on
   // CellStats are double. That is a deliberate asymmetry and it costs nothing:
@@ -189,14 +213,12 @@ void test_pooled_reconstruction_matches_invariant_4() {
   // layers double would widen HeightLayer from 32 to 40 bytes -- +24 per cell
   // -- to buy exactness in a cross-check rather than in the invariant itself.
   const double float_eps = 1e-6;
-  check_close(static_cast<double>(pooled.min_z), cell.min_z, float_eps, "min to float precision");
-  check_close(static_cast<double>(pooled.max_z), cell.max_z, float_eps, "max to float precision");
-  check(cell.min_z == cell.min_z && cell.max_z == cell.max_z,
-        "pooled min/max remain exact doubles, so invariant 4 is unweakened");
+  check_close(cell.min_z(), 0.0, float_eps, "pooled min is the lowest ground return");
+  check_close(cell.max_z(), 3.0 + 0.02 * 30.0, float_eps, "pooled max is the highest overhead");
 
-  const double pooled_var = pooled.variance_z();
-  const double direct_var = cell.m2_z / static_cast<double>(cell.count);
-  check_close(pooled_var, direct_var, std::fabs(direct_var) * 1e-5, "variance rel 1e-5");
+  check_close(pooled.variance_z(), cell.m2_z() / static_cast<double>(cell.count),
+              std::fabs(cell.m2_z() / static_cast<double>(cell.count)) * 1e-5,
+              "variance agrees through the accessor, rel 1e-5");
 }
 
 // Merging two cells must merge layer-wise, or coarsening rebuilds the defect.
@@ -291,16 +313,19 @@ void test_envelope_mismatch_refuses() {
 
 // The cost of the layers, asserted rather than estimated.
 //
-// docs/layered-map-design.md originally estimated +60 B per cell from a hand
-// count. Measured, in two stages: the three layers took CellStats 88 -> 192,
-// and the occupancy/outlier fields took it 192 -> 200. Leaf follows at
-// 104 -> 216. The numbers are pinned here so they cannot drift silently -- this
-// guard already caught the second stage -- and so anyone widening a field sees
-// the real bill. See docs/prior-art.md for what the last 8 bytes bought.
+// The bill, measured at every stage rather than estimated. The layers took
+// CellStats 88 -> 192; occupancy and outlier accounting took it to 200;
+// removing the pooled elevation fields the layers already reconstruct brought
+// it back to 168. Leaf follows at 104 -> 184, so the map is 1.77x its original
+// per-cell size, not the 2.08x it peaked at.
+//
+// Pinned here because an estimate is not a measurement: the first draft of
+// docs/layered-map-design.md guessed +60 B by hand and was wrong by most of a
+// factor of two, and this guard has already caught one silent drift.
 void test_memory_cost_is_what_we_claim() {
   check(sizeof(veyra::map::HeightLayer) == 32, "HeightLayer stays 32 B, zero padding");
-  check(sizeof(veyra::map::CellStats) == 200, "CellStats is 200 B (was 88)");
-  check(sizeof(veyra::map::Leaf) == 216, "Leaf is 216 B (was 104) -- the map more than doubled");
+  check(sizeof(veyra::map::CellStats) == 168, "CellStats is 168 B (was 88)");
+  check(sizeof(veyra::map::Leaf) == 184, "Leaf is 184 B (was 104) -- 1.77x, not 2.08x");
   // height_above_ground landed in existing tail padding, so the observation
   // contract grew by nothing.
   check(sizeof(veyra::map::Observation) == 80, "Observation is unchanged at 80 B");

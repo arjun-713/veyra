@@ -236,8 +236,8 @@ void test_merge_averages_occupancy_rather_than_summing() {
 void test_memory_cost_of_occupancy() {
   // 8 bytes bought the entire occupancy and outlier-accounting system:
   // int16 log-odds, uint16 rejections, uint32 free observations.
-  check(sizeof(veyra::map::CellStats) == 200, "CellStats is 200 B (was 192 after layers)");
-  check(sizeof(veyra::map::Leaf) == 216, "Leaf is 216 B");
+  check(sizeof(veyra::map::CellStats) == 168, "CellStats is 168 B");
+  check(sizeof(veyra::map::Leaf) == 184, "Leaf is 184 B");
 }
 
 }  // namespace

@@ -603,7 +603,6 @@ void CellStats::add(const Observation& observation, double envelope_m) {
   }
   const double previous_count = static_cast<double>(count);
   if (count == 0) {
-    min_z = max_z = observation.z;
     semantic_class = observation.semantic_class;
     semantic_evidence = observation.semantic_confidence;
     semantic_confidence = observation.semantic_confidence;
@@ -650,13 +649,16 @@ void CellStats::add(const Observation& observation, double envelope_m) {
   observe_occupied();
   sorted_envelope_m = static_cast<float>(envelope_m);
   ++count;
-  const double delta = observation.z - mean_z;
-  mean_z += delta / static_cast<double>(count);
-  m2_z += delta * (observation.z - mean_z);
-  min_z = std::min(min_z, observation.z);
-  max_z = std::max(max_z, observation.z);
   last_seen = std::max(last_seen, observation.timestamp);
 }
+
+// Pooled statistics, reconstructed on demand. Chan-merging the three layers is
+// the same operation a coarsening merge performs, so there is one definition
+// of how elevation evidence combines rather than two kept in step by hand.
+double CellStats::mean_z() const { return pooled_from_layers().mean_z; }
+double CellStats::m2_z() const { return static_cast<double>(pooled_from_layers().m2_z); }
+double CellStats::min_z() const { return static_cast<double>(pooled_from_layers().min_z); }
+double CellStats::max_z() const { return static_cast<double>(pooled_from_layers().max_z); }
 
 void CellStats::merge(const CellStats& other) {
   if (other.count == 0) return;
@@ -666,12 +668,7 @@ void CellStats::merge(const CellStats& other) {
   }
   const double left_count = static_cast<double>(count);
   const double right_count = static_cast<double>(other.count);
-  const double delta = other.mean_z - mean_z;
-  m2_z += other.m2_z + delta * delta * left_count * right_count / (left_count + right_count);
-  mean_z = (left_count * mean_z + right_count * other.mean_z) / (left_count + right_count);
   count += other.count;
-  min_z = std::min(min_z, other.min_z);
-  max_z = std::max(max_z, other.max_z);
   last_seen = std::max(last_seen, other.last_seen);
   if (other.semantic_evidence > semantic_evidence) {
     semantic_class = other.semantic_class;
@@ -728,7 +725,7 @@ HeightLayer CellStats::pooled_from_layers() const {
 }
 
 double CellStats::variance_z() const {
-  return count > 1 ? m2_z / static_cast<double>(count - 1) : 0.0;
+  return count > 1 ? m2_z() / static_cast<double>(count - 1) : 0.0;
 }
 
 std::size_t MapSnapshot::count_at_level(int level) const {

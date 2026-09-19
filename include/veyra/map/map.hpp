@@ -19,10 +19,6 @@ namespace veyra::map {
 struct CellStats {
  public:
   std::uint64_t count = 0;
-  double mean_z = 0.0;
-  double m2_z = 0.0;
-  double min_z = 0.0;
-  double max_z = 0.0;
   std::uint64_t last_seen = 0;
   std::uint16_t semantic_class = 0;
   float semantic_evidence = 0.0F;
@@ -84,6 +80,22 @@ struct CellStats {
   bool add(const Observation& observation, double envelope_m, const SensorNoiseModel& noise,
            const SensorPose& pose);
   void merge(const CellStats& other);
+
+  // Pooled elevation statistics, reconstructed from the three layers.
+  //
+  // These were stored fields. They are now derived, because storing a value
+  // the layers already determine is duplication that can drift, and it cost
+  // 32 bytes in a cell that had more than doubled. Chan-merging three
+  // accumulators is a handful of arithmetic on data already in cache.
+  //
+  // The consequence is stated plainly: `m2_z`, `min_z` and `max_z` now carry
+  // the layers' float precision rather than double. `count` is unaffected and
+  // remains exact, so point conservation is unchanged. See
+  // docs/map-correctness.md invariant 8.
+  [[nodiscard]] double mean_z() const;
+  [[nodiscard]] double m2_z() const;
+  [[nodiscard]] double min_z() const;
+  [[nodiscard]] double max_z() const;
 
   // Positive evidence that a surface is present here.
   void observe_occupied();

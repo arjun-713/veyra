@@ -172,36 +172,43 @@ matches `CellStats::last_seen` is therefore free).
 The +60 B figure in the first draft of this document was a hand count and
 it was wrong. **Measured, on the implemented code:**
 
-| Struct | Before | After | Delta |
+| Struct | Original | Peak | Now |
 | --- | --- | --- | --- |
-| `HeightLayer` | — | 32 B | new |
-| `CellStats` | 88 B | 192 B | **+104 B** |
-| `Leaf` | 104 B | 208 B | **+104 B** |
-| `Observation` | 80 B | 80 B | 0 — `height_above_ground` fit in tail padding |
+| `HeightLayer` | — | 32 B | 32 B |
+| `CellStats` | 88 B | 200 B | **168 B** |
+| `Leaf` | 104 B | 216 B | **184 B** |
+| `Observation` | 80 B | 80 B | 80 B — the new field fit in tail padding |
 
 `sizeof(Leaf)` is what `MapMemoryAccounting::logical_payload_bytes`
-multiplies by (`src/map/map.cpp:687`), so **the map's logical payload
-exactly doubles.** `tests/test_layered_terrain.cpp` pins these numbers so
-they cannot drift silently.
+multiplies by, so **the map's logical payload is 1.77x its original
+size** — down from the 2.08x it peaked at.
+`tests/test_layered_terrain.cpp` pins these numbers so they cannot drift
+silently, and that guard has already caught one drift.
 
-The pooled accumulator is retained rather than deleted, which is where
-40 B of that goes. Deleting it is the obvious reduction — the layers
-reconstruct it — but it would move invariant 4's exact-equality rule for
-`min_z` / `max_z` onto float layer fields and would touch every consumer
-of `CellStats`. That is a deliberate follow-up with a stated cost, not a
-cleanup to slip in.
+**The pooled accumulator has since been deleted**, which is where 32 B
+came back: `mean_z`, `m2_z`, `min_z` and `max_z` are now accessors that
+Chan-merge the three layers. Storing a value the layers already
+determine was duplication that could drift. The stated cost is real and
+paid: those three now carry the layers' float precision rather than
+double. `count` is untouched and exact, so point conservation is
+unchanged.
 
 Three consequences that must be stated plainly and not buried:
 
-1. This change makes the map **twice as big**, not smaller. The adaptive
+1. This change still makes the map **substantially bigger**, not smaller. The adaptive
    resolution controller is what earns it back, by coarsening flat
    regions that now provably have nothing to lose. The layers are what
    make that provable — which is the argument for the implementation
-   order in § 5. At a doubling rather than a 60 % increase, that
-   repayment is no longer comfortable: the controller must now free more
-   than half the cells at equal quality to break even, and until it is
-   measured doing so, **this change is a net memory regression.** It
-   should not be presented otherwise.
+   order in § 5. At 1.77x, the controller must free roughly 43 % of
+   cells at equal quality to break even, and **until it is measured
+   doing so this remains a net memory regression.** It should not be
+   presented otherwise.
+
+   Two further reductions are identified and not taken: quantising the
+   eight `[0,1]` confidence floats to `uint8` as `veyra::map::Cell`
+   already does (−24 B, but it changes stored precision and several
+   exact-value tests), and D-Map's decremental removal of settled cells
+   (see [prior-art.md § 6](prior-art.md)). Both want measurement first.
 2. The dossier's **94.3 % reduction is an analytical example** assuming
    full coverage and a uniform 32-byte payload. It was never a Veyra
    measurement and it is now definitively not one, since our payload is
@@ -256,19 +263,16 @@ than by tuning.
 
 ### 3.2 Evidence of absence, in 2.5D
 
-> **Superseded — see [prior-art.md § 4](prior-art.md).** The per-point ray
-> traversal specified below is the wrong shape of solution. HKU MaRS's
-> D-Map determines occupancy by rasterising the scan into a depth image
-> at the sensor pose and projecting cells into it, which is O(1) per cell
-> instead of O(cells along ray) per point, and needs none of the
-> decimation or work-capping in § 3.5. The occupancy primitives
-> (`observe_free` / `observe_occupied`) are implemented and are the
-> interface such a pass would drive. Rewrite this section around the
-> depth-image approach before implementing the traversal.
+> **Superseded and replaced — see [prior-art.md § 4](prior-art.md).** The
+> per-point ray traversal specified below was never built. The
+> depth-image pass in
+> [depth_image.hpp](../include/veyra/map/depth_image.hpp) does the same
+> job at O(1) per cell, so the decimation and work caps in § 3.5 are
+> moot and that section no longer describes anything.
 >
-> The elevation reasoning below still holds and carries over unchanged:
-> a beam only contradicts a cell if it passed *through* the claimed
-> vertical extent.
+> The elevation reasoning below carries over unchanged and is the part
+> that matters: a beam only contradicts a cell if it passed *through*
+> the claimed vertical extent.
 
 
 A return at range `R` along bearing `θ` proves the beam traversed empty
@@ -453,10 +457,11 @@ spends its budget on ghosts.
    is preserved via layer-wise merge plus pooled reconstruction, and its
    test becomes stronger. `docs/map-correctness.md` needs the layer-wise
    restatement.
-4. **Memory/cell delta?** **+104 B per active cell, measured** — `Leaf`
-   104 B → 208 B, an exact doubling of logical payload. The +60 B in the
-   first draft was a hand count and was wrong; § 2.5 carries the measured
-   table and a test pins it. Must be earned back by step 3, and that
+4. **Memory/cell delta?** **+80 B per active cell, measured** — `Leaf`
+   104 B → 184 B, 1.77x the original logical payload, after deleting the
+   pooled fields the layers reconstruct. The +60 B in the first draft was
+   a hand count and was wrong; § 2.5 carries the measured table and a
+   test pins it. Must be earned back by step 3, and that
    repayment is a measurement, not an assumption. This is the answer most
    likely to sink the proposal, and it should be argued on the measured
    number.

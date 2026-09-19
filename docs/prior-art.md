@@ -84,31 +84,45 @@ per layer — 8 more bytes per layer, 24 per cell, on a cell that has
 already more than doubled. Rejection is the larger share of the benefit
 for none of the memory. Fusion is a measured follow-up, not an oversight.
 
-### 4. Ray-casting cost — **design superseded, not yet implemented**
+### 4. Ray-casting cost — **closed**
 
 [layered-map-design.md § 3.5](layered-map-design.md) flagged per-point ray
 traversal as the largest latency risk in the dynamic-update plan
-(~120 k points/frame, each walking several cells) and proposed decimation
-and work caps to contain it.
+(~120 k points/frame, each walking several cells) and proposed
+decimation and work caps to contain it.
 
-**D-Map shows that is the wrong shape of solution.** Instead of tracing
-rays, it rasterises the scan into a depth image at the sensor pose and
-determines occupancy by projecting a cell into that image and comparing
-depths, accelerated by a 2D segment tree. That is O(1) per cell rather
-than O(cells along ray) per point, and it removes the decimation
-trade-off entirely — no sampling, no work cap, no deferred backlog.
+**D-Map showed that was the wrong shape of solution**, so it was not
+built. Instead of tracing rays, the scan is rasterised into a spherical
+depth image at the sensor pose, and each cell asks whether anything was
+measured beyond it along its own bearing — O(1) per cell after an
+O(points) build, with no sampling, no work cap and no deferred backlog.
 
-The occupancy primitives above are the half of this that is now in place:
-`observe_free()` / `observe_occupied()` are exactly the interface a
-depth-image pass would drive, and ingestion already drives
-`observe_occupied()`. **The depth-image pass itself is not implemented**
-and is the single highest-value remaining piece of work. § 3.2 of the
-design doc should be rewritten around it before anyone builds the ray
-traversal it currently specifies.
+Implemented in [depth_image.hpp](../include/veyra/map/depth_image.hpp).
+Two design points are load-bearing:
 
-It needs sensor-frame geometry, which the protocol now has a precedent
-for carrying after the V3 bump — the same mechanism, one more field or a
-per-frame depth raster.
+- **Each bin keeps the NEAREST return.** Free space may only be claimed
+  up to the first surface along a bearing; everything past it is
+  occluded and unobserved. Any other choice clears cells hidden behind
+  the first return.
+- **The crossing range varies with elevation.** A cell is a vertical
+  column at fixed horizontal distance; a beam at elevation φ crosses it
+  at range `d / cos φ` and height `z_sensor + d·tan φ`. An earlier draft
+  compared every elevation against one range taken from the column's
+  nearest corner, and because a raised sensor sees the foot of a surface
+  as *farther* than its top, returns from an obstacle's own base read as
+  lying beyond it — the obstacle cleared itself with its own returns.
+  A test caught it.
+
+`ClearingOutcome::SparedByElevation` records the case this exists for: a
+beam reached past the cell but passed over or under the claimed extent,
+so a projected 2D sweep would have cleared it and erased whatever stands
+there. `test_beam_over_a_kerb_does_not_erase_it` asserts both that we
+spare the kerb and that a 2D projection really would have cleared it.
+
+**Still open:** the pass is not yet driven from the live ingest loop.
+It needs the sensor pose per frame, which the protocol does not carry
+yet (points arrive pre-transformed to world). That is a V4 field, the
+same mechanism as V3's `height_above_ground`.
 
 ### 5. Coarse-to-fine integration — **open**
 
@@ -140,6 +154,10 @@ Stated for balance, and because the benchmark story depends on it.
   quality. wavemap adapts resolution to *geometry*; adapting it to
   task-relevant hazard is a different and, as far as this survey found,
   less explored question.
+- **2.5D-correct visibility clearing.** UFOMap and D-Map clear in full
+  3D, where the elevation question does not arise; a 2.5D map that
+  projects to 2D erases kerbs. Carrying beam elevation through a 2.5D
+  clearing test is the specific combination this needed.
 - **A benchmark harness with pre-registered provenance** (schema-v2,
   input/config digests, execution order, warmup, repetitions). Most of
   these projects report numbers from papers; few ship the harness.

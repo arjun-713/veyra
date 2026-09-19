@@ -36,9 +36,11 @@ Details: `docs/architecture.md`.
   ground / obstacle / overhead. Occluded ground is `unknown`, never
   drivable. Details: `docs/layered-map-design.md`.
 - Occupancy is clamped log-odds (`unknown/free/occupied`); only an
-  observed beam through a cell may make it `free`, never a timeout.
-  Ingestion gates returns on a range-dependent noise model. Prior art
-  and remaining gaps: `docs/prior-art.md`.
+  observed beam through a cell's claimed vertical extent may make it
+  `free`, never a timeout. Clearing uses a spherical depth image, not
+  ray casting, and compares each beam at its own elevation. Ingestion
+  gates returns on a range-dependent noise model. Prior art and
+  remaining gaps: `docs/prior-art.md`.
 
 ## Map invariants (non-negotiable)
 
