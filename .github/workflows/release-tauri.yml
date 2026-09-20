@@ -60,6 +60,17 @@ jobs:
           if [ "${{ matrix.platform }}" = "win32" ]; then py="$RUNNER_TEMP/veyra-python/Scripts/python.exe"; else py="$RUNNER_TEMP/veyra-python/bin/python3"; fi
           "$py" -m pip install --disable-pip-version-check -r requirements.txt
           python scripts/stage_tauri_backend.py --repo . --mapper "${{ matrix.mapper }}" --python-runtime "$RUNNER_TEMP/veyra-python" --platform "${{ matrix.platform }}" --arch "${{ matrix.arch }}"
+      # CI-hardening: smoke-test the staged backend BEFORE bundling (mirrors
+      # release.yml's `VYRA`-magic assert). Runs matrix-wide (Linux/Windows/
+      # macOS, no secrets): proves the relocatable interpreter + runtime
+      # package answer `status` from the exact resources dir the bundler
+      # embeds. A green build with a dead backend must fail here, not ship.
+      - name: Smoke-test staged backend
+        shell: bash
+        run: |
+          if [ "${{ matrix.platform }}" = "win32" ]; then py="src-tauri/resources/backend/python/python.exe"; else py="src-tauri/resources/backend/python/bin/python3"; fi
+          printf '{"id":"release-smoke","command":"status","args":{}}\n' | "$py" -u -m runtime --repo src-tauri/resources/backend > "$RUNNER_TEMP/runtime-smoke.bin"
+          python -c "from pathlib import Path; data=Path(r'$RUNNER_TEMP/runtime-smoke.bin').read_bytes(); assert len(data)>16 and data[:4]==b'VYRA'"
       - name: Install desktop dependencies
         working-directory: apps/desktop
         run: npm ci
@@ -122,6 +133,45 @@ jobs:
         env:
           RELEASE_VERSION: ${{ inputs.version || github.ref_name }}
         run: npm run tauri:build -- --bundles "${{ matrix.bundles }}"
+      # CI-hardening: assert the expected installer artifacts exist BEFORE
+      # writing provenance (survey §5.8). Cheap per-leg gate, no secrets:
+      # maps each requested bundle target to its file suffix and fails the
+      # leg when the bundler silently emits nothing (or the wrong set).
+      # Backend-payload depth (manifest inside deb/rpm) is verified
+      # off-runner by MANIFEST.md inspection; installer install-and-launch
+      # still needs native runners (see CI-STATUS.md).
+      - name: Assert bundle artifacts present
+        shell: bash
+        run: |
+          python - <<'PY'
+          import os
+          import sys
+          from pathlib import Path
+
+          suffix = {
+              "deb": ".deb",
+              "rpm": ".rpm",
+              "appimage": ".AppImage",
+              "nsis": ".exe",
+              "dmg": ".dmg",
+          }
+          requested = [b.strip() for b in os.environ["VEYRA_BUNDLES"].split(",")]
+          unknown = [b for b in requested if b not in suffix]
+          if unknown:
+              raise SystemExit(f"unknown bundle target(s): {unknown}")
+          root = Path("src-tauri/target/release/bundle")
+          missing = [
+              b
+              for b in requested
+              if not any(p.suffix == suffix[b] for p in root.rglob("*") if p.is_file())
+          ]
+          if missing:
+              found = sorted(p.as_posix() for p in root.rglob("*") if p.is_file())
+              raise SystemExit(f"missing bundle(s) {missing}; found: {found}")
+          print(f"bundle artifacts present for: {requested}")
+          PY
+        env:
+          VEYRA_BUNDLES: ${{ matrix.bundles }}
       # Canonical provenance order: manifest FIRST, then checksums (mirrors
       # release.yml's publish regen). SHA256SUMS is the covering artifact —
       # it lists release-manifest.json — so the manifest itself does not
