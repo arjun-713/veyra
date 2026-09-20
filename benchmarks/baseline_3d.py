@@ -179,6 +179,135 @@ def git_sha(repo: Path) -> str | None:
         return None
 
 
+def git_dirty(repo: Path) -> bool | None:
+    """True when the worktree has uncommitted changes; None if git is unusable."""
+    try:
+        result = subprocess.run(
+            ["git", "status", "--short"],
+            cwd=repo,
+            capture_output=True,
+            text=True,
+            check=True,
+        )
+        return bool(result.stdout.strip())
+    except (OSError, subprocess.CalledProcessError):
+        return None
+
+
+def sha256_file(path: Path) -> str | None:
+    """Hex sha256 of a file, or None when the file is absent/unreadable."""
+    import hashlib
+
+    try:
+        digest = hashlib.sha256()
+        with open(path, "rb") as handle:
+            for chunk in iter(lambda: handle.read(1 << 20), b""):
+                digest.update(chunk)
+        return digest.hexdigest()
+    except OSError:
+        return None
+
+
+def cpu_model() -> str | None:
+    try:
+        with open("/proc/cpuinfo", encoding="utf-8") as handle:
+            for line in handle:
+                if line.startswith("model name"):
+                    return line.split(":", 1)[1].strip() or None
+    except OSError:
+        return None
+    return None
+
+
+def gpu_info() -> dict[str, str | None]:
+    """Best-effort GPU identity; null name when no NVIDIA GPU is visible.
+
+    The baseline itself runs CPU-only (numpy); this block exists so a
+    reproducer can confirm the hardware matches, not because the GPU is used.
+    """
+    try:
+        result = subprocess.run(
+            ["nvidia-smi", "--query-gpu=name", "--format=csv,noheader"],
+            capture_output=True,
+            text=True,
+            check=True,
+            timeout=10,
+        )
+        names = [line.strip() for line in result.stdout.splitlines() if line.strip()]
+        return {"name": "; ".join(names) if names else None, "note": "nvidia-smi"}
+    except (OSError, subprocess.CalledProcessError, subprocess.TimeoutExpired):
+        return {
+            "name": None,
+            "note": "no discrete GPU visible (nvidia-smi absent/failed); "
+            "baseline runs CPU-only",
+        }
+
+
+def collect_provenance(
+    repo: Path,
+    args: argparse.Namespace,
+    *,
+    frames_voxelized: int,
+    point_count: int,
+) -> dict:
+    """Complete provenance block: every key a reproducer needs to match hardware,
+    source data, config, and code identity. No dataset access required."""
+    perception_config = (
+        Path(args.perception_config)
+        if Path(args.perception_config).is_absolute()
+        else repo / args.perception_config
+    )
+    try:
+        perception_config_rel = str(perception_config.relative_to(repo))
+    except ValueError:
+        perception_config_rel = str(perception_config)
+    return {
+        "git_sha": git_sha(repo),
+        "git_dirty": git_dirty(repo),
+        "timestamp_utc": datetime.now(timezone.utc).isoformat(),
+        "host": platform.node(),
+        "platform": platform.platform(),
+        "os": {
+            "platform": platform.platform(),
+            "machine": platform.machine(),
+            "processor": platform.processor() or cpu_model(),
+        },
+        "cpu_count": __import__("os").cpu_count(),
+        "cpu_model": cpu_model(),
+        "gpu": gpu_info(),
+        "mem_total_bytes": mem_total_bytes(),
+        "python": platform.python_version(),
+        "numpy": np.__version__,
+        "dataset": args.dataset,
+        "sequence": args.sequence,
+        "start_frame": args.start,
+        "frame_count": args.count,
+        "frames_voxelized": frames_voxelized,
+        "point_count": point_count,
+        "dataset_root": str(Path(args.dataset_root).resolve())
+        if args.dataset_root
+        else None,
+        "build": {
+            "type": "pure_python_no_cpp",
+            "cpp_mapper_binary_used": False,
+            "note": "baseline_3d.py uses numpy only; no cmake/cargo "
+            "artifact is built or executed",
+        },
+        "config": {
+            "perception_config": perception_config_rel,
+            "perception_sha256": sha256_file(perception_config),
+            "perception_executed": not args.skip_perception,
+        },
+        "policy": {
+            "leg": "measured_3d",
+            "representation": "sparse_voxel_hash_occupancy_5cm",
+            "voxel_size_m": VOXEL_SIZE_M,
+            "suite": "reference",
+        },
+        "voxel_size_m": VOXEL_SIZE_M,
+    }
+
+
 def run_baseline(args: argparse.Namespace, repo: Path) -> dict:
     base_rss = peak_rss_bytes()
     load_started_ns = time.perf_counter_ns()
@@ -215,6 +344,26 @@ def run_baseline(args: argparse.Namespace, repo: Path) -> dict:
     for frame in frames:
         baseline.insert_frame(np.asarray(frame.points[:, :3], dtype=np.float64))
     rss = peak_rss_bytes()
+
+    cumulative = 0
+    frame_rows: list[dict[str, int]] = []
+    for index, (points, new_voxels, latency_ns) in enumerate(
+        zip(
+            baseline.per_frame_points,
+            baseline.per_frame_new_voxels,
+            baseline.insert_latency_ns,
+        )
+    ):
+        cumulative += new_voxels
+        frame_rows.append(
+            {
+                "frame_index": args.start + index,
+                "points": points,
+                "new_voxels": new_voxels,
+                "cumulative_voxels": cumulative,
+                "insert_latency_ns": latency_ns,
+            }
+        )
 
     analytical = analytical_3d_reference_bounds(min_xyz, max_xyz)
     latency = nearest_rank_summary([float(v) for v in baseline.insert_latency_ns])
@@ -269,6 +418,8 @@ def run_baseline(args: argparse.Namespace, repo: Path) -> dict:
             "occupied_voxels": len(baseline.voxels),
             "per_frame_new_voxels": baseline.per_frame_new_voxels,
             "per_frame_points": baseline.per_frame_points,
+            "per_frame_insert_latency_ns": list(baseline.insert_latency_ns),
+            "frames": frame_rows,
         },
         "memory_accounting": {
             "method": (
@@ -307,16 +458,12 @@ def run_baseline(args: argparse.Namespace, repo: Path) -> dict:
             "peak_rss_bytes_measured": rss["peak_rss_bytes"],
             "table_markdown": "",
         },
-        "provenance": {
-            "git_sha": git_sha(repo),
-            "timestamp_utc": datetime.now(timezone.utc).isoformat(),
-            "host": platform.node(),
-            "platform": platform.platform(),
-            "cpu_count": __import__("os").cpu_count(),
-            "mem_total_bytes": mem_total_bytes(),
-            "python": platform.python_version(),
-            "voxel_size_m": VOXEL_SIZE_M,
-        },
+        "provenance": collect_provenance(
+            repo,
+            args,
+            frames_voxelized=len(frames),
+            point_count=point_count,
+        ),
     }
 
 
