@@ -45,6 +45,38 @@ class RuntimeTelemetryTests(unittest.TestCase):
             report["perception"]["provenance"]["timestamp_source"], "absent"
         )
 
+    def test_report_exposes_measured_perception_evidence_without_fabricating_tracks(self):
+        report = Telemetry().report(
+            {
+                "state": "paused",
+                "index": 0,
+                "frames": 1,
+                "queue_depth": 0,
+                "dropped_frames": 0,
+                "visualization_dropped": 0,
+            },
+            {
+                "n_points": 4,
+                "ground": [1, 1, 0, 0],
+                "semantic_labels": [0, 1, 1, 6],
+                "semantic_confidence": [0.0, 0.8, 0.9, 0.7],
+                "drivable": ["drivable", "drivable", "unknown", "non_drivable"],
+                "motion_state": ["STATIC", "STATIC", "MOVING", "STATIC"],
+                "pipeline_status": {"semantic": "model"},
+                "perception_timings_ms": {},
+                "map": {"snapshot": {"active_leaf_count": 1}, "metrics": {}},
+            },
+            None,
+            None,
+            {"provider": "salsanext", "execution_provider": "CPUExecutionProvider"},
+        )
+        self.assertEqual(report["perception"]["points"], 4)
+        self.assertEqual(report["perception"]["ground_ratio"], 0.5)
+        self.assertAlmostEqual(report["perception"]["semantic_confidence_mean"], 0.6)
+        self.assertEqual(report["perception"]["drivable_counts"]["unknown"], 1)
+        self.assertIsNone(report["perception"]["track_counts"])
+        self.assertEqual(report["health"]["mapper"], "available")
+
 
 if __name__ == "__main__":
     unittest.main()

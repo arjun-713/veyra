@@ -74,13 +74,10 @@ budget. Forced shutdown terminates the runtime process group so mapper children
 do not survive the app.
 
 `.github/workflows/release-tauri.yml` builds the Tauri bundles on their native
-runners, stages the backend, runs product
-checks, emits `SHA256SUMS`, and uploads the bundles as CI artifacts. (GitHub
-Release publishing and bundle signing remain future work there; the retained
-`.github/workflows/release.yml` Electron track is stale — see
-`reports/closure/electron/REMOVAL.md`.) The channel/signing sentences below
-describe that retained Electron track: tags with a
-suffix and manual prerelease runs use the prerelease channel. Windows signing
+runners, stages the backend, runs product checks, emits `SHA256SUMS`, and
+uploads the bundles as CI artifacts. GitHub Release publishing and bundle
+signing remain future work there. Tags with a suffix and manual prerelease
+runs use the prerelease channel. Windows signing
 is enabled only when the `WINDOWS_CERTIFICATE_BASE64` and
 `WINDOWS_CERTIFICATE_PASSWORD` secrets exist. macOS signing/notarization is
 enabled only when the Apple certificate, identity, account password and team

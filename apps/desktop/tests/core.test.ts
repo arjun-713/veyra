@@ -9,6 +9,9 @@ test('rejects arbitrary commands, traversal capabilities, and invalid numeric co
   }
   assert.deepEqual(validateCommand('seek',{index:12}),{command:'seek',args:{index:12}});
   assert.deepEqual(validateCommand('governor',{mode:'conserve'}),{command:'governor',args:{mode:'conserve'}});
+  assert.deepEqual(validateCommand('layer',{layer:'lod'}),{command:'layer',args:{layer:'lod'}});
+  assert.deepEqual(validateCommand('validation',{}),{command:'validation',args:{}});
+  assert.throws(()=>validateCommand('layer',{layer:'../../etc'}));
   assert.throws(()=>validateCommand('governor',{mode:'shell'}));
 });
 

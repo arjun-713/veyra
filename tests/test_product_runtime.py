@@ -310,6 +310,17 @@ class ProductServiceTests(unittest.TestCase):
         self.assertEqual(response["result"]["status"], "unavailable")
         service.close()
 
+    def test_validation_requires_a_configured_real_session(self):
+        from runtime.service import ProductRuntime
+
+        service = ProductRuntime(Path.cwd())
+        response = service.handle(
+            {"id": "validation", "command": "validation", "args": {}}
+        )
+        self.assertFalse(response["ok"])
+        self.assertIn("configure a dataset", response["error"]["message"])
+        service.close()
+
     def test_real_dataset_playback_seek_policy_reset_and_visualization(self):
         from runtime.service import ProductRuntime
         from tests.test_runtime_player import _write_frame

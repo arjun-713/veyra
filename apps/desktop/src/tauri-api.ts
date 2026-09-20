@@ -53,6 +53,7 @@ export function createTauriAPI():TauriDesktopAPI{
  return {
   info:()=>invoke<Json>('runtime_status').then(status=>({version:'0.1.0',platform:navigator.platform,repo:'tauri',mapper:null,status})),
   command:(command,args={})=>invoke<Json>('runtime_command',{command,args}),
+  stop:()=>invoke<Json>('runtime_stop'),
   configure:config=>invoke<Json>('runtime_configure',{config}),
   validateConfig:config=>invoke<Json>('runtime_validate_config',{config}),
   chooseDataset:async dataset=>invoke<Json>('choose_dataset',{dataset,root:await chooseDirectory()}),

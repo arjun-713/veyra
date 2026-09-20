@@ -266,10 +266,12 @@ fn packaged_tauri_session_runs_a_real_semanticposs_flow() {
 
     // 4. Map display evidence: the supervisor must have delivered telemetry
     // with live map statistics plus a binary visualization frame.
-    let (telemetry_cells, visual_bytes) = timed("drain", || {
+    let (telemetry_cells, visual_bytes, perception, health) = timed("drain", || {
         let events = controller.drain_events();
         let mut cells = 0_u64;
         let mut visual = 0_usize;
+        let mut perception = Value::Null;
+        let mut health = Value::Null;
         for event in &events {
             match event.metadata.get("type").and_then(Value::as_str) {
                 Some("telemetry") => {
@@ -280,6 +282,12 @@ fn packaged_tauri_session_runs_a_real_semanticposs_flow() {
                             .and_then(Value::as_u64)
                             .unwrap_or(0),
                     );
+                    perception = event
+                        .metadata
+                        .get("perception")
+                        .cloned()
+                        .unwrap_or(Value::Null);
+                    health = event.metadata.get("health").cloned().unwrap_or(Value::Null);
                 }
                 Some("visualization") => {
                     visual = visual.max(event.payload.len());
@@ -288,7 +296,7 @@ fn packaged_tauri_session_runs_a_real_semanticposs_flow() {
             }
         }
         eprintln!("E2E drained {} events", events.len());
-        (cells, visual)
+        (cells, visual, perception, health)
     });
     assert!(
         telemetry_cells > 0,
@@ -298,6 +306,10 @@ fn packaged_tauri_session_runs_a_real_semanticposs_flow() {
         visual_bytes > 0,
         "a binary visualization frame must reach the renderer channel"
     );
+    assert_eq!(perception["provider"], "Ground Truth");
+    assert!(perception["points"].as_u64().unwrap_or(0) > 0);
+    assert!(health["runtime"].as_str().is_some());
+    assert_eq!(health["telemetry"], "fresh");
     eprintln!("E2E map evidence: active_cells={telemetry_cells} visual_bytes={visual_bytes}");
 
     // 5. Seek back to the first frame (reprocesses deterministically).

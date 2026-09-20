@@ -5,7 +5,8 @@ export const nativeRuntimeUnavailableMessage =
 
 export interface DesktopAPI {
  info():Promise<Json>;
- command(command:string,args?:Json):Promise<Json>;
+  command(command:string,args?:Json):Promise<Json>;
+  stop():Promise<Json>;
  configure(config:Json):Promise<Json>;
  validateConfig(config:Json):Promise<Json>;
  chooseDataset(dataset:string):Promise<Json|null>;

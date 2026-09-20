@@ -45,8 +45,8 @@ export function inputTargetFps(config:Json,status:Json):number|null{
  return fps*speed;
 }
 export function recordEvent(events:DashboardEvent[],event:Json,now=Date.now()):DashboardEvent[]{
- if(!['status','benchmark','governor'].includes(event.type))return events;
- const message=event.error?`${event.error.process??'Runtime'}: ${event.error.message??event.error}`:event.type==='benchmark'?`Benchmark ${event.state}`:event.type==='governor'?`Governor: ${event.state??event.mode}`:`Runtime ${event.state}${event.sequence?' · '+event.sequence:''}${typeof event.index==='number'?' · frame '+event.index:''}`;
+ if(!['status','benchmark','validation','governor'].includes(event.type))return events;
+ const message=event.error?`${event.error.process??'Runtime'}: ${event.error.message??event.error}`:event.type==='benchmark'?`Benchmark ${event.state}`:event.type==='validation'?`Validation ${event.state}`:event.type==='governor'?`Governor: ${event.state??event.mode}`:`Runtime ${event.state}${event.sequence?' · '+event.sequence:''}${typeof event.index==='number'?' · frame '+event.index:''}`;
  if(events.at(-1)?.message===message)return events;
  return [...events,{time:now,message,kind:event.error?'error':event.type}].slice(-200);
 }

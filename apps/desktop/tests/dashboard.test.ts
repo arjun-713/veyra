@@ -9,6 +9,7 @@ test('event log is capped and records observable status transitions without repe
  let events:any[]=[];for(let i=0;i<205;i++)events=recordEvent(events,{type:'status',state:'paused',index:i},i);
  assert.equal(events.length,200);assert.equal(events[0].time,5);
  assert.equal(recordEvent(events,{type:'telemetry',fps:20},206),events);
+ assert.equal(recordEvent([], {type:'validation',state:'complete'}, 207)[0].message, 'Validation complete');
 });
 test('summary reports displayed semantic points only when semantic evidence exists',()=>{
  const bytes=new Uint8Array(64);const data=new DataView(bytes.buffer);data.setFloat32(16,2,true);data.setFloat32(48,2,true);
@@ -88,4 +89,9 @@ test('renderer clamps packed counts to GPU buffer capacity instead of overflowin
  assert.deepEqual(clampRenderCounts(Number.NaN,undefined),{points:{count:0,truncated:true},cells:{count:0,truncated:true},truncated:true});
  assert.deepEqual(clampRenderCounts(-3,-7),{points:{count:0,truncated:false},cells:{count:0,truncated:false},truncated:false});
  assert.equal(RENDER_CAPACITY,100000);
+});
+test('render provenance distinguishes source data from sampled viewport data',()=>{
+ const stats:any={source_points:250000,rendered_points:100000,source_cells:180000,rendered_cells:100000,sampling_active:true};
+ assert.equal(stats.rendered_points<stats.source_points,true);
+ assert.equal(stats.sampling_active,true);
 });
