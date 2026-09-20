@@ -180,6 +180,11 @@ jobs:
           node-version: '24'
           cache: npm
           cache-dependency-path: apps/desktop/package-lock.json
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: pip
+          cache-dependency-path: requirements.txt
       - uses: dtolnay/rust-toolchain@stable
         with:
           components: rustfmt, clippy
@@ -198,6 +203,8 @@ jobs:
           npm run build
       - name: Prepare resource path for Rust checks
         run: mkdir -p src-tauri/resources/backend
+      - name: Install runtime dependencies for supervisor tests
+        run: python -m pip install --disable-pip-version-check numpy==2.2.6 scipy==1.15.3 pyyaml==6.0.2
       - name: Rust checks
         run: |
           cargo fmt --manifest-path src-tauri/Cargo.toml -- --check
