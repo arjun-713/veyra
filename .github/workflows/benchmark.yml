@@ -1,9 +1,6 @@
 name: SemanticPOSS benchmark
 
 on:
-  pull_request:
-  schedule:
-    - cron: "17 2 * * *"
   workflow_dispatch:
     inputs:
       semanticposs_sequence:
@@ -36,6 +33,10 @@ on:
 permissions:
   contents: read
   actions: read
+
+concurrency:
+  group: semanticposs-benchmark-${{ github.ref }}
+  cancel-in-progress: true
 
 env:
   SEMANTIC_POSS_URL: http://www.poss.pku.edu.cn/OpenDataResource/SemanticPOSS/SemanticPOSS_dataset.zip

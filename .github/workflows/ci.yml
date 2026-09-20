@@ -2,35 +2,134 @@ name: CI
 
 on:
   push:
+    paths:
+      - '.github/workflows/**'
+      - 'CMakeLists.txt'
+      - 'cmake/**'
+      - 'include/**'
+      - 'src/**'
+      - 'apps/runtime/**'
+      - 'apps/benchmark/**'
+      - 'tests/**'
+      - 'datasets/**'
+      - 'perception/**'
+      - 'scripts/**'
+      - 'benchmarks/**'
+      - 'viewer/**'
+      - 'configs/**'
+      - 'requirements*.txt'
+      - 'pyproject.toml'
+      - 'apps/desktop/**'
+      - 'src-tauri/**'
+      - 'tools/tauri.mjs'
   pull_request:
+    paths:
+      - '.github/workflows/**'
+      - 'CMakeLists.txt'
+      - 'cmake/**'
+      - 'include/**'
+      - 'src/**'
+      - 'apps/runtime/**'
+      - 'apps/benchmark/**'
+      - 'tests/**'
+      - 'datasets/**'
+      - 'perception/**'
+      - 'scripts/**'
+      - 'benchmarks/**'
+      - 'viewer/**'
+      - 'configs/**'
+      - 'requirements*.txt'
+      - 'pyproject.toml'
+      - 'apps/desktop/**'
+      - 'src-tauri/**'
+      - 'tools/tauri.mjs'
 
 permissions:
   contents: read
 
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
 jobs:
-  cpp:
-    name: C++ ${{ matrix.build_type }}
+  changes:
+    name: Classify changed paths
     runs-on: ubuntu-24.04
-    strategy:
-      fail-fast: false
-      matrix:
-        build_type: [Debug, Release]
+    outputs:
+      cpp: ${{ steps.filter.outputs.cpp }}
+      python: ${{ steps.filter.outputs.python }}
+      desktop: ${{ steps.filter.outputs.desktop }}
+      shared: ${{ steps.filter.outputs.shared }}
     steps:
       - uses: actions/checkout@v4
-      - name: Configure
+        with:
+          fetch-depth: 2
+      - id: filter
+        uses: dorny/paths-filter@v3
+        with:
+          filters: |
+            cpp:
+              - 'CMakeLists.txt'
+              - 'cmake/**'
+              - 'include/**'
+              - 'src/**'
+              - 'apps/runtime/**'
+              - 'apps/benchmark/**'
+              - 'tests/**'
+            python:
+              - 'datasets/**'
+              - 'perception/**'
+              - 'scripts/**'
+              - 'benchmarks/**'
+              - 'viewer/**'
+              - 'configs/**'
+              - 'requirements*.txt'
+              - 'pyproject.toml'
+              - 'tests/**'
+            desktop:
+              - 'apps/desktop/**'
+              - 'src-tauri/**'
+              - 'tools/tauri.mjs'
+            shared:
+              - '.github/workflows/**'
+              - 'protocol/**'
+              - 'docs/ci-fast-actions.md'
+
+  cpp:
+    name: C++ Release core checks
+    needs: changes
+    if: needs.changes.outputs.cpp == 'true' || needs.changes.outputs.shared == 'true'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Configure Release build
         run: >-
-          cmake -S . -B build/${{ matrix.build_type }}
-          -DCMAKE_BUILD_TYPE=${{ matrix.build_type }}
-          -DBUILD_TESTING=ON -DVEYRA_BUILD_APPS=ON
-          -DCMAKE_CXX_FLAGS=-Werror
+          cmake -S . -B build/Release
+          -DCMAKE_BUILD_TYPE=Release
+          -DBUILD_TESTING=ON
+          -DVEYRA_BUILD_APPS=ON
+          -DCMAKE_CXX_FLAGS='-Wall -Wextra -Wpedantic -Werror'
       - name: Build
-        run: cmake --build build/${{ matrix.build_type }} --parallel
+        run: cmake --build build/Release --parallel
       - name: CTest
-        run: ctest --test-dir build/${{ matrix.build_type }} --output-on-failure -E "python_unittest|benchmark_runtime"
+        run: >-
+          ctest --test-dir build/Release --output-on-failure --parallel 2
+          -E 'python_unittest|benchmark_runtime'
+      - name: C++ formatting
+        run: |
+          python3 -m pip install --disable-pip-version-check clang-format==23.1.0
+          clang-format --dry-run --Werror apps/benchmark/main.cpp
 
   python:
     name: Python tests and static checks
+    needs: changes
+    if: needs.changes.outputs.python == 'true' || needs.changes.outputs.shared == 'true'
     runs-on: ubuntu-24.04
+    timeout-minutes: 12
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
@@ -44,19 +143,10 @@ jobs:
         run: python -m pip install -r requirements.txt -r requirements-dev.txt
       - name: Ruff
         run: >-
-          ruff check benchmarks perception datasets
-          viewer/runtime.py viewer/server.py
-          scripts/fetch_semantic_model.py scripts/validate_perception.py
-          tests/test_perception_pipeline.py tests/test_salsanext.py tests/test_taxonomy.py
+          ruff check benchmarks perception datasets viewer scripts tests
           --ignore SIM117,I001
       - name: Python formatting
-        run: >-
-          ruff format --check
-          viewer/runtime.py viewer/server.py
-          datasets/generic perception/semantic/salsanext.py
-          scripts/validate_perception.py
-          tests/test_generic_adapter.py tests/test_viewer_adapter_integration.py
-          tests/test_viewer_runtime_http.py
+        run: ruff format --check benchmarks datasets perception scripts tests viewer
       - name: JavaScript syntax
         run: node --check viewer/static/app.js
       - name: Python syntax
@@ -66,17 +156,37 @@ jobs:
           python -m unittest discover -s benchmarks -p 'test*.py' -v
           python -m unittest discover -s tests -p 'test*.py' -v
 
-  formatting:
-    name: C++ formatting
+  desktop:
+    name: Desktop frontend and Rust checks
+    needs: changes
+    if: needs.changes.outputs.desktop == 'true' || needs.changes.outputs.shared == 'true'
     runs-on: ubuntu-24.04
+    timeout-minutes: 12
     steps:
       - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-node@v4
         with:
-          python-version: '3.12'
-      - name: Install pinned clang-format
-        run: python -m pip install --disable-pip-version-check clang-format==23.1.0
-      - name: Check owned C++ sources
-        run: python -c "import shutil; assert shutil.which('clang-format'), 'clang-format is not on PATH'"
-      - name: Check owned C++ sources
-        run: clang-format --dry-run --Werror apps/benchmark/main.cpp
+          node-version: '24'
+          cache: npm
+          cache-dependency-path: apps/desktop/package-lock.json
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt, clippy
+      - name: Install Linux WebView dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install --yes libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf
+      - name: Install frontend dependencies
+        working-directory: apps/desktop
+        run: npm ci
+      - name: Frontend checks
+        working-directory: apps/desktop
+        run: |
+          npm test
+          npm run check
+          npm run build
+      - name: Rust checks
+        run: |
+          cargo fmt --manifest-path src-tauri/Cargo.toml -- --check
+          cargo test --manifest-path src-tauri/Cargo.toml
+          cargo clippy --manifest-path src-tauri/Cargo.toml --all-targets --all-features -- -D warnings
