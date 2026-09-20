@@ -225,87 +225,110 @@ class TemporalTracker:
         else:
             clusters = self._clusters(world, labels)
         assignments: dict[int, _Track] = {}
-        used: set[int] = set()
+        matched: dict[int, _Track] = {}
+        cluster_centroids = [world[indices].mean(axis=0)[:2] for indices in clusters]
         track_bucket_size = self.association_distance_m / np.sqrt(2.0)
         tracks_by_bucket: dict[tuple[int, int], list[_Track]] = {}
         for track in self._tracks.values():
-            bucket = tuple(
-                np.floor(track.centroid / track_bucket_size).astype(np.int64)
-            )
+            bucket = np.floor(track.centroid / track_bucket_size).astype(np.int64)
             tracks_by_bucket.setdefault((int(bucket[0]), int(bucket[1])), []).append(
                 track
             )
-        for indices in clusters:
-            centroid = world[indices].mean(axis=0)[:2]
-            label = int(labels[indices[0]])
-            bucket = np.floor(centroid / track_bucket_size).astype(np.int64)
-            nearby_tracks: list[_Track] = []
-            for dx in range(-2, 3):
-                for dy in range(-2, 3):
-                    nearby_tracks.extend(
-                        tracks_by_bucket.get(
-                            (int(bucket[0] + dx), int(bucket[1] + dy)), []
+        for label in sorted(np.unique(labels).tolist()):
+            cluster_ids = [
+                index
+                for index, indices in enumerate(clusters)
+                if int(labels[indices[0]]) == int(label)
+            ]
+            nearby_by_id: dict[int, _Track] = {}
+            for cluster_id in cluster_ids:
+                bucket = np.floor(
+                    cluster_centroids[cluster_id] / track_bucket_size
+                ).astype(np.int64)
+                for dx in range(-2, 3):
+                    for dy in range(-2, 3):
+                        for track in tracks_by_bucket.get(
+                            (int(bucket[0] + dx), int(bucket[1] + dy)), ()
+                        ):
+                            if track.semantic_class == int(label):
+                                nearby_by_id[track.track_id] = track
+            candidate_tracks = sorted(nearby_by_id.values(), key=lambda track: track.track_id)
+            if candidate_tracks and cluster_ids:
+                from scipy.optimize import linear_sum_assignment
+
+                distances = np.asarray(
+                    [
+                        [
+                            np.linalg.norm(
+                                cluster_centroids[cluster_id] - track.centroid
+                            )
+                            for track in candidate_tracks
+                        ]
+                        for cluster_id in cluster_ids
+                    ],
+                    dtype=np.float64,
+                )
+                # Invalid edges remain available to the rectangular solver but
+                # are rejected below. The tiny deterministic tie-breaker keeps
+                # equal-distance assignments stable without changing the gate.
+                row_indices, column_indices = np.indices(distances.shape)
+                tie_breaker = (
+                    row_indices * len(candidate_tracks) + column_indices
+                ) * 1e-12
+                rows, columns = linear_sum_assignment(distances + tie_breaker)
+                for row, column in zip(rows.tolist(), columns.tolist()):
+                    if distances[row, column] <= self.association_distance_m:
+                        cluster_id = cluster_ids[row]
+                        track = candidate_tracks[column]
+                        matched[cluster_id] = track
+
+            for cluster_id in cluster_ids:
+                indices = clusters[cluster_id]
+                centroid = cluster_centroids[cluster_id]
+                candidate = matched.get(cluster_id)
+                if candidate is not None:
+                    dt = float(timestamp - candidate.last_timestamp)
+                    motion_valid = dt > 0
+                    velocity = (
+                        (centroid - candidate.centroid) / dt
+                        if motion_valid
+                        else np.zeros(2)
+                    )
+                    if motion_valid and candidate.motion_valid:
+                        confirmed = self._velocity_confirmed(
+                            candidate.velocity_xy, velocity
                         )
-                    )
-            candidate = min(
-                (
-                    track
-                    for track in nearby_tracks
-                    if track.track_id not in used and track.semantic_class == label
-                ),
-                key=lambda track: (
-                    np.linalg.norm(centroid - track.centroid),
-                    track.track_id,
-                ),
-                default=None,
-            )
-            if (
-                candidate is not None
-                and np.linalg.norm(centroid - candidate.centroid)
-                <= self.association_distance_m
-            ):
-                dt = float(timestamp - candidate.last_timestamp)
-                motion_valid = dt > 0
-                velocity = (
-                    (centroid - candidate.centroid) / dt
-                    if motion_valid
-                    else np.zeros(2)
-                )
-                if motion_valid and candidate.motion_valid:
-                    confirmed = self._velocity_confirmed(
-                        candidate.velocity_xy, velocity
-                    )
+                    else:
+                        # First velocity estimate (or a repeated timestamp with
+                        # no new information): report by speed exactly as
+                        # measured. Confirmation applies from the third
+                        # observation on.
+                        confirmed = True
+                    candidate.centroid = centroid
+                    candidate.velocity_xy = velocity
+                    candidate.last_timestamp = float(timestamp)
+                    candidate.persistence += 1
+                    candidate.missed_frames = 0
+                    candidate.motion_valid = motion_valid
+                    candidate.confirmed = confirmed and motion_valid
                 else:
-                    # First velocity estimate (or a repeated timestamp with no
-                    # new information): report by speed exactly as measured.
-                    # Confirmation applies from the third observation on.
-                    confirmed = True
-                candidate.centroid = centroid
-                candidate.velocity_xy = velocity
-                candidate.last_timestamp = float(timestamp)
-                candidate.persistence += 1
-                candidate.missed_frames = 0
-                candidate.motion_valid = motion_valid
-                candidate.confirmed = confirmed and motion_valid
-                used.add(candidate.track_id)
-            else:
-                candidate = _Track(
-                    self._next_track_id,
-                    label,
-                    centroid,
-                    np.zeros(2, dtype=np.float64),
-                    float(timestamp),
-                )
-                self._next_track_id += 1
-                self._tracks[candidate.track_id] = candidate
-                track_bucket = tuple(
-                    np.floor(candidate.centroid / track_bucket_size).astype(np.int64)
-                )
-                tracks_by_bucket.setdefault(
-                    (int(track_bucket[0]), int(track_bucket[1])), []
-                ).append(candidate)
-                used.add(candidate.track_id)
-            assignments[id(indices)] = candidate
+                    candidate = _Track(
+                        self._next_track_id,
+                        int(label),
+                        centroid,
+                        np.zeros(2, dtype=np.float64),
+                        float(timestamp),
+                    )
+                    self._next_track_id += 1
+                    self._tracks[candidate.track_id] = candidate
+                assignments[id(indices)] = candidate
+
+        used = {track.track_id for track in matched.values()}
+        used.update(
+            candidate.track_id
+            for cluster_id, candidate in assignments.items()
+            if candidate.track_id >= 0
+        )
 
         for track_id in list(self._tracks):
             if track_id not in used:
