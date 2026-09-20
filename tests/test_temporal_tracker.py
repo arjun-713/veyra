@@ -273,6 +273,32 @@ class TemporalTrackerTests(unittest.TestCase):
 
         self.assertEqual(tracker.active_track_count, 2)
 
+    def test_global_association_prevents_same_class_cross_assignment_ghost(self):
+        tracker = TemporalTracker(
+            cluster_tolerance_m=0.2,
+            association_distance_m=2.0,
+            moving_speed_mps=0.5,
+        )
+        first = np.asarray(
+            [[0.0, 0.0, 0.0, 1.0], [1.0, 0.0, 0.0, 1.0]], dtype=np.float32
+        )
+        labels = np.ones(2, dtype=np.int32)
+        tracker.update(first, labels, np.eye(4), timestamp=0.0)
+
+        # Both objects move +0.9 m. Greedy input-order matching assigns the
+        # first detection to the track at 1.0 m (0.1 m away), then forces the
+        # second detection onto the track at 0.0 m, producing -0.1 and 1.9 m/s
+        # ghost velocities. A one-to-one global assignment must preserve +0.9.
+        second = np.asarray(
+            [[0.9, 0.0, 0.0, 1.0], [1.9, 0.0, 0.0, 1.0]], dtype=np.float32
+        )
+        evidence = tracker.update(second, labels, np.eye(4), timestamp=1.0)
+
+        np.testing.assert_allclose(
+            np.sort(np.linalg.norm(evidence.velocity_xy, axis=1)), [0.9, 0.9], atol=1e-6
+        )
+        self.assertTrue(np.all(evidence.state == "moving"))
+
     def test_different_labels_and_input_permutations_remain_separate_and_aligned(self):
         points = np.array(
             [[0.0, 0.0, 0.0, 1.0], [0.1, 0.0, 0.0, 1.0], [0.2, 0.0, 0.0, 1.0]],

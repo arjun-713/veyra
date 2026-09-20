@@ -45,8 +45,10 @@ from perception.ground.quality import (
     ground_quality_report,
 )
 from perception.pipeline import PerceptionPipeline
-from perception.semantic.salsanext import SalsaNextSemanticProvider, project_scan
-
+from perception.semantic.salsanext import (
+    SalsaNextSemanticProvider,
+    project_scan,
+)
 
 GROUND_TERRAIN_EVALUATOR_VERSION = "ground-terrain-evaluator-v1"
 _TERRAIN_STATES = ("drivable", "non_drivable", "unknown")
@@ -167,7 +169,10 @@ def reproducibility_metadata(
     count: int,
 ) -> dict:
     """Record inputs needed to explain a future perception regression."""
-    model_value = config_data.get("semantic", {}).get("model_path")
+    semantic_config = config_data.get("semantic", {})
+    model_value = semantic_config.get("model_path") or semantic_config.get(
+        "checkpoint"
+    )
     model_path = repo / model_value if isinstance(model_value, str) else None
     return {
         "git_sha": _git_sha(repo),
@@ -262,6 +267,12 @@ def semantic_evaluation_report(
     *,
     total_points: int,
     supported_points: int,
+    frame_count: int = 0,
+    provider: str = "unknown",
+    checkpoint_sha256: str | None = None,
+    config_sha256: str | None = None,
+    git_sha: str | None = None,
+    hardware: dict | None = None,
 ) -> dict:
     """Report model quality without hiding returns outside its sensor contract.
 
@@ -275,7 +286,21 @@ def semantic_evaluation_report(
         raise TypeError("point counts must be integers")
     if total_points < 0 or supported_points < 0 or supported_points > total_points:
         raise ValueError("point counts must satisfy 0 <= supported <= total")
+    if not isinstance(frame_count, int) or frame_count < 0:
+        raise ValueError("frame_count must be a non-negative integer")
+    if not isinstance(provider, str) or not provider:
+        raise ValueError("provider must be a non-empty string")
+    if hardware is None:
+        hardware = {}
+    if not isinstance(hardware, dict):
+        raise TypeError("hardware must be a mapping")
     return {
+        "frame_count": frame_count,
+        "provider": provider,
+        "checkpoint_sha256": checkpoint_sha256,
+        "config_sha256": config_sha256,
+        "git_sha": git_sha,
+        "hardware": hardware,
         "coverage_fraction": (
             float(supported_points / total_points) if total_points else None
         ),
@@ -524,6 +549,32 @@ def validate(args):
                 supported_overall_confusion,
                 total_points=total_points,
                 supported_points=supported_points,
+                frame_count=len(records),
+                provider=type(pipeline.semantic_provider).__name__,
+                checkpoint_sha256=reproducibility_metadata(
+                    repo=config_path.parents[1]
+                    if config_path.parent.name == "configs"
+                    else Path.cwd().resolve(),
+                    config_path=config_path,
+                    config_data=config,
+                    dataset_sha256=args.dataset_sha256,
+                    sequence=args.sequence,
+                    start=args.start,
+                    count=args.count,
+                )["model_checkpoint_sha256"],
+                config_sha256=_sha256_file(config_path),
+                git_sha=_git_sha(
+                    config_path.parents[1]
+                    if config_path.parent.name == "configs"
+                    else Path.cwd().resolve()
+                ),
+                hardware={
+                    "platform": platform.platform(),
+                    "machine": platform.machine(),
+                    "python": platform.python_version(),
+                    "cpu": _cpu_model(),
+                    "logical_cpu_count": os.cpu_count(),
+                },
             ),
             "model_fov_by_range": [
                 {"range_m": [a, min(b, 100)], **confusion_report(c)}

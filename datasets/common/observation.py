@@ -124,7 +124,9 @@ class SemanticFrame:
     mode: str = "ground_truth"
 
     def __post_init__(self) -> None:
-        classes = _as_array(self.semantic_class, dtype=np.int32).reshape(-1)
+        classes = _class_ids(
+            np.asarray(self.semantic_class).reshape(-1), name="semantic_class"
+        )
         confidence = _as_array(self.semantic_confidence, dtype=np.float32).reshape(-1)
         if classes.shape != confidence.shape:
             raise ValueError("semantic class and confidence arrays must be aligned")

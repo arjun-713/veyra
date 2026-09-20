@@ -172,6 +172,7 @@ class SalsaNextSemanticProvider:
             raise ValueError(
                 "model is incompatible with the SalsaNext range-image contract"
             )
+        self.checkpoint_path = path
         self.input_name, self.output_name = inputs[0].name, outputs[0].name
 
     def infer(

@@ -157,7 +157,9 @@ class _ValueInfo:
         self.shape = shape
 
 
-def _tiny_pandora_checkpoint(path: Path, *, temperature: float = 1.0) -> Path:
+def _tiny_pandora_checkpoint(
+    path: Path, *, temperature: float = 1.0, classes: np.ndarray | None = None
+) -> Path:
     """Write a deterministic 6 -> 4 -> 3 MLP archive for provider tests."""
     rng = np.random.RandomState(0)
     coef_0 = rng.normal(size=(6, 4))
@@ -174,7 +176,11 @@ def _tiny_pandora_checkpoint(path: Path, *, temperature: float = 1.0) -> Path:
         coef_1=coef_1,
         intercept_1=intercept_1,
         # Native IDs 22 (ground -> Veyra 12), 7 (car -> Veyra 1), 0 (unknown).
-        classes=np.array([22, 7, 0], dtype=np.int32),
+        classes=(
+            np.array([22, 7, 0], dtype=np.int32)
+            if classes is None
+            else classes
+        ),
         temperature=np.array(temperature, dtype=np.float64),
     )
     return path
@@ -402,6 +408,15 @@ class PandoraNativeProviderTests(unittest.TestCase):
                 provider.infer(bad)
             with self.assertRaises(ValueError):
                 provider.infer(np.zeros((1, 3), dtype=np.float32))
+
+    def test_rejects_native_checkpoint_with_unknown_class_contract(self):
+        with tempfile.TemporaryDirectory() as directory, self.assertRaisesRegex(
+            ValueError, "class IDs"
+        ):
+            self._provider(
+                directory,
+                classes=np.array([0, 99, 22], dtype=np.int32),
+            )
 
     def test_numpy_forward_matches_sklearn(self):
         sklearn_mlp = pytest_importorskip("sklearn.neural_network")

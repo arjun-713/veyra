@@ -306,6 +306,9 @@ class PandoraNativeSemanticProvider:
             or self._temperature <= 0.0
         ):
             raise ValueError("Pandora native checkpoint has invalid parameters")
+        allowed_classes = {POSS_UNKNOWN_ID, *POSS_NATIVE_KNOWN_IDS}
+        if any(int(class_id) not in allowed_classes for class_id in self._classes):
+            raise ValueError("Pandora native checkpoint contains unknown class IDs")
         expected_in: int | None = None
         for coef, intercept in zip(coefs, intercepts):
             if (

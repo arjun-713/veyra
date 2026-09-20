@@ -49,6 +49,62 @@ class DatasetCapabilityReportTests(unittest.TestCase):
         self.assertEqual(report["reason"], "local_root_unavailable")
         self.assertFalse(report["checks"]["deterministic_replay"])
 
+    def test_malformed_local_data_is_reported_with_actionable_checkpoint(self):
+        with tempfile.TemporaryDirectory() as raw:
+            root = Path(raw)
+            sequence = root / "sequences" / "00"
+            (sequence / "velodyne").mkdir(parents=True)
+            (sequence / "labels").mkdir()
+            np.array([[1.0, 2.0, 3.0, 4.0]], dtype=np.float32).tofile(
+                sequence / "velodyne" / "000000.bin"
+            )
+            (sequence / "labels" / "000000.label").write_bytes(b"bad")
+
+            report = build_report(
+                dataset_name="semantickitti",
+                root=root,
+                sequences=["00"],
+                sample_limit=1,
+            )
+
+        self.assertEqual(report["status"], "invalid_local_data")
+        self.assertEqual(report["reason"], "frame_validation_failed")
+        self.assertIn("complete uint32 label records", report["diagnostic"])
+
+    def test_discovery_failure_is_reported_with_the_sequence_identity(self):
+        with tempfile.TemporaryDirectory() as raw:
+            root = Path(raw)
+            (root / "sequences" / "00").mkdir(parents=True)
+
+            report = build_report(
+                dataset_name="semantickitti",
+                root=root,
+                sequences=["00"],
+                sample_limit=1,
+            )
+
+        self.assertEqual(report["status"], "invalid_local_data")
+        self.assertEqual(report["reason"], "frame_discovery_failed")
+        self.assertIn("semantickitti/00", report["diagnostic"])
+
+    def test_missing_required_label_is_reported_during_discovery(self):
+        with tempfile.TemporaryDirectory() as raw:
+            root = Path(raw)
+            sequence = root / "sequences" / "00"
+            (sequence / "velodyne").mkdir(parents=True)
+            (sequence / "labels").mkdir()
+            np.zeros(4, dtype=np.float32).tofile(sequence / "velodyne" / "000000.bin")
+
+            report = build_report(
+                dataset_name="semantickitti",
+                root=root,
+                sequences=["00"],
+                sample_limit=1,
+            )
+
+        self.assertEqual(report["reason"], "frame_discovery_failed")
+        self.assertIn("label file is missing", report["diagnostic"])
+
 
 if __name__ == "__main__":
     unittest.main()

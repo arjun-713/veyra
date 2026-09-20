@@ -97,7 +97,13 @@ def build_report(
     all_ids: dict[str, list[str]] = {}
     samples: list[tuple[str, Any]] = []
     for sequence in selected_sequences:
-        refs = adapter.list_frames(sequence)
+        try:
+            refs = adapter.list_frames(sequence)
+        except (OSError, ValueError, TypeError) as error:
+            report["status"] = "invalid_local_data"
+            report["reason"] = "frame_discovery_failed"
+            report["diagnostic"] = f"{dataset_name}/{sequence}: {error}"
+            return report
         report["total_frame_count"] += len(refs)
         all_ids[sequence] = [ref.frame_id for ref in refs]
         samples.extend((sequence, ref) for ref in _sample_refs(refs, sample_limit))
@@ -122,8 +128,16 @@ def build_report(
     }
     replay_pairs_equal = True
     for sequence, ref in samples:
-        first = adapter.load_frame(sequence, ref.frame_id)
-        second = adapter.load_frame(sequence, ref.frame_id)
+        try:
+            first = adapter.load_frame(sequence, ref.frame_id)
+            second = adapter.load_frame(sequence, ref.frame_id)
+        except (OSError, ValueError, TypeError) as error:
+            report["status"] = "invalid_local_data"
+            report["reason"] = "frame_validation_failed"
+            report["diagnostic"] = (
+                f"{dataset_name}/{sequence}/{ref.frame_id}: {error}"
+            )
+            return report
         replay_pairs_equal &= np.array_equal(first.points, second.points)
         replay_pairs_equal &= np.array_equal(
             first.semantic_class, second.semantic_class
@@ -140,6 +154,13 @@ def build_report(
         ) == len(first.semantic_class) and len(first.instance_id) == len(
             first.semantic_class
         )
+        if first.points.shape[0] == 0:
+            report["status"] = "invalid_local_data"
+            report["reason"] = "frame_validation_failed"
+            report["diagnostic"] = (
+                f"{dataset_name}/{sequence}/{ref.frame_id}: frame contains no points"
+            )
+            return report
         intensity_min = min(intensity_min, float(first.points[:, 3].min()))
         intensity_max = max(intensity_max, float(first.points[:, 3].max()))
         provenance = first.provenance
