@@ -2,7 +2,9 @@
 
 from __future__ import annotations
 
+import argparse
 import unittest
+from pathlib import Path
 
 import numpy as np
 
@@ -10,6 +12,7 @@ from benchmarks.baseline_3d import (
     BYTES_PER_ENTRY,
     VOXEL_SIZE_M,
     SparseVoxelBaseline,
+    collect_provenance,
     frame_voxel_keys,
     pack_voxel_keys,
     unpack_voxel_keys,
@@ -76,6 +79,62 @@ class Baseline3DTests(unittest.TestCase):
         )
         self.assertEqual(reference["status"], "analytical_only")
         self.assertLessEqual(occupied, reference["dense_voxel_count"])
+
+    def test_provenance_metadata_is_complete(self):
+        """Every key a second-party reproducer needs must be present."""
+        repo = Path(__file__).resolve().parents[1]
+        args = argparse.Namespace(
+            dataset="semanticposs",
+            sequence="00",
+            start=0,
+            count=30,
+            dataset_root=None,
+            skip_perception=False,
+            perception_config="configs/perception.yaml",
+        )
+        provenance = collect_provenance(
+            repo, args, frames_voxelized=30, point_count=100
+        )
+        required_top_level = [
+            "git_sha",  # git commit
+            "dataset",  # dataset
+            "sequence",  # sequence
+            "frame_count",  # frames
+            "frames_voxelized",
+            "cpu_count",  # CPU
+            "cpu_model",
+            "gpu",  # GPU (key present; name may be null on CPU-only hosts)
+            "mem_total_bytes",  # RAM
+            "os",  # OS
+            "platform",
+            "python",
+            "build",  # build
+            "config",  # config
+            "policy",  # policy
+            "timestamp_utc",
+            "host",
+        ]
+        for key in required_top_level:
+            self.assertIn(key, provenance, f"provenance missing {key}")
+        # Values that must be concrete (not None) on any real run.
+        for key in (
+            "dataset",
+            "sequence",
+            "frame_count",
+            "cpu_count",
+            "mem_total_bytes",
+            "os",
+            "build",
+            "config",
+            "policy",
+        ):
+            self.assertIsNotNone(provenance[key], f"provenance[{key}] is None")
+        self.assertEqual(provenance["dataset"], "semanticposs")
+        self.assertEqual(provenance["sequence"], "00")
+        self.assertIn("name", provenance["gpu"])
+        self.assertIn("type", provenance["build"])
+        self.assertIn("perception_sha256", provenance["config"])
+        self.assertEqual(provenance["policy"]["leg"], "measured_3d")
 
 
 if __name__ == "__main__":
