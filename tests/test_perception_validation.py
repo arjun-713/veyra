@@ -14,8 +14,8 @@ from scripts.validate_perception import (
     bridge_timing_scope,
     confusion_report,
     ground_reference_spec,
-    quality_gate_report,
     latency_summary,
+    quality_gate_report,
     reproducibility_metadata,
     semantic_evaluation_report,
     terrain_state_report,
@@ -124,6 +124,28 @@ class PerceptionValidationTests(unittest.TestCase):
         self.assertEqual(report["model_fov_only"]["evaluated_points"], 3)
         self.assertAlmostEqual(report["model_fov_only"]["accuracy"], 1.0)
 
+    def test_semantic_evaluation_records_provider_checkpoint_and_provenance(self):
+        confusion = np.zeros((20, 20), np.int64)
+        report = semantic_evaluation_report(
+            confusion,
+            confusion,
+            total_points=0,
+            supported_points=0,
+            frame_count=3,
+            provider="CENetSemanticProvider",
+            checkpoint_sha256="a" * 64,
+            config_sha256="b" * 64,
+            git_sha="c" * 40,
+            hardware={"cpu": "test-cpu"},
+        )
+
+        self.assertEqual(report["frame_count"], 3)
+        self.assertEqual(report["provider"], "CENetSemanticProvider")
+        self.assertEqual(report["checkpoint_sha256"], "a" * 64)
+        self.assertEqual(report["config_sha256"], "b" * 64)
+        self.assertEqual(report["git_sha"], "c" * 40)
+        self.assertEqual(report["hardware"], {"cpu": "test-cpu"})
+
     def test_reproducibility_metadata_records_selection_and_digests(self):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
@@ -151,6 +173,28 @@ class PerceptionValidationTests(unittest.TestCase):
             metadata["model_checkpoint_sha256"], hashlib.sha256(b"model").hexdigest()
         )
         self.assertIn("cpu", metadata["runner"])
+
+    def test_reproducibility_metadata_hashes_checkpoint_aliases(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            config = root / "perception.yaml"
+            checkpoint = root / "checkpoint.bin"
+            config.write_text("semantic:\n  checkpoint: checkpoint.bin\n")
+            checkpoint.write_bytes(b"checkpoint")
+            metadata = reproducibility_metadata(
+                repo=root,
+                config_path=config,
+                config_data={"semantic": {"checkpoint": "checkpoint.bin"}},
+                dataset_sha256=None,
+                sequence="00",
+                start=0,
+                count=1,
+            )
+
+        self.assertEqual(
+            metadata["model_checkpoint_sha256"],
+            hashlib.sha256(b"checkpoint").hexdigest(),
+        )
 
     def test_range_metrics_include_wrong_unknown_predictions(self):
         matrix = np.zeros((20, 20), np.int64)
