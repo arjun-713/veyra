@@ -14,14 +14,13 @@ jobs:
   build:
     name: Tauri ${{ matrix.os }}
     runs-on: ${{ matrix.os }}
-    # CI-hardening: bound hosted-runner spend. No retention-days here by
-    # design — this job is compile-only (--no-bundle) and uploads no
-    # artifacts.
-    timeout-minutes: 30
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-24.04, windows-2025, macos-15]
+        include:
+          - {os: ubuntu-24.04, platform: linux, arch: x64, mapper: build/apps/runtime/veyra_runtime}
+          - {os: windows-2025, platform: win32, arch: x64, mapper: build/apps/runtime/Release/veyra_runtime.exe}
+          - {os: macos-15, platform: darwin, arch: arm64, mapper: build/apps/runtime/veyra_runtime}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -29,6 +28,11 @@ jobs:
           node-version: "24"
           cache: npm
           cache-dependency-path: apps/desktop/package-lock.json
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: requirements.txt
       - uses: dtolnay/rust-toolchain@stable
         with:
           components: rustfmt, clippy
@@ -40,6 +44,26 @@ jobs:
       - name: Install frontend dependencies
         working-directory: apps/desktop
         run: npm ci
+      - name: Build native runtime and stage Tauri backend
+        shell: bash
+        run: |
+          set -euo pipefail
+          cmake -S . -B build -DCMAKE_BUILD_TYPE=Release -DVEYRA_BUILD_APPS=ON
+          cmake --build build --config Release --parallel 2
+          python -m venv --copies "$RUNNER_TEMP/veyra-python"
+          if [[ "${{ matrix.platform }}" == "win32" ]]; then
+            py="$RUNNER_TEMP/veyra-python/Scripts/python.exe"
+          else
+            py="$RUNNER_TEMP/veyra-python/bin/python3"
+          fi
+          "$py" -m pip install --disable-pip-version-check -r requirements.txt
+          python scripts/stage_tauri_backend.py \
+            --repo . \
+            --output src-tauri/resources/backend \
+            --mapper "${{ matrix.mapper }}" \
+            --python-runtime "$RUNNER_TEMP/veyra-python" \
+            --platform "${{ matrix.platform }}" \
+            --arch "${{ matrix.arch }}"
       - name: Frontend checks
         working-directory: apps/desktop
         run: |

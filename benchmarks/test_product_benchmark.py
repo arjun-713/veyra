@@ -131,13 +131,14 @@ class ProductBenchmarkTests(unittest.TestCase):
         self.assertIn("findJson('artifacts/map')", report_workflow)
         self.assertIn("findJson('artifacts/baseline')", report_workflow)
 
-    def test_ci_uses_tauri_for_pr_desktop_validation(self):
+    def test_ci_uses_tauri_for_fast_and_manual_desktop_validation(self):
         repo = Path(__file__).resolve().parents[1]
         ci = (repo / ".github/workflows/ci.yml").read_text()
         tauri = (repo / ".github/workflows/desktop-tauri.yml").read_text()
         self.assertFalse((repo / ".github/workflows/product.yml").exists())
         self.assertIn("branches: [main]", ci)
-        self.assertIn("branches: [main]", tauri)
+        self.assertIn("workflow_dispatch:", tauri)
+        self.assertNotIn("pull_request:", tauri)
         self.assertIn("stage_tauri_backend.py", tauri)
         self.assertIn("resources/backend", tauri)
 
