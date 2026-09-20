@@ -153,7 +153,7 @@ class ProductBenchmarkTests(unittest.TestCase):
         self.assertEqual(result.returncode, 2)
         self.assertIn("VEYRA_SIH_FRAMES must be a positive integer", result.stderr)
 
-    def test_full_sih_validator_resolves_project_modules_outside_checkout(self):
+    def test_full_sih_validator_reports_missing_real_data_before_build(self):
         repo = Path(__file__).resolve().parents[1]
         with tempfile.TemporaryDirectory() as directory:
             result = subprocess.run(
@@ -169,8 +169,8 @@ class ProductBenchmarkTests(unittest.TestCase):
                 text=True,
                 check=False,
             )
-        self.assertNotIn("No module named 'scripts'", result.stderr)
-        self.assertIn("supports only semantickitti, not semanticposs", result.stderr)
+        self.assertIn("REAL DATA: UNAVAILABLE", result.stderr)
+        self.assertIn("semanticposs/dataset", result.stderr)
 
     def test_benchmark_workflows_do_not_hide_failed_evidence(self):
         repo = Path(__file__).resolve().parents[1]
@@ -363,7 +363,12 @@ class ProductBenchmarkTests(unittest.TestCase):
         self.assertEqual(report["status"], "partial")
         self.assertEqual(
             report["missing_policies"],
-            ["ablation_geometry", "ablation_semantics", "ablation_motion"],
+            [
+                "ablation_geometry",
+                "ablation_semantics",
+                "ablation_motion",
+                "ablation_traversability",
+            ],
         )
         full = report["members"]["utility_lod"]
         self.assertAlmostEqual(full["delta_vs_distance"]["elevation_rmse_m"], -0.2)

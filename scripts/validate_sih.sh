@@ -10,7 +10,17 @@ script_dir="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd -P)"
 repo_dir="$(cd -- "${script_dir}/.." && pwd -P)"
 mode="ci"
 build_dir="${VEYRA_SIH_BUILD_DIR:-${TMPDIR:-/tmp}/veyra-sih-validation-build}"
-python_bin="${VEYRA_PYTHON:-${repo_dir}/.venv/bin/python}"
+if [[ -n "${VEYRA_PYTHON:-}" ]]; then
+  python_bin="$VEYRA_PYTHON"
+elif [[ -x "${repo_dir}/.venv/bin/python" ]]; then
+  python_bin="${repo_dir}/.venv/bin/python"
+elif command -v python3 >/dev/null 2>&1; then
+  python_bin="$(command -v python3)"
+elif command -v python >/dev/null 2>&1; then
+  python_bin="$(command -v python)"
+else
+  python_bin=""
+fi
 perception_config="${VEYRA_SIH_PERCEPTION_CONFIG:-configs/perception-salsanext.yaml}"
 
 usage() {
@@ -25,7 +35,7 @@ Usage: scripts/validate_sih.sh [--ci|--full]
 
 Environment:
   VEYRA_SIH_BUILD_DIR  CMake build directory
-  VEYRA_PYTHON         Python interpreter (default: repository .venv)
+  VEYRA_PYTHON         Python interpreter (default: repository .venv, then PATH)
   VEYRA_SIH_FRAMES     Full-mode frame count (default: 488)
   VEYRA_SIH_WARMUP_FRAMES
                        Full-mode warmup frames (default: 10; reduced to
@@ -65,7 +75,7 @@ if [[ "$mode" == "full" ]]; then
   fi
 fi
 
-if [[ ! -x "$python_bin" ]]; then
+if [[ -z "$python_bin" || ! -x "$python_bin" ]]; then
   echo "Python interpreter is unavailable: $python_bin" >&2
   exit 2
 fi
