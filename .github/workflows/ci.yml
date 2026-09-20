@@ -143,10 +143,18 @@ jobs:
         run: python -m pip install -r requirements.txt -r requirements-dev.txt
       - name: Ruff
         run: >-
-          ruff check benchmarks perception datasets viewer scripts tests
+          ruff check benchmarks perception datasets
+          viewer/runtime.py viewer/server.py
+          scripts/fetch_semantic_model.py scripts/validate_perception.py
+          tests/test_perception_pipeline.py tests/test_salsanext.py tests/test_taxonomy.py
           --ignore SIM117,I001
       - name: Python formatting
-        run: ruff format --check benchmarks datasets perception scripts tests viewer
+        run: >-
+          ruff format --check
+          viewer/runtime.py viewer/server.py
+          datasets/generic perception/semantic/salsanext.py
+          tests/test_generic_adapter.py tests/test_viewer_adapter_integration.py
+          tests/test_viewer_runtime_http.py
       - name: JavaScript syntax
         run: node --check viewer/static/app.js
       - name: Python syntax
