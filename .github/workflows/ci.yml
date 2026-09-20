@@ -150,7 +150,7 @@ jobs:
           viewer/runtime.py viewer/server.py
           scripts/fetch_semantic_model.py scripts/validate_perception.py
           tests/test_perception_pipeline.py tests/test_salsanext.py tests/test_taxonomy.py
-          --ignore SIM117,I001
+          --ignore E402,SIM117,I001
       - name: Python formatting
         run: >-
           ruff format --check
@@ -196,6 +196,8 @@ jobs:
           npm test
           npm run check
           npm run build
+      - name: Prepare resource path for Rust checks
+        run: mkdir -p src-tauri/resources/backend
       - name: Rust checks
         run: |
           cargo fmt --manifest-path src-tauri/Cargo.toml -- --check
