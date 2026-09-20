@@ -250,3 +250,34 @@ harness peak) shown in different workspaces — do not compare across tables (G-
 - Manual verification: `format`/`f`/`mb`/`memory`/`width` helpers return `—`/0-width
   for `null`/`NaN`/missing — no fabrication path found in renderer derivations;
   `comparisonMetrics` guards divide-by-zero; `recordEvent` drops telemetry spam.
+
+---
+
+## Slice 2 amendments — `closure/opencode-tauri` (2026-09-20, headless)
+
+No control wiring changed (no C-row behavior deltas); amendments only.
+
+- **Tests (§D superseded):** `npm test` now **30/30 pass** (was 26; +clamp test +
+  prior-slice additions); Rust `supervisor.rs` unit tests **now run: 11/11 pass**
+  (`cargo test -j2 --lib supervisor::`; full lib 59/59, `veyra-cli` bin 9/9).
+  `npm run check` 0 errors, `npm run build` green.
+- **R2 (new, no C-row):** Tauri CSP tightened to the shipped meta policy
+  (`script-src` drops `'unsafe-inline'`; `connect-src` dev entry reconciled;
+  `img-src` drops dead `blob:`; adds `object-src`/`base-uri`/`frame-src`).
+  No control affected — see `reports/closure/security/R1R2.md` for per-directive
+  proof.
+- **R1 (new, no C-row):** fs capability grant unchanged by verdict — all three
+  fs-plugin call sites (C43/C54 export/save, C31 screenshot, C42/C44/C45 open)
+  take paths exclusively from dialog results. See R1R2.md.
+- **MapCanvas internals (no C-row change):** packed counts now clamped to the
+  100 000 GPU-buffer capacity (`clampRenderCounts`; C-03 caption values
+  unchanged in all reachable configs); `webglcontextlost` now surfaces a
+  message instead of freezing silently (C18–C21 toggles themselves untouched).
+- **Observed already-fixed in code (not by this slice, for the record):**
+  D-6 (C7/C43/C54 now `confirmSaved` success/cancel notices), D-7 (C39 bound to
+  `governorOverride` with revert-on-failure), G-5 (INPUT TARGET next to RUNTIME
+  FPS), G-6 (`STALE` badge on status pill), G-3/G-8 (`MEMORY_DOMAIN_NOTE` +
+  benchmark-domain captions), D-8 (empty-map CTA now labeled "Open
+  configuration →", matching its destination). D-2 (`layer` command still
+  UI-unreachable),
+  D-3a/D-3b, D-4, D-5b, D-9, D-10, D-11 remain as inventoried.
