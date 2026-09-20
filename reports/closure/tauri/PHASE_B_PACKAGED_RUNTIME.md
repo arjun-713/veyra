@@ -36,9 +36,13 @@ Result: PASS.
 - Seek: PASS
 - Policy switch to Uniform40: PASS
 - Layer switch to LOD: PASS
+- Playback speed: PASS (2x)
+- Governor control: PASS (automatic)
+- Session validation: PASS
 - Play/pause: PASS
 - Clean stop and child reaping: PASS
-- Observed test duration: 13.94 s
+- Restart and reprocess after stop: PASS
+- Observed test duration: 25.73 s
 - Process check after the run: no staged `veyra_runtime` or runtime child
   remained
 

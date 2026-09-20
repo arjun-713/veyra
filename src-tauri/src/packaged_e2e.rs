@@ -337,6 +337,19 @@ fn packaged_tauri_session_runs_a_real_semanticposs_flow() {
     );
     assert_eq!(layered["status"]["layer"], "lod");
 
+    // 7b. Remaining interactive controls: speed, governor, and validation
+    // must reach the real runtime rather than only changing renderer state.
+    ok_response("speed", controller.command("speed", json!({"speed": 2.0})));
+    let status = ok_response("status-after-speed", controller.refresh_status());
+    assert_eq!(status["speed"], 2.0);
+    ok_response(
+        "governor",
+        controller.command("governor", json!({"mode": "automatic"})),
+    );
+    let validation = ok_response("validation", controller.command("validation", json!({})));
+    assert_eq!(validation["result"]["status"], "pass");
+    assert_eq!(validation["result"]["dataset"], DATASET_FORMAT);
+
     // 8. Playback state machine: play then pause.
     timed("start", || {
         ok_response("start", controller.command("start", json!({})))
@@ -377,6 +390,13 @@ fn packaged_tauri_session_runs_a_real_semanticposs_flow() {
         );
         std::thread::sleep(Duration::from_millis(50));
     }
+    // 11. Restart reopens the last real session and remains controllable.
+    ok_response("restart", controller.command("restart", json!({})));
+    assert_eq!(controller.status()["dataset_open"], true);
+    ok_response("restart-step", controller.command("step", json!({})));
+    controller
+        .stop()
+        .unwrap_or_else(|error| panic!("E2E restart stop failed: {error}"));
     eprintln!("E2E real-data flow complete: sequence={sequence} frames={frames}");
 }
 
