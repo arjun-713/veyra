@@ -56,7 +56,9 @@ fn execute(
 
 fn parse_args(args: &[String]) -> Result<CliOperation, ControlClientError> {
     match args {
-        [command] if command == "status" || command == "metrics" => Ok(request("status", json!({}))),
+        [command] if command == "status" || command == "metrics" => {
+            Ok(request("status", json!({})))
+        }
         [command, flag] if command == "metrics" && flag == "--json" => {
             Ok(request("status", json!({})))
         }
@@ -75,22 +77,33 @@ fn parse_args(args: &[String]) -> Result<CliOperation, ControlClientError> {
         }
         [command, action, dataset, root] if command == "dataset" && action == "info" => {
             validate_dataset(dataset, root)?;
-            Ok(request("datasets", json!({"dataset": dataset, "root": root})))
+            Ok(request(
+                "datasets",
+                json!({"dataset": dataset, "root": root}),
+            ))
         }
         [command, action, dataset, root] if command == "dataset" && action == "open" => {
             validate_dataset(dataset, root)?;
-            Ok(request("open_dataset", json!({"dataset": dataset, "root": root})))
+            Ok(request(
+                "open_dataset",
+                json!({"dataset": dataset, "root": root}),
+            ))
         }
         [command, action, dataset, root, sequence] if command == "dataset" && action == "open" => {
             validate_dataset(dataset, root)?;
             if sequence.is_empty() || sequence.len() > 64 {
-                return Err(invalid_argument("dataset sequence must be a bounded non-empty string"));
+                return Err(invalid_argument(
+                    "dataset sequence must be a bounded non-empty string",
+                ));
             }
-            Ok(request("open_dataset", json!({
-                "dataset": dataset,
-                "root": root,
-                "sequence": sequence
-            })))
+            Ok(request(
+                "open_dataset",
+                json!({
+                    "dataset": dataset,
+                    "root": root,
+                    "sequence": sequence
+                }),
+            ))
         }
         [command, action] if command == "playback" && action == "play" => {
             Ok(command_request("start", json!({})))
@@ -99,9 +112,9 @@ fn parse_args(args: &[String]) -> Result<CliOperation, ControlClientError> {
             Ok(command_request("pause", json!({})))
         }
         [command, action, index] if command == "playback" && action == "seek" => {
-            let index = index.parse::<u64>().map_err(|_| {
-                invalid_argument("seek index must be a non-negative integer")
-            })?;
+            let index = index
+                .parse::<u64>()
+                .map_err(|_| invalid_argument("seek index must be a non-negative integer"))?;
             Ok(command_request("seek", json!({"index": index})))
         }
         [command, action, policy] if command == "policy" && action == "set" => {
@@ -186,9 +199,7 @@ fn validate_layer(layer: &str) -> Result<(), ControlClientError> {
 fn read_json(path: &str) -> Result<Value, ControlClientError> {
     const MAX_CONFIG_FILE_BYTES: u64 = 1024 * 1024;
     let size = fs::metadata(path)
-        .map_err(|error| {
-            ControlClientError::Configuration(format!("cannot read {path}: {error}"))
-        })?
+        .map_err(|error| ControlClientError::Configuration(format!("cannot read {path}: {error}")))?
         .len();
     if size > MAX_CONFIG_FILE_BYTES {
         return Err(ControlClientError::Configuration(format!(
@@ -221,8 +232,7 @@ mod tests {
         );
         assert!(super::strip_json_flag(vec![]).is_empty());
         // parse_args then accepts the stripped form as the plain command.
-        let stripped =
-            super::strip_json_flag(vec!["diagnostics".to_owned(), "--json".to_owned()]);
+        let stripped = super::strip_json_flag(vec!["diagnostics".to_owned(), "--json".to_owned()]);
         assert_eq!(
             parse_args(&stripped),
             Ok(CliOperation::Request {
