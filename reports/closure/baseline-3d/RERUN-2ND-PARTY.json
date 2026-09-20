@@ -1,0 +1,217 @@
+{
+  "comparison_measured_vs_analytical": {
+    "analytical_dense_reference": {
+      "bounds_max_m": [
+        98.00399780273438,
+        103.33965301513672,
+        18.11607551574707
+      ],
+      "bounds_min_m": [
+        -96.7965316772461,
+        -97.51241302490234,
+        -12.656717300415039
+      ],
+      "dense_voxel_count": 9665960254,
+      "dimensions": [
+        3898,
+        4019,
+        617
+      ],
+      "estimated_bytes_per_voxel": 16,
+      "estimated_dense_bytes": 154655364064,
+      "executed_through_map_engine": false,
+      "representation": "dense_uniform_3d_voxels",
+      "status": "analytical_only",
+      "voxel_size_m": 0.05,
+      "warning": "memory estimate only; no dense grid was allocated or timed"
+    },
+    "matrix_provenance": {
+      "git_sha": "247f127493ebecdca14fbf4222909e1a84e997b1",
+      "hardware": {
+        "capture": "runtime",
+        "logical_cpu_count": 8,
+        "machine": "x86_64",
+        "os": "Linux-7.2.5-200.fc44.x86_64-x86_64-with-glibc2.43",
+        "physical_memory_bytes": 16489127936,
+        "processor": "Intel(R) Core(TM) i5-8350U CPU @ 1.70GHz",
+        "profile": "auto",
+        "python": "3.14.7"
+      },
+      "repetitions": 3,
+      "same_input_as_baseline": true,
+      "selection_digest": "4cd60ac5a5746bbc142d56e36fdbc4a89b8707e6cb905c8dae4f9d4f9c8c43dc",
+      "timestamp_utc": "2026-09-17T10:48:41.954147+00:00",
+      "warmup_frames": 2
+    },
+    "rows": [
+      {
+        "allocated_bytes": null,
+        "allocated_bytes_note": "C++ engine reports process RSS only; no malloc-hooked allocation figure",
+        "elements_by_level": {
+          "0": 630611,
+          "1": 0,
+          "2": 0,
+          "3": 0
+        },
+        "elements_final_leaves": 630611,
+        "leg": "uniform5",
+        "map_update_latency_ms": {
+          "count": 84,
+          "p50": 344.165,
+          "p95": 543.578,
+          "p99": 676.303
+        },
+        "peak_rss_bytes": 322842624,
+        "source": "reports/closure/utility/benchmark_semanticposs00.json (reused, not rerun)"
+      },
+      {
+        "allocated_bytes": null,
+        "allocated_bytes_note": "C++ engine reports process RSS only; no malloc-hooked allocation figure",
+        "elements_by_level": {
+          "0": 0,
+          "1": 0,
+          "2": 0,
+          "3": 35962
+        },
+        "elements_final_leaves": 35962,
+        "leg": "uniform40",
+        "map_update_latency_ms": {
+          "count": 84,
+          "p50": 243.251,
+          "p95": 273.19,
+          "p99": 347.564
+        },
+        "peak_rss_bytes": 37261312,
+        "source": "reports/closure/utility/benchmark_semanticposs00.json (reused, not rerun)"
+      },
+      {
+        "allocated_bytes": null,
+        "allocated_bytes_note": "C++ engine reports process RSS only; no malloc-hooked allocation figure",
+        "elements_by_level": {
+          "0": 68093,
+          "1": 130221,
+          "2": 41429,
+          "3": 8102
+        },
+        "elements_final_leaves": 247845,
+        "leg": "distance_lod",
+        "map_update_latency_ms": {
+          "count": 84,
+          "p50": 144.349,
+          "p95": 249.454,
+          "p99": 370.282
+        },
+        "peak_rss_bytes": 176529408,
+        "source": "reports/closure/utility/benchmark_semanticposs00.json (reused, not rerun)"
+      },
+      {
+        "allocated_bytes": null,
+        "allocated_bytes_note": "C++ engine reports process RSS only; no malloc-hooked allocation figure",
+        "elements_by_level": {
+          "0": 68093,
+          "1": 130177,
+          "2": 40868,
+          "3": 8245
+        },
+        "elements_final_leaves": 247383,
+        "leg": "utility_lod",
+        "map_update_latency_ms": {
+          "count": 84,
+          "p50": 144.415,
+          "p95": 179.539,
+          "p99": 237.615
+        },
+        "peak_rss_bytes": 183951360,
+        "source": "reports/closure/utility/benchmark_semanticposs00.json (reused, not rerun)"
+      },
+      {
+        "allocated_bytes": 40960448,
+        "allocated_bytes_note": "accounted, not malloc-hooked: occupied_voxels * 32 B (8 B packed key + 8 B occupancy/count payload + 16 B open-addressing hash-slot overhead). Python set object overhead is excluded from this figure; process-level cost is reported separately as peak RSS.",
+        "elements_occupied_voxels": 1280014,
+        "leg": "measured_3d",
+        "peak_rss_bytes": 863232000,
+        "source": "reports/closure/baseline-3d/MEASURED.json (this branch, run C)",
+        "update_latency_ms": {
+          "count": 30,
+          "max": 280.431925,
+          "mean": 116.97293843333334,
+          "min": 70.562813,
+          "p50": 110.671895,
+          "p95": 217.460297,
+          "p99": 280.431925
+        }
+      }
+    ],
+    "table_markdown": "| leg | elements | allocated bytes | peak RSS (B) | map-update p50/p95/p99 (ms) | source |\n| --- | --- | --- | --- | --- | --- |\n| uniform5 | 630611 final leaves | n/a (RSS only) | 322842624 | 344.165/543.578/676.303 (n=84) | matrix reused |\n| uniform40 | 35962 final leaves | n/a (RSS only) | 37261312 | 243.251/273.190/347.564 (n=84) | matrix reused |\n| distance_lod | 247845 final leaves | n/a (RSS only) | 176529408 | 144.349/249.454/370.282 (n=84) | matrix reused |\n| utility_lod | 247383 final leaves | n/a (RSS only) | 183951360 | 144.415/179.539/237.615 (n=84) | matrix reused |\n| measured_3d | 1280014 occupied voxels | 40960448 accounted | 863232000 | 110.672/217.460/280.432 (n=30) | run C |\n| ANALYTICAL dense 5 cm (never allocated/timed) | 9665960254 dense voxels | 154655364064 estimated | n/a | n/a | analytical_only |"
+  },
+  "goal": "second-party reproduction proof for the measured high-resolution 3D baseline",
+  "input_identity": "semanticposs seq 00 frames 0-29, 100 m envelope, perception on",
+  "leg_integration_proposal": {
+    "constraint": "benchmarks/run_benchmark.py + protocol.py must not be edited by this lane",
+    "proposal": "opt-in flag on run_benchmark.py importing run_baseline from benchmarks.baseline_3d and attaching its summary under policies.measured_3d with adapter.suite='reference', reusing the per-policy runs/aggregate shape for the map_update-equivalent stage only"
+  },
+  "reproduction_verdict": {
+    "accounted_bytes_40960448_reproduced": true,
+    "bounds_reproduced": true,
+    "occupied_voxels_1280014_reproduced": true,
+    "stream_digest_4cd60ac5_reproduced": true
+  },
+  "root_cause_of_timing_non_reproducibility": "Per-frame latency is wall-clock on a shared, loaded host (run B/C under nice -n 19 with ~11/15 GB RAM in use): run A p50 43.7 ms vs run B p50 111.6 ms. Deterministic quantities (digest, voxel count, per-frame arrays, bounds, accounted bytes) reproduce bit-exact; RSS reproduces within 0.02%. Latency/RSS are therefore recorded, never gated.",
+  "runs": {
+    "A_original": {
+      "accounted_bytes": 40960448,
+      "git_sha": "b5f1ace75c04e947ffeb2880594b719c4c5cee9c",
+      "latency_ms": {
+        "count": 30,
+        "p50": 43.652116,
+        "p95": 93.566829,
+        "p99": 174.659555
+      },
+      "occupied_voxels": 1280014,
+      "peak_rss_bytes": 862752768,
+      "stream_digest": "4cd60ac5a5746bbc142d56e36fdbc4a89b8707e6cb905c8dae4f9d4f9c8c43dc",
+      "timestamp_utc": "2026-09-18T07:30:28.509203+00:00"
+    },
+    "B_rerun_preface_change": {
+      "accounted_bytes": 40960448,
+      "digest_match_closure_4cd60ac5": true,
+      "git_sha": "cf9e71d3af43cbebc931635ddf074829e25f8793",
+      "latency_ms": {
+        "count": 30,
+        "max": 299.163647,
+        "mean": 134.91560446666668,
+        "min": 65.99461,
+        "p50": 111.59325,
+        "p95": 280.592363,
+        "p99": 299.163647
+      },
+      "note": "first 2nd-party rerun (worktree closure/opencode-baseline, nice -n 19 on loaded host); deterministic fields reproduce exactly, timing differs (host load) \u2014 see root_cause below",
+      "occupied_voxels": 1280014,
+      "peak_rss_bytes": 862883840,
+      "per_frame_new_voxels_equal_A": true,
+      "stream_digest": "4cd60ac5a5746bbc142d56e36fdbc4a89b8707e6cb905c8dae4f9d4f9c8c43dc",
+      "timestamp_utc": "2026-09-20T07:28:22.547116+00:00"
+    },
+    "C_canonical_regenerated": {
+      "accounted_bytes": 40960448,
+      "digest_match_closure_4cd60ac5": true,
+      "frame_rows": 30,
+      "git_sha": "cf9e71d3af43cbebc931635ddf074829e25f8793",
+      "latency_ms": {
+        "count": 30,
+        "max": 280.431925,
+        "mean": 116.97293843333334,
+        "min": 70.562813,
+        "p50": 110.671895,
+        "p95": 217.460297,
+        "p99": 280.431925
+      },
+      "note": "regenerated with metadata-complete script (provenance v2 + elements.frames); numeric method unchanged",
+      "occupied_voxels": 1280014,
+      "peak_rss_bytes": 863232000,
+      "stream_digest": "4cd60ac5a5746bbc142d56e36fdbc4a89b8707e6cb905c8dae4f9d4f9c8c43dc",
+      "timestamp_utc": "2026-09-20T07:34:56.387808+00:00"
+    }
+  },
+  "schema": "veyra-baseline-3d-rerun/1"
+}

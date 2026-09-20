@@ -140,8 +140,8 @@ fn validated_dataset_root(root: &str) -> Result<PathBuf, String> {
 
 #[cfg(test)]
 mod tests {
-    use super::validated_dataset_root;
     use super::choose_dataset_allowlist_check;
+    use super::validated_dataset_root;
 
     #[test]
     fn dataset_format_is_allowlisted_before_filesystem_access() {

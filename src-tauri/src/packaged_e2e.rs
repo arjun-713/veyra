@@ -115,7 +115,10 @@ fn e2e_prerequisites() -> Option<(PathBuf, PathBuf)> {
 fn timed<T>(label: &str, operation: impl FnOnce() -> T) -> T {
     let started = Instant::now();
     let value = operation();
-    eprintln!("E2E {label} completed in {:.1}s", started.elapsed().as_secs_f64());
+    eprintln!(
+        "E2E {label} completed in {:.1}s",
+        started.elapsed().as_secs_f64()
+    );
     value
 }
 
@@ -135,16 +138,18 @@ fn listener_state(endpoint: std::net::SocketAddr) -> String {
     let std::net::IpAddr::V4(ipv4) = endpoint.ip() else {
         return format!("{endpoint} NON-V4");
     };
-    let wanted = format!("{:08X}:{:04X}", u32::from_ne_bytes(ipv4.octets()), endpoint.port());
+    let wanted = format!(
+        "{:08X}:{:04X}",
+        u32::from_ne_bytes(ipv4.octets()),
+        endpoint.port()
+    );
     let mut found = false;
     for table in ["net/tcp", "net/tcp6"] {
         let path = format!("/proc/{table}");
         if let Ok(contents) = std::fs::read_to_string(&path) {
             for line in contents.lines().skip(1) {
                 let fields: Vec<&str> = line.split_whitespace().collect();
-                if fields.len() > 3
-                    && fields[1].eq_ignore_ascii_case(&wanted)
-                    && fields[3] == "0A"
+                if fields.len() > 3 && fields[1].eq_ignore_ascii_case(&wanted) && fields[3] == "0A"
                 {
                     found = true;
                 }
@@ -269,7 +274,8 @@ fn packaged_tauri_session_runs_a_real_semanticposs_flow() {
             match event.metadata.get("type").and_then(Value::as_str) {
                 Some("telemetry") => {
                     cells = cells.max(
-                        event.metadata
+                        event
+                            .metadata
                             .pointer("/map/active_cells")
                             .and_then(Value::as_u64)
                             .unwrap_or(0),
@@ -344,7 +350,9 @@ fn packaged_tauri_session_runs_a_real_semanticposs_flow() {
     // 10. Clean stop. The runtime idles on its command stream, so shutdown
     // resolves via the supervisor's stop escalation; poll briefly for reap.
     timed("stop", || {
-        controller.stop().unwrap_or_else(|error| panic!("E2E stop failed: {error}"))
+        controller
+            .stop()
+            .unwrap_or_else(|error| panic!("E2E stop failed: {error}"))
     });
     let stopped = std::time::Instant::now();
     loop {
@@ -380,9 +388,8 @@ fn packaged_control_plane_serves_authenticated_fast_commands() {
     std::fs::create_dir_all(&config_dir).expect("e2e config dir");
 
     let repo = e2e_repo();
-    let mut host = Some(
-        ControlHost::start(repo, &config_dir).expect("packaged control daemon boots"),
-    );
+    let mut host =
+        Some(ControlHost::start(repo, &config_dir).expect("packaged control daemon boots"));
     let endpoint = host.as_ref().expect("host").config().endpoint;
     let token_file = host.as_ref().expect("host").config().token_file.clone();
     let mut client = ControlClient::from_endpoint_and_token_file(endpoint, &token_file)
@@ -407,7 +414,10 @@ fn packaged_control_plane_serves_authenticated_fast_commands() {
                 {
                     eprintln!("E2E retrying {command} after transient control error: {error}");
                     if let Some(host) = host.as_ref() {
-                        eprintln!("E2E listener state: {}", listener_state(host.config().endpoint));
+                        eprintln!(
+                            "E2E listener state: {}",
+                            listener_state(host.config().endpoint)
+                        );
                     }
                     std::thread::sleep(Duration::from_millis(500));
                 }
@@ -441,7 +451,9 @@ fn packaged_control_plane_serves_authenticated_fast_commands() {
     // The daemon returns the supervisor envelope; the catalog is its result.
     let catalog = &catalog_response["result"];
     assert!(
-        catalog["sequences"].as_array().is_some_and(|sequences| !sequences.is_empty()),
+        catalog["sequences"]
+            .as_array()
+            .is_some_and(|sequences| !sequences.is_empty()),
         "packaged daemon must list real SemanticPOSS sequences"
     );
     eprintln!(

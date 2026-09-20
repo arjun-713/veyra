@@ -234,7 +234,10 @@ fn dataset_open_configuration(dataset: &str, root: &Path, sequence: &str) -> Val
     })
 }
 
-fn select_openable_sequence(catalog: &Value, requested_sequence: Option<&str>) -> Result<String, String> {
+fn select_openable_sequence(
+    catalog: &Value,
+    requested_sequence: Option<&str>,
+) -> Result<String, String> {
     if catalog.get("status").and_then(Value::as_str) == Some("invalid") {
         let diagnostic = catalog
             .get("diagnostics")
@@ -249,7 +252,8 @@ fn select_openable_sequence(catalog: &Value, requested_sequence: Option<&str>) -
         .and_then(Value::as_array)
         .ok_or_else(|| "dataset catalog has no sequences".to_owned())?;
     let matches_requested = |entry: &&Value| {
-        requested_sequence.is_none_or(|requested| entry.get("id").and_then(Value::as_str) == Some(requested))
+        requested_sequence
+            .is_none_or(|requested| entry.get("id").and_then(Value::as_str) == Some(requested))
     };
     sequences
         .iter()
@@ -346,13 +350,18 @@ mod tests {
                 {"id": "01", "frames": 4}
             ]
         });
-        assert_eq!(super::select_openable_sequence(&catalog, None), Ok("01".to_owned()));
+        assert_eq!(
+            super::select_openable_sequence(&catalog, None),
+            Ok("01".to_owned())
+        );
         assert_eq!(
             super::select_openable_sequence(&catalog, Some("00")).unwrap_err(),
             "sequence 00 is unavailable or has no frames"
         );
-        assert!(super::select_openable_sequence(&json!({"status": "invalid"}), None)
-            .unwrap_err()
-            .starts_with("dataset is invalid:"));
+        assert!(
+            super::select_openable_sequence(&json!({"status": "invalid"}), None)
+                .unwrap_err()
+                .starts_with("dataset is invalid:")
+        );
     }
 }
