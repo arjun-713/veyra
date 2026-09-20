@@ -5,7 +5,7 @@ large datasets, multiple operating systems, or long-running native builds.
 
 ## Fast CI
 
-`CI` runs on pushes and pull requests that touch implementation, tests,
+`CI` runs on pushes to `main` and pull requests that touch implementation, tests,
 configuration, workflow, or desktop paths. A small classifier then runs only
 the affected jobs:
 
