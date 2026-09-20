@@ -1,5 +1,5 @@
 import {test} from 'node:test';import assert from 'node:assert/strict';
-import {comparisonMetrics,datasetFormats,defaultSessionConfig, FIRST_CPU_SAMPLE_NOTE, formatRenderAge, inputTargetFps,isRenderStale,layerUnavailable,mapActivity,MEMORY_DOMAIN_NOTE,perceptionStages,profileConfig,recordEvent, renderAgeMs,summarizeVisual} from '../src/renderer/dashboard.ts';
+import {comparisonMetrics,datasetFormats,defaultSessionConfig, FIRST_CPU_SAMPLE_NOTE, clampRenderCounts, formatRenderAge, inputTargetFps,isRenderStale,layerUnavailable,mapActivity,MEMORY_DOMAIN_NOTE,perceptionStages,profileConfig,recordEvent, renderAgeMs,summarizeVisual, RENDER_CAPACITY} from '../src/renderer/dashboard.ts';
 test('comparison requires measured matching policy reports and never fabricates reduction',()=>{
  assert.equal(comparisonMetrics(null).memoryReduction,null);
  assert.equal(comparisonMetrics({policies:{uniform5:{aggregate:{peak_rss_bytes:100}},utility_lod:{aggregate:{peak_rss_bytes:25}}}}).memoryReduction,75);
@@ -78,4 +78,14 @@ test('render stats persist with timestamp and mark stale off-Map (G-4)',()=>{
  assert.equal(formatRenderAge({} as any,1000),'—');
  assert.equal(formatRenderAge({updated_at:900} as any,1000),'100 ms ago');
  assert.equal(formatRenderAge({updated_at:0} as any,2500),'2.5 s ago');
+});
+test('renderer clamps packed counts to GPU buffer capacity instead of overflowing',()=>{
+ assert.deepEqual(clampRenderCounts(10,20),{points:{count:10,truncated:false},cells:{count:20,truncated:false},truncated:false});
+ const over=clampRenderCounts(RENDER_CAPACITY+5000,RENDER_CAPACITY+1);
+ assert.equal(over.points.count,RENDER_CAPACITY);
+ assert.equal(over.cells.count,RENDER_CAPACITY);
+ assert.equal(over.truncated,true);
+ assert.deepEqual(clampRenderCounts(Number.NaN,undefined),{points:{count:0,truncated:true},cells:{count:0,truncated:true},truncated:true});
+ assert.deepEqual(clampRenderCounts(-3,-7),{points:{count:0,truncated:false},cells:{count:0,truncated:false},truncated:false});
+ assert.equal(RENDER_CAPACITY,100000);
 });

@@ -473,9 +473,15 @@ fn decode_packet(packet: &[u8]) -> Result<(Value, Vec<u8>), SupervisorError> {
 
 #[cfg(test)]
 mod tests {
-    use super::{decode_packet, python_executable, read_packet, RuntimeSupervisor, HEADER_SIZE};
+    use super::{
+        decode_packet, dispatch_packet, fail_pending, python_executable, read_packet,
+        RuntimeSupervisor, Shared, SupervisorError, HEADER_SIZE,
+    };
     use serde_json::json;
+    use std::collections::{HashMap, VecDeque};
     use std::io::Cursor;
+    use std::sync::{Arc, Mutex};
+    use std::time::{Duration, Instant};
 
     #[test]
     fn rejects_truncated_header() {
@@ -522,5 +528,186 @@ mod tests {
 
         assert_eq!(python_executable(&root), executable);
         std::fs::remove_dir_all(root).unwrap();
+    }
+
+    fn test_repo() -> std::path::PathBuf {
+        std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+            .parent()
+            .unwrap()
+            .to_path_buf()
+    }
+
+    fn wait_while_running(supervisor: &RuntimeSupervisor, timeout: Duration) -> bool {
+        let deadline = Instant::now() + timeout;
+        while supervisor.is_running() && Instant::now() < deadline {
+            std::thread::sleep(Duration::from_millis(25));
+        }
+        !supervisor.is_running()
+    }
+
+    #[cfg(target_os = "linux")]
+    fn pid_alive(pid: u32) -> bool {
+        std::path::Path::new(&format!("/proc/{pid}")).exists()
+    }
+
+    #[test]
+    fn duplicate_start_keeps_a_single_child() {
+        let supervisor = RuntimeSupervisor::new(test_repo());
+        supervisor.start().expect("first start");
+        let first = supervisor.pid().expect("child pid after start");
+        supervisor.start().expect("duplicate start is idempotent");
+        assert_eq!(supervisor.pid(), Some(first));
+        assert!(supervisor.is_running());
+        let status = supervisor
+            .request("status", json!({}))
+            .expect("status through the single child");
+        assert_eq!(status["ok"], true);
+        supervisor.stop().unwrap();
+    }
+
+    #[test]
+    fn stop_is_idempotent_and_releases_the_child() {
+        let supervisor = RuntimeSupervisor::new(test_repo());
+        supervisor.stop().expect("stop before start is a no-op");
+        assert!(!supervisor.is_running());
+        supervisor.start().expect("start");
+        assert!(supervisor.is_running());
+        supervisor.stop().expect("stop");
+        supervisor.stop().expect("stop after stop is a no-op");
+        assert!(!supervisor.is_running());
+        assert_eq!(supervisor.pid(), None);
+    }
+
+    #[test]
+    #[cfg(target_os = "linux")]
+    fn stop_leaves_no_orphan_and_supervisor_restarts() {
+        let supervisor = RuntimeSupervisor::new(test_repo());
+        supervisor.start().expect("start");
+        let pid = supervisor.pid().expect("child pid");
+        assert!(pid_alive(pid));
+        supervisor.stop().expect("stop");
+        assert!(
+            !pid_alive(pid),
+            "stopped runtime pid {pid} must be reaped, not orphaned"
+        );
+        assert!(!supervisor.is_running());
+        // The supervisor itself survives stop: a fresh session starts cleanly.
+        supervisor.start().expect("restart after stop");
+        let status = supervisor
+            .request("status", json!({}))
+            .expect("status after restart");
+        assert_eq!(status["ok"], true);
+        supervisor.stop().unwrap();
+    }
+
+    #[test]
+    #[cfg(target_os = "linux")]
+    fn external_crash_is_reaped_and_recovered() {
+        let supervisor = RuntimeSupervisor::new(test_repo());
+        supervisor.start().expect("start");
+        let pid = supervisor.pid().expect("child pid");
+        std::process::Command::new("kill")
+            .arg("-9")
+            .arg(pid.to_string())
+            .status()
+            .expect("SIGKILL the runtime");
+        assert!(
+            wait_while_running(&supervisor, Duration::from_secs(5)),
+            "monitor must reap the crashed child"
+        );
+        assert_eq!(supervisor.pid(), None);
+        // Next request auto-starts a fresh runtime (crash recovery path).
+        let status = supervisor
+            .request("status", json!({}))
+            .expect("status after crash recovery");
+        assert_eq!(status["ok"], true);
+        supervisor.stop().unwrap();
+    }
+
+    fn test_shared() -> Arc<Mutex<Shared>> {
+        Arc::new(Mutex::new(Shared {
+            stdin: None,
+            child: None,
+            pending: HashMap::new(),
+            events: VecDeque::new(),
+            stderr: String::new(),
+            last_error: None,
+            sequence: 0,
+            stopping: false,
+        }))
+    }
+
+    #[test]
+    fn response_packets_resolve_their_pending_sender() {
+        let shared = test_shared();
+        let (sender, receiver) = std::sync::mpsc::channel();
+        shared
+            .lock()
+            .unwrap()
+            .pending
+            .insert("7".to_owned(), sender);
+        dispatch_packet(
+            &shared,
+            json!({"type": "response", "id": "7", "ok": true}),
+            Vec::new(),
+        );
+        assert!(receiver.recv_timeout(Duration::from_secs(1)).unwrap().is_ok());
+        assert!(shared.lock().unwrap().pending.is_empty());
+    }
+
+    #[test]
+    fn error_responses_and_crashes_fail_pending_with_context() {
+        let shared = test_shared();
+        let (sender, receiver) = std::sync::mpsc::channel();
+        shared
+            .lock()
+            .unwrap()
+            .pending
+            .insert("9".to_owned(), sender);
+        dispatch_packet(
+            &shared,
+            json!({"type": "response", "id": "9", "ok": false,
+                   "error": {"message": "boom"}}),
+            Vec::new(),
+        );
+        let error = receiver
+            .recv_timeout(Duration::from_secs(1))
+            .unwrap()
+            .unwrap_err();
+        assert!(matches!(error, SupervisorError::Response(message) if message == "boom"));
+
+        // Crash path: every waiter still blocked on the dead child is failed.
+        let (sender, receiver) = std::sync::mpsc::channel();
+        shared
+            .lock()
+            .unwrap()
+            .pending
+            .insert("10".to_owned(), sender);
+        fail_pending(
+            &mut shared.lock().unwrap(),
+            SupervisorError::Process("runtime exited: signal".to_owned()),
+        );
+        let error = receiver
+            .recv_timeout(Duration::from_secs(1))
+            .unwrap()
+            .unwrap_err();
+        assert!(matches!(error, SupervisorError::Process(_)));
+
+        // Non-response packets never resolve a waiter; they queue as events.
+        dispatch_packet(&shared, json!({"type": "telemetry", "tick": 3}), Vec::new());
+        assert_eq!(shared.lock().unwrap().events.len(), 1);
+    }
+
+    #[test]
+    fn oversize_protocol_lengths_are_rejected() {
+        let metadata = serde_json::to_vec(&json!({"type":"response","id":"1","ok":true})).unwrap();
+        let mut packet = Vec::new();
+        packet.extend_from_slice(b"VYRA");
+        packet.extend_from_slice(&1_u16.to_le_bytes());
+        packet.extend_from_slice(&1_u16.to_le_bytes());
+        packet.extend_from_slice(&((1024 * 1024 + 1) as u32).to_le_bytes());
+        packet.extend_from_slice(&0_u32.to_le_bytes());
+        packet.extend_from_slice(&metadata);
+        assert!(decode_packet(&packet).is_err());
     }
 }

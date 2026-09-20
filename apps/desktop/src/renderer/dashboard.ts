@@ -63,3 +63,13 @@ export function summarizeVisual(frame:WireFrame|null){
  for(let i=0;i<section.count;i++){const id=data.getFloat32(section.offset+i*section.stride+16,true);counts.set(id,(counts.get(id)??0)+1);}
  return [...counts].map(([id,count])=>({id,name:classNames[id]??`Class ${id}`,count,percent:100*count/section.count})).sort((a,b)=>b.count-a.count);
 }
+export const RENDER_CAPACITY=100000;
+export function clampRenderCounts(pointCount:unknown,cellCount:unknown,capacity=RENDER_CAPACITY){
+ const clamp=(value:unknown)=>{
+  if(typeof value!=='number'||!Number.isFinite(value))return {count:0,truncated:true};
+  const count=Math.max(0,Math.floor(value));
+  return count>capacity?{count:capacity,truncated:true}:{count,truncated:false};
+ };
+ const points=clamp(pointCount),cells=clamp(cellCount);
+ return {points, cells, truncated:points.truncated||cells.truncated};
+}
