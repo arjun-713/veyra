@@ -651,7 +651,10 @@ mod tests {
             json!({"type": "response", "id": "7", "ok": true}),
             Vec::new(),
         );
-        assert!(receiver.recv_timeout(Duration::from_secs(1)).unwrap().is_ok());
+        assert!(receiver
+            .recv_timeout(Duration::from_secs(1))
+            .unwrap()
+            .is_ok());
         assert!(shared.lock().unwrap().pending.is_empty());
     }
 
