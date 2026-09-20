@@ -91,6 +91,40 @@ class SemanticKITTIAdapterTests(unittest.TestCase):
             with self.assertRaises(ValueError):
                 SemanticKITTIDataset(root).load_frame("00", "000000")
 
+    def test_discovery_rejects_unmatched_label_files_before_replay(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            sequence = root / "sequences" / "00"
+            (sequence / "velodyne").mkdir(parents=True)
+            (sequence / "labels").mkdir()
+            np.array([[1.0, 0.0, 0.0, 0.5]], dtype=np.float32).tofile(
+                sequence / "velodyne" / "000000.bin"
+            )
+            np.array([10], dtype=np.uint32).tofile(
+                sequence / "labels" / "000000.label"
+            )
+            np.array([10], dtype=np.uint32).tofile(
+                sequence / "labels" / "000001.label"
+            )
+
+            with self.assertRaisesRegex(ValueError, "label has no matching scan"):
+                SemanticKITTIDataset(root).list_frames("00")
+
+    def test_rejects_label_files_with_trailing_bytes(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            sequence = root / "sequences" / "00"
+            (sequence / "velodyne").mkdir(parents=True)
+            (sequence / "labels").mkdir()
+            np.array([[1.0, 0.0, 0.0, 0.5]], dtype=np.float32).tofile(
+                sequence / "velodyne" / "000000.bin"
+            )
+            label = sequence / "labels" / "000000.label"
+            label.write_bytes(np.array([10], dtype=np.uint32).tobytes() + b"x")
+
+            with self.assertRaisesRegex(ValueError, "complete uint32 label records"):
+                SemanticKITTIDataset(root).load_frame("00", "000000")
+
     def test_absent_timestamp_is_never_generated(self):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
@@ -107,6 +141,21 @@ class SemanticKITTIAdapterTests(unittest.TestCase):
 
         self.assertIsNone(frame.timestamp)
         self.assertEqual(frame.provenance.timestamp_source, "absent")
+
+    def test_rejects_nonfinite_dataset_timestamp(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            sequence = root / "sequences" / "00"
+            (sequence / "velodyne").mkdir(parents=True)
+            (sequence / "labels").mkdir()
+            np.array([[1.0, 0.0, 0.0, 0.5]], dtype=np.float32).tofile(
+                sequence / "velodyne" / "000000.bin"
+            )
+            np.array([10], dtype=np.uint32).tofile(sequence / "labels" / "000000.label")
+            (sequence / "times.txt").write_text("nan\n")
+
+            with self.assertRaisesRegex(ValueError, "invalid timestamp"):
+                SemanticKITTIDataset(root).load_frame("00", "000000")
 
     def test_world_frame_requires_dataset_pose(self):
         with tempfile.TemporaryDirectory() as directory:

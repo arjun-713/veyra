@@ -8,7 +8,12 @@ from pathlib import Path
 
 import numpy as np
 
-from datasets.common.adapter import DatasetFrameRef
+from datasets.common.adapter import (
+    DatasetFrameRef,
+    reject_orphan_label_files,
+    require_complete_binary_records,
+    require_finite_metadata_value,
+)
 from datasets.common.observation import FrameProvenance, ObservationFrame, PoseSE3
 from datasets.common.taxonomy import RELLIS_LABELS, map_dataset_labels
 
@@ -77,6 +82,9 @@ class Rellis3DDataset:
         if not scan_root.is_dir():
             raise FileNotFoundError(f"scan directory does not exist: {scan_root}")
         label_root = self._sequence_root(sequence) / self.label_dir
+        reject_orphan_label_files(
+            scan_root, label_root, require_labels=self.require_labels
+        )
         scans = sorted(
             scan_root.glob("*.bin"), key=lambda path: self._frame_sort_key(path.stem)
         )
@@ -142,6 +150,9 @@ class Rellis3DDataset:
             raw_labels = np.zeros(points.shape[0], dtype=np.uint32)
             label_source = "absent"
         else:
+            require_complete_binary_records(
+                ref.label_path, np.dtype(np.uint32).itemsize, "label"
+            )
             raw_labels = np.fromfile(ref.label_path, dtype=np.uint32)
             if raw_labels.shape[0] != points.shape[0]:
                 raise ValueError(
@@ -238,7 +249,8 @@ class Rellis3DDataset:
         if index >= len(lines):
             raise ValueError(f"timestamp file has no value for {sequence}/{frame_id}")
         try:
-            return float(lines[index].split()[0]), "dataset"
+            value = float(lines[index].split()[0])
+            return require_finite_metadata_value(value, path, index + 1, "timestamp"), "dataset"
         except ValueError as error:
             raise ValueError(f"invalid timestamp at {path}:{index + 1}") from error
 
