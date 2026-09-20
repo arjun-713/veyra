@@ -19,7 +19,6 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from benchmarks.protocol import stream_file
 from datasets.semanticposs.adapter import SemanticPOSSDataset
 
-
 PRIMARY_ROOT = Path("/home/arjun/Captain/SIH/Lidar/data/raw/semanticposs/dataset")
 
 

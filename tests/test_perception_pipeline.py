@@ -383,9 +383,7 @@ class CenetModeTests(unittest.TestCase):
                 )
             )
 
-        self.assertIsInstance(
-            pipeline.semantic_provider, GroundTruthSemanticProvider
-        )
+        self.assertIsInstance(pipeline.semantic_provider, GroundTruthSemanticProvider)
         self.assertEqual(pipeline.semantic_requested_mode, "cenet")
         self.assertIsNotNone(pipeline.semantic_fallback_reason)
         self.assertIn(
@@ -409,14 +407,10 @@ class CenetModeTests(unittest.TestCase):
             os.environ, {"VEYRA_CENET_CHECKPOINT": "/nonexistent/env-override.bin"}
         ):
             pipeline = PerceptionPipeline.from_config(
-                self._config(
-                    {"mode": "cenet", "checkpoint": "/nonexistent/config.bin"}
-                )
+                self._config({"mode": "cenet", "checkpoint": "/nonexistent/config.bin"})
             )
 
-        self.assertIsInstance(
-            pipeline.semantic_provider, GroundTruthSemanticProvider
-        )
+        self.assertIsInstance(pipeline.semantic_provider, GroundTruthSemanticProvider)
         reason = pipeline.semantic_fallback_reason or ""
         self.assertIn("/nonexistent/env-override.bin", reason)
         self.assertNotIn("/nonexistent/config.bin", reason)
@@ -441,10 +435,13 @@ class CenetModeTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory:
             mock_checkpoint = str(Path(directory) / "mock-weights.bin")
             Path(mock_checkpoint).write_bytes(b"mock-cenet-weights")
-            with mock.patch.dict(
-                os.environ, {"VEYRA_CENET_CHECKPOINT": mock_checkpoint}
-            ), mock.patch(
-                "perception.semantic.cenet.CENetSemanticProvider", FakeCENet
+            with (
+                mock.patch.dict(
+                    os.environ, {"VEYRA_CENET_CHECKPOINT": mock_checkpoint}
+                ),
+                mock.patch(
+                    "perception.semantic.cenet.CENetSemanticProvider", FakeCENet
+                ),
             ):
                 pipeline = PerceptionPipeline.from_config(
                     self._config(
@@ -499,7 +496,9 @@ class CenetModeTests(unittest.TestCase):
             self.assertIsInstance(
                 pipeline.semantic_provider, GroundTruthSemanticProvider
             )
-            self.assertIn("no checkpoint configured", pipeline.semantic_fallback_reason or "")
+            self.assertIn(
+                "no checkpoint configured", pipeline.semantic_fallback_reason or ""
+            )
 
 
 if __name__ == "__main__":

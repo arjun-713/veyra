@@ -170,9 +170,7 @@ def reproducibility_metadata(
 ) -> dict:
     """Record inputs needed to explain a future perception regression."""
     semantic_config = config_data.get("semantic", {})
-    model_value = semantic_config.get("model_path") or semantic_config.get(
-        "checkpoint"
-    )
+    model_value = semantic_config.get("model_path") or semantic_config.get("checkpoint")
     model_path = repo / model_value if isinstance(model_value, str) else None
     return {
         "git_sha": _git_sha(repo),

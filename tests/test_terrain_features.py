@@ -246,8 +246,7 @@ class TerrainAnalyzerTests(unittest.TestCase):
         self.assertGreater(float(np.nanmax(evidence.step)), 0.29)
         self.assertLessEqual(float(np.nanmax(evidence.step)), 0.31)
         self.assertGreater(
-            float(np.count_nonzero(evidence.drivable == "non_drivable"))
-            / len(points),
+            float(np.count_nonzero(evidence.drivable == "non_drivable")) / len(points),
             0.2,
         )
 
@@ -256,9 +255,7 @@ class TerrainAnalyzerTests(unittest.TestCase):
         # plane at z=5 m is exactly as drivable as one at z=0 m.
         axis = (np.arange(25, dtype=np.float64) - 12) * 0.3
         xx, yy = np.meshgrid(axis, axis, indexing="xy")
-        points = np.column_stack(
-            (xx.ravel(), yy.ravel(), np.full(xx.size, 5.0))
-        )
+        points = np.column_stack((xx.ravel(), yy.ravel(), np.full(xx.size, 5.0)))
 
         evidence = TerrainAnalyzer().analyze(
             points, GroundEvidence(np.ones(len(points)), np.ones(len(points)))
@@ -300,17 +297,19 @@ class TerrainAnalyzerTests(unittest.TestCase):
         slab[:, 2] += 2.0
         points = np.vstack((ground_points, slab)).astype(np.float64)
         mask = np.ones(len(points), dtype=bool)
-        mask[len(ground_points):] = False
+        mask[len(ground_points) :] = False
 
         evidence = TerrainAnalyzer().analyze(
             points, GroundEvidence(mask, np.ones(len(points)))
         )
 
-        slab_labels = evidence.drivable[len(ground_points):]
+        slab_labels = evidence.drivable[len(ground_points) :]
         self.assertTrue(np.all(slab_labels == "unknown"))
         self.assertTrue(np.all(evidence.drivable[~mask] != "drivable"))
         self.assertGreater(
-            float(np.count_nonzero(evidence.drivable[: len(ground_points)] == "drivable"))
+            float(
+                np.count_nonzero(evidence.drivable[: len(ground_points)] == "drivable")
+            )
             / len(ground_points),
             0.5,
         )

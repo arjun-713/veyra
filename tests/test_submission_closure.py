@@ -7,7 +7,6 @@ import tempfile
 import unittest
 from pathlib import Path
 
-
 REQUIRED_ROW_KEYS = {
     "capability",
     "current_percent",

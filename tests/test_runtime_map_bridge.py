@@ -36,9 +36,7 @@ def _benchmark_binary() -> Path:
     if override:
         binary = Path(override)
         if not binary.is_file():
-            raise AssertionError(
-                f"VEYRA_BENCHMARK_BINARY does not exist: {binary}"
-            )
+            raise AssertionError(f"VEYRA_BENCHMARK_BINARY does not exist: {binary}")
         _shared_binary = binary
         return binary
     repo = Path(__file__).resolve().parents[1]

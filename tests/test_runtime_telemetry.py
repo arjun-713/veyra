@@ -1,5 +1,5 @@
-import unittest
 import os
+import unittest
 
 from runtime.telemetry import Telemetry, rss_bytes
 

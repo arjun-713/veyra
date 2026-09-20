@@ -52,6 +52,7 @@ class ProductProtocolTests(unittest.TestCase):
             input=b'{"id":"s","command":"status","args":{}}\n',
             capture_output=True,
             timeout=10,
+            check=False,
         )
         self.assertEqual(process.returncode, 0, process.stderr.decode())
         from runtime.protocol import read_message
@@ -204,7 +205,7 @@ if __name__ == "__main__":
 
 class ReplayRegressionTests(unittest.TestCase):
     def test_seek_maps_each_intermediate_observation(self):
-        from tests.test_runtime_player import _write_frame, RuntimePlayerTests
+        from tests.test_runtime_player import RuntimePlayerTests, _write_frame
 
         class Counter:
             def __init__(self):
@@ -235,7 +236,7 @@ class ReplayRegressionTests(unittest.TestCase):
             session.close()
 
     def test_invalid_sequence_preserves_session(self):
-        from tests.test_runtime_player import _write_frame, RuntimePlayerTests
+        from tests.test_runtime_player import RuntimePlayerTests, _write_frame
 
         with tempfile.TemporaryDirectory() as raw:
             root = Path(raw)
@@ -248,7 +249,8 @@ class ReplayRegressionTests(unittest.TestCase):
 
     def test_binary_frame_keeps_numpy_arrays(self):
         import numpy as np
-        from tests.test_runtime_player import _write_frame, RuntimePlayerTests
+
+        from tests.test_runtime_player import RuntimePlayerTests, _write_frame
 
         with tempfile.TemporaryDirectory() as raw:
             root = Path(raw)

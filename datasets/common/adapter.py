@@ -65,7 +65,9 @@ def require_complete_binary_records(path: Path, record_size: int, kind: str) -> 
         )
 
 
-def require_finite_metadata_value(value: float, path: Path, row: int, kind: str) -> float:
+def require_finite_metadata_value(
+    value: float, path: Path, row: int, kind: str
+) -> float:
     """Reject NaN/Inf metadata at the file boundary with its source row."""
     if not np.isfinite(value):
         raise ValueError(f"invalid {kind} at {path}:{row}: value must be finite")

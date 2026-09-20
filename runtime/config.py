@@ -1,6 +1,7 @@
 """Strict product configuration composed around existing subsystem settings."""
 
 from __future__ import annotations
+
 import copy
 import hashlib
 import json
@@ -43,10 +44,10 @@ PRESETS = {
 
 def _keys(value, allowed, name):
     if not isinstance(value, dict):
-        raise ValueError(f"{name} must be an object")
+        raise TypeError(f"{name} must be an object")
     unknown = set(value) - set(allowed)
     if unknown:
-        raise ValueError(f'unknown {name} fields: {", ".join(sorted(unknown))}')
+        raise ValueError(f"unknown {name} fields: {', '.join(sorted(unknown))}")
 
 
 def number(value, name, minimum, maximum, integer=False):
@@ -67,7 +68,7 @@ def normalized_pipeline(value):
     if value is None:
         return copy.deepcopy(DEFAULT_PIPELINE)
     if not isinstance(value, dict):
-        raise ValueError("pipeline must be an object")
+        raise TypeError("pipeline must be an object")
     pipeline = copy.deepcopy(DEFAULT_PIPELINE)
     for name, settings in value.items():
         if name in pipeline and isinstance(settings, dict):

@@ -1,6 +1,7 @@
 """Bounded, versioned local transport. All binary quantities are little endian."""
 
 from __future__ import annotations
+
 import json
 import struct
 import threading
@@ -43,7 +44,7 @@ def read_message(stream):
         raise ValueError("message size exceeds protocol limit")
     metadata = json.loads(_read_exact(stream, metadata_size))
     if not isinstance(metadata, dict):
-        raise ValueError("metadata must be an object")
+        raise TypeError("metadata must be an object")
     return metadata, _read_exact(stream, payload_size)
 
 

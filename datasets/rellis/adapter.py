@@ -250,7 +250,9 @@ class Rellis3DDataset:
             raise ValueError(f"timestamp file has no value for {sequence}/{frame_id}")
         try:
             value = float(lines[index].split()[0])
-            return require_finite_metadata_value(value, path, index + 1, "timestamp"), "dataset"
+            return require_finite_metadata_value(
+                value, path, index + 1, "timestamp"
+            ), "dataset"
         except ValueError as error:
             raise ValueError(f"invalid timestamp at {path}:{index + 1}") from error
 

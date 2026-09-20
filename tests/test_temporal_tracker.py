@@ -1,6 +1,8 @@
+import itertools
 import os
 import time
 import unittest
+from dataclasses import FrozenInstanceError
 from pathlib import Path
 from unittest.mock import patch
 
@@ -327,7 +329,7 @@ class TemporalTrackerTests(unittest.TestCase):
         self.assertEqual(first[0].missed_frames, 0)
         self.assertEqual(first[0].persistence, 1)
         self.assertFalse(first[0].motion_valid)
-        with self.assertRaises(Exception):
+        with self.assertRaises(FrozenInstanceError):
             first[0].persistence = 99  # frozen snapshot, not tracker state
 
         tracker.update(points, labels, translation(0.0), timestamp=1.0)
@@ -584,9 +586,9 @@ class KittiSeq08TemporalTests(unittest.TestCase):
 
     def _root(self) -> Path | None:
         override = os.environ.get("SEMANTICKITTI_ROOT")
-        candidates = (
-            [Path(override)] if override else []
-        ) + [Path("data/raw/semantickitti/dataset")]
+        candidates = ([Path(override)] if override else []) + [
+            Path("data/raw/semantickitti/dataset")
+        ]
         for root in candidates:
             if (root / "sequences" / self.SEQUENCE / "times.txt").is_file():
                 return root
@@ -618,7 +620,7 @@ class KittiSeq08TemporalTests(unittest.TestCase):
             if frame.provenance.coordinate_frame != "world":
                 self.fail("frame is not in world coordinates")
         timestamps = [float(frame.timestamp) for frame in frames]
-        if any(b <= a for a, b in zip(timestamps, timestamps[1:])):
+        if any(b <= a for a, b in itertools.pairwise(timestamps)):
             self.fail("dataset timestamps must strictly increase")
         return frames
 
@@ -654,56 +656,41 @@ class KittiSeq08TemporalTests(unittest.TestCase):
         frames = self._frames([43, 44, 45, 46, 47])
         _, evidences = self._track(frames)
         medians = []
-        for frame, evidence in zip(frames[1:], evidences[1:]):
-            moving = (frame.raw_semantic_class == 252) & (
-                evidence.state != "unknown"
-            )
+        for frame, evidence in zip(frames[1:], evidences[1:], strict=True):
+            moving = (frame.raw_semantic_class == 252) & (evidence.state != "unknown")
             self.assertGreater(int(moving.sum()), 3000)
-            static_share = float(
-                np.mean(evidence.state[moving] == "static")
-            )
+            static_share = float(np.mean(evidence.state[moving] == "static"))
             self.assertLess(static_share, 0.25)
             speed = np.linalg.norm(evidence.velocity_xy[moving], axis=1)
             moving_speed = speed[evidence.state[moving] == "moving"]
             self.assertGreater(len(moving_speed), 1000)
             self.assertGreater(float(np.median(moving_speed)), 2.0)
             self.assertLess(float(np.median(moving_speed)), 15.0)
-            medians.append(
-                np.median(evidence.velocity_xy[moving], axis=0)
-            )
-        for first, second in zip(medians, medians[1:]):
+            medians.append(np.median(evidence.velocity_xy[moving], axis=0))
+        for first, second in itertools.pairwise(medians):
             cosine = float(
-                np.dot(first, second)
-                / (np.linalg.norm(first) * np.linalg.norm(second))
+                np.dot(first, second) / (np.linalg.norm(first) * np.linalg.norm(second))
             )
             self.assertGreater(cosine, 0.9)
         # Slow movers (pedestrians, riders) must never be called static:
         # uncertain collapses to possibly_moving, which still excludes them
         # from static-map consumption.
-        for frame, evidence in zip(frames[1:], evidences[1:]):
+        for frame, evidence in zip(frames[1:], evidences[1:], strict=True):
             for raw in (254, 253):
-                mask = (frame.raw_semantic_class == raw) & (
-                    evidence.state != "unknown"
-                )
+                mask = (frame.raw_semantic_class == raw) & (evidence.state != "unknown")
                 if mask.sum() < 200:
                     continue
-                self.assertLess(
-                    float(np.mean(evidence.state[mask] == "static")), 0.1
-                )
+                self.assertLess(float(np.mean(evidence.state[mask] == "static")), 0.1)
 
     def test_parked_objects_do_not_report_confirmed_motion(self) -> None:
         frames = self._frames([43, 44, 45, 46, 47])
         _, evidences = self._track(frames)
-        for frame, evidence in zip(frames[2:], evidences[2:]):
+        for frame, evidence in zip(frames[2:], evidences[2:], strict=True):
             for raw, bound in ((80, 0.15), (10, 0.5)):
-                mask = (frame.raw_semantic_class == raw) & (
-                    evidence.state != "unknown"
-                )
+                mask = (frame.raw_semantic_class == raw) & (evidence.state != "unknown")
                 if mask.sum() < 200:
                     continue
-                moving_share = float(
-                    np.mean(evidence.state[mask] == "moving")
-                )
+                moving_share = float(np.mean(evidence.state[mask] == "moving"))
                 self.assertLess(moving_share, bound)
 
     def test_quiet_window_bounds_false_motion(self) -> None:
@@ -713,25 +700,19 @@ class KittiSeq08TemporalTests(unittest.TestCase):
         # known residual (drive-past support slide confirms), pinned below.
         frames = self._frames([400, 401, 402, 403, 404])
         _, evidences = self._track(frames)
-        for frame, evidence in zip(frames[2:], evidences[2:]):
+        for frame, evidence in zip(frames[2:], evidences[2:], strict=True):
             for raw in (80, 30):
-                mask = (frame.raw_semantic_class == raw) & (
-                    evidence.state != "unknown"
-                )
+                mask = (frame.raw_semantic_class == raw) & (evidence.state != "unknown")
                 if mask.sum() < 200:
                     continue
-                self.assertLess(
-                    float(np.mean(evidence.state[mask] == "moving")), 0.05
-                )
+                self.assertLess(float(np.mean(evidence.state[mask] == "moving")), 0.05)
             valid = evidence.state != "unknown"
             self.assertGreater(int(valid.sum()), 1000)
             # Residual pin, not a proof: extended surfaces (walls, canopies)
             # confirm false motion via systematic drive-past support slide
             # (measured 0.39-0.49 here). Compact objects above carry the
             # separation proof; this bound only prevents silent regression.
-            self.assertLess(
-                float(np.mean(evidence.state[valid] == "moving")), 0.55
-            )
+            self.assertLess(float(np.mean(evidence.state[valid] == "moving")), 0.55)
 
     def test_relocation_expires_tracks_and_bounds_ghosts(self) -> None:
         frames = self._frames([98, 99, 400, 401, 402])
@@ -799,7 +780,7 @@ class KittiSeq08TemporalTests(unittest.TestCase):
         sparse = self._frames([43, 45, 47])
         gaps = [
             float(second.timestamp) - float(first.timestamp)
-            for first, second in zip(sparse, sparse[1:])
+            for first, second in itertools.pairwise(sparse)
         ]
         for gap in gaps:
             self.assertGreater(gap, 0.15)
@@ -821,36 +802,22 @@ class KittiSeq08TemporalTests(unittest.TestCase):
         # True movers must agree quantitatively, not just within the gate:
         # the pass-by car's median speed is dt-invariant across strides.
         dense_mover = []
-        for frame, evidence in zip(dense[1:], dense_evidence[1:]):
-            mask = (frame.raw_semantic_class == 252) & (
-                evidence.state == "moving"
-            )
+        for frame, evidence in zip(dense[1:], dense_evidence[1:], strict=True):
+            mask = (frame.raw_semantic_class == 252) & (evidence.state == "moving")
             if mask.sum() > 1000:
                 dense_mover.append(
-                    float(
-                        np.median(
-                            np.linalg.norm(evidence.velocity_xy[mask], axis=1)
-                        )
-                    )
+                    float(np.median(np.linalg.norm(evidence.velocity_xy[mask], axis=1)))
                 )
         sparse_mover = []
-        for frame, evidence in zip(sparse[1:], sparse_evidence[1:]):
-            mask = (frame.raw_semantic_class == 252) & (
-                evidence.state == "moving"
-            )
+        for frame, evidence in zip(sparse[1:], sparse_evidence[1:], strict=True):
+            mask = (frame.raw_semantic_class == 252) & (evidence.state == "moving")
             if mask.sum() > 1000:
                 sparse_mover.append(
-                    float(
-                        np.median(
-                            np.linalg.norm(evidence.velocity_xy[mask], axis=1)
-                        )
-                    )
+                    float(np.median(np.linalg.norm(evidence.velocity_xy[mask], axis=1)))
                 )
         self.assertTrue(len(dense_mover) >= 2)
         self.assertTrue(len(sparse_mover) >= 1)
-        mover_ratio = float(np.median(sparse_mover)) / float(
-            np.median(dense_mover)
-        )
+        mover_ratio = float(np.median(sparse_mover)) / float(np.median(dense_mover))
         self.assertGreater(mover_ratio, 0.7)
         self.assertLess(mover_ratio, 1.4)
 
@@ -920,7 +887,8 @@ class MotionEvaluatorTests(unittest.TestCase):
 
         tracker = TemporalTracker(cluster_tolerance_m=0.5)
         frames = [
-            self._frame(self._cluster(10.0), timestamp=float(index)) for index in range(3)
+            self._frame(self._cluster(10.0), timestamp=float(index))
+            for index in range(3)
         ]
 
         report = evaluate_motion(frames, tracker, min_object_points=3)
@@ -964,15 +932,20 @@ class MotionEvaluatorTests(unittest.TestCase):
 
         lidar_frame = self._frame(self._cluster(10.0), timestamp=0.0)
         lidar_frame = SimpleNamespace(
-            **{**vars(lidar_frame), "provenance": FrameProvenance(
-                coordinate_frame="lidar",
-                timestamp_source="absent",
-                pose_source="identity_absent",
-                calibration_source="identity_absent",
-                label_source="dataset",
-            )}
+            **{
+                **vars(lidar_frame),
+                "provenance": FrameProvenance(
+                    coordinate_frame="lidar",
+                    timestamp_source="absent",
+                    pose_source="identity_absent",
+                    calibration_source="identity_absent",
+                    label_source="dataset",
+                ),
+            }
         )
-        report = evaluate_motion([lidar_frame, lidar_frame], tracker, min_object_points=3)
+        report = evaluate_motion(
+            [lidar_frame, lidar_frame], tracker, min_object_points=3
+        )
         self.assertEqual(report["status"], "UNKNOWN")
         self.assertIn("world", report["reason"])
 
@@ -990,7 +963,9 @@ class MotionEvaluatorTests(unittest.TestCase):
         points = np.asarray(
             [[x, 0.0, 0.0, 1.0] for x in self._cluster(10.0)], dtype=np.float32
         )
-        tracker.update(points, np.ones(len(points), dtype=np.int32), np.eye(4), timestamp=0.0)
+        tracker.update(
+            points, np.ones(len(points), dtype=np.int32), np.eye(4), timestamp=0.0
+        )
 
         (snapshot,) = tracker.active_tracks()
 
@@ -1011,9 +986,9 @@ class KittiSeq08MotionEvaluatorTests(unittest.TestCase):
 
     def _root(self):
         override = os.environ.get("SEMANTICKITTI_ROOT")
-        candidates = (
-            [Path(override)] if override else []
-        ) + [Path("data/raw/semantickitti/dataset")]
+        candidates = ([Path(override)] if override else []) + [
+            Path("data/raw/semantickitti/dataset")
+        ]
         for root in candidates:
             if (root / "sequences" / self.SEQUENCE / "times.txt").is_file():
                 return root
