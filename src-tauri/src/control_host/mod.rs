@@ -20,8 +20,6 @@ pub(crate) struct ClientConfig {
 
 #[derive(Debug, thiserror::Error)]
 pub(crate) enum ControlHostError {
-    #[error("control endpoint configuration must provide both VEYRA_CONTROL_ENDPOINT and VEYRA_CONTROL_TOKEN_FILE")]
-    PartialEnvironment,
     #[error("control endpoint is invalid: {0}")]
     InvalidEndpoint(String),
     #[error("control token file is invalid: {0}")]
@@ -85,25 +83,7 @@ impl EventRelay {
 
 impl ControlHost {
     pub(crate) fn start(repo: PathBuf, config_dir: &Path) -> Result<Self, ControlHostError> {
-        match (
-            std::env::var_os("VEYRA_CONTROL_ENDPOINT"),
-            std::env::var_os("VEYRA_CONTROL_TOKEN_FILE"),
-        ) {
-            (Some(endpoint), Some(token_file)) => {
-                let config =
-                    validate_external_config(&endpoint.to_string_lossy(), Path::new(&token_file))?;
-                Ok(Self {
-                    config,
-                    thread: None,
-                    secret: None,
-                    owns_daemon: false,
-                    persisted: false,
-                    event_relay: None,
-                })
-            }
-            (None, None) => Self::launch_owned(repo, config_dir),
-            _ => Err(ControlHostError::PartialEnvironment),
-        }
+        Self::launch_owned(repo, config_dir)
     }
 
     pub(crate) fn config(&self) -> &ClientConfig {
@@ -149,6 +129,7 @@ impl ControlHost {
         let discovery_file = config_dir.join(DISCOVERY_FILE);
 
         persist_credentials(&token_file, &discovery_file, endpoint, &secret)?;
+        validate_external_config(&endpoint.to_string(), &token_file)?;
         let daemon_secret = secret.clone();
         let event_relay = Arc::new(Mutex::new(EventRelay::default()));
         let daemon_relay = Arc::clone(&event_relay);

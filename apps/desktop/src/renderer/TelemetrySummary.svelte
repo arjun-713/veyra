@@ -1,6 +1,7 @@
 <script lang="ts">
  import type {Json} from '../core';
- let {telemetry={},renderer={}}=$props<{telemetry?:Json;renderer?:Json}>();
+ import {telemetryFreshness} from './session';
+ let {telemetry={},renderer={},now=Date.now()}=$props<{telemetry?:Json;renderer?:Json;now?:number}>();
  const display=(value:unknown, suffix='')=>typeof value==='number'&&Number.isFinite(value)?`${value.toLocaleString(undefined,{maximumFractionDigits:2})}${suffix}`:'—';
  const state=(value:unknown)=>typeof value==='string'&&value&&value!=='unavailable'?String(value).replaceAll('_',' '):'Unavailable';
  const count=(values:unknown,key:string)=>typeof values==='object'&&values!==null&&typeof (values as Json)[key]==='number'?String((values as Json)[key]):'—';
@@ -29,7 +30,7 @@
  <div class="data-row"><span>Runtime</span><b>{state(health().runtime)}</b></div>
  <div class="data-row"><span>Perception</span><b>{state(health().perception)}</b></div>
  <div class="data-row"><span>Mapper</span><b>{state(health().mapper)}</b></div>
- <div class="data-row"><span>Renderer / WebGL</span><b>{state(renderer.status??'available')}</b></div>
- <div class="data-row"><span>Telemetry freshness</span><b>{telemetry.stale===true?'Stale':'Fresh'}</b></div>
+ <div class="data-row"><span>Renderer / WebGL</span><b>{state(renderer.status)}</b></div>
+ <div class="data-row"><span>Telemetry freshness</span><b>{telemetryFreshness(telemetry,now)}</b></div>
  <p class="hint">Counts are point evidence unless a track count is explicitly supplied by the runtime. Missing values remain unavailable.</p>
 </section>

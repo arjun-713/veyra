@@ -4,6 +4,7 @@ use serde_json::{Map, Value};
 
 const MAX_EVENT_BYTES: usize = 1_048_576;
 const TELEMETRY_SCHEMA_VERSION: u64 = 1;
+const VISUALIZATION_SCHEMA_VERSION: u64 = 2;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) enum EventChannel {
@@ -44,17 +45,20 @@ pub(crate) fn normalize_event(mut payload: Value) -> Result<NormalizedEvent, Str
         .as_object_mut()
         .ok_or_else(|| "runtime event must be a JSON object".to_owned())?;
 
-    if let Some(schema_version) = object.get("schema_version") {
-        if schema_version.as_u64() != Some(TELEMETRY_SCHEMA_VERSION) {
-            return Err("unsupported runtime telemetry schema version".to_owned());
-        }
-    }
-    if matches!(
-        object.get("type").and_then(Value::as_str),
+    match object.get("type").and_then(Value::as_str) {
         Some("telemetry")
-    ) && object.get("schema_version").and_then(Value::as_u64) != Some(TELEMETRY_SCHEMA_VERSION)
-    {
-        return Err("telemetry event must declare schema_version 1".to_owned());
+            if object.get("schema_version").and_then(Value::as_u64)
+                != Some(TELEMETRY_SCHEMA_VERSION) =>
+        {
+            return Err("telemetry event must declare schema_version 1".to_owned());
+        }
+        Some("visualization")
+            if object.get("schema_version").and_then(Value::as_u64)
+                != Some(VISUALIZATION_SCHEMA_VERSION) =>
+        {
+            return Err("visualization event must declare schema_version 2".to_owned());
+        }
+        _ => {}
     }
     if let Some(timestamp) = object.get("timestamp") {
         if !timestamp.is_number() {
@@ -121,7 +125,7 @@ mod tests {
     fn visualization_events_use_the_binary_channel() {
         let event = json!({
             "type": "visualization",
-            "schema_version": 1,
+            "schema_version": 2,
             "metadata": {"generation": 3},
             "payload": [1, 2, 3]
         });
@@ -140,6 +144,7 @@ mod tests {
         assert!(normalize_event(json!(null)).is_err());
         assert!(normalize_event(json!({"type": "unknown"})).is_err());
         assert!(normalize_event(json!({"type": "telemetry", "schema_version": 2})).is_err());
+        assert!(normalize_event(json!({"type": "visualization", "schema_version": 1})).is_err());
     }
 
     #[test]

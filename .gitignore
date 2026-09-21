@@ -156,3 +156,6 @@ Thumbs.db
 prompt.md
 rule.md
 observation.md
+
+# agent worktrees (scratch checkouts, never commit)
+worktrees/

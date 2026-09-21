@@ -9,12 +9,13 @@ function semantic(id:number):[number,number,number]{
 export function pointColor(mode:string,p:ArrayLike<number>,layers:Record<string,string>):[number,number,number]{
  if(mode==='semantic')return layers.semantic&&layers.semantic!=='unavailable'?semantic(p[4]):neutral;
  if(mode==='elevation')return elevation(p[2]);
- if(mode==='ground')return layers.ground==='available'?(p[6]>.5?[.3,.8,.5]:[.8,.55,.3]):neutral;
+ if(mode==='ground')return !!layers.ground&&!['unavailable','disabled','invalid','skipped'].includes(layers.ground)?(p[6]>.5?[.3,.8,.5]:[.8,.55,.3]):neutral;
  if(mode==='terrain')return layers.terrain==='available'?(p[7]===1?[.2,.85,.5]:p[7]===2?[.95,.3,.35]:neutral):neutral;
  if(mode==='motion')return layers.motion==='available'?[Math.max(.2,p[12]),.4,.7*(1-p[12])]:neutral;
  return [.72,.76,.8];
 }
 export function cellColor(mode:string,p:ArrayLike<number>):[number,number,number]{
+ if(mode==='ground')return neutral;
  if(mode==='lod')return levelColors[Math.max(0,Math.min(3,Math.round(Math.log2(p[3]/.05))))];
  if(mode==='semantic')return semantic(p[4]);if(mode==='motion')return [Math.max(.2,p[5]),.4,.7*(1-p[5])];
  if(mode==='terrain')return p[7]>.65?[.2,.85,.5]:p[7]<.35?[.95,.3,.35]:neutral;

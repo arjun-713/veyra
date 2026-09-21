@@ -206,6 +206,7 @@ def stage_backend(
     python_runtime: Path,
     platform: str,
     arch: str,
+    benchmark: Path | None = None,
 ) -> Path:
     repo, mapper, python_runtime, output = (
         Path(value).resolve() for value in (repo, mapper, python_runtime, output)
@@ -233,6 +234,11 @@ def stage_backend(
     binary_name = "veyra_runtime.exe" if platform == "win32" else "veyra_runtime"
     (output / "bin").mkdir()
     shutil.copy2(mapper, output / "bin" / binary_name)
+    if benchmark is not None:
+        benchmark_name = (
+            "veyra_benchmark.exe" if platform == "win32" else "veyra_benchmark"
+        )
+        shutil.copy2(benchmark, output / "bin" / benchmark_name)
     files = {
         path.relative_to(output).as_posix(): {
             "bytes": path.stat().st_size,

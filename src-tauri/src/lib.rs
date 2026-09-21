@@ -46,8 +46,11 @@ pub fn run() {
                 .path()
                 .resource_dir()
                 .unwrap_or_else(|_| std::env::current_dir().unwrap_or_default());
-            let control =
-                DesktopControlService::bootstrap(runtime_root(&resource_dir), &config_dir);
+            let development_repo = development_runtime_root();
+            let control = DesktopControlService::bootstrap(
+                application_runtime_root(&resource_dir, development_repo.as_deref()),
+                &config_dir,
+            );
             let startup_diagnostic = control.startup_diagnostic().map(str::to_owned);
             app.manage(Mutex::new(control));
             let event_pump = EventPump::new();
@@ -154,14 +157,33 @@ fn forwardable_runtime_event(
 /// directory (for example a bare `.gitkeep` placeholder shipped by a build
 /// that skipped staging) must never masquerade as a runnable backend.
 fn runtime_root(resource_dir: &Path) -> PathBuf {
-    let staged_backend = resource_dir.join("backend");
-    if staged_backend.join("manifest.json").is_file()
-        && staged_backend.join("runtime/__main__.py").is_file()
-    {
-        staged_backend
-    } else {
-        resource_dir.to_path_buf()
+    for staged_backend in [
+        resource_dir.join("backend"),
+        resource_dir.join("resources/backend"),
+    ] {
+        if staged_backend.join("manifest.json").is_file()
+            && staged_backend.join("runtime/__main__.py").is_file()
+        {
+            return staged_backend;
+        }
     }
+    resource_dir.to_path_buf()
+}
+
+fn application_runtime_root(resource_dir: &Path, development_repo: Option<&Path>) -> PathBuf {
+    if let Some(repo) = development_repo.filter(|repo| repo.join("runtime/__main__.py").is_file()) {
+        return repo.to_path_buf();
+    }
+    runtime_root(resource_dir)
+}
+
+fn development_runtime_root() -> Option<PathBuf> {
+    if !cfg!(debug_assertions) {
+        return None;
+    }
+    PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+        .parent()
+        .map(Path::to_path_buf)
 }
 
 #[cfg(test)]
@@ -236,6 +258,52 @@ mod tests {
     }
 
     #[test]
+    fn development_resource_directory_resolves_tauri_resources_backend() {
+        let root = std::env::temp_dir().join(format!(
+            "veyra-development-resource-root-test-{}",
+            std::process::id()
+        ));
+        let backend = root.join("resources/backend");
+        fs::create_dir_all(backend.join("runtime")).unwrap();
+        fs::write(backend.join("manifest.json"), "{\"schema_version\":1}").unwrap();
+        fs::write(backend.join("runtime/__main__.py"), "# staged").unwrap();
+
+        assert_eq!(super::runtime_root(&root), backend);
+
+        fs::remove_dir_all(root).unwrap();
+    }
+
+    #[test]
+    fn development_app_prefers_current_source_runtime_over_stale_staged_resources() {
+        let root = std::env::temp_dir().join(format!(
+            "veyra-development-source-root-test-{}",
+            std::process::id()
+        ));
+        let source = root.join("source");
+        let resources = root.join("target/debug");
+        fs::create_dir_all(source.join("runtime")).unwrap();
+        fs::write(source.join("runtime/__main__.py"), "# current source").unwrap();
+        fs::create_dir_all(resources.join("resources/backend/runtime")).unwrap();
+        fs::write(
+            resources.join("resources/backend/manifest.json"),
+            "{\"schema_version\":1}",
+        )
+        .unwrap();
+        fs::write(
+            resources.join("resources/backend/runtime/__main__.py"),
+            "# stale staged runtime",
+        )
+        .unwrap();
+
+        assert_eq!(
+            super::application_runtime_root(&resources, Some(&source)),
+            source
+        );
+
+        fs::remove_dir_all(root).unwrap();
+    }
+
+    #[test]
     fn unstaged_backend_placeholder_never_masquerades_as_a_runnable_backend() {
         let root = std::env::temp_dir().join(format!(
             "veyra-resource-root-unstaged-test-{}",
@@ -255,7 +323,7 @@ mod tests {
         let (channel, payload) = forwardable_runtime_event(RuntimeEvent {
             metadata: json!({
                 "type": "visualization",
-                "schema_version": 1,
+                "schema_version": 2,
                 "generation": 7
             }),
             payload: vec![9, 8, 7],

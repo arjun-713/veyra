@@ -69,6 +69,7 @@ class ProductRuntime:
         self.next_frame = 0.0
         self.stopping = threading.Event()
         self._status_lock = threading.Lock()
+        self._frame_in_flight = threading.Lock()
         self._cached_status = {}
         self._benchmark = None
         self._benchmark_thread = None
@@ -76,7 +77,7 @@ class ProductRuntime:
         self._publish_status()
 
     def _publish_status(self):
-        frames = self.session.status()["frames"] if self.session else 0
+        frames = self._frame_count() if self.session else 0
         status = {
             "state": self.state,
             "dataset": self.config["dataset"] if self.config else None,
@@ -96,6 +97,15 @@ class ProductRuntime:
         with self._status_lock:
             self._cached_status = status
         self.outbox.publish({"type": "status", **status})
+
+    def _frame_count(self):
+        if self.session is None:
+            return 0
+        total = self.session.status()["frames"]
+        playback = self.config["playback"] if self.config else {}
+        if playback.get("full_sequence", False):
+            return total
+        return min(total, playback.get("frame_limit", total))
 
     def status(self):
         with self._status_lock:
@@ -339,6 +349,22 @@ class ProductRuntime:
         raise ValueError("unsupported command")
 
     def _process(self, target, force_visual=False):
+        if not self._frame_in_flight.acquire(blocking=False):
+            raise RuntimeError("frame already in flight")
+        try:
+            return self._process_locked(target, force_visual=force_visual)
+        finally:
+            self._frame_in_flight.release()
+
+    def _should_publish_visual(self, *, force_visual):
+        """Commands force their final visual; playback remains capped at 2 Hz."""
+
+        return force_visual or (
+            time.monotonic() - self.last_visual
+            >= 1 / self.config["visualization"]["update_hz"]
+        )
+
+    def _process_locked(self, target, force_visual=False):
         started = time.perf_counter()
         try:
             frame = self.session.frame_payload(
@@ -361,11 +387,7 @@ class ProductRuntime:
             if isinstance(dropped, int):
                 self.dropped_frames = dropped
             visual_ms = None
-            if (
-                force_visual
-                or time.monotonic() - self.last_visual
-                >= 1 / self.config["visualization"]["update_hz"]
-            ):
+            if self._should_publish_visual(force_visual=force_visual):
                 visual_start = time.perf_counter()
                 cells = self.session.map_cells(
                     budget=self.config["visualization"]["cell_budget"]
@@ -420,6 +442,25 @@ class ProductRuntime:
             self.config["playback"]["fps"] * self.config["playback"]["speed"]
         )
 
+    def _benchmark_binary(self) -> Path:
+        """Resolve the benchmark executable for packaged and dev layouts.
+
+        Packaged backends stage it under ``bin/`` next to the mapper;
+        development checkouts keep it under ``build/``. A missing binary
+        is an explicit error, never a silent fallback to another tool.
+        """
+        name = "veyra_benchmark.exe" if sys.platform == "win32" else "veyra_benchmark"
+        staged = self.repo / "bin" / name
+        if staged.is_file():
+            return staged
+        fallback = self.repo / "build/apps/benchmark" / name
+        if fallback.is_file():
+            return fallback
+        raise ValueError(
+            "benchmark executable is not available: expected "
+            f"{staged} (staged package) or {fallback} (development build)"
+        )
+
     def _start_benchmark(self, args):
         if self._benchmark_thread and self._benchmark_thread.is_alive():
             raise ValueError("benchmark already running")
@@ -453,7 +494,7 @@ class ProductRuntime:
         config_file = directory / "perception.json"
         config_file.write_text(json.dumps(self.config["pipeline"]))
         output, csv = directory / "benchmark.json", directory / "benchmark.csv"
-        binary = self.repo / "build/apps/benchmark/veyra_benchmark"
+        binary = self._benchmark_binary()
         command = [
             sys.executable,
             "-m",

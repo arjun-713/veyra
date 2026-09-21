@@ -5,71 +5,72 @@ use serde_json::{json, Value};
 
 use crate::desktop_control::{request_for, DesktopControlService};
 
-fn request(
-    state: &tauri::State<'_, Mutex<DesktopControlService>>,
+async fn request(
+    app: tauri::AppHandle,
     command: &'static str,
     args: Value,
 ) -> Result<Value, String> {
-    let request = request_for(command, args);
-    state
-        .lock()
-        .map_err(|_| "desktop control client lock poisoned".to_owned())?
-        .request(request.command, request.args)
+    // Runtime commands can take seconds. Never block the native UI thread.
+    tauri::async_runtime::spawn_blocking(move || {
+        use tauri::Manager;
+        let state = app.state::<Mutex<DesktopControlService>>();
+        let request = request_for(command, args);
+        let result = state
+            .lock()
+            .map_err(|_| "desktop control client lock poisoned".to_owned())?
+            .request(request.command, request.args);
+        result
+    })
+    .await
+    .map_err(|error| format!("runtime command worker failed: {error}"))?
 }
 
 #[tauri::command]
-pub fn runtime_status(
-    state: tauri::State<'_, Mutex<DesktopControlService>>,
-) -> Result<Value, String> {
-    request(&state, "status", json!({}))
+pub async fn runtime_status(app: tauri::AppHandle) -> Result<Value, String> {
+    request(app, "status", json!({})).await
 }
 
 #[tauri::command]
-pub fn runtime_command(
+pub async fn runtime_command(
     command: String,
     args: Value,
-    state: tauri::State<'_, Mutex<DesktopControlService>>,
+    app: tauri::AppHandle,
 ) -> Result<Value, String> {
     if !args.is_object() {
         return Err("command arguments must be a JSON object".to_owned());
     }
-    request(&state, "command", json!({"name": command, "args": args}))
+    request(app, "command", json!({"name": command, "args": args})).await
 }
 
 #[tauri::command]
-pub fn runtime_stop(
-    state: tauri::State<'_, Mutex<DesktopControlService>>,
-) -> Result<Value, String> {
-    request(&state, "stop", json!({}))
+pub async fn runtime_stop(app: tauri::AppHandle) -> Result<Value, String> {
+    request(app, "stop", json!({})).await
 }
 
 #[tauri::command]
-pub fn runtime_configure(
+pub async fn runtime_configure(config: Value, app: tauri::AppHandle) -> Result<Value, String> {
+    if !config.is_object() {
+        return Err("configuration must be a JSON object".to_owned());
+    }
+    request(app, "configure", json!({"config": config})).await
+}
+
+#[tauri::command]
+pub async fn runtime_validate_config(
     config: Value,
-    state: tauri::State<'_, Mutex<DesktopControlService>>,
+    app: tauri::AppHandle,
 ) -> Result<Value, String> {
     if !config.is_object() {
         return Err("configuration must be a JSON object".to_owned());
     }
-    request(&state, "configure", json!({"config": config}))
+    request(app, "config_validate", json!({"config": config})).await
 }
 
 #[tauri::command]
-pub fn runtime_validate_config(
-    config: Value,
-    state: tauri::State<'_, Mutex<DesktopControlService>>,
-) -> Result<Value, String> {
-    if !config.is_object() {
-        return Err("configuration must be a JSON object".to_owned());
-    }
-    request(&state, "config_validate", json!({"config": config}))
-}
-
-#[tauri::command]
-pub fn choose_dataset(
+pub async fn choose_dataset(
     dataset: String,
     root: String,
-    state: tauri::State<'_, Mutex<DesktopControlService>>,
+    app: tauri::AppHandle,
 ) -> Result<Value, String> {
     if dataset.is_empty() {
         return Err("dataset format is required".to_owned());
@@ -77,18 +78,19 @@ pub fn choose_dataset(
     choose_dataset_allowlist_check(&dataset)?;
     let root = validated_dataset_root(&root)?;
     request(
-        &state,
+        app,
         "datasets",
         json!({"dataset": dataset, "root": root.to_string_lossy()}),
     )
+    .await
 }
 
 #[tauri::command]
-pub fn open_dataset(
+pub async fn open_dataset(
     dataset: String,
     root: String,
     sequence: Option<String>,
-    state: tauri::State<'_, Mutex<DesktopControlService>>,
+    app: tauri::AppHandle,
 ) -> Result<Value, String> {
     if dataset.is_empty() {
         return Err("dataset format is required".to_owned());
@@ -104,21 +106,17 @@ pub fn open_dataset(
     if let Some(sequence) = sequence.filter(|value| !value.is_empty()) {
         args.insert("sequence".to_owned(), Value::String(sequence));
     }
-    request(&state, "open_dataset", Value::Object(args))
+    request(app, "open_dataset", Value::Object(args)).await
 }
 
 #[tauri::command]
-pub fn export_diagnostics(
-    state: tauri::State<'_, Mutex<DesktopControlService>>,
-) -> Result<Value, String> {
-    request(&state, "diagnostics", json!({}))
+pub async fn export_diagnostics(app: tauri::AppHandle) -> Result<Value, String> {
+    request(app, "diagnostics", json!({})).await
 }
 
 #[tauri::command]
-pub fn runtime_shutdown(
-    state: tauri::State<'_, Mutex<DesktopControlService>>,
-) -> Result<Value, String> {
-    request(&state, "shutdown", json!({}))
+pub async fn runtime_shutdown(app: tauri::AppHandle) -> Result<Value, String> {
+    request(app, "shutdown", json!({})).await
 }
 
 fn choose_dataset_allowlist_check(dataset: &str) -> Result<(), String> {

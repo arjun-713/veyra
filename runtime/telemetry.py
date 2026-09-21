@@ -90,7 +90,11 @@ class Telemetry:
             frame.get("n_points") or (len(semantic) if semantic is not None else 0)
         )
         ground_count = (
-            int(np.count_nonzero(np.asarray(ground))) if ground is not None else None
+            int(np.count_nonzero(np.asarray(ground)))
+            if ground is not None
+            and pipeline_status.get("ground")
+            not in {None, "unavailable", "disabled", "invalid", "skipped"}
+            else None
         )
         semantic_counts = counts(semantic)
         provider = (
@@ -120,7 +124,7 @@ class Telemetry:
         fps = (
             (len(self.completed) - 1) / (self.completed[-1] - self.completed[0])
             if len(self.completed) > 1 and self.completed[-1] > self.completed[0]
-            else 0
+            else None
         )
         splits_per_frame = (topology_frames.get("splits") or {}).get("mean")
         merges_per_frame = (topology_frames.get("merges") or {}).get("mean")
@@ -142,7 +146,11 @@ class Telemetry:
             "fps": fps,
             "latency_ms": {
                 "end_to_end": summary(self.latencies),
-                "perception": sum(timings.values()) if timings else None,
+                "perception": timings.get("total")
+                if "total" in timings
+                else sum(timings.values())
+                if timings
+                else None,
                 "ipc": frame.get("runtime_timings_ms", {}).get("bridge"),
                 "mapping": latency.get("p50") / 1e6
                 if latency.get("p50") is not None
@@ -172,10 +180,14 @@ class Telemetry:
                 "splits_per_frame": splits_per_frame,
                 "merges_per_frame": merges_per_frame,
                 "splits_per_second": (
-                    splits_per_frame * fps if splits_per_frame is not None else None
+                    splits_per_frame * fps
+                    if splits_per_frame is not None and fps is not None
+                    else None
                 ),
                 "merges_per_second": (
-                    merges_per_frame * fps if merges_per_frame is not None else None
+                    merges_per_frame * fps
+                    if merges_per_frame is not None and fps is not None
+                    else None
                 ),
             },
             "governor": frame.get("map", {}).get("governor")
@@ -192,17 +204,18 @@ class Telemetry:
                 "model": model,
                 "execution_provider": execution_provider,
                 "points": point_count,
+                "sampled_points": len(semantic) if semantic is not None else None,
                 "ground_ratio": (
-                    ground_count / point_count
-                    if ground_count is not None and point_count
+                    ground_count / len(ground)
+                    if ground_count is not None and len(ground)
                     else None
                 ),
                 "semantic_confidence_mean": finite_mean(
                     frame.get("semantic_confidence")
                 ),
                 "unknown_ratio": (
-                    semantic_counts.get("0", 0) / point_count
-                    if semantic_counts is not None and point_count
+                    semantic_counts.get("0", 0) / len(semantic)
+                    if semantic_counts is not None and len(semantic)
                     else None
                 ),
                 "drivable_counts": counts(frame.get("drivable")),
