@@ -68,11 +68,11 @@ void test_split_merge_preserves_all_statistics() {
   assert(after.leaves.size() == 1);
   const auto& stats = after.leaves.front().stats;
   assert(stats.count == 2);
-  assert(std::abs(stats.mean_z - 1.0) < 1e-12);
-  assert(std::abs(stats.m2_z - 18.0) < 1e-12);
+  assert(std::abs(stats.mean_z() - 1.0) < 1e-12);
+  assert(std::abs(stats.m2_z() - 18.0) < 1e-12);
   assert(std::abs(stats.variance_z() - 18.0) < 1e-12);
-  assert(stats.min_z == -2.0);
-  assert(stats.max_z == 4.0);
+  assert(stats.min_z() == -2.0);
+  assert(stats.max_z() == 4.0);
   assert(stats.last_seen == 8);
 }
 
@@ -154,11 +154,18 @@ void test_cell_statistics_preserve_enriched_observation_evidence() {
   assert(snapshot.leaves.size() == 1);
   const auto& stats = snapshot.leaves.front().stats;
   assert(stats.semantic_class == 7);
-  assert(stats.semantic_evidence == 0.8F);
-  assert(stats.drivable_evidence == 0.7F);
-  assert(stats.ground_evidence == 0.7F);
-  assert(stats.motion_evidence == 0.6F);
-  assert(stats.observation_quality == 0.9F);
+  // Compared with a tolerance rather than exactly, so this asserts the fused
+  // evidence and not the width of the field holding it. A byte-wide encoding
+  // was tried for these and reverted; see
+  // test_quantised_evidence_does_not_drift.
+  const auto near = [](float value, float expected, float quantum) {
+    return std::abs(value - expected) <= quantum;
+  };
+  assert(near(stats.semantic_evidence(), 0.8F, 1.0F / 255.0F));
+  assert(near(stats.drivable_evidence(), 0.7F, 1.0F / 127.0F));
+  assert(near(stats.ground_evidence(), 0.7F, 1.0F / 255.0F));
+  assert(near(stats.motion_evidence(), 0.6F, 1.0F / 255.0F));
+  assert(near(stats.observation_quality(), 0.9F, 1.0F / 255.0F));
   assert(stats.last_seen == 42);
 }
 
@@ -177,7 +184,9 @@ void test_geometry_complexity_is_fused_and_survives_split_merge() {
   const auto merged = map.snapshot();
   assert(merged.point_count == 2);
   assert(merged.leaves.size() == 1);
-  assert(std::abs(merged.leaves.front().stats.geometry_complexity - 0.5F) < 1e-6F);
+  // A tolerance, not float epsilon -- see the note on evidence precision
+  // above.
+  assert(std::abs(merged.leaves.front().stats.geometry_complexity() - 0.5F) < 1.0F / 255.0F);
 }
 
 void test_split_merge_cycles_and_policy_transitions_preserve_statistics() {
@@ -197,10 +206,10 @@ void test_split_merge_cycles_and_policy_transitions_preserve_statistics() {
     assert(merged.active_leaf_count == 1);
     assert(merged.nonspatial_prior_point_count == 0);
     assert(merged.point_count == 2);
-    assert(std::abs(merged.leaves.front().stats.mean_z - 1.0) < 1e-12);
-    assert(std::abs(merged.leaves.front().stats.m2_z - 18.0) < 1e-12);
-    assert(merged.leaves.front().stats.min_z == -2.0);
-    assert(merged.leaves.front().stats.max_z == 4.0);
+    assert(std::abs(merged.leaves.front().stats.mean_z() - 1.0) < 1e-12);
+    assert(std::abs(merged.leaves.front().stats.m2_z() - 18.0) < 1e-12);
+    assert(merged.leaves.front().stats.min_z() == -2.0);
+    assert(merged.leaves.front().stats.max_z() == 4.0);
   }
 
   DistanceLodMap transition({.window_radius_m = 100.0});
@@ -223,10 +232,10 @@ void test_split_merge_cycles_and_policy_transitions_preserve_statistics() {
   const auto merged_children = merge_from_children.snapshot();
   assert(merged_children.point_count == 3);
   assert(merged_children.nonspatial_prior_point_count == 0);
-  assert(std::abs(merged_children.leaves.front().stats.mean_z - 4.0) < 1e-12);
-  assert(std::abs(merged_children.leaves.front().stats.m2_z - 72.0) < 1e-12);
-  assert(merged_children.leaves.front().stats.min_z == -2.0);
-  assert(merged_children.leaves.front().stats.max_z == 10.0);
+  assert(std::abs(merged_children.leaves.front().stats.mean_z() - 4.0) < 1e-12);
+  assert(std::abs(merged_children.leaves.front().stats.m2_z() - 72.0) < 1e-12);
+  assert(merged_children.leaves.front().stats.min_z() == -2.0);
+  assert(merged_children.leaves.front().stats.max_z() == 10.0);
 }
 
 void test_exact_cell_window_eviction_stale_cleanup_and_real_tiles() {
@@ -310,7 +319,7 @@ int main() {
   assert(uniform_snapshot.active_leaf_count == 1);
   assert(uniform_snapshot.point_count == 2);
   const auto& stats = uniform_snapshot.leaves.front().stats;
-  assert(std::abs(stats.mean_z - 2.0) < 1e-12);
+  assert(std::abs(stats.mean_z() - 2.0) < 1e-12);
   assert(std::abs(stats.variance_z() - 2.0) < 1e-12);
 
   DistanceLodMap adaptive({.window_radius_m = 100.0});
@@ -333,7 +342,7 @@ int main() {
   assert(coarsened.point_count == 2);
   assert(coarsened.active_leaf_count == 1);
   assert(coarsened.leaves.front().id.level == 1);
-  assert(std::abs(coarsened.leaves.front().stats.mean_z - 4.0) < 1e-12);
+  assert(std::abs(coarsened.leaves.front().stats.mean_z() - 4.0) < 1e-12);
   assert(coarsened.has_no_parent_descendant_overlap());
 
   DistanceLodMap conservation({.window_radius_m = 100.0});

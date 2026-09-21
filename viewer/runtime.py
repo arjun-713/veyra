@@ -21,7 +21,7 @@ from typing import Any, Protocol
 
 import numpy as np
 
-from benchmarks.protocol import frame_records
+from benchmarks.protocol import PROTOCOL_VERSION, frame_records
 from datasets.common.adapter import DatasetAdapter
 from perception.pipeline import PerceptionPipeline
 
@@ -161,7 +161,12 @@ class PersistentMapEngine:
             threading.Thread(
                 target=self._drain_stderr, args=(self._process,), daemon=True
             ).start()
-            ready = self._exchange("VEYRA_ENGINE 2\n")
+            # The handshake version must match the records this process
+            # writes. They are the same constant deliberately: a writer that
+            # emits V3 records behind a V2 handshake is parsed field-by-field
+            # against the wrong layout, which surfaces as an unrelated
+            # "nonfinite point value" rather than as a version error.
+            ready = self._exchange(f"VEYRA_ENGINE {PROTOCOL_VERSION}\n")
         except OSError as error:
             self._process = None
             return {"status": "unavailable", "reason": f"map engine failed: {error}"}
