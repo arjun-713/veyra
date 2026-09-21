@@ -24,6 +24,12 @@ from time import perf_counter
 # equivalent.  When Python executes a file under ``scripts/``, it places that
 # directory—not the repository root—on sys.path, which otherwise prevents the
 # sibling ``benchmarks`` and ``datasets`` packages from being imported.
+#
+# Every import below this block therefore has to run after it, which is exactly
+# what E402 flags.  The rule does not apply to a file whose imports depend on
+# sys.path being adjusted first, so it is switched off here rather than worked
+# around by moving imports that cannot move.
+# ruff: noqa: E402
 _REPO_ROOT = Path(__file__).resolve().parents[1]
 if str(_REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(_REPO_ROOT))

@@ -13,7 +13,7 @@ from pathlib import Path
 
 import numpy as np
 
-from benchmarks.protocol import stream_bytes, stream_file
+from benchmarks.protocol import PROTOCOL_VERSION, stream_bytes, stream_file
 from benchmarks.run_benchmark import (
     POLICY_ADAPTERS,
     PUBLIC_POLICY_NAMES,
@@ -212,13 +212,16 @@ class RuntimeTests(unittest.TestCase):
     def test_stream_is_deterministic(self):
         stream, digest = stream_bytes([frame()])
         text = stream.decode("ascii")
-        self.assertIn("VEYRA_STREAM 2", text)
+        # Derived, not hard-coded: a literal here drifts from the writer the
+        # moment the protocol is bumped, and the test then asserts the old
+        # format is still produced rather than that the stream is stable.
+        self.assertIn(f"VEYRA_STREAM {PROTOCOL_VERSION}", text)
         self.assertIn("F 1000000 990000 10", text)
         self.assertIn("1 0 0 1.5 0 1 0 -2 0 0 1 3.25 0 0 0 1 2", text)
         self.assertIn(
             "P 0.0099999997764825821 0.0099999997764825821 1 0.5 1 0.75 1 1 "
             "0.10000000149011612 0.20000000298023224 0.5 0.60000002384185791 "
-            "0.89999997615814209 0.20000000298023224 0 1 2 0.40000000596046448 101",
+            "0.89999997615814209 0.20000000298023224 0 1 2 0.40000000596046448 101 NA",
             text,
         )
         self.assertEqual(text.count("F "), 1)

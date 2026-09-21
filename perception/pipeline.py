@@ -10,7 +10,7 @@ from typing import Any
 import numpy as np
 
 from datasets.common.observation import ObservationFrame
-from perception.ground import PatchworkPPGroundSegmenter
+from perception.ground import PatchworkPPGroundSegmenter, height_above_ground
 from perception.semantic import GroundTruthSemanticProvider, OnnxSemanticProvider
 from perception.semantic.salsanext import SalsaNextSemanticProvider
 from perception.temporal import TemporalTracker
@@ -231,6 +231,14 @@ class PerceptionPipeline:
             except RuntimeError as error:
                 ground = None
                 diagnostics.append(f"ground backend unavailable: {error}")
+        # Height above the locally fitted ground. Computed here because the map
+        # cannot: layer assignment needs a ground height, and the ground height
+        # comes from the returns that layer assignment would select. Stays NaN
+        # when no ground stage ran, which the map counts rather than assumes.
+        hag = None
+        if ground is not None:
+            hag = height_above_ground(points, ground.mask)
+            self._require_size(hag, points.shape[0], "height above ground")
         timings["ground"] = (perf_counter() - stage_started) * 1000
 
         terrain = None
@@ -318,6 +326,9 @@ class PerceptionPipeline:
             step=terrain.step if terrain is not None else frame.step,
             motion_state=motion.state if motion is not None else frame.motion_state,
             observation_quality=(self._quality(semantic.semantic_confidence, terrain)),
+            height_above_ground=(
+                hag if hag is not None else frame.height_above_ground
+            ),
             raw_semantic_class=frame.raw_semantic_class,
             provenance=frame.provenance,
         )
