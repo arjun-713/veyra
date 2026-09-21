@@ -1,9 +1,6 @@
 name: SemanticPOSS benchmark
 
 on:
-  pull_request:
-  schedule:
-    - cron: "17 2 * * *"
   workflow_dispatch:
     inputs:
       semanticposs_sequence:
@@ -36,6 +33,10 @@ on:
 permissions:
   contents: read
   actions: read
+
+concurrency:
+  group: semanticposs-benchmark-${{ github.ref }}
+  cancel-in-progress: true
 
 env:
   SEMANTIC_POSS_URL: http://www.poss.pku.edu.cn/OpenDataResource/SemanticPOSS/SemanticPOSS_dataset.zip
@@ -147,6 +148,7 @@ jobs:
           cmake --build "$RUNNER_TEMP/veyra-build" --target veyra_benchmark --parallel
           echo "build_finished_epoch=$(date +%s)" >> artifacts/workflow-provenance.env
       - name: Run shared perception and four-policy map benchmark
+        id: benchmark
         run: |
           set -euo pipefail
           echo "benchmark_started_epoch=$(date +%s)" >> artifacts/workflow-provenance.env
@@ -200,11 +202,42 @@ jobs:
           fi
           python -m benchmarks.render_report "${render_args[@]}" --output artifacts/summary.md
           cat artifacts/summary.md >> "$GITHUB_STEP_SUMMARY"
-          python -m benchmarks.render_report "${render_args[@]}" --fail-on-correctness
+          # Capture the correctness gate without tripping `set -e`: the
+          # status file below is the contract with the finalize step, so it
+          # must be written on both pass and fail paths.
+          report_exit_code=0
+          python -m benchmarks.render_report "${render_args[@]}" --fail-on-correctness || report_exit_code=$?
           echo "" >> "$GITHUB_STEP_SUMMARY"
           df --output=avail -B1 . | tail -1 | tr -d ' ' | sed 's/^/free_disk_after_bytes=/' >> artifacts/workflow-provenance.env
           echo "benchmark_finished_at=$(date --iso-8601=seconds)" >> artifacts/workflow-provenance.env
           echo "artifact_bytes=$(du -sb artifacts | cut -f1)" >> artifacts/workflow-provenance.env
+          echo "report_exit_code=$report_exit_code" > artifacts/report-status.env
+          exit "$report_exit_code"
+
+      - name: Finalize benchmark result
+        if: always()
+        run: |
+          set -euo pipefail
+          benchmark_outcome="${{ steps.benchmark.outcome }}"
+          # The render step writes `report_exit_code`, so that is the name read
+          # back here. Defaulting a differently-named `report_rc` to 1 and
+          # sourcing the file left it at 1 forever: the job failed on every run
+          # whose report actually succeeded, which is every run since the
+          # benchmark started building. The status file is the contract between
+          # the two steps, so both ends use the same key.
+          report_exit_code=1
+          if [[ -f artifacts/report-status.env ]]; then
+            # shellcheck disable=SC1091
+            source artifacts/report-status.env
+          fi
+          if [[ "$benchmark_outcome" != "success" ]]; then
+            echo "SemanticPOSS benchmark execution failed; see the benchmark step and artifacts." >&2
+            exit 1
+          fi
+          if [[ "$report_exit_code" != 0 ]]; then
+            echo "SemanticPOSS benchmark report generation failed with exit code $report_exit_code." >&2
+            exit "$report_exit_code"
+          fi
       - name: Capture benchmark failure diagnostics
         if: failure()
         run: |

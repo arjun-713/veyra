@@ -5,7 +5,7 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from benchmarks.render_report import _hard_failure, render
+from benchmarks.render_report import _field_retention_summary, _hard_failure, render
 
 
 class RenderReportTests(unittest.TestCase):
@@ -169,6 +169,28 @@ class RenderReportTests(unittest.TestCase):
         self.assertIn("distance only", report)
         self.assertIn("ablation_geometry | not run", report)
         self.assertIn("Status: **partial**", report)
+
+    def test_report_renders_scalar_field_retention_values(self):
+        report = _field_retention_summary(
+            {
+                "policies": {
+                    "uniform5": {
+                        "aggregate": {
+                            "quality": [
+                                {
+                                    "field_retention": {
+                                        "status": "unavailable",
+                                        "semantic_confidence": "not recorded",
+                                    }
+                                }
+                            ]
+                        }
+                    }
+                }
+            }
+        )
+        self.assertIn("Field retention: unavailable", report)
+        self.assertIn("semantic_confidence: not recorded", report)
 
 
 if __name__ == "__main__":

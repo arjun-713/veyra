@@ -253,10 +253,14 @@ def _field_retention_summary(report: dict[str, Any] | None) -> str:
     for policy in quality.values():
         for item in policy.get("aggregate", {}).get("quality", []):
             for name, value in item.get("field_retention", {}).items():
-                if name != "status" and value.get("status") != "measured":
-                    unavailable.add(f"{name}: {value.get('reason', 'unavailable')}")
-                if name != "status":
-                    seen = True
+                if name == "status":
+                    continue
+                seen = True
+                if isinstance(value, dict):
+                    if value.get("status") != "measured":
+                        unavailable.add(f"{name}: {value.get('reason', 'unavailable')}")
+                else:
+                    unavailable.add(f"{name}: {value}")
     return (
         "Field retention: unavailable (" + "; ".join(sorted(unavailable)) + ")."
         if unavailable or not seen

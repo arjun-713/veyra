@@ -1,3 +1,14 @@
+"""MCP adapter tests for both supported control-plane backends.
+
+The ``mcp/server.py`` merge is resolved by the orchestrator as either the
+daemon control-plane adapter (``McpServer`` fronts ``ControlClient`` and the
+authenticated local control daemon) or the in-process adapter (``McpServer``
+owns a ``ProductRuntime`` directly). The two designs share the JSON-RPC
+envelope but assert different request paths, so each suite below probes the
+active backend in ``setUp`` and skips — explicitly, never silently — when
+the other backend won the merge.
+"""
+
 import json
 import os
 import socketserver
@@ -8,8 +19,28 @@ from io import BytesIO
 from pathlib import Path
 from unittest.mock import patch
 
-from mcp.control_client import ControlConfigurationError
 from mcp.server import McpServer
+
+try:  # The in-process backend has no control-plane client module.
+    from mcp.control_client import ControlConfigurationError
+except ImportError:  # pragma: no cover - backend-dependent
+    ControlConfigurationError = None
+
+
+def _backend_kind() -> str:
+    """Return ``"daemon"`` or ``"in_process"`` for the resolved server."""
+    try:
+        probe = McpServer(".")
+    except Exception as error:  # noqa: BLE001 - probe only
+        if error.__class__.__name__ == "ControlConfigurationError":
+            return "daemon"
+        raise
+    try:
+        return "daemon" if hasattr(probe, "control") else "in_process"
+    finally:
+        close = getattr(probe, "close", None)
+        if callable(close):
+            close()
 
 
 class FakeDaemon:
@@ -49,8 +80,17 @@ class FakeDaemon:
         return None
 
 
-class McpServerTests(unittest.TestCase):
+class DaemonMcpServerTests(unittest.TestCase):
+    """Daemon control-plane suite: requests form validated daemon commands.
+
+    Covers the demo-side closure hardening (live TCP round-trip proof,
+    pre-daemon validation, daemon error preservation). Skipped when the
+    merge resolves ``mcp/server.py`` to the in-process backend.
+    """
+
     def setUp(self):
+        if _backend_kind() != "daemon":
+            self.skipTest("daemon control-plane MCP backend is not active")
         self.tempdir = tempfile.TemporaryDirectory()
         self.token_file = Path(self.tempdir.name) / "token"
         self.token_file.write_text(
@@ -241,6 +281,8 @@ class McpServerTests(unittest.TestCase):
 
     def test_missing_daemon_configuration_fails_closed(self):
         os.environ.pop("VEYRA_CONTROL_ENDPOINT", None)
+        if ControlConfigurationError is None:
+            self.skipTest("daemon control-client module is unavailable")
         with self.assertRaises(ControlConfigurationError):
             McpServer(".")
 
@@ -299,6 +341,64 @@ class McpServerTests(unittest.TestCase):
             )
             self.assertTrue(response["result"]["isError"], f"{tool} {arguments}")
         self.assertEqual(self.daemon.requests, [])
+
+
+class McpServerTests(unittest.TestCase):
+    """In-process suite: tools delegate to the owned ProductRuntime.
+
+    Skipped when the merge resolves ``mcp/server.py`` to the daemon
+    control-plane backend.
+    """
+
+    def setUp(self):
+        if _backend_kind() != "in_process":
+            self.skipTest("in-process ProductRuntime MCP backend is not active")
+
+    def tearDown(self):
+        if hasattr(self, "server"):
+            self.server.close()
+
+    def test_tool_catalog_is_safe_and_typed(self):
+        self.server = McpServer(".")
+        response = self.server.handle({"jsonrpc": "2.0", "id": 1, "method": "tools/list"})
+        names = {tool["name"] for tool in response["result"]["tools"]}
+        self.assertIn("get_runtime_status", names)
+        self.assertIn("set_layer", names)
+        self.assertNotIn("execute_shell", names)
+
+    def test_unknown_tool_is_rejected(self):
+        self.server = McpServer(".")
+        response = self.server.handle(
+            {
+                "jsonrpc": "2.0",
+                "id": 2,
+                "method": "tools/call",
+                "params": {"name": "execute_shell", "arguments": {}},
+            }
+        )
+        self.assertTrue(response["result"]["isError"])
+
+    def test_named_layer_and_metrics_tools_use_product_commands(self):
+        self.server = McpServer(".")
+        layer = self.server.handle(
+            {
+                "jsonrpc": "2.0",
+                "id": 3,
+                "method": "tools/call",
+                "params": {"name": "set_layer", "arguments": {"layer": "lod"}},
+            }
+        )
+        self.assertFalse(layer["result"]["isError"])
+        self.assertEqual(layer["result"]["structuredContent"]["layer"], "lod")
+        metrics = self.server.handle(
+            {
+                "jsonrpc": "2.0",
+                "id": 4,
+                "method": "tools/call",
+                "params": {"name": "get_metrics", "arguments": {}},
+            }
+        )
+        self.assertEqual(metrics["result"]["structuredContent"]["status"], "unavailable")
 
 
 if __name__ == "__main__":

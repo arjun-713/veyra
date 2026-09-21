@@ -87,37 +87,37 @@ const Leaf& leafFor(const MapSnapshot& s, CellId id) {
 
 void checkStatsExact(const CellStats& got, const CellStats& want) {
   CHECK(got.count == want.count);
-  CHECK(got.min_z == want.min_z);
-  CHECK(got.max_z == want.max_z);
-  CHECK(relClose(got.mean_z, want.mean_z, kMeanTol));
+  CHECK(got.min_z() == want.min_z());
+  CHECK(got.max_z() == want.max_z());
+  CHECK(relClose(got.mean_z(), want.mean_z(), kMeanTol));
   CHECK(relClose(got.variance_z(), want.variance_z(), kVarTol));
   CHECK(got.last_seen == want.last_seen);
   CHECK(got.semantic_class == want.semantic_class);
-  CHECK(got.semantic_evidence == want.semantic_evidence);
-  CHECK(got.semantic_confidence == want.semantic_confidence);
-  CHECK(got.drivable_evidence == want.drivable_evidence);
-  CHECK(got.ground_evidence == want.ground_evidence);
-  CHECK(got.terrain_confidence == want.terrain_confidence);
-  CHECK(got.geometry_complexity == want.geometry_complexity);
-  CHECK(got.motion_evidence == want.motion_evidence);
-  CHECK(got.observation_quality == want.observation_quality);
+  CHECK(got.semantic_evidence() == want.semantic_evidence());
+  CHECK(got.semantic_confidence() == want.semantic_confidence());
+  CHECK(got.drivable_evidence() == want.drivable_evidence());
+  CHECK(got.ground_evidence() == want.ground_evidence());
+  CHECK(got.terrain_confidence() == want.terrain_confidence());
+  CHECK(got.geometry_complexity() == want.geometry_complexity());
+  CHECK(got.motion_evidence() == want.motion_evidence());
+  CHECK(got.observation_quality() == want.observation_quality());
 }
 
 void checkStatsTol(const CellStats& got, const CellStats& want) {
   CHECK(got.count == want.count);
-  CHECK(got.min_z == want.min_z);
-  CHECK(got.max_z == want.max_z);
-  CHECK(relClose(got.mean_z, want.mean_z, kMeanTol));
+  CHECK(got.min_z() == want.min_z());
+  CHECK(got.max_z() == want.max_z());
+  CHECK(relClose(got.mean_z(), want.mean_z(), kMeanTol));
   CHECK(relClose(got.variance_z(), want.variance_z(), kVarTol));
   CHECK(got.last_seen == want.last_seen);
   CHECK(got.semantic_class == want.semantic_class);
-  CHECK(relClose(got.semantic_confidence, want.semantic_confidence, kFloatTol));
-  CHECK(relClose(got.drivable_evidence, want.drivable_evidence, kFloatTol));
-  CHECK(relClose(got.ground_evidence, want.ground_evidence, kFloatTol));
-  CHECK(relClose(got.terrain_confidence, want.terrain_confidence, kFloatTol));
-  CHECK(relClose(got.geometry_complexity, want.geometry_complexity, kFloatTol));
-  CHECK(relClose(got.motion_evidence, want.motion_evidence, kFloatTol));
-  CHECK(relClose(got.observation_quality, want.observation_quality, kFloatTol));
+  CHECK(relClose(got.semantic_confidence(), want.semantic_confidence(), kFloatTol));
+  CHECK(relClose(got.drivable_evidence(), want.drivable_evidence(), kFloatTol));
+  CHECK(relClose(got.ground_evidence(), want.ground_evidence(), kFloatTol));
+  CHECK(relClose(got.terrain_confidence(), want.terrain_confidence(), kFloatTol));
+  CHECK(relClose(got.geometry_complexity(), want.geometry_complexity(), kFloatTol));
+  CHECK(relClose(got.motion_evidence(), want.motion_evidence(), kFloatTol));
+  CHECK(relClose(got.observation_quality(), want.observation_quality(), kFloatTol));
 }
 
 Observation enriched(double x, double y, double z, std::uint64_t ts, std::mt19937& rng) {

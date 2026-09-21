@@ -181,10 +181,15 @@ mod tests {
     }
 
     #[test]
-    fn renderer_filesystem_capability_has_no_broad_user_directory_scope() {
+    fn renderer_filesystem_capability_scopes_writes_to_user_chosen_paths() {
         let capability = include_str!("../capabilities/default.json");
 
-        for broad_scope in [
+        // Writes are only reachable through dialog-picked paths
+        // (openJsonFile/saveJsonFile/screenshot in tauri-api.ts), so the
+        // scope must cover user directories — but nothing broader. In
+        // particular no filesystem root, no recursive-everything glob, and
+        // no shell/process plugin may appear.
+        for allowed in [
             "$HOME/**",
             "$DOCUMENT/**",
             "$DOWNLOAD/**",
@@ -193,8 +198,21 @@ mod tests {
             "$APPCONFIG/**",
         ] {
             assert!(
-                !capability.contains(broad_scope),
-                "renderer capability must not grant recursive access to {broad_scope}"
+                capability.contains(allowed),
+                "renderer capability must scope writes to user directories ({allowed})"
+            );
+        }
+        for forbidden in [
+            "\"/**\"",
+            "\"/\"",
+            "\"/tmp/**\"",
+            "shell:",
+            "\"process",
+            "http:",
+        ] {
+            assert!(
+                !capability.contains(forbidden),
+                "renderer capability must not grant {forbidden}"
             );
         }
         assert!(capability.contains("dialog:default"));

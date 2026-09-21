@@ -70,13 +70,13 @@ class EngineServiceTests(unittest.TestCase):
         frame = make_frame()
         binary = self.binary
         reports = []
-        for payload in (
-            "".join(frame_records(frame)).encode(),
-            binary_frame_bytes(frame),
+        for payload, handshake in (
+            ("".join(frame_records(frame)).encode(), b"VEYRA_ENGINE 3\n"),
+            (binary_frame_bytes(frame), b"VEYRA_ENGINE 3\n"),
         ):
             result = subprocess.run(
                 [str(binary), "--engine", "--policy", "uniform5"],
-                input=b"VEYRA_ENGINE 2\n" + payload + b"M 100\nC\n",
+                input=handshake + payload + b"M 100\nC\n",
                 capture_output=True,
                 timeout=10,
                 check=False,

@@ -111,7 +111,8 @@ class PerceptionRedTeamTests(unittest.TestCase):
 
         self.assertEqual([float(row[1]) for row in point_records], [10.0, 20.0])
         self.assertEqual([int(row[5]) for row in point_records], [3, 4])
-        self.assertEqual([int(row[-1]) for row in point_records], [30, 40])
+        self.assertEqual([int(row[-2]) for row in point_records], [30, 40])
+        self.assertEqual([row[-1] for row in point_records], ["NA", "NA"])
         self.assertEqual([int(row[3]) for row in point_records], [1, 2])
         self.assertEqual([int(row[8]) for row in point_records], [1, 0])
         self.assertEqual(records[-1], "E\n")
@@ -122,7 +123,7 @@ class PerceptionRedTeamTests(unittest.TestCase):
         self.assertTrue(payload.startswith(b"B 2\n"))
         header_size = struct.calcsize("<QQQ16d")
         point_bytes = payload[4 + header_size :]
-        self.assertEqual(len(point_bytes), 2 * 67)
+        self.assertEqual(len(point_bytes), 2 * 71)
         row_dtype = np.dtype(
             [
                 ("xyzi", "<f4", (4,)),
@@ -140,6 +141,7 @@ class PerceptionRedTeamTests(unittest.TestCase):
                 ("velocity", "<f4", (2,)),
                 ("quality", "<f4"),
                 ("raw", "<i4"),
+                ("height_above_ground", "<f4"),
             ]
         )
         rows = np.frombuffer(point_bytes, dtype=row_dtype)

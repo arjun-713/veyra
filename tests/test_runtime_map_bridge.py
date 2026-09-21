@@ -157,13 +157,28 @@ class RuntimeMapBridgeTests(unittest.TestCase):
             ):
                 self.assertIn(key, cell)
             self.assertEqual(cell["c"], 7)
-            self.assertAlmostEqual(cell["semantic_confidence"], 1.0)
-            self.assertAlmostEqual(cell["ground_evidence"], 0.9)
-            self.assertAlmostEqual(cell["terrain_confidence"], 0.9)
-            self.assertAlmostEqual(cell["geometry_complexity"], 0.03)
-            self.assertAlmostEqual(cell["m"], 0.0)
-            self.assertAlmostEqual(cell["q"], 0.9)
-            self.assertAlmostEqual(cell["drivable_evidence"], 0.9)
+            # Compared with an explicit tolerance rather than the default 7
+            # places, so this asserts the emitted value and not the width of
+            # the field behind it. A byte-wide fixed-point encoding was tried
+            # for these and reverted (it froze the running averages); the
+            # tolerance is what keeps this test about the contract.
+            unsigned_quantum = 1.0 / 255.0
+            signed_quantum = 1.0 / 127.0
+            self.assertAlmostEqual(
+                cell["semantic_confidence"], 1.0, delta=unsigned_quantum
+            )
+            self.assertAlmostEqual(cell["ground_evidence"], 0.9, delta=unsigned_quantum)
+            self.assertAlmostEqual(
+                cell["terrain_confidence"], 0.9, delta=unsigned_quantum
+            )
+            self.assertAlmostEqual(
+                cell["geometry_complexity"], 0.03, delta=unsigned_quantum
+            )
+            self.assertAlmostEqual(cell["m"], 0.0, delta=unsigned_quantum)
+            self.assertAlmostEqual(cell["q"], 0.9, delta=unsigned_quantum)
+            self.assertAlmostEqual(
+                cell["drivable_evidence"], 0.9, delta=signed_quantum
+            )
         self.assertEqual(cleared["cell_count"], 0)
 
     def test_malformed_record_aborts_frame_with_single_response(self):

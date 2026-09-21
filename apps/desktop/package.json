@@ -10,6 +10,7 @@
     "check": "svelte-check --tsconfig ./tsconfig.json",
     "test": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON --experimental-strip-types --test tests/*.test.ts",
     "build": "vite build --config vite.renderer.config.ts",
+    "test:e2e": "playwright test",
     "tauri:dev:frontend": "vite --config vite.renderer.config.ts --host 127.0.0.1",
     "tauri:build:frontend": "vite build --config vite.renderer.config.ts",
     "tauri:dev": "node ../../tools/tauri.mjs dev --config src-tauri/tauri.conf.json",

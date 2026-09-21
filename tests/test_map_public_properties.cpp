@@ -51,10 +51,10 @@ void checkTopology(const MapSnapshot& snapshot) {
 
 void checkStats(const CellStats& got, const CellStats& expected) {
   CHECK(got.count == expected.count);
-  CHECK(got.min_z == expected.min_z);
-  CHECK(got.max_z == expected.max_z);
-  CHECK(close(got.mean_z, expected.mean_z));
-  CHECK(close(got.m2_z, expected.m2_z));
+  CHECK(got.min_z() == expected.min_z());
+  CHECK(got.max_z() == expected.max_z());
+  CHECK(close(got.mean_z(), expected.mean_z()));
+  CHECK(close(got.m2_z(), expected.m2_z()));
   CHECK(got.last_seen == expected.last_seen);
 }
 

@@ -168,6 +168,16 @@ class ObservationFrame:
     observation_quality: np.ndarray | None = None
     raw_semantic_class: np.ndarray | None = None
     instance_id: np.ndarray | None = None
+    # Height of each return above the locally fitted ground surface, metres.
+    #
+    # NaN means the ground stage had no model for that return. The map treats
+    # NaN as "ground model unavailable" and counts it, rather than assuming
+    # ground level -- a zero default would be indistinguishable from a genuine
+    # ground-level return and would file the whole scene into the obstacle
+    # layer while looking healthy.
+    #
+    # Negative is a depression, and must not be clamped: it is a hazard.
+    height_above_ground: np.ndarray | None = None
     provenance: FrameProvenance = FrameProvenance()
 
     def __post_init__(self) -> None:
@@ -232,6 +242,11 @@ class ObservationFrame:
             "observation_quality": arrays["semantic_confidence"].copy()
             if self.observation_quality is None
             else np.asarray(self.observation_quality, dtype=np.float32),
+            # NaN, not zero: an absent ground model must stay distinguishable
+            # from a return measured at ground level.
+            "height_above_ground": np.full(count, np.nan, dtype=np.float32)
+            if self.height_above_ground is None
+            else np.asarray(self.height_above_ground, dtype=np.float32),
         }
         if any(array.ndim != 1 or array.shape[0] != count for array in arrays.values()):
             raise ValueError("all ObservationFrame per-point fields must have length N")
@@ -283,6 +298,10 @@ class ObservationFrame:
             optional_arrays["step"] < 0
         ):
             raise ValueError("step must be non-negative or NaN when uncomputed")
+        if np.isinf(optional_arrays["height_above_ground"]).any():
+            # NaN is the documented "no ground model" sentinel; infinity is not
+            # a sentinel for anything and would propagate into layer routing.
+            raise ValueError("height_above_ground must be finite or NaN")
         object.__setattr__(self, "points", _freeze(points))
         object.__setattr__(self, "velocity_xy", _freeze(velocity))
         for name, array in arrays.items():
