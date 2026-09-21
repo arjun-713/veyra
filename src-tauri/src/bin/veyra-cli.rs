@@ -129,6 +129,9 @@ fn parse_args(args: &[String]) -> Result<CliOperation, ControlClientError> {
         [command, action] if command == "benchmark" && action == "run" => {
             Ok(command_request("benchmark", json!({})))
         }
+        [command, action] if command == "validation" && action == "run" => {
+            Ok(command_request("validation", json!({})))
+        }
         [command, action, path] if command == "config" && action == "validate" => {
             let config = read_json(path)?;
             Ok(request("config_validate", json!({"config": config})))
@@ -139,7 +142,7 @@ fn parse_args(args: &[String]) -> Result<CliOperation, ControlClientError> {
                 "configure <json> | config validate <json> | dataset info <format> <root> | ",
                 "dataset open <format> <root> [sequence] | ",
                 "playback play|pause|seek <frame> | policy set <policy> | ",
-                "layer set <layer> | diagnostics | benchmark run"
+                "layer set <layer> | diagnostics | benchmark run | validation run"
             )
             .to_owned(),
         )),
@@ -188,7 +191,14 @@ fn validate_policy(policy: &str) -> Result<(), ControlClientError> {
 fn validate_layer(layer: &str) -> Result<(), ControlClientError> {
     if matches!(
         layer,
-        "semantic" | "elevation" | "traversability" | "motion" | "lod" | "utility"
+        "semantic"
+            | "elevation"
+            | "ground"
+            | "terrain"
+            | "traversability"
+            | "motion"
+            | "lod"
+            | "utility"
     ) {
         Ok(())
     } else {

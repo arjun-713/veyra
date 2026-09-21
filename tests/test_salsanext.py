@@ -7,17 +7,16 @@ from pathlib import Path
 import numpy as np
 
 from perception.semantic.salsanext import (
-    SalsaNextSemanticProvider,
     _FOV_DOWN_DEGREES,
     _FOV_UP_DEGREES,
     _IMAGE_HEIGHT,
     _IMAGE_WIDTH,
     _LEARNING_CLASSES,
+    SalsaNextSemanticProvider,
     model_contract,
     project_scan,
     unproject_scores,
 )
-
 
 _REPO = Path(__file__).parents[1]
 _DEFAULT_MODEL = _REPO / "data/cache/models/salsanext-onnx-float/salsanext.onnx"
@@ -136,9 +135,7 @@ class SalsaNextTests(unittest.TestCase):
         depth = np.linalg.norm(points[:, :3], axis=1)
         yaw = -np.arctan2(points[:, 1], points[:, 0])
         with np.errstate(invalid="ignore", divide="ignore"):
-            pitch = np.arcsin(
-                np.clip(points[:, 2] / np.maximum(depth, 1e-12), -1, 1)
-            )
+            pitch = np.arcsin(np.clip(points[:, 2] / np.maximum(depth, 1e-12), -1, 1))
         cols = np.clip(
             np.floor(0.5 * (yaw / np.pi + 1.0) * _IMAGE_WIDTH), 0, _IMAGE_WIDTH - 1
         ).astype(np.intp)
@@ -179,15 +176,9 @@ class SalsaNextTests(unittest.TestCase):
             if key in seen:
                 continue
             seen.add(key)
-            raw = np.array(
-                [depth[index], *points[index]], dtype=np.float32
-            )
-            means = np.array(
-                [12.12, 10.88, 0.23, -1.04, 0.21], dtype=np.float32
-            )
-            stds = np.array(
-                [12.32, 11.47, 6.91, 0.86, 0.16], dtype=np.float32
-            )
+            raw = np.array([depth[index], *points[index]], dtype=np.float32)
+            means = np.array([12.12, 10.88, 0.23, -1.04, 0.21], dtype=np.float32)
+            stds = np.array([12.32, 11.47, 6.91, 0.86, 0.16], dtype=np.float32)
             np.testing.assert_allclose(
                 tensor[0, :, key[0], key[1]], (raw - means) / stds, rtol=1e-5
             )
@@ -270,9 +261,7 @@ class SalsaNextTests(unittest.TestCase):
 
     def test_tensor_channel_layout_and_masked_normalization(self):
         contract = model_contract()
-        self.assertEqual(
-            contract["channels"], ("range", "x", "y", "z", "remission")
-        )
+        self.assertEqual(contract["channels"], ("range", "x", "y", "z", "remission"))
         points = np.array([[10, 0, 0, 0.2]], np.float32)
         tensor, rows, cols, valid = project_scan(points)
         self.assertTrue(valid.all())
@@ -290,21 +279,66 @@ class SalsaNextTests(unittest.TestCase):
         # Upstream TiagoCortinhal/SalsaNext
         # train/tasks/semantic/config/labels/semantic-kitti.yaml `learning_map`.
         upstream_learning_map = {
-            0: 0, 1: 0, 10: 1, 11: 2, 13: 5, 15: 3, 16: 5, 18: 4, 20: 5,
-            30: 6, 31: 7, 32: 8, 40: 9, 44: 10, 48: 11, 49: 12, 50: 13,
-            51: 14, 52: 0, 60: 9, 70: 15, 71: 16, 72: 17, 80: 18, 81: 19,
-            99: 0, 252: 1, 253: 7, 254: 6, 255: 8, 256: 5, 257: 5,
-            258: 4, 259: 5,
+            0: 0,
+            1: 0,
+            10: 1,
+            11: 2,
+            13: 5,
+            15: 3,
+            16: 5,
+            18: 4,
+            20: 5,
+            30: 6,
+            31: 7,
+            32: 8,
+            40: 9,
+            44: 10,
+            48: 11,
+            49: 12,
+            50: 13,
+            51: 14,
+            52: 0,
+            60: 9,
+            70: 15,
+            71: 16,
+            72: 17,
+            80: 18,
+            81: 19,
+            99: 0,
+            252: 1,
+            253: 7,
+            254: 6,
+            255: 8,
+            256: 5,
+            257: 5,
+            258: 4,
+            259: 5,
         }
         from datasets.common.taxonomy import SEMANTICKITTI_LABELS
 
         self.assertEqual(dict(SEMANTICKITTI_LABELS), upstream_learning_map)
         # learning_map_inv order defines the 20 output channels.
         expected_names = (
-            "unlabeled", "car", "bicycle", "motorcycle", "truck",
-            "other-vehicle", "person", "bicyclist", "motorcyclist", "road",
-            "parking", "sidewalk", "other-ground", "building", "fence",
-            "vegetation", "trunk", "terrain", "pole", "traffic-sign",
+            "unlabeled",
+            "car",
+            "bicycle",
+            "motorcycle",
+            "truck",
+            "other-vehicle",
+            "person",
+            "bicyclist",
+            "motorcyclist",
+            "road",
+            "parking",
+            "sidewalk",
+            "other-ground",
+            "building",
+            "fence",
+            "vegetation",
+            "trunk",
+            "terrain",
+            "pole",
+            "traffic-sign",
         )
         self.assertEqual(_LEARNING_CLASSES, expected_names)
         # Training ignores class 0; the provider must report it at zero
@@ -338,9 +372,7 @@ class SalsaNextTests(unittest.TestCase):
         scores[:, 0] = 1.0
         result = unproject_scores(scores, rows, cols, valid)
         np.testing.assert_array_equal(result.semantic_class, [0, 0, 0, 0, 0])
-        np.testing.assert_array_equal(
-            result.semantic_confidence, [0, 0, 0, 0, 0]
-        )
+        np.testing.assert_array_equal(result.semantic_confidence, [0, 0, 0, 0, 0])
 
     def test_onnx_export_matches_contract_when_model_present(self):
         if not _REAL_MODEL.is_file():

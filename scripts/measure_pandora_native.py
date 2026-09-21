@@ -106,12 +106,22 @@ def prf_per_label(
         fn = int(np.count_nonzero((pred != cls) & (gt == cls)))
         union = tp + fp + fn
         if union == 0:
-            out[str(cls)] = {"iou": None, "precision": None, "recall": None, "f1": None,
-                             "support": 0, "union": 0}
+            out[str(cls)] = {
+                "iou": None,
+                "precision": None,
+                "recall": None,
+                "f1": None,
+                "support": 0,
+                "union": 0,
+            }
             continue
         precision = tp / (tp + fp) if (tp + fp) else 0.0
         recall = tp / (tp + fn) if (tp + fn) else 0.0
-        f1 = 2 * precision * recall / (precision + recall) if (precision + recall) else 0.0
+        f1 = (
+            2 * precision * recall / (precision + recall)
+            if (precision + recall)
+            else 0.0
+        )
         out[str(cls)] = {
             "iou": tp / union,
             "precision": precision,
@@ -204,7 +214,9 @@ def main() -> int:
                 "latency_ms": round(elapsed_ms, 1),
                 "pred_histogram_veyra": {
                     str(k): int(v)
-                    for k, v in zip(*np.unique(result.semantic_class, return_counts=True))
+                    for k, v in zip(
+                        *np.unique(result.semantic_class, return_counts=True)
+                    )
                 },
             }
         )
@@ -220,12 +232,16 @@ def main() -> int:
     labelled = gt != 0
 
     veyra = prf_per_label(pred[labelled], gt[labelled], list(range(1, VEYRA_CLASSES)))
-    native_ids = sorted({int(v) for v in np.unique(np.concatenate([native_gt, native_pred]))})
+    native_ids = sorted(
+        {int(v) for v in np.unique(np.concatenate([native_gt, native_pred]))}
+    )
     native = prf_per_label(native_pred, native_gt, native_ids)
     groups = prf_per_label(group_pred, group_gt, list(range(len(GROUP_NAMES))))
     labelled_groups = group_gt != GROUP_INDEX["unknown"]
     groups_labelled_only = prf_per_label(
-        group_pred[labelled_groups], group_gt[labelled_groups], list(range(len(GROUP_NAMES) - 1))
+        group_pred[labelled_groups],
+        group_gt[labelled_groups],
+        list(range(len(GROUP_NAMES) - 1)),
     )
 
     range_binned = {}
@@ -297,10 +313,12 @@ def main() -> int:
             "group_prf": groups,
             "range_binned": range_binned,
             "gt_histogram_native": {
-                str(k): int(v) for k, v in zip(*np.unique(native_gt, return_counts=True))
+                str(k): int(v)
+                for k, v in zip(*np.unique(native_gt, return_counts=True))
             },
             "pred_histogram_native": {
-                str(k): int(v) for k, v in zip(*np.unique(native_pred, return_counts=True))
+                str(k): int(v)
+                for k, v in zip(*np.unique(native_pred, return_counts=True))
             },
             "gt_histogram_veyra": {
                 str(k): int(v) for k, v in zip(*np.unique(gt, return_counts=True))

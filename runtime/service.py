@@ -1,6 +1,7 @@
 """Single-owner playback controller. Desktop commands never execute map work."""
 
 from __future__ import annotations
+
 import copy
 import json
 import queue
@@ -43,6 +44,7 @@ COMMANDS = {
         "warmup_frames",
         "hardware_profile",
     ),
+    "validation": (),
     "presets": (),
     "diagnostics": (),
 }
@@ -207,7 +209,10 @@ class ProductRuntime:
         if command == "status":
             return self.status()
         if command == "metrics":
-            return self.last_telemetry or {"status": "unavailable", "reason": "no frame processed"}
+            return self.last_telemetry or {
+                "status": "unavailable",
+                "reason": "no frame processed",
+            }
         if command == "shutdown":
             self.stopping.set()
             return None
@@ -235,6 +240,8 @@ class ProductRuntime:
             if layer not in (
                 "semantic",
                 "elevation",
+                "ground",
+                "terrain",
                 "traversability",
                 "motion",
                 "lod",
@@ -247,6 +254,42 @@ class ProductRuntime:
             raise ValueError("configure a dataset before playback")
         if command == "benchmark":
             return self._start_benchmark(args)
+        if command == "validation":
+            if self.session is None or self.config is None:
+                raise ValueError("configure a dataset before validation")
+            target = max(0, self.index)
+            started = time.perf_counter()
+            frame = self.session.frame_payload(
+                target, budget=self.config["visualization"]["point_budget"], binary=True
+            )
+            map_status = frame.get("map", {}).get("status")
+            pipeline = frame.get("pipeline_status", {})
+            semantic = pipeline.get("semantic", "unavailable")
+            ground = pipeline.get("ground", "unavailable")
+            terrain = pipeline.get("terrain", "unavailable")
+            result = {
+                "status": "pass"
+                if map_status == "available" and semantic != "unavailable"
+                else "fail",
+                "dataset": self.config["dataset"],
+                "sequence": self.config["sequence"],
+                "frame": target,
+                "points": frame.get("n_points"),
+                "semantic": semantic,
+                "ground": ground,
+                "terrain": terrain,
+                "map": map_status,
+                "elapsed_ms": (time.perf_counter() - started) * 1000,
+                "diagnostics": frame.get("pipeline_status", {}).get("diagnostics", []),
+            }
+            self.outbox.publish(
+                {"type": "validation", "state": "complete", "result": result}
+            )
+            if result["status"] != "pass":
+                raise RuntimeError(
+                    "session validation failed: " + "; ".join(result["diagnostics"])
+                )
+            return result
         if command == "start":
             if self.state == "error":
                 raise RuntimeError("reset the failed session before restarting")
@@ -339,7 +382,11 @@ class ProductRuntime:
             self.telemetry.record((time.perf_counter() - started) * 1000)
             self._publish_status()
             self.last_telemetry = self.telemetry.report(
-                self.status(), frame, visual_ms, self.session.map_runner.pid
+                self.status(),
+                frame,
+                visual_ms,
+                self.session.map_runner.pid,
+                (self.config or {}).get("pipeline", {}).get("semantic", {}),
             )
             self.outbox.publish(self.last_telemetry)
         except Exception as error:
@@ -474,7 +521,7 @@ class ProductRuntime:
                         },
                     }
                 )
-            except Exception as error:
+            except Exception as error:  # noqa: BLE001 - worker boundary reports benchmark failure.
                 self.outbox.publish(
                     {"type": "benchmark", "state": "error", "error": str(error)}
                 )
@@ -496,8 +543,9 @@ class ProductRuntime:
                 self.commands.task_done()
             try:
                 self.tick()
-            except Exception:
-                pass  # _process published actionable failure and stopped playback.
+            except Exception as error:  # noqa: BLE001 - keep the playback worker alive to close cleanly.
+                self.error = str(error)
+                self.stopping.set()
         self.close()
 
     def close(self):

@@ -175,7 +175,7 @@ class Rellis3DAdapterTests(unittest.TestCase):
             sequence_metadata = metadata_root / "00000"
             sequence_metadata.mkdir()
             (sequence_metadata / "poses.txt").write_text(
-                "1 0 0 0 0 1 0 0 0 0 1 0\n" "1 0 0 1 0 1 0 0 0 0 1 0\n"
+                "1 0 0 0 0 1 0 0 0 0 1 0\n1 0 0 1 0 1 0 0 0 0 1 0\n"
             )
             (sequence_metadata / "calib.txt").write_text(
                 "P0: 1 0 0 0 0 1 0 0 0 0 1 0\n"
@@ -256,7 +256,9 @@ class Rellis3DAdapterTests(unittest.TestCase):
             with self.assertRaisesRegex(FileNotFoundError, "does not exist"):
                 Rellis3DDataset(root).load_frame("00000", "no-such-frame")
 
-            (root / "00000" / "vel_cloud_node_semantickitti_label_id" / "0.label").unlink()
+            (
+                root / "00000" / "vel_cloud_node_semantickitti_label_id" / "0.label"
+            ).unlink()
             with self.assertRaisesRegex(FileNotFoundError, "label file is missing"):
                 Rellis3DDataset(root, require_labels=True).load_frame("00000", "0")
 
@@ -274,7 +276,9 @@ class Rellis3DAdapterTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as raw:
             root = Path(raw)
             write_frame(root, "00000", "0", [1.0])
-            labels = root / "00000" / "vel_cloud_node_semantickitti_label_id" / "0.label"
+            labels = (
+                root / "00000" / "vel_cloud_node_semantickitti_label_id" / "0.label"
+            )
             labels.write_bytes(labels.read_bytes() + b"x")
 
             with self.assertRaisesRegex(ValueError, "complete uint32 label records"):

@@ -252,7 +252,9 @@ class TemporalTracker:
                         ):
                             if track.semantic_class == int(label):
                                 nearby_by_id[track.track_id] = track
-            candidate_tracks = sorted(nearby_by_id.values(), key=lambda track: track.track_id)
+            candidate_tracks = sorted(
+                nearby_by_id.values(), key=lambda track: track.track_id
+            )
             if candidate_tracks and cluster_ids:
                 from scipy.optimize import linear_sum_assignment
 
@@ -547,9 +549,7 @@ class TemporalTracker:
             return 1
         return 2
 
-    def _velocity_confirmed(
-        self, previous: np.ndarray, current: np.ndarray
-    ) -> bool:
+    def _velocity_confirmed(self, previous: np.ndarray, current: np.ndarray) -> bool:
         """Check whether two consecutive velocity estimates agree.
 
         Agreement means the same speed regime plus an aligned direction and
@@ -569,9 +569,7 @@ class TemporalTracker:
         cosine = float(np.dot(previous, current) / (previous_speed * current_speed))
         if cosine < self.consistency_cosine:
             return False
-        ratio = max(previous_speed, current_speed) / min(
-            previous_speed, current_speed
-        )
+        ratio = max(previous_speed, current_speed) / min(previous_speed, current_speed)
         return bool(ratio <= self.consistency_ratio)
 
     def _probability(self, speed: float) -> float:

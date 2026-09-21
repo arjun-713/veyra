@@ -71,6 +71,7 @@ pub fn run() {
         .invoke_handler(tauri::generate_handler![
             commands::runtime_status,
             commands::runtime_command,
+            commands::runtime_stop,
             commands::runtime_configure,
             commands::runtime_validate_config,
             commands::choose_dataset,

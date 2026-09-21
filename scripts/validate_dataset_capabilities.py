@@ -134,9 +134,7 @@ def build_report(
         except (OSError, ValueError, TypeError) as error:
             report["status"] = "invalid_local_data"
             report["reason"] = "frame_validation_failed"
-            report["diagnostic"] = (
-                f"{dataset_name}/{sequence}/{ref.frame_id}: {error}"
-            )
+            report["diagnostic"] = f"{dataset_name}/{sequence}/{ref.frame_id}: {error}"
             return report
         replay_pairs_equal &= np.array_equal(first.points, second.points)
         replay_pairs_equal &= np.array_equal(

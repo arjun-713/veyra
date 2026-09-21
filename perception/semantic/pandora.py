@@ -35,11 +35,46 @@ PANDORA_INTENSITY_SCALE = 255.0
 #: reports/closure/semantic-finetune/RESULT.md). Row 0 sits at +7.3 deg,
 #: above the nominal +7 deg spec; expect the tail to be valid, not unknown.
 PANDORA_BEAM_ELEVATIONS_DEG = (
-    7.300, 6.299, 5.293, 4.285, 3.272, 2.259, 1.924, 1.578, 1.244, 0.909,
-    0.563, 0.228, -0.111, -0.449, -0.788, -1.127, -1.464, -1.803, -2.141,
-    -2.479, -2.817, -3.154, -3.491, -3.829, -4.162, -4.504, -4.838, -5.169,
-    -5.510, -5.843, -6.844, -7.840, -8.830, -9.814, -10.791, -11.760,
-    -12.717, -13.668, -14.609, -15.539,
+    7.300,
+    6.299,
+    5.293,
+    4.285,
+    3.272,
+    2.259,
+    1.924,
+    1.578,
+    1.244,
+    0.909,
+    0.563,
+    0.228,
+    -0.111,
+    -0.449,
+    -0.788,
+    -1.127,
+    -1.464,
+    -1.803,
+    -2.141,
+    -2.479,
+    -2.817,
+    -3.154,
+    -3.491,
+    -3.829,
+    -4.162,
+    -4.504,
+    -4.838,
+    -5.169,
+    -5.510,
+    -5.843,
+    -6.844,
+    -7.840,
+    -8.830,
+    -9.814,
+    -10.791,
+    -11.760,
+    -12.717,
+    -13.668,
+    -14.609,
+    -15.539,
 )
 #: Validity envelope around the beam fan: contains every observed return
 #: (extremes -15.539 / +7.300 deg) with margin; anything outside is a sensor
@@ -202,7 +237,9 @@ def extract_features(points: np.ndarray) -> np.ndarray:
     points = np.asarray(points, dtype=np.float32)
     if points.ndim != 2 or points.shape[1] != 4 or not np.isfinite(points).all():
         raise ValueError("Pandora features require finite XYZI of shape (N, 4)")
-    intensity = np.clip(points[:, 3], 0.0, PANDORA_INTENSITY_SCALE) / PANDORA_INTENSITY_SCALE
+    intensity = (
+        np.clip(points[:, 3], 0.0, PANDORA_INTENSITY_SCALE) / PANDORA_INTENSITY_SCALE
+    )
     depth = np.linalg.norm(points[:, :3], axis=1).astype(np.float32)
     with np.errstate(invalid="ignore", divide="ignore"):
         pitch = np.arcsin(
@@ -283,7 +320,10 @@ class PandoraNativeSemanticProvider:
             self._scaler_mean = np.asarray(archive["scaler_mean"], dtype=np.float64)
             self._scaler_scale = np.asarray(archive["scaler_scale"], dtype=np.float64)
             n_layers = int(archive["n_layers"])
-            coefs = [np.asarray(archive[f"coef_{i}"], dtype=np.float64) for i in range(n_layers)]
+            coefs = [
+                np.asarray(archive[f"coef_{i}"], dtype=np.float64)
+                for i in range(n_layers)
+            ]
             intercepts = [
                 np.asarray(archive[f"intercept_{i}"], dtype=np.float64)
                 for i in range(n_layers)
@@ -321,7 +361,10 @@ class PandoraNativeSemanticProvider:
             ):
                 raise ValueError("Pandora native checkpoint has invalid layer shapes")
             expected_in = coef.shape[1]
-        if coefs[0].shape[0] != len(FEATURE_NAMES) or coefs[-1].shape[1] != self._classes.size:
+        if (
+            coefs[0].shape[0] != len(FEATURE_NAMES)
+            or coefs[-1].shape[1] != self._classes.size
+        ):
             raise ValueError("Pandora native checkpoint dimensions mismatch contract")
         self._coefs = coefs
         self._intercepts = intercepts
@@ -360,9 +403,7 @@ class PandoraNativeSemanticProvider:
         confidence = proba[np.arange(count), best].astype(np.float32)
         return SemanticResult(mapped, confidence, "model")
 
-    def infer_native(
-        self, points: np.ndarray
-    ) -> tuple[np.ndarray, np.ndarray]:
+    def infer_native(self, points: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
         """Return ``(native_ids, probabilities)`` per point in input order."""
         points_array = np.asarray(points, dtype=np.float32)
         if (

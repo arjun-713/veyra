@@ -108,9 +108,11 @@ def main() -> int:
     if not root.is_absolute():
         # Allow pointing at the shared checkout when a worktree has no local data.
         candidate = _REPO_ROOT / root
-        root = candidate if candidate.is_dir() else Path(
-            "/home/arjun/Captain/SIH/Lidar"
-        ) / root
+        root = (
+            candidate
+            if candidate.is_dir()
+            else Path("/home/arjun/Captain/SIH/Lidar") / root
+        )
     model_path = Path(args.model)
     if not model_path.is_absolute():
         candidate = _REPO_ROOT / model_path
@@ -164,9 +166,7 @@ def main() -> int:
         result = provider.infer(points)
         elapsed_ms = (time.perf_counter() - started) * 1000.0
         assert result.semantic_class.shape == gt.shape
-        _, _, _, valid = project_scan(
-            points, intensity_scale=args.intensity_scale
-        )
+        _, _, _, valid = project_scan(points, intensity_scale=args.intensity_scale)
         lat_ms.append(elapsed_ms)
         all_pred.append(result.semantic_class)
         all_conf.append(result.semantic_confidence)
@@ -261,9 +261,7 @@ def main() -> int:
             "pred_confidence_mean_on_predicted_known": float(conf[pred != 0].mean())
             if np.any(pred != 0)
             else None,
-            "pred_confidence_p50_on_predicted_known": float(
-                np.median(conf[pred != 0])
-            )
+            "pred_confidence_p50_on_predicted_known": float(np.median(conf[pred != 0]))
             if np.any(pred != 0)
             else None,
         },

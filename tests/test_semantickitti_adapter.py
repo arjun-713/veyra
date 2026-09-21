@@ -100,12 +100,8 @@ class SemanticKITTIAdapterTests(unittest.TestCase):
             np.array([[1.0, 0.0, 0.0, 0.5]], dtype=np.float32).tofile(
                 sequence / "velodyne" / "000000.bin"
             )
-            np.array([10], dtype=np.uint32).tofile(
-                sequence / "labels" / "000000.label"
-            )
-            np.array([10], dtype=np.uint32).tofile(
-                sequence / "labels" / "000001.label"
-            )
+            np.array([10], dtype=np.uint32).tofile(sequence / "labels" / "000000.label")
+            np.array([10], dtype=np.uint32).tofile(sequence / "labels" / "000001.label")
 
             with self.assertRaisesRegex(ValueError, "label has no matching scan"):
                 SemanticKITTIDataset(root).list_frames("00")

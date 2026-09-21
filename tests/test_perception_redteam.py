@@ -5,8 +5,8 @@ quality evidence.  The real-data case reads only the primary checkout's
 ignored SemanticPOSS fixture when it is present.
 """
 
-import struct
 import json
+import struct
 import subprocess
 import sys
 import tempfile
@@ -23,7 +23,6 @@ from datasets.common.observation import (
     SemanticFrame,
 )
 from datasets.semanticposs.adapter import SemanticPOSSDataset
-
 
 PRIMARY_SEMANTIC_POSS = Path(
     "/home/arjun/Captain/SIH/Lidar/data/raw/semanticposs/dataset"
@@ -163,13 +162,15 @@ class PerceptionRedTeamTests(unittest.TestCase):
 
     def test_semantic_ids_and_confidences_fail_closed_at_contract_boundary(self):
         for value in (-1, 2**31, 1.5, np.nan, np.inf):
-            with self.subTest(field="semantic_class", value=value), self.assertRaises(
-                ValueError
+            with (
+                self.subTest(field="semantic_class", value=value),
+                self.assertRaises(ValueError),
             ):
                 _frame(semantic_class=np.array([value, 1]))
         for value in (-0.01, 1.01, np.nan, np.inf):
-            with self.subTest(field="semantic_confidence", value=value), self.assertRaises(
-                ValueError
+            with (
+                self.subTest(field="semantic_confidence", value=value),
+                self.assertRaises(ValueError),
             ):
                 _frame(semantic_confidence=np.array([value, 0.5]))
 
@@ -189,7 +190,9 @@ class PerceptionRedTeamTests(unittest.TestCase):
                 del points
                 raise RuntimeError("fixture backend unavailable")
 
-        output = PerceptionPipeline(ground_segmenter=UnavailableGround()).process(_frame())
+        output = PerceptionPipeline(ground_segmenter=UnavailableGround()).process(
+            _frame()
+        )
         self.assertEqual(output.status.ground, "unavailable")
         self.assertEqual(output.status.terrain, "unavailable")
         np.testing.assert_array_equal(output.frame.drivable, ["drivable", "unknown"])
@@ -224,9 +227,9 @@ class PerceptionRedTeamTests(unittest.TestCase):
             ),
         ):
             with self.subTest(provenance=provenance):
-                output = PerceptionPipeline(
-                    temporal_tracker=MustNotRun()
-                ).process(_frame(provenance=provenance, timestamp=timestamp))
+                output = PerceptionPipeline(temporal_tracker=MustNotRun()).process(
+                    _frame(provenance=provenance, timestamp=timestamp)
+                )
                 self.assertEqual(output.status.temporal, "unavailable")
 
     def test_synthetic_scan_label_mismatch_is_rejected_before_mapping(self):
@@ -257,7 +260,9 @@ class PerceptionRedTeamTests(unittest.TestCase):
         self.assertEqual(frame.provenance.calibration_source, "dataset")
         self.assertEqual(frame.provenance.label_source, "dataset")
         self.assertTrue(np.isfinite(frame.points).all())
-        self.assertTrue(((frame.semantic_confidence >= 0) & (frame.semantic_confidence <= 1)).all())
+        self.assertTrue(
+            ((frame.semantic_confidence >= 0) & (frame.semantic_confidence <= 1)).all()
+        )
 
 
 if __name__ == "__main__":

@@ -6,11 +6,12 @@ export function isSupportedDataset(value:unknown):value is typeof supportedDatas
 export function validateCommand(command: unknown, args: unknown = {}): {command:string,args:Json} {
   if (typeof command !== 'string' || !args || typeof args !== 'object' || Array.isArray(args)) throw new Error('Invalid runtime command');
   const value = args as Json;
-  const fields: Record<string,string[]> = {start:[],pause:[],step:[],reset:[],status:[],shutdown:[],seek:['index'],speed:['speed'],sequence:['sequence'],policy:['policy'],governor:['mode'],benchmark:['dataset','sequence','start','count','repetitions','warmup_frames','hardware_profile']};
+  const fields: Record<string,string[]> = {start:[],pause:[],step:[],reset:[],status:[],shutdown:[],stop:[],validation:[],layer:['layer'],seek:['index'],speed:['speed'],sequence:['sequence'],policy:['policy'],governor:['mode'],benchmark:['dataset','sequence','start','count','repetitions','warmup_frames','hardware_profile']};
   if (!(command in fields) || Object.keys(value).some(key=>!fields[command].includes(key))) throw new Error('Command or field is not allowed');
   if (command==='seek' && (!Number.isSafeInteger(value.index) || value.index<0)) throw new Error('Invalid frame index');
   if (command==='speed' && (!Number.isFinite(value.speed) || value.speed<0.1 || value.speed>8)) throw new Error('Speed must be 0.1–8');
   if (command==='policy' && !policies.includes(value.policy)) throw new Error('Unknown policy');
+  if (command==='layer' && !['semantic','elevation','ground','terrain','traversability','motion','lod','utility'].includes(value.layer)) throw new Error('Unknown layer');
   if (command==='governor' && !['automatic','disabled','conserve'].includes(value.mode)) throw new Error('Unknown governor override');
   if (command==='sequence' && (typeof value.sequence!=='string' || !/^[\w.-]{1,128}$/.test(value.sequence))) throw new Error('Invalid sequence');
   if (command==='benchmark') {

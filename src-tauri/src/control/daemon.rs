@@ -388,6 +388,8 @@ fn is_supported_controller_command(command: &str) -> bool {
             | "speed"
             | "governor"
             | "benchmark"
+            | "validation"
+            | "stop"
     )
 }
 

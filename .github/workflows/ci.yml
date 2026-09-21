@@ -2,10 +2,56 @@ name: CI
 
 on:
   push:
+    branches: [main]
+    paths:
+      - '.github/workflows/**'
+      - 'CMakeLists.txt'
+      - 'cmake/**'
+      - 'include/**'
+      - 'src/**'
+      - 'apps/runtime/**'
+      - 'apps/benchmark/**'
+      - 'tests/**'
+      - 'datasets/**'
+      - 'perception/**'
+      - 'scripts/**'
+      - 'benchmarks/**'
+      - 'viewer/**'
+      - 'configs/**'
+      - 'requirements*.txt'
+      - 'pyproject.toml'
+      - 'apps/desktop/**'
+      - 'src-tauri/**'
+      - 'tools/tauri.mjs'
   pull_request:
+    paths:
+      - '.github/workflows/**'
+      - 'CMakeLists.txt'
+      - 'cmake/**'
+      - 'include/**'
+      - 'src/**'
+      - 'apps/runtime/**'
+      - 'apps/benchmark/**'
+      - 'tests/**'
+      - 'datasets/**'
+      - 'perception/**'
+      - 'scripts/**'
+      - 'benchmarks/**'
+      - 'viewer/**'
+      - 'configs/**'
+      - 'requirements*.txt'
+      - 'pyproject.toml'
+      - 'apps/desktop/**'
+      - 'src-tauri/**'
+      - 'tools/tauri.mjs'
 
 permissions:
   contents: read
+  pull-requests: read
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
 
 jobs:
   cpp:
