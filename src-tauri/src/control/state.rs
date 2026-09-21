@@ -67,9 +67,11 @@ impl AppState {
     }
 
     pub fn open_dataset(&mut self) -> Result<(), StateError> {
-        if self.state == RuntimeState::Error || self.state == RuntimeState::Stopping {
+        if self.state == RuntimeState::Stopping {
             return Err(StateError::InvalidTransition(self.state.as_str()));
         }
+        // A previous failure must not wedge the controller: opening again
+        // retries from a clean slate.
         self.state = RuntimeState::Loading;
         self.dataset_open = true;
         self.state = RuntimeState::Ready;
@@ -105,6 +107,13 @@ impl AppState {
         match self.state {
             RuntimeState::Ready | RuntimeState::Paused | RuntimeState::Running => {
                 self.state = RuntimeState::Stopping;
+                self.dataset_open = false;
+                self.state = RuntimeState::Ready;
+                Ok(())
+            }
+            // Stopping after a failure resets to Ready so the next open or
+            // command starts clean instead of latching ERROR forever.
+            RuntimeState::Error => {
                 self.dataset_open = false;
                 self.state = RuntimeState::Ready;
                 Ok(())
@@ -159,10 +168,18 @@ mod tests {
     }
 
     #[test]
-    fn error_state_rejects_all_playback_transitions() {
+    fn error_state_rejects_playback_but_allows_recovery() {
         let mut state = AppState::new();
         state.fail();
         assert_eq!(state.pause(), Err(StateError::InvalidTransition("ERROR")));
-        assert_eq!(state.stop(), Err(StateError::InvalidTransition("ERROR")));
+        assert_eq!(state.play(), Err(StateError::DatasetRequired));
+        // Recovery paths: stopping resets to Ready, opening retries cleanly.
+        state.stop().unwrap();
+        assert_eq!(state.status().state, RuntimeState::Ready);
+        state.fail();
+        state.open_dataset().unwrap();
+        assert_eq!(state.status().state, RuntimeState::Ready);
+        state.play().unwrap();
+        assert_eq!(state.status().state, RuntimeState::Running);
     }
 }

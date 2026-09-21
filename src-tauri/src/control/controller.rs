@@ -89,7 +89,8 @@ impl RuntimeController {
         requested_sequence: Option<&str>,
     ) -> Result<Value, String> {
         let catalog = self.datasets(dataset, root)?;
-        let sequence = select_openable_sequence(&catalog, requested_sequence)?;
+        let normalized_catalog = unwrap_runtime_result(catalog.clone());
+        let sequence = select_openable_sequence(&normalized_catalog, requested_sequence)?;
         let configured = self.configure(dataset_open_configuration(dataset, root, &sequence))?;
         Ok(json!({
             "catalog": catalog,
@@ -245,6 +246,14 @@ fn dataset_open_configuration(dataset: &str, root: &Path, sequence: &str) -> Val
     })
 }
 
+fn unwrap_runtime_result(response: Value) -> Value {
+    if response.get("type").and_then(Value::as_str) == Some("response") {
+        response.get("result").cloned().unwrap_or(response)
+    } else {
+        response
+    }
+}
+
 fn select_openable_sequence(
     catalog: &Value,
     requested_sequence: Option<&str>,
@@ -373,6 +382,24 @@ mod tests {
             super::select_openable_sequence(&json!({"status": "invalid"}), None)
                 .unwrap_err()
                 .starts_with("dataset is invalid:")
+        );
+    }
+
+    #[test]
+    fn unwraps_runtime_response_envelope_before_reading_dataset_catalog() {
+        let catalog = json!({
+            "type": "response",
+            "id": "1",
+            "ok": true,
+            "result": {
+                "status": "partial",
+                "sequences": [{"id": "00", "frames": 488}]
+            }
+        });
+        let normalized = super::unwrap_runtime_result(catalog);
+        assert_eq!(
+            super::select_openable_sequence(&normalized, Some("00")),
+            Ok("00".to_owned())
         );
     }
 }

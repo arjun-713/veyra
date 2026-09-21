@@ -1,5 +1,5 @@
 <script lang="ts">
- import {onMount} from 'svelte';
+ import {onMount,untrack} from 'svelte';
  import * as THREE from 'three';
  import {OrbitControls} from 'three/examples/jsm/controls/OrbitControls.js';
  import {pointColor,cellColor,displayPosition} from './colors';
@@ -15,7 +15,7 @@
  let lastGeneration=-1,lastIndex=-1;
  function update(){
   if(!ready)return;points.visible=showPoints;mesh.visible=showCells;(mesh.material as THREE.MeshBasicMaterial).wireframe=boundaries;
-  if(!frame){pointGeo.setDrawRange(0,0);mesh.count=0;return;}
+  if(!frame){pointGeo.setDrawRange(0,0);mesh.count=0;lastGeneration=-1;lastIndex=-1;return;}
   const meta=frame.metadata;
   if(meta.generation<lastGeneration||(meta.generation===lastGeneration&&meta.index<lastIndex))return;
   lastGeneration=meta.generation;lastIndex=meta.index;
@@ -35,14 +35,14 @@
    color.setRGB(...cellColor(mode,cellRow));mesh.setColorAt(i,color);
   }
   mesh.count=cellCount;mesh.instanceMatrix.needsUpdate=true;if(mesh.instanceColor)mesh.instanceColor.needsUpdate=true;mesh.computeBoundingSphere();
-  onStats({source_points:meta.points.count,source_cells:meta.cells.count,rendered_points:pointCount,rendered_cells:cellCount,sampling_active:clamped.truncated});
+  onStats({status:'available',source_points:meta.n_points??meta.points.count,source_cells:meta.total_leaves??meta.cells.count,rendered_points:pointCount,rendered_cells:cellCount,sampling_active:clamped.truncated||(meta.n_points??0)>pointCount||(meta.total_leaves??0)>cellCount});
   if(follow&&meta.pose?.length===16){const target=new THREE.Vector3(meta.pose[7],meta.pose[11],-meta.pose[3]);const delta=target.clone().sub(controls.target);camera.position.add(delta);controls.target.copy(target);}
  }
- $effect(()=>{frame;mode;showPoints;showCells;boundaries;follow;ready;update();});
+ $effect(()=>{frame;mode;showPoints;showCells;boundaries;follow;ready;untrack(update);});
  $effect(()=>{if(!ready)return;const target=controls.target.clone();camera.up.set(0,1,0);if(view==='top'){camera.position.copy(target).add(new THREE.Vector3(0,100,.01));}else if(view==='driver'){camera.position.copy(target).add(new THREE.Vector3(0,3,8));}else camera.position.copy(target).add(new THREE.Vector3(-32,25,36));controls.update();});
  onMount(()=>{
   try{
-   renderer=new THREE.WebGLRenderer({antialias:true});renderer.setPixelRatio(Math.min(devicePixelRatio,1.75));host.appendChild(renderer.domElement);
+   renderer=new THREE.WebGLRenderer({antialias:true,preserveDrawingBuffer:true});renderer.setPixelRatio(Math.min(devicePixelRatio,1.75));host.appendChild(renderer.domElement);
    scene=new THREE.Scene();scene.background=new THREE.Color('#0b1219');camera=new THREE.PerspectiveCamera(55,1,.05,3000);camera.position.set(-32,25,36);controls=new OrbitControls(camera,renderer.domElement);controls.enableDamping=true;
    scene.add(new THREE.GridHelper(200,40,0x2d4b5e,0x172b39));
    pointGeo=new THREE.BufferGeometry();pointGeo.setAttribute('position',new THREE.BufferAttribute(position,3).setUsage(THREE.DynamicDrawUsage));pointGeo.setAttribute('color',new THREE.BufferAttribute(colors,3).setUsage(THREE.DynamicDrawUsage));pointGeo.setDrawRange(0,0);
@@ -53,14 +53,14 @@
    const draw=()=>{animation=requestAnimationFrame(draw);const start=performance.now();controls.update();renderer.render(scene,camera);duration+=performance.now()-start;frames++;if(start-last>1000){onStats({fps:frames*1000/(start-last),latency_ms:duration/frames,entities:mesh.count+pointGeo.drawRange.count});last=start;frames=0;duration=0;}};draw();
    const pick=(event:MouseEvent)=>{const rect=host.getBoundingClientRect();const ray=new THREE.Raycaster();ray.setFromCamera(new THREE.Vector2((event.clientX-rect.left)/rect.width*2-1,-(event.clientY-rect.top)/rect.height*2+1),camera);const hit=ray.intersectObject(mesh)[0];if(hit?.instanceId!==undefined){const r=cellData.subarray(hit.instanceId*9,hit.instanceId*9+9);onInspect({x:r[0],y:r[1],elevation:r[2],resolution:r[3],semantic_class:r[4],motion:r[5],quality:r[6],drivable_evidence:r[7],utility:r[8]});}};
    host.addEventListener('dblclick',pick);
-   const lost=(event:Event)=>{event.preventDefault();failure='WebGL context lost. Switch workspace and back, or reload the window to restore rendering — mapping continues in the backend.';};
-   const restored=()=>{failure='';lastGeneration=-1;lastIndex=-1;update();};
+   const lost=(event:Event)=>{event.preventDefault();failure='WebGL context lost. Switch workspace and back, or reload the window to restore rendering — mapping continues in the backend.';onStats({status:'context_lost'});};
+   const restored=()=>{failure='';lastGeneration=-1;lastIndex=-1;update();onStats({status:'available'});};
    renderer.domElement.addEventListener('webglcontextlost',lost,false);
    renderer.domElement.addEventListener('webglcontextrestored',restored,false);
-   ready=true;
+   ready=true;onStats({status:'available'});
    return()=>{cancelAnimationFrame(animation);resize.disconnect();host.removeEventListener('dblclick',pick);renderer.domElement.removeEventListener('webglcontextlost',lost);renderer.domElement.removeEventListener('webglcontextrestored',restored);controls.dispose();scene.traverse(obj=>{if(obj instanceof THREE.Mesh||obj instanceof THREE.Points){obj.geometry.dispose();const materials=Array.isArray(obj.material)?obj.material:[obj.material];materials.forEach(m=>m.dispose());}});renderer.dispose();renderer.domElement.remove();};
-  }catch(error){failure=String(error);}
+  }catch(error){failure=String(error);onStats({status:'unavailable',error:failure});}
  });
 </script>
 <div class="map-canvas" bind:this={host}>{#if failure}<div class="empty"><h2>WebGL unavailable</h2><p>{failure}</p></div>{/if}</div>
-<style>.map-canvas{position:absolute;inset:0;overflow:hidden}.empty{padding:3rem;color:#fb9a8b}</style>
+<style>.map-canvas{position:absolute;inset:0;overflow:hidden}.empty{padding:3rem;color:#ede8dc}</style>

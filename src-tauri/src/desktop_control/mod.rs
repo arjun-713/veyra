@@ -17,6 +17,9 @@ pub(crate) struct DesktopControlService {
 
 impl DesktopControlService {
     pub(crate) fn bootstrap(repo: std::path::PathBuf, config_dir: &std::path::Path) -> Self {
+        // CLI connection overrides do not carry the desktop's event stream.
+        // The GUI must own a host with an event relay; CLI/MCP can attach to
+        // its published discovery record instead.
         match ControlHost::start(repo, config_dir)
             .and_then(|host| client_from_config(host.config()).map(|client| (host, client)))
         {

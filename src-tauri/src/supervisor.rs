@@ -367,11 +367,10 @@ fn spawn_process_monitor(shared: Arc<Mutex<Shared>>) {
                             state.child = None;
                             state.stdin = None;
                             if !state.stopping {
-                                state.last_error = Some(format!("runtime exited: {status}"));
-                                fail_pending(
-                                    &mut state,
-                                    SupervisorError::Process(format!("runtime exited: {status}")),
-                                );
+                                let message =
+                                    runtime_exit_error(&status.to_string(), &state.stderr);
+                                state.last_error = Some(message.clone());
+                                fail_pending(&mut state, SupervisorError::Process(message));
                             }
                             true
                         }
@@ -393,6 +392,27 @@ fn spawn_process_monitor(shared: Arc<Mutex<Shared>>) {
             }
         })
         .expect("failed to spawn runtime monitor");
+}
+
+fn runtime_exit_error(status: &str, stderr: &str) -> String {
+    const STDERR_LIMIT: usize = 4096;
+    let compact = stderr.split_whitespace().collect::<Vec<_>>().join(" ");
+    if compact.is_empty() {
+        return format!("runtime exited: {status}");
+    }
+    let detail = if compact.chars().count() > STDERR_LIMIT {
+        compact
+            .chars()
+            .rev()
+            .take(STDERR_LIMIT)
+            .collect::<String>()
+            .chars()
+            .rev()
+            .collect::<String>()
+    } else {
+        compact
+    };
+    format!("runtime exited: {status}: {detail}")
 }
 
 fn fail_pending(shared: &mut Shared, error: SupervisorError) {
@@ -699,6 +719,18 @@ mod tests {
         // Non-response packets never resolve a waiter; they queue as events.
         dispatch_packet(&shared, json!({"type": "telemetry", "tick": 3}), Vec::new());
         assert_eq!(shared.lock().unwrap().events.len(), 1);
+    }
+
+    #[test]
+    fn runtime_exit_error_includes_bounded_stderr_context() {
+        let message =
+            super::runtime_exit_error("exit status: 1", "Traceback: No module named runtime\n");
+        assert!(message.contains("exit status: 1"));
+        assert!(message.contains("No module named runtime"));
+        assert!(!message.contains('\n'));
+
+        let bounded = super::runtime_exit_error("exit status: 1", &"x".repeat(10_000));
+        assert!(bounded.len() < 4_200);
     }
 
     #[test]

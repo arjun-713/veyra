@@ -20,15 +20,43 @@ DEFAULT_PIPELINE = {
     "temporal": {"enabled": False},
 }
 PRESETS = {
+    "LowResource": {
+        "map": {
+            "policy": "distance_lod",
+            "resource_profile": "performance",
+            "governor_override": "automatic",
+        },
+        "playback": {
+            "fps": 10,
+            "frame_limit": 30,
+            "full_sequence": False,
+        },
+        "visualization": {
+            "point_budget": 15000,
+            "cell_budget": 10000,
+            "update_hz": 2,
+            "max_in_flight": 1,
+        },
+    },
     "Performance": {
         "map": {"resource_profile": "performance", "governor_override": "automatic"},
         "playback": {"fps": 10},
-        "visualization": {"point_budget": 20000, "cell_budget": 10000, "update_hz": 10},
+        "visualization": {
+            "point_budget": 20000,
+            "cell_budget": 10000,
+            "update_hz": 10,
+            "max_in_flight": 1,
+        },
     },
     "Balanced": {
         "map": {"resource_profile": "balanced", "governor_override": "automatic"},
         "playback": {"fps": 10},
-        "visualization": {"point_budget": 50000, "cell_budget": 20000, "update_hz": 15},
+        "visualization": {
+            "point_budget": 50000,
+            "cell_budget": 20000,
+            "update_hz": 15,
+            "max_in_flight": 1,
+        },
     },
     "Quality": {
         "map": {"resource_profile": "quality", "governor_override": "automatic"},
@@ -37,6 +65,7 @@ PRESETS = {
             "point_budget": 100000,
             "cell_budget": 50000,
             "update_hz": 30,
+            "max_in_flight": 1,
         },
     },
 }
@@ -78,6 +107,12 @@ def normalized_pipeline(value):
     return pipeline
 
 
+def _merged_section(preset, supplied, name):
+    value = copy.deepcopy(preset.get(name, {}))
+    value.update(copy.deepcopy(supplied.get(name, {})))
+    return value
+
+
 def validate_config(config, repo: Path, *, check_paths=True):
     _keys(
         config,
@@ -85,6 +120,7 @@ def validate_config(config, repo: Path, *, check_paths=True):
             "dataset",
             "dataset_root",
             "sequence",
+            "preset",
             "pipeline",
             "map",
             "playback",
@@ -92,6 +128,10 @@ def validate_config(config, repo: Path, *, check_paths=True):
         ),
         "config",
     )
+    preset_name = config.get("preset", "LowResource")
+    if preset_name not in PRESETS:
+        raise ValueError("unsupported runtime preset")
+    preset = PRESETS[preset_name]
     if config.get("dataset") not in DATASETS:
         raise ValueError("unsupported dataset")
     if (
@@ -105,7 +145,7 @@ def validate_config(config, repo: Path, *, check_paths=True):
     root = Path(config["dataset_root"]).expanduser().resolve()
     if check_paths and not root.is_dir():
         raise ValueError(f"dataset root does not exist: {root}")
-    map_config = dict(config.get("map", {}))
+    map_config = _merged_section(preset, config, "map")
     _keys(
         map_config,
         (
@@ -141,14 +181,24 @@ def validate_config(config, repo: Path, *, check_paths=True):
     if governor_override not in ("automatic", "disabled", "conserve"):
         raise ValueError("unsupported governor override")
     pipeline = normalized_pipeline(config.get("pipeline"))
-    playback = dict(config.get("playback", {}))
-    _keys(playback, ("fps", "speed"), "playback")
+    playback = _merged_section(preset, config, "playback")
+    _keys(playback, ("fps", "speed", "frame_limit", "full_sequence"), "playback")
     playback = {
         "fps": number(playback.get("fps", 10), "fps", 0.1, 120),
         "speed": number(playback.get("speed", 1), "speed", 0.1, 8),
+        "frame_limit": number(
+            playback.get("frame_limit", 30), "frame_limit", 1, 1000000, True
+        ),
+        "full_sequence": playback.get("full_sequence", False),
     }
-    visual = dict(config.get("visualization", {}))
-    _keys(visual, ("point_budget", "cell_budget", "update_hz"), "visualization")
+    if not isinstance(playback["full_sequence"], bool):
+        raise TypeError("playback full_sequence must be a boolean")
+    visual = _merged_section(preset, config, "visualization")
+    _keys(
+        visual,
+        ("point_budget", "cell_budget", "update_hz", "max_in_flight"),
+        "visualization",
+    )
     visual = {
         "point_budget": number(
             visual.get("point_budget", 50000), "point_budget", 1, 100000, True
@@ -157,8 +207,12 @@ def validate_config(config, repo: Path, *, check_paths=True):
             visual.get("cell_budget", 20000), "cell_budget", 1, 100000, True
         ),
         "update_hz": number(visual.get("update_hz", 15), "update_hz", 1, 60),
+        "max_in_flight": number(
+            visual.get("max_in_flight", 1), "max_in_flight", 1, 1, True
+        ),
     }
     return {
+        "preset": preset_name,
         "dataset": config["dataset"],
         "dataset_root": str(root),
         "sequence": config["sequence"],

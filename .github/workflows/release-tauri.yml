@@ -59,7 +59,8 @@ jobs:
           python -m venv --copies "$RUNNER_TEMP/veyra-python"
           if [ "${{ matrix.platform }}" = "win32" ]; then py="$RUNNER_TEMP/veyra-python/Scripts/python.exe"; else py="$RUNNER_TEMP/veyra-python/bin/python3"; fi
           "$py" -m pip install --disable-pip-version-check -r requirements.txt
-          python scripts/stage_tauri_backend.py --repo . --mapper "${{ matrix.mapper }}" --python-runtime "$RUNNER_TEMP/veyra-python" --platform "${{ matrix.platform }}" --arch "${{ matrix.arch }}"
+          if [ "${{ matrix.platform }}" = "win32" ]; then bench="build/apps/benchmark/Release/veyra_benchmark.exe"; else bench="build/apps/benchmark/veyra_benchmark"; fi
+          python scripts/stage_tauri_backend.py --repo . --mapper "${{ matrix.mapper }}" --benchmark "$bench" --python-runtime "$RUNNER_TEMP/veyra-python" --platform "${{ matrix.platform }}" --arch "${{ matrix.arch }}"
       # CI-hardening: smoke-test the staged backend BEFORE bundling (mirrors
       # release.yml's `VYRA`-magic assert). Runs matrix-wide (Linux/Windows/
       # macOS, no secrets): proves the relocatable interpreter + runtime

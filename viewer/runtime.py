@@ -8,6 +8,7 @@ the browser.  Map results are optional and are surfaced only when the existing
 
 from __future__ import annotations
 
+import io
 import json
 import queue
 import subprocess
@@ -180,9 +181,13 @@ class PersistentMapEngine:
         return self._process.pid if self._process is not None else None
 
     def _read_stdout(self, process, responses):
+        output = None
         try:
+            # stdin remains unbuffered for command delivery. Buffer only stdout:
+            # FileIO.readline otherwise performs one pipe read per JSON byte.
+            output = io.BufferedReader(process.stdout, buffer_size=64 * 1024)
             while True:
-                line = process.stdout.readline(32 * 1024 * 1024 + 1)
+                line = output.readline(32 * 1024 * 1024 + 1)
                 if len(line) > 32 * 1024 * 1024:
                     responses.put_nowait(
                         {
@@ -215,6 +220,14 @@ class PersistentMapEngine:
         except (OSError, ValueError, queue.Full):
             if process.poll() is None:
                 process.kill()
+        finally:
+            if output is not None:
+                # The process lifecycle owns the raw stream and may close it
+                # concurrently during shutdown; do not transfer that ownership.
+                try:
+                    output.detach()
+                except (OSError, ValueError):
+                    pass
 
     def _drain_stderr(self, process):
         try:

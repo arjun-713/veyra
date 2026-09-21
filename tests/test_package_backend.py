@@ -128,6 +128,58 @@ class PackageBackendTests(unittest.TestCase):
             )
             self.assertFalse((output / "python/pyvenv.cfg").exists())
 
+    def test_optional_benchmark_binary_is_staged_next_to_mapper(self):
+        from scripts.package_backend import stage_backend
+
+        with tempfile.TemporaryDirectory() as raw:
+            root = Path(raw)
+            repo = root / "repo"
+            (repo / "runtime").mkdir(parents=True)
+            (repo / "runtime" / "__main__.py").write_text("\n")
+            for name in ("viewer", "benchmarks", "perception", "datasets", "configs"):
+                (repo / name).mkdir()
+                (repo / name / "__init__.py").write_text("\n")
+            (repo / "src-tauri").mkdir()
+            (repo / "src-tauri" / "tauri.conf.json").write_text('{"version": "0.1.0"}')
+            mapper = repo / "build" / "veyra_runtime"
+            mapper.parent.mkdir(parents=True)
+            mapper.write_bytes(b"mapper")
+            benchmark = repo / "build" / "veyra_benchmark"
+            benchmark.write_bytes(b"benchmark")
+            python = root / "python-runtime"
+            (python / "bin").mkdir(parents=True)
+            (python / "bin" / "python3").write_bytes(b"python")
+
+            output = stage_backend(
+                repo,
+                root / "stage",
+                mapper,
+                python,
+                "linux",
+                "x64",
+                benchmark=benchmark,
+            )
+            self.assertEqual(
+                (output / "bin" / "veyra_benchmark").read_bytes(), b"benchmark"
+            )
+            manifest = json.loads((output / "manifest.json").read_text())
+            self.assertIn("bin/veyra_benchmark", manifest["files"])
+
+            plain = stage_backend(repo, root / "plain", mapper, python, "linux", "x64")
+            self.assertFalse((plain / "bin" / "veyra_benchmark").exists())
+
+    def test_stage_discovers_dev_built_benchmark_when_flag_is_absent(self):
+        from scripts.stage_tauri_backend import _default_benchmark
+
+        with tempfile.TemporaryDirectory() as raw:
+            root = Path(raw)
+            self.assertIsNone(_default_benchmark(root, "linux"))
+            binary = root / "build" / "apps" / "benchmark" / "veyra_benchmark"
+            binary.parent.mkdir(parents=True)
+            binary.write_bytes(b"benchmark")
+            self.assertEqual(_default_benchmark(root, "linux"), binary)
+            self.assertIsNone(_default_benchmark(root, "win32"))
+
     def test_release_checksums_are_stable_and_exclude_checksum_file(self):
         from scripts.release_checksums import write_checksums
 

@@ -1,13 +1,15 @@
 import type {Json,WireFrame} from '../core';
+import {defaultRuntimeConfig} from './runtime-config.ts';
 export const classNames=['Unknown','Car','Bicycle','Motorcycle','Truck','Other vehicle','Person','Bicyclist','Motorcyclist','Road','Parking','Sidewalk','Other ground','Building','Fence','Vegetation','Trunk','Terrain','Pole','Traffic sign'];
 export const datasetFormats=[['generic','Generic manifest'],['semanticposs','SemanticPOSS'],['semantickitti','SemanticKITTI'],['rellis3d','RELLIS-3D']] as const;
 export interface DashboardEvent {time:number;message:string;kind:string}
-export function defaultSessionConfig():Json{return {dataset:'generic',dataset_root:'',sequence:'',pipeline:{semantic:{mode:'ground_truth'},ground:{enabled:true,parameter_overrides:{min_range:0,max_range:100}},terrain:{enabled:true},temporal:{enabled:false}},map:{policy:'distance_lod',window_radius_m:100.001,resource_profile:'balanced',governor_override:'automatic'},playback:{fps:10,speed:1},visualization:{point_budget:50000,cell_budget:20000,update_hz:15}};}
-export function evidenceAvailable(value:unknown){return typeof value==='string'&&value!=='unavailable';}
+export function defaultSessionConfig():Json{return defaultRuntimeConfig();}
+export function evidenceAvailable(value:unknown){return typeof value==='string'&&value.length>0&&!['unavailable','disabled','skipped','invalid'].includes(value);}
 export function profileConfig(current:Json,name:string):Json{
+ if(name==='LowResource'){const low=defaultRuntimeConfig();return {...current,preset:name,map:{...current.map,...low.map},playback:{...current.playback,...low.playback},visualization:low.visualization};}
  const profiles:Record<string,Json>={Performance:{resource_profile:'performance',visualization:{point_budget:20000,cell_budget:10000,update_hz:10}},Balanced:{resource_profile:'balanced',visualization:{point_budget:50000,cell_budget:20000,update_hz:15}},Quality:{resource_profile:'quality',visualization:{point_budget:100000,cell_budget:50000,update_hz:30}}};
  const selected=profiles[name]??profiles.Balanced;
- return {...current,map:{...(current.map??{}),resource_profile:selected.resource_profile,governor_override:'automatic'},visualization:selected.visualization};
+ return {...current,preset:name,map:{...(current.map??{}),resource_profile:selected.resource_profile,governor_override:'automatic'},visualization:selected.visualization};
 }
 export function layerUnavailable(frame:WireFrame|null,mode:string){return ['ground','terrain','motion','utility','semantic'].includes(mode)&&!evidenceAvailable(frame?.metadata.layers?.[mode]);}
 export function perceptionStages(frame:WireFrame|null){
@@ -45,6 +47,12 @@ export function inputTargetFps(config:Json,status:Json):number|null{
  return fps*speed;
 }
 export function recordEvent(events:DashboardEvent[],event:Json,now=Date.now()):DashboardEvent[]{
+ if(event.type==='diagnostics'){
+  const diagnostic=(event.diagnostic??{}) as Json;
+  const message=`${diagnostic.code??'Diagnostics'}: ${diagnostic.message??'backend reported a diagnostic'}`;
+  if(events.at(-1)?.message===message)return events;
+  return [...events,{time:now,message,kind:'error'}].slice(-200);
+ }
  if(!['status','benchmark','validation','governor'].includes(event.type))return events;
  const message=event.error?`${event.error.process??'Runtime'}: ${event.error.message??event.error}`:event.type==='benchmark'?`Benchmark ${event.state}`:event.type==='validation'?`Validation ${event.state}`:event.type==='governor'?`Governor: ${event.state??event.mode}`:`Runtime ${event.state}${event.sequence?' · '+event.sequence:''}${typeof event.index==='number'?' · frame '+event.index:''}`;
  if(events.at(-1)?.message===message)return events;

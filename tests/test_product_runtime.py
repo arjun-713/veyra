@@ -160,6 +160,59 @@ class ProductConfigTests(unittest.TestCase):
 
 
 class ProductTelemetryTests(unittest.TestCase):
+    def test_sample_ratios_use_sample_count_not_full_scan_size(self):
+        from runtime.telemetry import Telemetry
+
+        state = dict(
+            state="paused",
+            index=0,
+            frames=10,
+            queue_depth=0,
+            dropped_frames=0,
+            visualization_dropped=0,
+        )
+        report = Telemetry().report(
+            state,
+            {
+                "n_points": 1000,
+                "ground": [True, False, True, False],
+                "semantic_labels": [0, 1, 0, 9],
+                "pipeline_status": {
+                    "ground": "pypatchworkpp.patchworkpp",
+                    "semantic": "ground_truth",
+                },
+            },
+            None,
+            None,
+        )
+        self.assertEqual(report["perception"]["ground_ratio"], 0.5)
+        self.assertEqual(report["perception"]["unknown_ratio"], 0.5)
+        self.assertEqual(report["perception"]["sampled_points"], 4)
+        self.assertIsNone(report["fps"])
+
+    def test_unavailable_ground_is_not_a_measured_zero_ratio(self):
+        from runtime.telemetry import Telemetry
+
+        state = dict(
+            state="paused",
+            index=0,
+            frames=10,
+            queue_depth=0,
+            dropped_frames=0,
+            visualization_dropped=0,
+        )
+        report = Telemetry().report(
+            state,
+            {
+                "n_points": 2,
+                "ground": [False, False],
+                "pipeline_status": {"ground": "unavailable"},
+            },
+            None,
+            None,
+        )
+        self.assertIsNone(report["perception"]["ground_ratio"])
+
     def test_map_counts_governor_and_topology_rates_use_engine_schema(self):
         from runtime.telemetry import Telemetry
 
@@ -381,3 +434,72 @@ class ProductServiceTests(unittest.TestCase):
                 self.assertEqual(service.status()["state"], "paused")
             finally:
                 service.close()
+
+    def test_real_semanticposs_frame_emits_nonempty_v2_visualization(self):
+        from runtime.service import ProductRuntime
+
+        root = Path(__file__).parents[1] / "data/raw/semanticposs/dataset"
+        if not root.is_dir():
+            self.skipTest("original local SemanticPOSS data is unavailable")
+        mapper = require_binary(
+            self, "VEYRA_MAPPER", "build/apps/runtime/veyra_runtime"
+        )
+        service = ProductRuntime(Path.cwd())
+        config = {
+            "dataset": "semanticposs",
+            "dataset_root": str(root),
+            "sequence": "00",
+            "map": {"executable": str(mapper), "policy": "distance_lod"},
+            "pipeline": {"semantic": {"mode": "ground_truth"}},
+        }
+
+        def call(command, **args):
+            result = service.handle({"id": command, "command": command, "args": args})
+            self.assertTrue(result["ok"], result)
+            return result
+
+        try:
+            call("configure", config=config)
+            call("step")
+            events = []
+            while (event := service.outbox.take(timeout=0)) is not None:
+                events.append(event)
+            visual = next(
+                event for event in events if event[0]["type"] == "visualization"
+            )
+            metadata, payload = visual
+            self.assertEqual(metadata["schema_version"], 2)
+            self.assertGreater(metadata["points"]["count"], 0)
+            self.assertGreater(metadata["cells"]["count"], 0)
+            self.assertEqual(metadata["points"]["stride"], 68)
+            self.assertEqual(metadata["cells"]["stride"], 36)
+            self.assertEqual(
+                len(payload),
+                metadata["points"]["count"] * 68 + metadata["cells"]["count"] * 36,
+            )
+        finally:
+            service.close()
+
+    def test_benchmark_binary_prefers_staged_package_over_dev_build(self):
+        import tempfile
+
+        from runtime.service import ProductRuntime
+
+        service = ProductRuntime(Path.cwd())
+        with tempfile.TemporaryDirectory() as raw:
+            root = Path(raw)
+            staged = root / "staged" / "bin" / "veyra_benchmark"
+            staged.parent.mkdir(parents=True)
+            staged.write_bytes(b"staged")
+            fallback = root / "repo" / "build" / "apps" / "benchmark" / "veyra_benchmark"
+            fallback.parent.mkdir(parents=True)
+            fallback.write_bytes(b"dev")
+            service.repo = root / "staged"
+            self.assertEqual(service._benchmark_binary(), staged)
+            staged.unlink()
+            service.repo = root / "repo"
+            self.assertEqual(service._benchmark_binary(), fallback)
+            fallback.unlink()
+            with self.assertRaisesRegex(ValueError, "not available"):
+                service._benchmark_binary()
+        service.close()

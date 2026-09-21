@@ -95,3 +95,36 @@ test('render provenance distinguishes source data from sampled viewport data',()
  assert.equal(stats.rendered_points<stats.source_points,true);
  assert.equal(stats.sampling_active,true);
 });
+test('bridge rejections surface as visible error diagnostics instead of vanishing',()=>{
+ const rejection={type:'diagnostics',diagnostic:{code:'RUNTIME_EVENT_REJECTED',message:'visualization event must declare schema_version 2'}};
+ const events=recordEvent([],rejection,100);
+ assert.equal(events.length,1);
+ assert.equal(events[0].kind,'error');
+ assert.match(events[0].message,/RUNTIME_EVENT_REJECTED/);
+ assert.match(events[0].message,/schema_version 2/);
+ assert.equal(recordEvent(events,rejection,101).length,1);
+ assert.equal(recordEvent([],{type:'telemetry'} as any,102).length,0);
+});
+test('v2 production strides decode with real point and cell sections',()=>{
+ const points=33329,stride=68,cells=18625;
+ const bytes=new Uint8Array(points*stride+cells*36);
+ const data=new DataView(bytes.buffer);
+ data.setFloat32(16,3,true);
+ const frame:any={metadata:{points:{count:points,offset:0,stride},cells:{count:cells,offset:points*stride,stride:36},layers:{semantic:'ground_truth'}},payload:bytes};
+ const summary=summarizeVisual(frame);
+ assert.equal(summary.find((row:any)=>row.id===3)?.count,1);
+ const clamped=clampRenderCounts(points,cells);
+ assert.equal(clamped.truncated,false);
+ assert.equal(clamped.points.count,points);
+ assert.equal(clamped.cells.count,cells);
+ const over=clampRenderCounts(250000,180000);
+ assert.equal(over.truncated,true);
+ assert.equal(over.points.count,RENDER_CAPACITY);
+});
+test('new sessions use bounded low-resource rendering without limiting mapper input',()=>{
+ const value=defaultSessionConfig();
+ assert.equal(value.playback.frame_limit,30);
+ assert.equal(value.playback.full_sequence,false);
+ assert.equal(value.visualization.point_budget,15000);
+ assert.equal(value.visualization.cell_budget,10000);
+});

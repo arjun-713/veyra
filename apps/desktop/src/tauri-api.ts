@@ -7,10 +7,9 @@ import type {Json,WireFrame} from './core';
 
 type Unlisten=(()=>void)|undefined;
 
-async function chooseDirectory():Promise<string>{
+async function chooseDirectory():Promise<string|null>{
  const selected=await open({directory:true,multiple:false,title:'Choose Veyra dataset directory'});
- if(typeof selected!=='string')throw new Error('No dataset directory selected.');
- return selected;
+ return typeof selected==='string'?selected:null;
 }
 
 async function openJsonFile(title:string):Promise<Json|null>{
@@ -56,7 +55,7 @@ export function createTauriAPI():TauriDesktopAPI{
   stop:()=>invoke<Json>('runtime_stop'),
   configure:config=>invoke<Json>('runtime_configure',{config}),
   validateConfig:config=>invoke<Json>('runtime_validate_config',{config}),
-  chooseDataset:async dataset=>invoke<Json>('choose_dataset',{dataset,root:await chooseDirectory()}),
+  chooseDataset:async dataset=>{const root=await chooseDirectory();return root===null?null:invoke<Json>('choose_dataset',{dataset,root});},
   openDataset:(dataset,root,sequence)=>invoke<Json>('open_dataset',{dataset,root,sequence:sequence??null}),
   openConfig:()=>openJsonFile('Open Veyra configuration'),
   saveConfig:config=>saveJsonFile('Veyra configuration',config),
@@ -72,6 +71,7 @@ export function createTauriAPI():TauriDesktopAPI{
 
 function subscribe<T>(channel:string,callback:(value:T)=>void):()=>void{
  let unlisten:Unlisten;
+ let disposed=false;
  void listen<T>(channel,event=>{
   const value=event.payload as T;
   if(channel.endsWith('visualization')&&value&&typeof value==='object'){
@@ -79,8 +79,10 @@ function subscribe<T>(channel:string,callback:(value:T)=>void):()=>void{
    if(Array.isArray(frame.payload))frame.payload=new Uint8Array(frame.payload);
   }
   callback(value);
- }).then(value=>{unlisten=value;});
- return()=>{unlisten?.();};
+ }).then(value=>{if(disposed)value();else unlisten=value;}).catch(error=>{
+  window.dispatchEvent(new CustomEvent('veyra-subscription-error',{detail:String(error)}));
+ });
+ return()=>{disposed=true;unlisten?.();};
 }
 
 export function installTauriAPI():boolean{

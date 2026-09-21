@@ -10,6 +10,7 @@ const MAX_ID_BYTES: usize = 128;
 const MAX_COMMAND_BYTES: usize = 64;
 const CONNECT_TIMEOUT: Duration = Duration::from_secs(2);
 const IO_TIMEOUT: Duration = Duration::from_secs(2);
+const LONG_OPERATION_TIMEOUT: Duration = Duration::from_secs(120);
 
 #[derive(Debug, PartialEq, Eq)]
 pub enum ControlClientError {
@@ -121,9 +122,10 @@ impl ControlClient {
                     self.endpoint
                 ))
             })?;
+        let io_timeout = request_timeout(command);
         stream
-            .set_read_timeout(Some(IO_TIMEOUT))
-            .and_then(|_| stream.set_write_timeout(Some(IO_TIMEOUT)))
+            .set_read_timeout(Some(io_timeout))
+            .and_then(|_| stream.set_write_timeout(Some(io_timeout)))
             .map_err(|error| {
                 ControlClientError::Transport(format!("cannot configure control timeouts: {error}"))
             })?;
@@ -137,6 +139,18 @@ impl ControlClient {
         let mut reader = BufReader::new(stream);
         let response = read_response(&mut reader)?;
         validate_response(&response, &id)
+    }
+}
+
+fn request_timeout(command: &str) -> Duration {
+    // Every command below can require a runtime round trip, and the runtime
+    // answers between frames (a single frame can take several seconds), so
+    // even cheap reads get the long budget. Purely local validation stays
+    // out of this transport entirely.
+    match command {
+        "configure" | "open_dataset" | "benchmark" | "command" | "status" | "metrics"
+        | "diagnostics" | "datasets" | "stop" => LONG_OPERATION_TIMEOUT,
+        _ => IO_TIMEOUT,
     }
 }
 
@@ -277,8 +291,8 @@ mod tests {
     use std::io::Cursor;
 
     use super::{
-        parse_endpoint, read_response, validate_response, validate_token, ControlClient,
-        ControlClientError, MAX_FRAME_BYTES,
+        parse_endpoint, read_response, request_timeout, validate_response, validate_token,
+        ControlClient, ControlClientError, LONG_OPERATION_TIMEOUT, MAX_FRAME_BYTES,
     };
     use serde_json::json;
 
@@ -355,6 +369,19 @@ mod tests {
             client.request("status", json!([])),
             Err(ControlClientError::Protocol(message)) if message == "args must be an object"
         ));
+    }
+
+    #[test]
+    fn long_running_control_operations_get_a_bounded_extended_timeout() {
+        assert_eq!(request_timeout("status"), LONG_OPERATION_TIMEOUT);
+        assert_eq!(request_timeout("metrics"), LONG_OPERATION_TIMEOUT);
+        assert_eq!(request_timeout("diagnostics"), LONG_OPERATION_TIMEOUT);
+        assert_eq!(request_timeout("datasets"), LONG_OPERATION_TIMEOUT);
+        assert_eq!(request_timeout("stop"), LONG_OPERATION_TIMEOUT);
+        assert_eq!(request_timeout("open_dataset"), LONG_OPERATION_TIMEOUT);
+        assert_eq!(request_timeout("configure"), LONG_OPERATION_TIMEOUT);
+        assert_eq!(request_timeout("benchmark"), LONG_OPERATION_TIMEOUT);
+        assert_eq!(request_timeout("command"), LONG_OPERATION_TIMEOUT);
     }
 
     #[test]
