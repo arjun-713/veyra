@@ -77,6 +77,20 @@ class ObservationContractTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             frame.raw_semantic_class[0] = 99
 
+    def test_observation_preserves_optional_instance_ids_without_aliasing_semantics(
+        self,
+    ):
+        frame = _frame(
+            raw_semantic_class=np.array([42, 7], dtype=np.int32),
+            semantic_class=np.array([3, 1], dtype=np.int32),
+            instance_id=np.array([12, 0], dtype=np.int32),
+        )
+
+        np.testing.assert_array_equal(frame.instance_id, [12, 0])
+        np.testing.assert_array_equal(frame.raw_semantic_class, [42, 7])
+        with self.assertRaises(ValueError):
+            frame.instance_id[0] = 99
+
     def test_pose_and_timestamp_require_finite_values(self):
         with self.assertRaises(ValueError):
             PoseSE3.identity(timestamp=float("nan"))

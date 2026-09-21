@@ -11,20 +11,98 @@ import numpy as np
 
 from scripts.fetch_semantic_model import fetch
 from scripts.validate_perception import (
+    bridge_timing_scope,
     confusion_report,
+    ground_reference_spec,
     latency_summary,
+    quality_gate_report,
     reproducibility_metadata,
     semantic_evaluation_report,
+    terrain_state_report,
 )
 
 
 class PerceptionValidationTests(unittest.TestCase):
+    def test_bridge_timing_scope_is_not_attributed_to_perception(self):
+        scope = bridge_timing_scope()
+
+        self.assertEqual(scope["stage"], "python_record_encoding")
+        self.assertIn("frame_records", scope["operation"])
+        self.assertEqual(scope["attribution"], "outside_perception")
+
+    def test_ground_reference_is_verified_only_for_semanticposs_ground_label(self):
+        semanticposs = ground_reference_spec("semanticposs")
+        self.assertEqual(semanticposs["status"], "verified")
+        self.assertEqual(semanticposs["raw_label_id"], 22)
+        self.assertIn("ground", semanticposs["meaning"].lower())
+
+        rellis = ground_reference_spec("rellis3d")
+        self.assertEqual(rellis["status"], "unavailable")
+        self.assertIsNone(rellis["raw_label_id"])
+        self.assertIn("drivable", rellis["reason"])
+
+    def test_terrain_state_report_keeps_three_states_separate(self):
+        report = terrain_state_report(
+            np.array(["drivable", "non_drivable", "unknown", "unknown"])
+        )
+        self.assertEqual(
+            report["counts"],
+            {
+                "drivable": 1,
+                "non_drivable": 1,
+                "unknown": 2,
+            },
+        )
+        self.assertEqual(report["evaluated_points"], 4)
+        self.assertAlmostEqual(report["fractions"]["unknown"], 0.5)
+
+        with self.assertRaises(ValueError):
+            terrain_state_report(np.array(["free"]))
+
+    def test_quality_gate_rejects_low_model_fov_iou_but_keeps_measurement(self):
+        report = quality_gate_report(
+            {
+                "semantic_evaluation": {
+                    "model_fov": {
+                        "coverage_fraction": 0.95,
+                        "model_fov_only": {"mean_iou": 0.087},
+                    }
+                },
+                "ground_evaluation": {"overall": {"f1": 0.86}},
+            },
+            {
+                "min_model_fov_mean_iou": 0.30,
+                "min_model_fov_coverage_fraction": 0.90,
+                "min_ground_f1": 0.75,
+            },
+        )
+        self.assertEqual(report["status"], "failed")
+        self.assertEqual(report["failures"], ["model_fov_mean_iou 0.087000 < 0.300000"])
+        self.assertEqual(report["measured"]["ground_f1"], 0.86)
+
+    def test_quality_gate_fail_closes_when_ground_reference_is_unavailable(self):
+        report = quality_gate_report(
+            {
+                "semantic_evaluation": {
+                    "model_fov": {
+                        "coverage_fraction": 1.0,
+                        "model_fov_only": {"mean_iou": 1.0},
+                    }
+                },
+                "ground_evaluation": {"overall": None},
+            },
+            {"min_ground_f1": 0.75},
+        )
+        self.assertEqual(report["status"], "failed")
+        self.assertEqual(report["measured"]["ground_f1"], None)
+
     def test_validate_perception_supports_direct_script_help(self):
         result = subprocess.run(
             [sys.executable, "scripts/validate_perception.py", "--help"],
             check=False,
             capture_output=True,
             text=True,
+            timeout=120,
         )
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertIn("--dataset", result.stdout)
@@ -45,6 +123,28 @@ class PerceptionValidationTests(unittest.TestCase):
         self.assertEqual(report["all_returns"]["evaluated_points"], 4)
         self.assertEqual(report["model_fov_only"]["evaluated_points"], 3)
         self.assertAlmostEqual(report["model_fov_only"]["accuracy"], 1.0)
+
+    def test_semantic_evaluation_records_provider_checkpoint_and_provenance(self):
+        confusion = np.zeros((20, 20), np.int64)
+        report = semantic_evaluation_report(
+            confusion,
+            confusion,
+            total_points=0,
+            supported_points=0,
+            frame_count=3,
+            provider="CENetSemanticProvider",
+            checkpoint_sha256="a" * 64,
+            config_sha256="b" * 64,
+            git_sha="c" * 40,
+            hardware={"cpu": "test-cpu"},
+        )
+
+        self.assertEqual(report["frame_count"], 3)
+        self.assertEqual(report["provider"], "CENetSemanticProvider")
+        self.assertEqual(report["checkpoint_sha256"], "a" * 64)
+        self.assertEqual(report["config_sha256"], "b" * 64)
+        self.assertEqual(report["git_sha"], "c" * 40)
+        self.assertEqual(report["hardware"], {"cpu": "test-cpu"})
 
     def test_reproducibility_metadata_records_selection_and_digests(self):
         with tempfile.TemporaryDirectory() as directory:
@@ -73,6 +173,28 @@ class PerceptionValidationTests(unittest.TestCase):
             metadata["model_checkpoint_sha256"], hashlib.sha256(b"model").hexdigest()
         )
         self.assertIn("cpu", metadata["runner"])
+
+    def test_reproducibility_metadata_hashes_checkpoint_aliases(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            config = root / "perception.yaml"
+            checkpoint = root / "checkpoint.bin"
+            config.write_text("semantic:\n  checkpoint: checkpoint.bin\n")
+            checkpoint.write_bytes(b"checkpoint")
+            metadata = reproducibility_metadata(
+                repo=root,
+                config_path=config,
+                config_data={"semantic": {"checkpoint": "checkpoint.bin"}},
+                dataset_sha256=None,
+                sequence="00",
+                start=0,
+                count=1,
+            )
+
+        self.assertEqual(
+            metadata["model_checkpoint_sha256"],
+            hashlib.sha256(b"checkpoint").hexdigest(),
+        )
 
     def test_range_metrics_include_wrong_unknown_predictions(self):
         matrix = np.zeros((20, 20), np.int64)

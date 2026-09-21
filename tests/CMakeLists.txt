@@ -35,6 +35,17 @@ add_test(
   COMMAND ${Python3_EXECUTABLE} -m unittest discover -s tests -p "test_*.py" -v
   WORKING_DIRECTORY ${PROJECT_SOURCE_DIR}
 )
+# Reuse the just-built benchmark so the suite never rebuilds per test; the
+# tests still build once standalone when the variable is unset. TIMEOUT is a
+# backstop (the post-fix suite runs in about a minute under CTest), not a
+# substitute for the in-test engine bounds.
+if(TARGET veyra_benchmark)
+  set_tests_properties(
+    python_unittest
+    PROPERTIES ENVIRONMENT "VEYRA_BENCHMARK_BINARY=$<TARGET_FILE:veyra_benchmark>"
+  )
+endif()
+set_tests_properties(python_unittest PROPERTIES TIMEOUT 600)
 
 add_executable(test_split_merge test_split_merge.cpp)
 target_include_directories(test_split_merge PRIVATE ${PROJECT_SOURCE_DIR}/include)
@@ -66,6 +77,20 @@ target_compile_features(test_parent_child_exclusivity PRIVATE cxx_std_20)
 target_link_libraries(test_parent_child_exclusivity PRIVATE veyra_map)
 add_test(NAME parent_child_exclusivity COMMAND test_parent_child_exclusivity)
 
+add_executable(test_randomized_map_invariants test_randomized_map_invariants.cpp)
+target_include_directories(test_randomized_map_invariants PRIVATE ${PROJECT_SOURCE_DIR}/include)
+target_compile_features(test_randomized_map_invariants PRIVATE cxx_std_20)
+target_compile_options(test_randomized_map_invariants PRIVATE -Wall -Wextra -Wpedantic -UNDEBUG)
+target_link_libraries(test_randomized_map_invariants PRIVATE veyra_map)
+add_test(NAME randomized_map_invariants COMMAND test_randomized_map_invariants)
+
+add_executable(test_map_public_properties test_map_public_properties.cpp)
+target_include_directories(test_map_public_properties PRIVATE ${PROJECT_SOURCE_DIR}/include)
+target_compile_features(test_map_public_properties PRIVATE cxx_std_20)
+target_compile_options(test_map_public_properties PRIVATE -Wall -Wextra -Wpedantic -UNDEBUG)
+target_link_libraries(test_map_public_properties PRIVATE veyra_map)
+add_test(NAME map_public_properties COMMAND test_map_public_properties)
+
 add_executable(test_boundary_neighbors test_boundary_neighbors.cpp)
 target_include_directories(test_boundary_neighbors PRIVATE ${PROJECT_SOURCE_DIR}/include)
 target_compile_features(test_boundary_neighbors PRIVATE cxx_std_20)
@@ -96,6 +121,13 @@ target_compile_definitions(test_policy_adapter PRIVATE VEYRA_SOURCE_DIR="${PROJE
 target_compile_options(test_policy_adapter PRIVATE -Wall -Wextra -Wpedantic -UNDEBUG)
 add_test(NAME policy_adapter COMMAND test_policy_adapter)
 
+add_executable(test_map_hardening_stress test_map_hardening_stress.cpp)
+target_include_directories(test_map_hardening_stress PRIVATE ${PROJECT_SOURCE_DIR}/include)
+target_compile_features(test_map_hardening_stress PRIVATE cxx_std_20)
+target_compile_options(test_map_hardening_stress PRIVATE -Wall -Wextra -Wpedantic -UNDEBUG)
+target_link_libraries(test_map_hardening_stress PRIVATE veyra_map)
+add_test(NAME map_hardening_stress COMMAND test_map_hardening_stress)
+set_tests_properties(map_hardening_stress PROPERTIES TIMEOUT 600)
 add_executable(test_layered_terrain test_layered_terrain.cpp)
 target_include_directories(test_layered_terrain PRIVATE ${PROJECT_SOURCE_DIR}/include)
 target_compile_features(test_layered_terrain PRIVATE cxx_std_20)

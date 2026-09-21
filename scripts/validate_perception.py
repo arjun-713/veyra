@@ -5,6 +5,10 @@ data/raw/semanticposs/dataset --sequence 00 --count 10 --config
 configs/perception-salsanext.yaml --output benchmark-results/poss-perception.json
 """
 
+# ruff: noqa: E402, RUF100 - sys.path bootstrap precedes sibling imports (E402
+# fires under CI-pinned ruff 0.8.0 defaults); RUF100 silences newer ruff where
+# E402 is not enabled and this directive would otherwise read as unused.
+
 from __future__ import annotations
 
 import argparse
@@ -24,12 +28,6 @@ from time import perf_counter
 # equivalent.  When Python executes a file under ``scripts/``, it places that
 # directory—not the repository root—on sys.path, which otherwise prevents the
 # sibling ``benchmarks`` and ``datasets`` packages from being imported.
-#
-# Every import below this block therefore has to run after it, which is exactly
-# what E402 flags.  The rule does not apply to a file whose imports depend on
-# sys.path being adjusted first, so it is switched off here rather than worked
-# around by moving imports that cannot move.
-# ruff: noqa: E402
 _REPO_ROOT = Path(__file__).resolve().parents[1]
 if str(_REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(_REPO_ROOT))
@@ -47,7 +45,73 @@ from perception.ground.quality import (
     ground_quality_report,
 )
 from perception.pipeline import PerceptionPipeline
-from perception.semantic.salsanext import SalsaNextSemanticProvider, project_scan
+from perception.semantic.salsanext import (
+    SalsaNextSemanticProvider,
+    project_scan,
+)
+
+GROUND_TERRAIN_EVALUATOR_VERSION = "ground-terrain-evaluator-v1"
+_TERRAIN_STATES = ("drivable", "non_drivable", "unknown")
+
+
+def bridge_timing_scope() -> dict[str, str]:
+    """Describe the local encoding timing without calling it bridge latency."""
+    return {
+        "stage": "python_record_encoding",
+        "operation": "benchmarks.protocol.frame_records and ASCII encoding",
+        "attribution": "outside_perception",
+    }
+
+
+def ground_reference_spec(dataset: str) -> dict[str, object]:
+    """Describe only dataset labels whose meaning supports ground evaluation."""
+    if dataset == "semanticposs":
+        return {
+            "status": "verified",
+            "raw_label_id": 22,
+            "meaning": "SemanticPOSS v1.0 raw semantic label 22 (ground)",
+            "taxonomy_version": "SemanticPOSS-v1.0-LABEL_DICT",
+        }
+    if dataset == "rellis3d":
+        return {
+            "status": "unavailable",
+            "raw_label_id": None,
+            "meaning": None,
+            "taxonomy_version": "RELLIS-3D-v1.1-learning_map",
+            "reason": (
+                "RELLIS labels describe materials/classes, not a documented "
+                "pointwise ground-support or drivable reference"
+            ),
+        }
+    return {
+        "status": "unavailable",
+        "raw_label_id": None,
+        "meaning": None,
+        "taxonomy_version": None,
+        "reason": f"no documented ground reference mapping for dataset {dataset!r}",
+    }
+
+
+def terrain_state_report(states: np.ndarray) -> dict[str, object]:
+    """Count production terrain states without collapsing unknown into free."""
+    states = np.asarray(states)
+    if states.ndim != 1:
+        raise ValueError("terrain states must be one-dimensional")
+    values = states.astype(str, copy=False)
+    invalid = sorted(set(values.tolist()) - set(_TERRAIN_STATES))
+    if invalid:
+        raise ValueError(f"invalid terrain states: {invalid}")
+    counts = {
+        state: int(np.count_nonzero(values == state)) for state in _TERRAIN_STATES
+    }
+    total = int(values.size)
+    return {
+        "evaluated_points": total,
+        "counts": counts,
+        "fractions": {
+            state: counts[state] / total if total else None for state in _TERRAIN_STATES
+        },
+    }
 
 
 def _sha256_file(path: Path) -> str | None:
@@ -105,7 +169,8 @@ def reproducibility_metadata(
     count: int,
 ) -> dict:
     """Record inputs needed to explain a future perception regression."""
-    model_value = config_data.get("semantic", {}).get("model_path")
+    semantic_config = config_data.get("semantic", {})
+    model_value = semantic_config.get("model_path") or semantic_config.get("checkpoint")
     model_path = repo / model_value if isinstance(model_value, str) else None
     return {
         "git_sha": _git_sha(repo),
@@ -200,6 +265,12 @@ def semantic_evaluation_report(
     *,
     total_points: int,
     supported_points: int,
+    frame_count: int = 0,
+    provider: str = "unknown",
+    checkpoint_sha256: str | None = None,
+    config_sha256: str | None = None,
+    git_sha: str | None = None,
+    hardware: dict | None = None,
 ) -> dict:
     """Report model quality without hiding returns outside its sensor contract.
 
@@ -213,12 +284,84 @@ def semantic_evaluation_report(
         raise TypeError("point counts must be integers")
     if total_points < 0 or supported_points < 0 or supported_points > total_points:
         raise ValueError("point counts must satisfy 0 <= supported <= total")
+    if not isinstance(frame_count, int) or frame_count < 0:
+        raise ValueError("frame_count must be a non-negative integer")
+    if not isinstance(provider, str) or not provider:
+        raise ValueError("provider must be a non-empty string")
+    if hardware is None:
+        hardware = {}
+    if not isinstance(hardware, dict):
+        raise TypeError("hardware must be a mapping")
     return {
+        "frame_count": frame_count,
+        "provider": provider,
+        "checkpoint_sha256": checkpoint_sha256,
+        "config_sha256": config_sha256,
+        "git_sha": git_sha,
+        "hardware": hardware,
         "coverage_fraction": (
             float(supported_points / total_points) if total_points else None
         ),
         "all_returns": confusion_report(all_confusion),
         "model_fov_only": confusion_report(model_fov_confusion),
+    }
+
+
+def quality_gate_report(report: dict, gate: dict | None) -> dict:
+    """Evaluate configured real-data quality floors without discarding measurements."""
+
+    if gate is None:
+        return {
+            "status": "not_configured",
+            "thresholds": {},
+            "measured": {},
+            "failures": [],
+        }
+    if not isinstance(gate, dict):
+        raise TypeError("quality_gate must be a mapping")
+
+    ground_overall = report["ground_evaluation"].get("overall") or {}
+    metric_paths = {
+        "min_model_fov_mean_iou": (
+            "model_fov_mean_iou",
+            report["semantic_evaluation"]["model_fov"]["model_fov_only"]["mean_iou"],
+        ),
+        "min_model_fov_coverage_fraction": (
+            "model_fov_coverage_fraction",
+            report["semantic_evaluation"]["model_fov"]["coverage_fraction"],
+        ),
+        "min_ground_f1": (
+            "ground_f1",
+            ground_overall.get("f1"),
+        ),
+    }
+    unknown = set(gate) - set(metric_paths)
+    if unknown:
+        raise ValueError(f"unknown quality_gate metrics: {sorted(unknown)}")
+
+    thresholds: dict[str, float] = {}
+    measured: dict[str, float | None] = {}
+    failures: list[str] = []
+    for threshold_name, value in gate.items():
+        if isinstance(value, bool) or not isinstance(value, (int, float)):
+            raise TypeError(f"{threshold_name} must be a finite number in [0, 1]")
+        threshold = float(value)
+        if not np.isfinite(threshold) or not 0 <= threshold <= 1:
+            raise ValueError(f"{threshold_name} must be a finite number in [0, 1]")
+        measured_name, measured_value = metric_paths[threshold_name]
+        measured_value = float(measured_value) if measured_value is not None else None
+        thresholds[threshold_name] = threshold
+        measured[measured_name] = measured_value
+        if measured_value is None or measured_value < threshold:
+            rendered = (
+                "unavailable" if measured_value is None else f"{measured_value:.6f}"
+            )
+            failures.append(f"{measured_name} {rendered} < {threshold:.6f}")
+    return {
+        "status": "passed" if not failures else "failed",
+        "thresholds": thresholds,
+        "measured": measured,
+        "failures": failures,
     }
 
 
@@ -256,6 +399,8 @@ def validate(args):
     supported_points = 0
     ground_reports = []
     ground_by_range = [[] for _ in boundaries]
+    ground_spec = ground_reference_spec(args.dataset)
+    terrain_reports = []
     while True:
         started = perf_counter()
         try:
@@ -286,8 +431,9 @@ def validate(args):
         total_points += frame.points.shape[0]
         supported_points += int(model_fov.sum())
         distances = np.linalg.norm(sensor, axis=1)
-        if args.dataset == "semanticposs":
-            reference_ground = frame.raw_semantic_class == 22
+        terrain_reports.append(terrain_state_report(output.frame.drivable))
+        if ground_spec["status"] == "verified":
+            reference_ground = frame.raw_semantic_class == ground_spec["raw_label_id"]
             ground_reports.append(
                 ground_quality_report(output.frame.ground, reference_ground)
             )
@@ -323,7 +469,7 @@ def validate(args):
         ).reshape(20, 20)
         bridge_started = perf_counter()
         bridge_records = frame_records(output.frame)
-        bridge_ms = (perf_counter() - bridge_started) * 1000
+        bridge_encode_ms = (perf_counter() - bridge_started) * 1000
         records.append(
             {
                 "frame_id": frame.frame_id,
@@ -333,13 +479,14 @@ def validate(args):
                 "timings_ms": {
                     **output.timings_ms,
                     "load": load_ms,
-                    "bridge": bridge_ms,
+                    "bridge_encode": bridge_encode_ms,
                     "end_to_end": load_ms + output.timings_ms["total"],
                 },
                 "bridge_bytes": sum(
                     len(record.encode("ascii")) for record in bridge_records
                 ),
                 "ground_fraction": float(output.frame.ground.mean()),
+                "ground_ratio": float(output.frame.ground.mean()),
                 "known_terrain_fraction": float(
                     (output.frame.drivable != "unknown").mean()
                 ),
@@ -359,7 +506,7 @@ def validate(args):
         for name in records[0]["timings_ms"]
     }
     model_mode = records[0]["status"]["semantic"] == "model"
-    return {
+    report = {
         "dataset": args.dataset,
         "sequence": args.sequence,
         "frames": records,
@@ -381,6 +528,7 @@ def validate(args):
             "machine": platform.machine(),
             "python": platform.python_version(),
         },
+        "bridge_timing_scope": bridge_timing_scope(),
         "timings": timings,
         "fps": 1000 / timings["end_to_end"]["mean_ms"],
         "peak_rss_bytes": resource.getrusage(resource.RUSAGE_SELF).ru_maxrss
@@ -399,6 +547,32 @@ def validate(args):
                 supported_overall_confusion,
                 total_points=total_points,
                 supported_points=supported_points,
+                frame_count=len(records),
+                provider=type(pipeline.semantic_provider).__name__,
+                checkpoint_sha256=reproducibility_metadata(
+                    repo=config_path.parents[1]
+                    if config_path.parent.name == "configs"
+                    else Path.cwd().resolve(),
+                    config_path=config_path,
+                    config_data=config,
+                    dataset_sha256=args.dataset_sha256,
+                    sequence=args.sequence,
+                    start=args.start,
+                    count=args.count,
+                )["model_checkpoint_sha256"],
+                config_sha256=_sha256_file(config_path),
+                git_sha=_git_sha(
+                    config_path.parents[1]
+                    if config_path.parent.name == "configs"
+                    else Path.cwd().resolve()
+                ),
+                hardware={
+                    "platform": platform.platform(),
+                    "machine": platform.machine(),
+                    "python": platform.python_version(),
+                    "cpu": _cpu_model(),
+                    "logical_cpu_count": os.cpu_count(),
+                },
             ),
             "model_fov_by_range": [
                 {"range_m": [a, min(b, 100)], **confusion_report(c)}
@@ -406,11 +580,16 @@ def validate(args):
             ],
         },
         "ground_evaluation": {
-            "reference": (
-                "SemanticPOSS raw semantic label 22 (ground)"
-                if args.dataset == "semanticposs"
-                else None
-            ),
+            "evaluator_version": GROUND_TERRAIN_EVALUATOR_VERSION,
+            "dataset": args.dataset,
+            "sequence": args.sequence,
+            "frame_range": {
+                "start": args.start,
+                "end_exclusive": args.start + args.count,
+                "count": args.count,
+            },
+            "config_sha256": _sha256_file(config_path),
+            "reference": ground_spec,
             "overall": aggregate_ground_quality_reports(ground_reports),
             "by_range": [
                 {
@@ -420,6 +599,35 @@ def validate(args):
                 for (a, b), reports in zip(boundaries, ground_by_range)
             ],
         },
+        "terrain_evaluation": {
+            "evaluator_version": GROUND_TERRAIN_EVALUATOR_VERSION,
+            "dataset": args.dataset,
+            "sequence": args.sequence,
+            "frame_range": {
+                "start": args.start,
+                "end_exclusive": args.start + args.count,
+                "count": args.count,
+            },
+            "config_sha256": _sha256_file(config_path),
+            "reference": {
+                "status": "unavailable",
+                "reason": (
+                    "Neither local dataset provides documented drivable, "
+                    "non-drivable, and unknown point labels; production "
+                    "terrain output counts are reported without quality metrics"
+                ),
+            },
+            "predicted": {
+                "frames": len(terrain_reports),
+                "counts": {
+                    state: sum(report["counts"][state] for report in terrain_reports)
+                    for state in _TERRAIN_STATES
+                },
+                "evaluated_points": sum(
+                    int(report["evaluated_points"]) for report in terrain_reports
+                ),
+            },
+        },
         "temporal_proven": all(
             row["status"]["temporal"] == "available"
             and row["provenance"]["pose_source"] == "dataset"
@@ -428,6 +636,8 @@ def validate(args):
         ),
         "point_order_preserved": True,
     }
+    report["quality_gate"] = quality_gate_report(report, config.get("quality_gate"))
+    return report
 
 
 def main():
@@ -466,6 +676,13 @@ def main():
             indent=2,
         )
     )
+    if result["quality_gate"]["status"] == "failed":
+        parser.exit(
+            1,
+            "perception quality gate failed: "
+            + "; ".join(result["quality_gate"]["failures"])
+            + "\n",
+        )
 
 
 if __name__ == "__main__":

@@ -124,7 +124,9 @@ class SemanticFrame:
     mode: str = "ground_truth"
 
     def __post_init__(self) -> None:
-        classes = _as_array(self.semantic_class, dtype=np.int32).reshape(-1)
+        classes = _class_ids(
+            np.asarray(self.semantic_class).reshape(-1), name="semantic_class"
+        )
         confidence = _as_array(self.semantic_confidence, dtype=np.float32).reshape(-1)
         if classes.shape != confidence.shape:
             raise ValueError("semantic class and confidence arrays must be aligned")
@@ -165,6 +167,7 @@ class ObservationFrame:
     motion_state: np.ndarray | None = None
     observation_quality: np.ndarray | None = None
     raw_semantic_class: np.ndarray | None = None
+    instance_id: np.ndarray | None = None
     # Height of each return above the locally fitted ground surface, metres.
     #
     # NaN means the ground stage had no model for that return. The map treats
@@ -224,6 +227,9 @@ class ObservationFrame:
             "raw_semantic_class": arrays["semantic_class"].copy()
             if self.raw_semantic_class is None
             else _class_ids(self.raw_semantic_class, name="raw_semantic_class"),
+            "instance_id": np.zeros(count, dtype=np.int32)
+            if self.instance_id is None
+            else _class_ids(self.instance_id, name="instance_id"),
             "terrain_confidence": np.zeros(count, dtype=np.float32)
             if self.terrain_confidence is None
             else np.asarray(self.terrain_confidence, dtype=np.float32),

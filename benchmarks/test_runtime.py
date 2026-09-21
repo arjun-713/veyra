@@ -333,8 +333,9 @@ class RuntimeTests(unittest.TestCase):
             self.skipTest("set VEYRA_BENCHMARK_BINARY to the benchmark under test")
         stream, _ = stream_bytes([frame()])
         valid = stream.decode("ascii")
+        header = f"VEYRA_STREAM {PROTOCOL_VERSION}\n"
         for invalid in (
-            valid.replace("VEYRA_STREAM 2\n", "VEYRA_STREAM 2\nVEYRA_STREAM 2\n", 1),
+            valid.replace(header, header * 2, 1),
             valid.replace("\nE\n", "\nE extra\n", 1),
         ):
             completed = subprocess.run(
@@ -385,6 +386,27 @@ class RuntimeTests(unittest.TestCase):
                 result["snapshot"]["point_count"],
                 sum(leaf["count"] for leaf in result["snapshot"]["leaves"]),
             )
+            # Layered snapshot schema: every leaf carries the
+            # ground/obstacle/overhead accumulators plus clamped occupancy
+            # log-odds alongside the pooled count/mean_z. The three layers
+            # are exhaustive and disjoint over accepted returns.
+            for leaf in result["snapshot"]["leaves"]:
+                for key in (
+                    "ground_count",
+                    "ground_mean_z",
+                    "obstacle_count",
+                    "obstacle_min_z",
+                    "overhead_count",
+                    "overhead_min_z",
+                    "occupancy_logodds",
+                ):
+                    self.assertIn(key, leaf)
+                self.assertEqual(
+                    leaf["ground_count"]
+                    + leaf["obstacle_count"]
+                    + leaf["overhead_count"],
+                    leaf["count"],
+                )
             self.assertIn("p99", result["metrics"]["stage_latency_ns"]["map_update"])
 
     def test_real_configured_one_frame_smoke(self):

@@ -45,13 +45,19 @@ async function saveRendererScreenshot():Promise<boolean>{
  return true;
 }
 
-export function createTauriAPI():DesktopAPI{
+export interface TauriDesktopAPI extends DesktopAPI{
+ openDataset(dataset:string,root:string,sequence?:string):Promise<Json>;
+}
+
+export function createTauriAPI():TauriDesktopAPI{
  return {
   info:()=>invoke<Json>('runtime_status').then(status=>({version:'0.1.0',platform:navigator.platform,repo:'tauri',mapper:null,status})),
   command:(command,args={})=>invoke<Json>('runtime_command',{command,args}),
+  stop:()=>invoke<Json>('runtime_stop'),
   configure:config=>invoke<Json>('runtime_configure',{config}),
   validateConfig:config=>invoke<Json>('runtime_validate_config',{config}),
   chooseDataset:async dataset=>invoke<Json>('choose_dataset',{dataset,root:await chooseDirectory()}),
+  openDataset:(dataset,root,sequence)=>invoke<Json>('open_dataset',{dataset,root,sequence:sequence??null}),
   openConfig:()=>openJsonFile('Open Veyra configuration'),
   saveConfig:config=>saveJsonFile('Veyra configuration',config),
   openReport:()=>openJsonFile('Open Veyra benchmark report'),

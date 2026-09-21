@@ -28,9 +28,11 @@ class TaxonomyTests(unittest.TestCase):
 
     def test_mapping_rejects_non_integral_or_non_numeric_labels(self):
         for labels in (np.array([1.5]), np.array([np.nan]), np.array(["3"])):
-            with self.subTest(labels=labels):
-                with self.assertRaises((TypeError, ValueError)):
-                    map_dataset_labels(labels, {3: 15})
+            with (
+                self.subTest(labels=labels),
+                self.assertRaises((TypeError, ValueError)),
+            ):
+                map_dataset_labels(labels, {3: 15})
 
 
 if __name__ == "__main__":

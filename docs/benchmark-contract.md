@@ -84,3 +84,39 @@ benchmarks/run_local.sh --dataset generic --dataset-root /path/to/dataset \
 Scheduled CI includes the complete matrix. Pull requests retain the smaller
 four-policy comparison, while product CI exercises the matrix against a tiny
 generic-manifest fixture through the real C++ benchmark executable.
+
+## Measured high-resolution 3D baseline (reference leg)
+
+`benchmarks/baseline_3d.py` is the MEASURED counterpart to the
+ANALYTICAL-only `reference_baselines.uniform_5cm_3d` dense-grid estimate: a
+sparse voxel-hash occupancy set at 5 cm over the same SemanticPOSS seq 00
+frames 0-29 input. It reports accounted bytes, peak RSS, per-frame
+voxelize+hash-insert latency, and occupied-voxel count. The binary stream
+digest must start with `4cd60ac5` and the occupied count must equal
+1,280,014; latency and RSS are host-load dependent and are recorded, not
+gated. Raw frame-level rows persist under `elements.frames` (one row per
+frame: points, new voxels, cumulative voxels, insert latency ns). Full
+provenance (git commit, dataset, sequence, frames, CPU/GPU/RAM/OS, build,
+config, policy) lives in `provenance`; `collect_provenance` requires no
+dataset access and is covered by the metadata-completeness unit test.
+
+Reproduce recipe (pure Python; no cmake/cargo build; dataset root may point
+at any checkout holding the data):
+
+```bash
+nice -n 19 python3 benchmarks/baseline_3d.py --dataset semanticposs \
+  --sequence 00 --start 0 --count 30 \
+  --dataset-root /home/arjun/Captain/SIH/Lidar/data/raw/semanticposs/dataset \
+  --output reports/closure/baseline-3d/MEASURED.json
+python3 -m pytest benchmarks/test_baseline_3d.py -q
+```
+
+First-class leg integration (proposed, not yet wired): `run_benchmark.py`
+gains an opt-in flag that imports `run_baseline` from `baseline_3d` and
+attaches its summary under `policies.measured_3d` with
+`adapter.suite = "reference"`, reusing the existing per-policy `runs` /
+`aggregate` shape for the map_update-equivalent stage only. Until that hook
+lands, the cross-leg comparison table (Uniform5 / Uniform40 / DistanceLOD /
+UtilityLOD from the schema-v2 matrix plus measured-3D) is published in
+`reports/closure/baseline-3d/RERUN-2ND-PARTY.json`, which also records the
+second-party reproduction proof.

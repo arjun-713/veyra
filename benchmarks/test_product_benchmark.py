@@ -113,7 +113,64 @@ class ProductBenchmarkTests(unittest.TestCase):
         self.assertIn("--full", content)
         self.assertIn("SemanticPOSS", content)
         self.assertIn("benchmarks/run_local.sh", content)
+        self.assertIn("validate_submission_closure.py", content)
         self.assertNotIn("|| true", content)
+
+    def test_full_sih_validation_requires_real_perception_evidence_first(self):
+        repo = Path(__file__).resolve().parents[1]
+        content = (repo / "scripts/validate_sih.sh").read_text()
+        perception_validation = content.index("-m scripts.validate_perception")
+        cpp_configuration = content.index("cmake -S . -B")
+        benchmark = content.index("benchmarks/run_local.sh")
+        self.assertLess(perception_validation, cpp_configuration)
+        self.assertLess(perception_validation, benchmark)
+        self.assertIn("VEYRA_SIH_PERCEPTION_CONFIG", content)
+        self.assertIn('--perception-output "$perception_output"', content)
+        self.assertNotIn('salsanext.onnx"', content)
+
+    def test_sih_validator_scales_warmup_for_short_real_data_runs(self):
+        repo = Path(__file__).resolve().parents[1]
+        content = (repo / "scripts/validate_sih.sh").read_text()
+        self.assertIn('warmup_frames="${VEYRA_SIH_WARMUP_FRAMES:-10}"', content)
+        self.assertIn("if ((warmup_frames >= frames)); then", content)
+        self.assertIn('--warmup-frames "$warmup_frames"', content)
+
+    def test_sih_validator_rejects_invalid_full_frame_count_before_build(self):
+        repo = Path(__file__).resolve().parents[1]
+        environment = {
+            **os.environ,
+            "VEYRA_SIH_FRAMES": "invalid",
+            "VEYRA_PYTHON": "/definitely/not/a/python",
+        }
+        result = subprocess.run(
+            ["bash", "scripts/validate_sih.sh", "--full"],
+            cwd=repo,
+            env=environment,
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+        self.assertEqual(result.returncode, 2)
+        self.assertIn("VEYRA_SIH_FRAMES must be a positive integer", result.stderr)
+
+    def test_full_sih_validator_reports_missing_real_data_before_build(self):
+        repo = Path(__file__).resolve().parents[1]
+        with tempfile.TemporaryDirectory() as directory:
+            result = subprocess.run(
+                ["bash", str(repo / "scripts/validate_sih.sh"), "--full"],
+                cwd=directory,
+                env={
+                    **os.environ,
+                    "VEYRA_SIH_FRAMES": "1",
+                    "VEYRA_SIH_QUALITY_FRAMES": "1",
+                    "VEYRA_SIH_BUILD_DIR": str(Path(directory) / "must-not-build"),
+                },
+                capture_output=True,
+                text=True,
+                check=False,
+            )
+        self.assertIn("REAL DATA: UNAVAILABLE", result.stderr)
+        self.assertIn("semanticposs/dataset", result.stderr)
 
     def test_benchmark_workflows_do_not_hide_failed_evidence(self):
         repo = Path(__file__).resolve().parents[1]
@@ -317,7 +374,12 @@ class ProductBenchmarkTests(unittest.TestCase):
         self.assertEqual(report["status"], "partial")
         self.assertEqual(
             report["missing_policies"],
-            ["ablation_geometry", "ablation_semantics", "ablation_motion"],
+            [
+                "ablation_geometry",
+                "ablation_semantics",
+                "ablation_motion",
+                "ablation_traversability",
+            ],
         )
         full = report["members"]["utility_lod"]
         self.assertAlmostEqual(full["delta_vs_distance"]["elevation_rmse_m"], -0.2)

@@ -148,6 +148,7 @@ jobs:
           cmake --build "$RUNNER_TEMP/veyra-build" --target veyra_benchmark --parallel
           echo "build_finished_epoch=$(date +%s)" >> artifacts/workflow-provenance.env
       - name: Run shared perception and four-policy map benchmark
+        id: benchmark
         run: |
           set -euo pipefail
           echo "benchmark_started_epoch=$(date +%s)" >> artifacts/workflow-provenance.env
@@ -201,12 +202,17 @@ jobs:
           fi
           python -m benchmarks.render_report "${render_args[@]}" --output artifacts/summary.md
           cat artifacts/summary.md >> "$GITHUB_STEP_SUMMARY"
-          python -m benchmarks.render_report "${render_args[@]}" --fail-on-correctness
+          # Capture the correctness gate without tripping `set -e`: the
+          # status file below is the contract with the finalize step, so it
+          # must be written on both pass and fail paths.
+          report_exit_code=0
+          python -m benchmarks.render_report "${render_args[@]}" --fail-on-correctness || report_exit_code=$?
           echo "" >> "$GITHUB_STEP_SUMMARY"
           df --output=avail -B1 . | tail -1 | tr -d ' ' | sed 's/^/free_disk_after_bytes=/' >> artifacts/workflow-provenance.env
           echo "benchmark_finished_at=$(date --iso-8601=seconds)" >> artifacts/workflow-provenance.env
           echo "artifact_bytes=$(du -sb artifacts | cut -f1)" >> artifacts/workflow-provenance.env
-          echo "report_exit_code=$report_rc" > artifacts/report-status.env
+          echo "report_exit_code=$report_exit_code" > artifacts/report-status.env
+          exit "$report_exit_code"
 
       - name: Finalize benchmark result
         if: always()

@@ -1,0 +1,15 @@
+# Utility-rerun operating point (governor survey recipe, i5-8350U).
+# Goal: keep cell + latency load ratios below pressure/overload at the
+# unclamped working set so allow_optional_splits stays true and utility legs
+# can diverge. Near-field floor, hysteresis, and op cap are NON-NEGOTIABLE
+# and unchanged from the default. Do NOT overwrite resource_governor.yaml.
+max_active_cells: 750000
+max_logical_bytes: 134217728
+near_field_radius_m: 10.0
+max_actions_per_frame: 64
+max_rss_bytes: 0
+target_frame_time_ms: 500.0
+pressure_ratio: 0.90
+recovery_ratio: 0.75
+overload_consecutive_frames: 3
+recovery_consecutive_frames: 5

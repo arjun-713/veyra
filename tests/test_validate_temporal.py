@@ -50,6 +50,13 @@ class TemporalValidationTests(unittest.TestCase):
         with self.assertRaisesRegex(TemporalValidationError, "strictly"):
             validate_frames(root, "00", count=2)
 
+    def test_validator_requires_dataset_pose_provenance(self):
+        root = self._dataset_root(timestamps="1.0\n2.0\n")
+        (root / "sequences" / "00" / "poses.txt").unlink()
+
+        with self.assertRaisesRegex(TemporalValidationError, "dataset pose"):
+            validate_frames(root, "00", count=2)
+
     def test_validator_returns_only_dataset_backed_temporal_evidence(self):
         root = self._dataset_root(timestamps="1.0\n2.0\n")
 

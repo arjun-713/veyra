@@ -53,6 +53,7 @@ class EngineServiceTests(unittest.TestCase):
             capture_output=True,
             text=True,
             timeout=10,
+            check=False,
         )
         self.assertEqual(result.returncode, 0, result.stderr)
         messages = [json.loads(line) for line in result.stdout.splitlines()]
@@ -69,15 +70,16 @@ class EngineServiceTests(unittest.TestCase):
         frame = make_frame()
         binary = self.binary
         reports = []
-        for payload in (
-            "".join(frame_records(frame)).encode(),
-            binary_frame_bytes(frame),
+        for payload, handshake in (
+            ("".join(frame_records(frame)).encode(), b"VEYRA_ENGINE 3\n"),
+            (binary_frame_bytes(frame), b"VEYRA_ENGINE 3\n"),
         ):
             result = subprocess.run(
                 [str(binary), "--engine", "--policy", "uniform5"],
-                input=b"VEYRA_ENGINE 2\n" + payload + b"M 100\nC\n",
+                input=handshake + payload + b"M 100\nC\n",
                 capture_output=True,
                 timeout=10,
+                check=False,
             )
             self.assertEqual(result.returncode, 0, result.stderr.decode())
             messages = [json.loads(line) for line in result.stdout.splitlines()]
@@ -92,26 +94,29 @@ class EngineServiceTests(unittest.TestCase):
         from benchmarks.protocol import binary_stream_file
         from benchmarks.test_runtime import frame as make_frame
 
-        with self.subTest("native batch path"):
-            with tempfile.TemporaryDirectory(prefix="veyra-binary-batch-") as directory:
-                stream_path = Path(directory) / "observations.stream"
-                digest = binary_stream_file(
-                    (make_frame(frame_id=f"{index:06d}") for index in range(2)),
-                    stream_path,
+        with (
+            self.subTest("native batch path"),
+            tempfile.TemporaryDirectory(prefix="veyra-binary-batch-") as directory,
+        ):
+            stream_path = Path(directory) / "observations.stream"
+            digest = binary_stream_file(
+                (make_frame(frame_id=f"{index:06d}") for index in range(2)),
+                stream_path,
+            )
+            with stream_path.open("rb") as stream_input:
+                result = subprocess.run(
+                    [str(self.binary), "--binary-input", "--policy", "uniform5"],
+                    stdin=stream_input,
+                    capture_output=True,
+                    timeout=10,
+                    check=False,
                 )
-                with stream_path.open("rb") as stream_input:
-                    result = subprocess.run(
-                        [str(self.binary), "--binary-input", "--policy", "uniform5"],
-                        stdin=stream_input,
-                        capture_output=True,
-                        timeout=10,
-                    )
-                self.assertEqual(result.returncode, 0, result.stderr.decode())
-                report = json.loads(result.stdout)
-                self.assertEqual(report["stream_digest"], digest)
-                self.assertEqual(report["input_frames"], 2)
-                self.assertEqual(report["metrics"]["frame_count"], 2)
-                self.assertEqual(len(report["frame_metrics"]), 2)
+            self.assertEqual(result.returncode, 0, result.stderr.decode())
+            report = json.loads(result.stdout)
+            self.assertEqual(report["stream_digest"], digest)
+            self.assertEqual(report["input_frames"], 2)
+            self.assertEqual(report["metrics"]["frame_count"], 2)
+            self.assertEqual(len(report["frame_metrics"]), 2)
 
     def test_batch_binary_stream_reports_frame_scoped_conservation_after_eviction(self):
         from benchmarks.protocol import binary_stream_file
@@ -138,6 +143,7 @@ class EngineServiceTests(unittest.TestCase):
                     stdin=stream_input,
                     capture_output=True,
                     timeout=10,
+                    check=False,
                 )
             self.assertEqual(result.returncode, 0, result.stderr.decode())
             report = json.loads(result.stdout)
@@ -154,6 +160,7 @@ class EngineServiceTests(unittest.TestCase):
             capture_output=True,
             text=True,
             timeout=30,
+            check=False,
         )
         self.assertEqual(result.returncode, 0, result.stderr)
         messages = [json.loads(line) for line in result.stdout.splitlines()]

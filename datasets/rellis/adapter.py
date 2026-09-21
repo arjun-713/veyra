@@ -8,7 +8,12 @@ from pathlib import Path
 
 import numpy as np
 
-from datasets.common.adapter import DatasetFrameRef
+from datasets.common.adapter import (
+    DatasetFrameRef,
+    reject_orphan_label_files,
+    require_complete_binary_records,
+    require_finite_metadata_value,
+)
 from datasets.common.observation import FrameProvenance, ObservationFrame, PoseSE3
 from datasets.common.taxonomy import RELLIS_LABELS, map_dataset_labels
 
@@ -77,6 +82,9 @@ class Rellis3DDataset:
         if not scan_root.is_dir():
             raise FileNotFoundError(f"scan directory does not exist: {scan_root}")
         label_root = self._sequence_root(sequence) / self.label_dir
+        reject_orphan_label_files(
+            scan_root, label_root, require_labels=self.require_labels
+        )
         scans = sorted(
             scan_root.glob("*.bin"), key=lambda path: self._frame_sort_key(path.stem)
         )
@@ -126,6 +134,10 @@ class Rellis3DDataset:
                 f"label file is missing for {sequence}/{frame_id} in {self.label_dir}"
             )
 
+        if ref.scan_path.stat().st_size % (4 * np.dtype(np.float32).itemsize):
+            raise ValueError(
+                f"scan does not contain complete XYZ/intensity records: {ref.scan_path}"
+            )
         raw_points = np.fromfile(ref.scan_path, dtype=np.float32)
         if raw_points.size % 4:
             raise ValueError(
@@ -138,6 +150,9 @@ class Rellis3DDataset:
             raw_labels = np.zeros(points.shape[0], dtype=np.uint32)
             label_source = "absent"
         else:
+            require_complete_binary_records(
+                ref.label_path, np.dtype(np.uint32).itemsize, "label"
+            )
             raw_labels = np.fromfile(ref.label_path, dtype=np.uint32)
             if raw_labels.shape[0] != points.shape[0]:
                 raise ValueError(
@@ -155,12 +170,14 @@ class Rellis3DDataset:
             RELLIS_LABELS if label_mapping is None else label_mapping,
         )
         raw_semantic_class = (raw_labels & 0xFFFF).astype(np.int32, copy=False)
+        instance_id = (raw_labels >> 16).astype(np.int32, copy=False)
         confidence = np.where(semantic_class == 0, 0.0, 1.0).astype(np.float32)
 
         mask = self._range_mask(points, min_range_m, max_range_m)
         world_points = self._transform_points(points[mask], pose.matrix)
         semantic_class = semantic_class[mask]
         raw_semantic_class = raw_semantic_class[mask]
+        instance_id = instance_id[mask]
         confidence = confidence[mask]
         count = world_points.shape[0]
         return ObservationFrame(
@@ -177,6 +194,7 @@ class Rellis3DDataset:
             motion_probability=np.zeros(count, dtype=np.float32),
             velocity_xy=np.zeros((count, 2), dtype=np.float32),
             raw_semantic_class=raw_semantic_class,
+            instance_id=instance_id,
             dataset="rellis3d",
             sequence=str(sequence),
             frame_id=str(frame_id),
@@ -231,7 +249,10 @@ class Rellis3DDataset:
         if index >= len(lines):
             raise ValueError(f"timestamp file has no value for {sequence}/{frame_id}")
         try:
-            return float(lines[index].split()[0]), "dataset"
+            value = float(lines[index].split()[0])
+            return require_finite_metadata_value(
+                value, path, index + 1, "timestamp"
+            ), "dataset"
         except ValueError as error:
             raise ValueError(f"invalid timestamp at {path}:{index + 1}") from error
 

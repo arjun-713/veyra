@@ -1,9 +1,10 @@
 # Veyra Tauri desktop
 
-The desktop shell is being migrated from Electron to Tauri 2 while the
-existing Svelte, Python, and C++ layers remain the product implementation.
-Electron is retained only as a behavioral reference until the parity matrix in
-`docs/desktop-electron-audit.md` is complete.
+The desktop shell is Tauri 2; the Svelte, Python, and C++ layers remain the
+product implementation. Electron was removed after the parity matrix in
+`docs/desktop-electron-audit.md` closed (see
+`reports/closure/electron/PARITY.md`); the audit doc is retained as a
+behavioral reference.
 
 ## Local development
 

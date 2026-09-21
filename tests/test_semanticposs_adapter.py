@@ -65,6 +65,19 @@ class SemanticPOSSAdapterTests(unittest.TestCase):
 
         np.testing.assert_array_equal(mapped, [0, 6, 1, 16, 13, 12])
 
+    def test_preserves_packed_semanticposs_instance_bits_after_range_crop(self):
+        with tempfile.TemporaryDirectory() as raw:
+            root = Path(raw)
+            write_frame(root, "00", "0", [1.0, 200.0])
+            np.array([(12 << 16) | 10, (7 << 16) | 20], dtype=np.uint32).tofile(
+                root / "00" / "labels" / "0.label"
+            )
+
+            frame = SemanticPOSSDataset(root).load_frame("00", "0", max_range_m=100)
+
+        np.testing.assert_array_equal(frame.raw_semantic_class, [10])
+        np.testing.assert_array_equal(frame.instance_id, [12])
+
     def test_range_crop_uses_lidar_range_before_world_translation(self):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
@@ -258,6 +271,31 @@ class SemanticPOSSAdapterTests(unittest.TestCase):
             self.assertEqual([frame.frame_id for frame in frames], ["2", "10"])
             self.assertEqual([frame.timestamp for frame in frames], [0.25, 0.50])
 
+    def test_resolves_absolute_metadata_lines_for_partial_checkouts(self):
+        with tempfile.TemporaryDirectory() as raw:
+            root = Path(raw)
+            write_frame(root, "00", "400", [400.0])
+            write_frame(root, "00", "401", [401.0])
+            lines = "".join(f"{i * 0.1:.1f}\n" for i in range(402))
+            (root / "timestamps").mkdir()
+            (root / "timestamps" / "00.txt").write_text(lines)
+            adapter = SemanticPOSSDataset(root)
+
+            frames = list(adapter.replay("00", label_mapping={10: 1}))
+
+            self.assertEqual([frame.frame_id for frame in frames], ["400", "401"])
+            self.assertEqual([frame.timestamp for frame in frames], [40.0, 40.1])
+
+    def test_frame_index_without_total_lines_keeps_historical_numeric_behavior(self):
+        with tempfile.TemporaryDirectory() as raw:
+            root = Path(raw)
+            write_frame(root, "00", "2", [2.0])
+            write_frame(root, "00", "10", [10.0])
+            adapter = SemanticPOSSDataset(root, sequences=["00"])
+
+            self.assertEqual(adapter._frame_index("00", "10", total_lines=None), 10)
+            self.assertEqual(adapter._frame_index("00", "10", total_lines=1), 1)
+
     def test_rejects_scan_and_label_count_mismatch(self):
         with tempfile.TemporaryDirectory() as raw:
             root = Path(raw)
@@ -267,6 +305,17 @@ class SemanticPOSSAdapterTests(unittest.TestCase):
 
             with self.assertRaises(ValueError):
                 adapter.load_frame("00", "0")
+
+    def test_rejects_nonfinite_scan_values(self):
+        with tempfile.TemporaryDirectory() as raw:
+            root = Path(raw)
+            write_frame(root, "00", "0", [1.0])
+            np.array([[np.inf, 0.0, 0.0, 0.5]], dtype=np.float32).tofile(
+                root / "00" / "velodyne" / "0.bin"
+            )
+
+            with self.assertRaisesRegex(ValueError, "non-finite"):
+                SemanticPOSSDataset(root).load_frame("00", "0")
 
 
 if __name__ == "__main__":

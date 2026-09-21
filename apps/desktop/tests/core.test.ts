@@ -1,6 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { FrameDecoder, isSupportedDataset, validateCommand, RollingTelemetry, validateVisualization } from '../src/core.ts';
+import { nativeRuntimeUnavailableMessage } from '../src/api.ts';
 
 test('rejects arbitrary commands, traversal capabilities, and invalid numeric controls', () => {
   for (const [command,args] of [['exec',{shell:'touch x'}],['seek',{index:-1}],['speed',{speed:Infinity}],['policy',{policy:'unsafe'}],['start',{executable:'/tmp/evil'}]]) {
@@ -8,6 +9,9 @@ test('rejects arbitrary commands, traversal capabilities, and invalid numeric co
   }
   assert.deepEqual(validateCommand('seek',{index:12}),{command:'seek',args:{index:12}});
   assert.deepEqual(validateCommand('governor',{mode:'conserve'}),{command:'governor',args:{mode:'conserve'}});
+  assert.deepEqual(validateCommand('layer',{layer:'lod'}),{command:'layer',args:{layer:'lod'}});
+  assert.deepEqual(validateCommand('validation',{}),{command:'validation',args:{}});
+  assert.throws(()=>validateCommand('layer',{layer:'../../etc'}));
   assert.throws(()=>validateCommand('governor',{mode:'shell'}));
 });
 
@@ -37,4 +41,9 @@ test('visualization rejects out-of-bounds sections and invalid strides', () => {
 test('desktop accepts every dataset adapter exposed by the runtime',()=>{
  for(const dataset of ['generic','semanticposs','semantickitti','rellis3d'])assert.equal(isSupportedDataset(dataset),true);
  assert.equal(isSupportedDataset('../dataset'),false);
+});
+
+test('desktop runtime bridge failure does not direct Tauri users to Electron',()=>{
+ assert.match(nativeRuntimeUnavailableMessage,/desktop runtime bridge/i);
+ assert.doesNotMatch(nativeRuntimeUnavailableMessage,/electron/i);
 });

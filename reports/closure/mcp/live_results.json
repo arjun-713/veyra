@@ -1,0 +1,381 @@
+{
+  "daemon": {
+    "endpoint": "127.0.0.1:48805",
+    "token_file": "/tmp/veyra-live-proof-token-82dpcpwr"
+  },
+  "invalid": [
+    {
+      "arguments": {
+        "dataset": "unsafe",
+        "root": "/tmp"
+      },
+      "case": "bad-dataset",
+      "isError": true,
+      "latency_ms": 0.02,
+      "text": "unsupported dataset format",
+      "tool": "open_dataset"
+    },
+    {
+      "arguments": {
+        "dataset": "generic"
+      },
+      "case": "missing-root",
+      "isError": true,
+      "latency_ms": 0.01,
+      "text": "missing tool argument: root",
+      "tool": "open_dataset"
+    },
+    {
+      "arguments": {
+        "dataset": "generic",
+        "root": "/data/xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+      },
+      "case": "oversized-root",
+      "isError": true,
+      "latency_ms": 0.01,
+      "text": "tool argument root exceeds maximum length",
+      "tool": "open_dataset"
+    },
+    {
+      "arguments": {
+        "dataset": "dddddddddddddddddddddddddddddddddddddddd",
+        "root": "/tmp"
+      },
+      "case": "oversized-dataset",
+      "isError": true,
+      "latency_ms": 0.01,
+      "text": "tool argument dataset exceeds maximum length",
+      "tool": "open_dataset"
+    },
+    {
+      "arguments": {
+        "dataset": "generic",
+        "root": "/tmp",
+        "sequence": "ssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssssss"
+      },
+      "case": "oversized-sequence",
+      "isError": true,
+      "latency_ms": 0.01,
+      "text": "tool argument sequence exceeds maximum length",
+      "tool": "open_dataset"
+    },
+    {
+      "arguments": {
+        "dataset": "generic"
+      },
+      "case": "missing-root-info",
+      "isError": true,
+      "latency_ms": 0.01,
+      "text": "missing tool argument: root",
+      "tool": "get_dataset_info"
+    },
+    {
+      "arguments": {
+        "dataset": "nope",
+        "root": "/tmp"
+      },
+      "case": "bad-dataset-info",
+      "isError": true,
+      "latency_ms": 0.01,
+      "text": "unsupported dataset format",
+      "tool": "get_dataset_info"
+    },
+    {
+      "arguments": {
+        "policy": "turbo"
+      },
+      "case": "bad-policy",
+      "isError": true,
+      "latency_ms": 0.01,
+      "text": "unsupported map policy",
+      "tool": "set_policy"
+    },
+    {
+      "arguments": {
+        "layer": "../../etc"
+      },
+      "case": "bad-layer",
+      "isError": true,
+      "latency_ms": 0.01,
+      "text": "unsupported layer",
+      "tool": "set_layer"
+    },
+    {
+      "arguments": {
+        "index": -1
+      },
+      "case": "seek-negative",
+      "isError": true,
+      "latency_ms": 0.01,
+      "text": "tool argument index is below minimum",
+      "tool": "seek"
+    },
+    {
+      "arguments": {
+        "index": 10000000000
+      },
+      "case": "seek-huge",
+      "isError": true,
+      "latency_ms": 0.01,
+      "text": "tool argument index exceeds maximum",
+      "tool": "seek"
+    },
+    {
+      "arguments": {
+        "count": 0,
+        "dataset": "generic",
+        "sequence": "00"
+      },
+      "case": "bench-zero",
+      "isError": true,
+      "latency_ms": 0.01,
+      "text": "tool argument count is below minimum",
+      "tool": "run_benchmark"
+    },
+    {
+      "arguments": {
+        "count": 1000000000,
+        "dataset": "generic",
+        "sequence": "00"
+      },
+      "case": "bench-huge",
+      "isError": true,
+      "latency_ms": 0.01,
+      "text": "tool argument count exceeds maximum",
+      "tool": "run_benchmark"
+    },
+    {
+      "arguments": {
+        "dataset": "generic"
+      },
+      "case": "bench-missing",
+      "isError": true,
+      "latency_ms": 0.01,
+      "text": "missing tool argument: count",
+      "tool": "run_benchmark"
+    },
+    {
+      "arguments": {},
+      "case": "unknown-tool",
+      "isError": true,
+      "latency_ms": 0.0,
+      "text": "unsupported Veyra tool: do_anything",
+      "tool": "do_anything"
+    },
+    {
+      "arguments": {
+        "bogus": 1
+      },
+      "case": "unknown-arg",
+      "isError": true,
+      "latency_ms": 0.0,
+      "text": "unknown tool argument: bogus",
+      "tool": "get_runtime_status"
+    },
+    {
+      "arguments": {
+        "index": "zero"
+      },
+      "case": "wrong-type",
+      "isError": true,
+      "latency_ms": 0.01,
+      "text": "tool argument index must be integer",
+      "tool": "seek"
+    }
+  ],
+  "root": "/home/arjun/Captain/SIH/Lidar/data/raw/semanticposs/dataset",
+  "shutdown": {
+    "harness_counts": {
+      "command": 8,
+      "config_validate": 1,
+      "datasets": 1,
+      "diagnostics": 4,
+      "open_dataset": 1,
+      "shutdown": 1,
+      "status": 2,
+      "stop": 1
+    },
+    "status": "shutting-down"
+  },
+  "tool_count": 18,
+  "tool_names": [
+    "export_diagnostics",
+    "get_dataset_info",
+    "get_map_statistics",
+    "get_metrics",
+    "get_perception_statistics",
+    "get_recent_errors",
+    "get_runtime_status",
+    "open_dataset",
+    "pause",
+    "play",
+    "restart_runtime",
+    "run_benchmark",
+    "run_validation",
+    "seek",
+    "set_layer",
+    "set_policy",
+    "start_runtime",
+    "stop_runtime"
+  ],
+  "valid": [
+    {
+      "arguments": {},
+      "isError": false,
+      "latency_ms": 7.32,
+      "text": "{\"config_digest\": null, \"dataset\": null, \"dropped_frames\": 0, \"error\": null, \"frames\": 0, \"generation\": 0, \"index\": -1, \"layer\": \"semantic\", \"policy\": \"distance_lod\", \"queue_depth\": 0, \"repo\": \"/home/arjun/Captain/SIH/Lidar/worktrees/mcp-live\", \"runtime_pid\": null, \"runtime_running\": false, \"sequence\": null, \"speed\": 1, \"state\": \"unconfigured\", \"visualization_dropped\": 0}",
+      "tool": "get_runtime_status"
+    },
+    {
+      "arguments": {},
+      "isError": true,
+      "latency_ms": 2.32,
+      "text": "{\"code\": \"CONTROLLER_ERROR\", \"details\": {\"harness\": \"real ProductRuntime typed error\", \"runtime_code\": \"runtime_error\"}, \"message\": \"configure a dataset before playback\"}",
+      "tool": "start_runtime"
+    },
+    {
+      "arguments": {},
+      "isError": false,
+      "latency_ms": 0.81,
+      "text": "{\"status\": {\"config_digest\": null, \"dataset\": null, \"dropped_frames\": 0, \"error\": null, \"frames\": 0, \"generation\": 0, \"index\": -1, \"layer\": \"semantic\", \"policy\": \"distance_lod\", \"queue_depth\": 0, \"runtime_running\": false, \"sequence\": null, \"speed\": 1, \"state\": \"unconfigured\", \"visualization_dropped\": 0}}",
+      "tool": "stop_runtime"
+    },
+    {
+      "arguments": {},
+      "isError": false,
+      "latency_ms": 1.42,
+      "text": "{\"status\": {\"config_digest\": null, \"dataset\": null, \"dropped_frames\": 0, \"error\": null, \"frames\": 0, \"generation\": 0, \"index\": -1, \"layer\": \"semantic\", \"policy\": \"distance_lod\", \"queue_depth\": 0, \"sequence\": null, \"speed\": 1, \"state\": \"unconfigured\", \"visualization_dropped\": 0}}",
+      "tool": "restart_runtime"
+    },
+    {
+      "arguments": {
+        "dataset": "semanticposs",
+        "root": "/home/arjun/Captain/SIH/Lidar/data/raw/semanticposs/dataset",
+        "sequence": "00"
+      },
+      "isError": false,
+      "latency_ms": 467.09,
+      "text": "{\"catalog\": {\"dataset\": \"semanticposs\", \"diagnostics\": [], \"root\": \"/home/arjun/Captain/SIH/Lidar/data/raw/semanticposs/dataset\", \"sequences\": [{\"frames\": 488, \"id\": \"00\", \"labels\": 488, \"poses\": true, \"timestamps\": false}, {\"frames\": 500, \"id\": \"01\", \"labels\": 500, \"poses\": true, \"timestamps\": false}, {\"frames\": 500, \"id\": \"02\", \"labels\": 500, \"poses\": true, \"timestamps\": false}, {\"frames\": 500, \"id\": \"03\", \"labels\": 500, \"poses\": true, \"timestamps\": false}, {\"frames\": 500, \"id\": \"04\", \"labels\": 500, \"poses\": true, \"timestamps\": false}, {\"frames\": 500, \"id\": \"05\", \"labels\": 500, \"poses\": true, \"timestamps\": false}], \"status\": \"partial\"}, \"configured\": {\"harness_note\": \"D1: configure stubbed (no mapper spawn)\"}, \"selected_sequence\": \"00\"}",
+      "tool": "open_dataset"
+    },
+    {
+      "arguments": {
+        "dataset": "semanticposs",
+        "root": "/home/arjun/Captain/SIH/Lidar/data/raw/semanticposs/dataset"
+      },
+      "isError": false,
+      "latency_ms": 275.16,
+      "text": "{\"dataset\": \"semanticposs\", \"diagnostics\": [], \"root\": \"/home/arjun/Captain/SIH/Lidar/data/raw/semanticposs/dataset\", \"sequences\": [{\"frames\": 488, \"id\": \"00\", \"labels\": 488, \"poses\": true, \"timestamps\": false}, {\"frames\": 500, \"id\": \"01\", \"labels\": 500, \"poses\": true, \"timestamps\": false}, {\"frames\": 500, \"id\": \"02\", \"labels\": 500, \"poses\": true, \"timestamps\": false}, {\"frames\": 500, \"id\": \"03\", \"labels\": 500, \"poses\": true, \"timestamps\": false}, {\"frames\": 500, \"id\": \"04\", \"labels\": 500, \"poses\": true, \"timestamps\": false}, {\"frames\": 500, \"id\": \"05\", \"labels\": 500, \"poses\": true, \"timestamps\": false}], \"status\": \"partial\"}",
+      "tool": "get_dataset_info"
+    },
+    {
+      "arguments": {},
+      "isError": true,
+      "latency_ms": 0.68,
+      "text": "{\"code\": \"CONTROLLER_ERROR\", \"details\": {\"harness\": \"real ProductRuntime typed error\", \"runtime_code\": \"runtime_error\"}, \"message\": \"configure a dataset before playback\"}",
+      "tool": "play"
+    },
+    {
+      "arguments": {},
+      "isError": true,
+      "latency_ms": 0.58,
+      "text": "{\"code\": \"CONTROLLER_ERROR\", \"details\": {\"harness\": \"real ProductRuntime typed error\", \"runtime_code\": \"runtime_error\"}, \"message\": \"configure a dataset before playback\"}",
+      "tool": "pause"
+    },
+    {
+      "arguments": {
+        "index": 0
+      },
+      "isError": true,
+      "latency_ms": 0.54,
+      "text": "{\"code\": \"CONTROLLER_ERROR\", \"details\": {\"harness\": \"real ProductRuntime typed error\", \"runtime_code\": \"runtime_error\"}, \"message\": \"configure a dataset before playback\"}",
+      "tool": "seek"
+    },
+    {
+      "arguments": {
+        "policy": "distance_lod"
+      },
+      "isError": true,
+      "latency_ms": 0.59,
+      "text": "{\"code\": \"CONTROLLER_ERROR\", \"details\": {\"harness\": \"real ProductRuntime typed error\", \"runtime_code\": \"runtime_error\"}, \"message\": \"configure a dataset before playback\"}",
+      "tool": "set_policy"
+    },
+    {
+      "arguments": {
+        "layer": "lod"
+      },
+      "isError": false,
+      "latency_ms": 0.49,
+      "text": "{\"status\": {\"config_digest\": null, \"dataset\": null, \"dropped_frames\": 0, \"error\": null, \"frames\": 0, \"generation\": 0, \"index\": -1, \"layer\": \"semantic\", \"policy\": \"distance_lod\", \"queue_depth\": 0, \"sequence\": null, \"speed\": 1, \"state\": \"unconfigured\", \"visualization_dropped\": 0}}",
+      "tool": "set_layer"
+    },
+    {
+      "arguments": {},
+      "isError": false,
+      "latency_ms": 0.43,
+      "text": "{\"config_digest\": null, \"dataset\": null, \"dropped_frames\": 0, \"error\": null, \"frames\": 0, \"generation\": 0, \"index\": -1, \"layer\": \"lod\", \"policy\": \"distance_lod\", \"queue_depth\": 0, \"repo\": \"/home/arjun/Captain/SIH/Lidar/worktrees/mcp-live\", \"runtime_pid\": null, \"runtime_running\": false, \"sequence\": null, \"speed\": 1, \"state\": \"unconfigured\", \"visualization_dropped\": 0}",
+      "tool": "get_metrics"
+    },
+    {
+      "arguments": {},
+      "isError": false,
+      "latency_ms": 0.5,
+      "text": "{\"application\": \"veyra\", \"repo\": \"/home/arjun/Captain/SIH/Lidar/worktrees/mcp-live\", \"runtime\": {\"config\": null, \"platform\": \"linux\", \"python\": \"3.14.7 (main, Aug 10 2026, 00:00:00) [GCC 16.1.1 20260515 (Red Hat 16.1.1-2)]\", \"status\": {\"config_digest\": null, \"dataset\": null, \"dropped_frames\": 0, \"error\": null, \"frames\": 0, \"generation\": 0, \"index\": -1, \"layer\": \"semantic\", \"policy\": \"distance_lod\", \"queue_depth\": 0, \"sequence\": null, \"speed\": 1, \"state\": \"unconfigured\", \"visualization_dropped\": 0}}, \"schema_version\": 1, \"state\": {\"config_digest\": null, \"dataset\": null, \"dropped_frames\": 0, \"error\": null, \"frames\": 0, \"generation\": 0, \"index\": -1, \"layer\": \"semantic\", \"policy\": \"distance_lod\", \"queue_depth\": 0, \"sequence\": null, \"speed\": 1, \"state\": \"unconfigured\", \"visualization_dropped\": 0}, \"supervisor\": {\"harness\": \"python-live-proof\", \"running\": false}}",
+      "tool": "get_map_statistics"
+    },
+    {
+      "arguments": {},
+      "isError": false,
+      "latency_ms": 0.44,
+      "text": "{\"application\": \"veyra\", \"repo\": \"/home/arjun/Captain/SIH/Lidar/worktrees/mcp-live\", \"runtime\": {\"config\": null, \"platform\": \"linux\", \"python\": \"3.14.7 (main, Aug 10 2026, 00:00:00) [GCC 16.1.1 20260515 (Red Hat 16.1.1-2)]\", \"status\": {\"config_digest\": null, \"dataset\": null, \"dropped_frames\": 0, \"error\": null, \"frames\": 0, \"generation\": 0, \"index\": -1, \"layer\": \"semantic\", \"policy\": \"distance_lod\", \"queue_depth\": 0, \"sequence\": null, \"speed\": 1, \"state\": \"unconfigured\", \"visualization_dropped\": 0}}, \"schema_version\": 1, \"state\": {\"config_digest\": null, \"dataset\": null, \"dropped_frames\": 0, \"error\": null, \"frames\": 0, \"generation\": 0, \"index\": -1, \"layer\": \"semantic\", \"policy\": \"distance_lod\", \"queue_depth\": 0, \"sequence\": null, \"speed\": 1, \"state\": \"unconfigured\", \"visualization_dropped\": 0}, \"supervisor\": {\"harness\": \"python-live-proof\", \"running\": false}}",
+      "tool": "get_perception_statistics"
+    },
+    {
+      "arguments": {
+        "config": {
+          "dataset": "semanticposs",
+          "dataset_root": "/home/arjun/Captain/SIH/Lidar/data/raw/semanticposs/dataset",
+          "sequence": "00"
+        }
+      },
+      "isError": true,
+      "latency_ms": 0.47,
+      "text": "{\"code\": \"CONTROLLER_ERROR\", \"message\": \"mapper executable does not exist: /home/arjun/Captain/SIH/Lidar/worktrees/mcp-live/build/apps/runtime/veyra_runtime\"}",
+      "tool": "run_validation"
+    },
+    {
+      "arguments": {
+        "count": 2,
+        "dataset": "semanticposs",
+        "sequence": "00"
+      },
+      "isError": true,
+      "latency_ms": 0.38,
+      "text": "{\"code\": \"CONTROLLER_ERROR\", \"details\": {\"harness\": \"real ProductRuntime typed error\", \"runtime_code\": \"runtime_error\"}, \"message\": \"configure a dataset before playback\"}",
+      "tool": "run_benchmark"
+    },
+    {
+      "arguments": {},
+      "isError": false,
+      "latency_ms": 0.36,
+      "text": "{\"application\": \"veyra\", \"repo\": \"/home/arjun/Captain/SIH/Lidar/worktrees/mcp-live\", \"runtime\": {\"config\": null, \"platform\": \"linux\", \"python\": \"3.14.7 (main, Aug 10 2026, 00:00:00) [GCC 16.1.1 20260515 (Red Hat 16.1.1-2)]\", \"status\": {\"config_digest\": null, \"dataset\": null, \"dropped_frames\": 0, \"error\": null, \"frames\": 0, \"generation\": 0, \"index\": -1, \"layer\": \"semantic\", \"policy\": \"distance_lod\", \"queue_depth\": 0, \"sequence\": null, \"speed\": 1, \"state\": \"unconfigured\", \"visualization_dropped\": 0}}, \"schema_version\": 1, \"state\": {\"config_digest\": null, \"dataset\": null, \"dropped_frames\": 0, \"error\": null, \"frames\": 0, \"generation\": 0, \"index\": -1, \"layer\": \"semantic\", \"policy\": \"distance_lod\", \"queue_depth\": 0, \"sequence\": null, \"speed\": 1, \"state\": \"unconfigured\", \"visualization_dropped\": 0}, \"supervisor\": {\"harness\": \"python-live-proof\", \"running\": false}}",
+      "tool": "get_recent_errors"
+    },
+    {
+      "arguments": {},
+      "isError": false,
+      "latency_ms": 0.41,
+      "text": "{\"application\": \"veyra\", \"repo\": \"/home/arjun/Captain/SIH/Lidar/worktrees/mcp-live\", \"runtime\": {\"config\": null, \"platform\": \"linux\", \"python\": \"3.14.7 (main, Aug 10 2026, 00:00:00) [GCC 16.1.1 20260515 (Red Hat 16.1.1-2)]\", \"status\": {\"config_digest\": null, \"dataset\": null, \"dropped_frames\": 0, \"error\": null, \"frames\": 0, \"generation\": 0, \"index\": -1, \"layer\": \"semantic\", \"policy\": \"distance_lod\", \"queue_depth\": 0, \"sequence\": null, \"speed\": 1, \"state\": \"unconfigured\", \"visualization_dropped\": 0}}, \"schema_version\": 1, \"state\": {\"config_digest\": null, \"dataset\": null, \"dropped_frames\": 0, \"error\": null, \"frames\": 0, \"generation\": 0, \"index\": -1, \"layer\": \"semantic\", \"policy\": \"distance_lod\", \"queue_depth\": 0, \"sequence\": null, \"speed\": 1, \"state\": \"unconfigured\", \"visualization_dropped\": 0}, \"supervisor\": {\"harness\": \"python-live-proof\", \"running\": false}}",
+      "tool": "export_diagnostics"
+    }
+  ],
+  "wrong_token": {
+    "content": [
+      {
+        "text": "{\"code\": \"UNAUTHORIZED\", \"message\": \"control authorization failed\"}",
+        "type": "text"
+      }
+    ],
+    "isError": true
+  }
+}

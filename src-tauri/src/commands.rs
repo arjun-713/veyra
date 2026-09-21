@@ -2,122 +2,185 @@ use std::path::PathBuf;
 use std::sync::Mutex;
 
 use serde_json::{json, Value};
-use tauri::Emitter;
 
-use crate::{control::RuntimeController, telemetry};
+use crate::desktop_control::{request_for, DesktopControlService};
 
-fn with_controller<T>(
-    app: &tauri::AppHandle,
-    state: &tauri::State<'_, Mutex<RuntimeController>>,
-    operation: impl FnOnce(&mut RuntimeController) -> Result<T, String>,
-) -> Result<T, String> {
-    let mut controller = state
+fn request(
+    state: &tauri::State<'_, Mutex<DesktopControlService>>,
+    command: &'static str,
+    args: Value,
+) -> Result<Value, String> {
+    let request = request_for(command, args);
+    state
         .lock()
-        .map_err(|_| "runtime controller lock poisoned".to_owned())?;
-    let result = operation(&mut controller);
-    for event in controller.drain_events() {
-        emit_runtime_event(app, event);
-    }
-    result
-}
-
-fn emit_runtime_event(app: &tauri::AppHandle, event: crate::supervisor::RuntimeEvent) {
-    match telemetry::event_payload(event.metadata, event.payload) {
-        Ok((channel, payload)) => {
-            let _ = app.emit(channel.name(), payload);
-        }
-        Err(error) => {
-            let _ = app.emit(
-                "veyra://event",
-                json!({
-                    "type": "diagnostics",
-                    "schema_version": 1,
-                    "error": {"code": "INVALID_RUNTIME_EVENT", "message": error}
-                }),
-            );
-        }
-    }
+        .map_err(|_| "desktop control client lock poisoned".to_owned())?
+        .request(request.command, request.args)
 }
 
 #[tauri::command]
 pub fn runtime_status(
-    app: tauri::AppHandle,
-    state: tauri::State<'_, Mutex<RuntimeController>>,
+    state: tauri::State<'_, Mutex<DesktopControlService>>,
 ) -> Result<Value, String> {
-    with_controller(&app, &state, RuntimeController::refresh_status)
+    request(&state, "status", json!({}))
 }
 
 #[tauri::command]
 pub fn runtime_command(
-    app: tauri::AppHandle,
     command: String,
     args: Value,
-    state: tauri::State<'_, Mutex<RuntimeController>>,
+    state: tauri::State<'_, Mutex<DesktopControlService>>,
 ) -> Result<Value, String> {
     if !args.is_object() {
         return Err("command arguments must be a JSON object".to_owned());
     }
-    with_controller(&app, &state, |controller| {
-        controller.command(&command, args)
-    })
+    request(&state, "command", json!({"name": command, "args": args}))
+}
+
+#[tauri::command]
+pub fn runtime_stop(
+    state: tauri::State<'_, Mutex<DesktopControlService>>,
+) -> Result<Value, String> {
+    request(&state, "stop", json!({}))
 }
 
 #[tauri::command]
 pub fn runtime_configure(
-    app: tauri::AppHandle,
     config: Value,
-    state: tauri::State<'_, Mutex<RuntimeController>>,
+    state: tauri::State<'_, Mutex<DesktopControlService>>,
 ) -> Result<Value, String> {
     if !config.is_object() {
         return Err("configuration must be a JSON object".to_owned());
     }
-    with_controller(&app, &state, |controller| controller.configure(config))
+    request(&state, "configure", json!({"config": config}))
 }
 
 #[tauri::command]
 pub fn runtime_validate_config(
-    app: tauri::AppHandle,
     config: Value,
-    state: tauri::State<'_, Mutex<RuntimeController>>,
+    state: tauri::State<'_, Mutex<DesktopControlService>>,
 ) -> Result<Value, String> {
     if !config.is_object() {
         return Err("configuration must be a JSON object".to_owned());
     }
-    with_controller(&app, &state, |controller| {
-        controller.validate_config(config)
-    })
+    request(&state, "config_validate", json!({"config": config}))
 }
 
 #[tauri::command]
 pub fn choose_dataset(
-    app: tauri::AppHandle,
     dataset: String,
     root: String,
-    state: tauri::State<'_, Mutex<RuntimeController>>,
+    state: tauri::State<'_, Mutex<DesktopControlService>>,
 ) -> Result<Value, String> {
-    if dataset.is_empty() || root.is_empty() {
-        return Err("dataset format and directory are required".to_owned());
+    if dataset.is_empty() {
+        return Err("dataset format is required".to_owned());
     }
-    with_controller(&app, &state, |controller| {
-        controller.datasets(&dataset, &PathBuf::from(root))
-    })
+    choose_dataset_allowlist_check(&dataset)?;
+    let root = validated_dataset_root(&root)?;
+    request(
+        &state,
+        "datasets",
+        json!({"dataset": dataset, "root": root.to_string_lossy()}),
+    )
+}
+
+#[tauri::command]
+pub fn open_dataset(
+    dataset: String,
+    root: String,
+    sequence: Option<String>,
+    state: tauri::State<'_, Mutex<DesktopControlService>>,
+) -> Result<Value, String> {
+    if dataset.is_empty() {
+        return Err("dataset format is required".to_owned());
+    }
+    choose_dataset_allowlist_check(&dataset)?;
+    let root = validated_dataset_root(&root)?;
+    let mut args = serde_json::Map::new();
+    args.insert("dataset".to_owned(), Value::String(dataset));
+    args.insert(
+        "root".to_owned(),
+        Value::String(root.to_string_lossy().into_owned()),
+    );
+    if let Some(sequence) = sequence.filter(|value| !value.is_empty()) {
+        args.insert("sequence".to_owned(), Value::String(sequence));
+    }
+    request(&state, "open_dataset", Value::Object(args))
 }
 
 #[tauri::command]
 pub fn export_diagnostics(
-    app: tauri::AppHandle,
-    state: tauri::State<'_, Mutex<RuntimeController>>,
+    state: tauri::State<'_, Mutex<DesktopControlService>>,
 ) -> Result<Value, String> {
-    with_controller(&app, &state, |controller| Ok(controller.diagnostics()))
+    request(&state, "diagnostics", json!({}))
 }
 
 #[tauri::command]
 pub fn runtime_shutdown(
-    app: tauri::AppHandle,
-    state: tauri::State<'_, Mutex<RuntimeController>>,
+    state: tauri::State<'_, Mutex<DesktopControlService>>,
 ) -> Result<Value, String> {
-    with_controller(&app, &state, |controller| {
-        controller.stop()?;
-        Ok(json!({"status": controller.status()}))
-    })
+    request(&state, "shutdown", json!({}))
+}
+
+fn choose_dataset_allowlist_check(dataset: &str) -> Result<(), String> {
+    if matches!(
+        dataset,
+        "rellis3d" | "semanticposs" | "semantickitti" | "generic"
+    ) {
+        Ok(())
+    } else {
+        Err("unsupported dataset format".to_owned())
+    }
+}
+
+fn validated_dataset_root(root: &str) -> Result<PathBuf, String> {
+    if root.is_empty() {
+        return Err("dataset directory is required".to_owned());
+    }
+    let path = PathBuf::from(root);
+    let metadata = std::fs::metadata(&path)
+        .map_err(|error| format!("cannot inspect dataset directory: {error}"))?;
+    if !metadata.is_dir() {
+        return Err("dataset root must be an existing directory".to_owned());
+    }
+    path.canonicalize()
+        .map_err(|error| format!("cannot resolve dataset directory: {error}"))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::choose_dataset_allowlist_check;
+    use super::validated_dataset_root;
+
+    #[test]
+    fn dataset_format_is_allowlisted_before_filesystem_access() {
+        assert!(choose_dataset_allowlist_check("unsafe-format").is_err());
+        assert!(choose_dataset_allowlist_check("semanticposs").is_ok());
+    }
+
+    #[test]
+    fn dataset_root_rejects_a_file() {
+        let root =
+            std::env::temp_dir().join(format!("veyra-desktop-control-file-{}", std::process::id()));
+        std::fs::write(&root, b"not a directory").unwrap();
+
+        let error = validated_dataset_root(root.to_str().unwrap()).unwrap_err();
+        assert_eq!(error, "dataset root must be an existing directory");
+
+        std::fs::remove_file(root).unwrap();
+    }
+
+    #[test]
+    fn dataset_root_is_canonicalized_before_control_request() {
+        let root = std::env::temp_dir().join(format!(
+            "veyra-desktop-control-directory-{}",
+            std::process::id()
+        ));
+        std::fs::create_dir_all(&root).unwrap();
+
+        let resolved = validated_dataset_root(root.to_str().unwrap()).unwrap();
+        assert!(resolved.is_absolute());
+        assert!(resolved.is_dir());
+
+        std::fs::remove_dir(root).unwrap();
+    }
 }

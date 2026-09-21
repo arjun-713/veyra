@@ -27,6 +27,8 @@ Official RELLIS pose metadata was acquired on 2026-09-10 after approval:
 <https://drive.google.com/file/d/1V3PT_NJhA41N7TBLp5AbW31d0ztQDQOX/view>.
 The downloaded archive was 609,344 compressed bytes and contains only
 `Rellis-3D/<sequence>/poses.txt` plus `calib.txt` for sequences `00000`--`00004`.
+The official archive retrieved on 2026-09-17 has SHA-256
+`6deaf38a9cac3a480cfdb70fa9a1d9278f25c36f5efd2487a3c4a6a400250f67`.
 It has no timestamps, frame IDs, or filename association. Its pose-row counts
 are 2,847/2,319/4,147/2,184/2,059, while local Velodyne scan counts are
 2,842/2,315/4,139/2,180/2,056. Because counts differ, the adapter accepts an
@@ -105,4 +107,24 @@ python -m pytest -q tests/test_rellis_adapter.py tests/test_semanticposs_adapter
 
 Real-data checks are conditional: RELLIS and SemanticPOSS load representative
 local frames; SemanticKITTI reports an unavailable local asset rather than
-downloading data. No large dataset or sample was downloaded for this change.
+downloading data. The bounded machine-readable report is produced with:
+
+```bash
+python scripts/validate_dataset_capabilities.py --dataset semanticposs \
+  --root data/raw/semanticposs/dataset --sample-limit 3
+python scripts/validate_dataset_capabilities.py --dataset rellis3d \
+  --root data/raw/rellis3d/Rellis-3D --sample-limit 3
+python scripts/validate_dataset_capabilities.py --dataset semantickitti \
+  --root data/raw/semantickitti/dataset --sample-limit 3
+```
+
+On the local checkout, those reports record `validated_local` for RELLIS-3D
+(13,532 total frames, 15 representative samples) and SemanticPOSS (2,988
+total frames, 18 representative samples). Both pass point/label alignment,
+finite byte-scale intensity checks, taxonomy/instance-array alignment,
+deterministic ordering, and deterministic replay. SemanticPOSS reports
+dataset pose and calibration but unavailable timestamps. RELLIS reports
+dataset labels, but unavailable pose, timestamp, and calibration metadata.
+SemanticKITTI reports `unvalidated_local` with reason
+`local_root_unavailable`; fixture coverage is not real-data evidence. No large
+dataset or sample was downloaded for this change.

@@ -29,9 +29,10 @@ pub(crate) struct NormalizedEvent {
 pub(crate) fn event_channel(metadata: &Value) -> Result<EventChannel, String> {
     match metadata.get("type").and_then(Value::as_str) {
         Some("visualization") => Ok(EventChannel::Visualization),
-        Some("status" | "telemetry" | "response" | "benchmark" | "governor" | "diagnostics") => {
-            Ok(EventChannel::Event)
-        }
+        Some(
+            "status" | "telemetry" | "response" | "benchmark" | "validation" | "governor"
+            | "diagnostics",
+        ) => Ok(EventChannel::Event),
         Some(event_type) => Err(format!("unsupported runtime event type: {event_type}")),
         None => Err("runtime event is missing a string type".to_owned()),
     }
@@ -139,5 +140,17 @@ mod tests {
         assert!(normalize_event(json!(null)).is_err());
         assert!(normalize_event(json!({"type": "unknown"})).is_err());
         assert!(normalize_event(json!({"type": "telemetry", "schema_version": 2})).is_err());
+    }
+
+    #[test]
+    fn validation_events_are_safe_bounded_event_channel_messages() {
+        let normalized = normalize_event(json!({
+            "type": "validation",
+            "state": "complete",
+            "result": {"status": "pass"}
+        }))
+        .unwrap();
+        assert_eq!(normalized.channel, EventChannel::Event);
+        assert_eq!(normalized.payload["result"]["status"], "pass");
     }
 }

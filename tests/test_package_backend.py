@@ -13,6 +13,10 @@ class PackageBackendTests(unittest.TestCase):
             (package / "__init__.py").write_text("\n")
             (package / "module.py").write_text("VALUE = 1\n")
         (repo / "runtime" / "__main__.py").write_text("\n")
+        (repo / "src-tauri").mkdir()
+        (repo / "src-tauri" / "tauri.conf.json").write_text(
+            json.dumps({"version": "0.1.0"})
+        )
         (repo / "configs").mkdir()
         (repo / "configs" / "utility_lod.yaml").write_text("enabled: true\n")
         (repo / "runtime" / "__pycache__").mkdir()

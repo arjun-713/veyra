@@ -168,6 +168,8 @@ class ManifestDataset:
     def _read_points(self, spec: Mapping[str, object]) -> np.ndarray:
         path = self._safe_path(spec["path"])
         if spec["format"] == "xyzi_f32_bin":
+            if path.stat().st_size % (4 * np.dtype(np.float32).itemsize):
+                raise ValueError("binary XYZI file is not divisible into four floats")
             raw = np.fromfile(path, dtype="<f4")
             if raw.size == 0 or raw.size % 4:
                 raise ValueError("binary XYZI file is not divisible into four floats")

@@ -1,113 +1,176 @@
 mod commands;
 pub mod control;
+mod control_host;
+mod desktop_control;
+#[cfg(test)]
+mod packaged_e2e;
 pub mod supervisor;
 mod telemetry;
 
-use tauri::Manager;
+use std::path::{Path, PathBuf};
+use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::{Arc, Mutex};
+use std::thread;
+use std::time::Duration;
 
-fn packaged_repo(resource_dir: &std::path::Path) -> Option<std::path::PathBuf> {
-    [
-        resource_dir.to_path_buf(),
-        resource_dir.join("backend"),
-        resource_dir.join("resources/backend"),
-    ]
-    .into_iter()
-    .find(|path| path.join("runtime").is_dir())
+use tauri::{Emitter, Manager};
+
+use desktop_control::DesktopControlService;
+
+#[derive(Clone)]
+struct EventPump {
+    running: Arc<AtomicBool>,
 }
 
-fn emit_runtime_event(app: &tauri::AppHandle, event: supervisor::RuntimeEvent) {
-    match telemetry::event_payload(event.metadata, event.payload) {
-        Ok((channel, payload)) => {
-            use tauri::Emitter;
-            let _ = app.emit(channel.name(), payload);
+impl EventPump {
+    fn new() -> Self {
+        Self {
+            running: Arc::new(AtomicBool::new(true)),
         }
-        Err(error) => {
-            use tauri::Emitter;
-            let _ = app.emit(
-                "veyra://event",
-                serde_json::json!({
-                    "type": "diagnostics",
-                    "schema_version": 1,
-                    "error": {"code": "INVALID_RUNTIME_EVENT", "message": error}
-                }),
-            );
-        }
+    }
+
+    fn stop(&self) {
+        self.running.store(false, Ordering::Release);
     }
 }
 
 pub fn run() {
-    let stop_signal = std::sync::Arc::new(std::sync::atomic::AtomicBool::new(false));
-    let pump_stop_signal = std::sync::Arc::clone(&stop_signal);
     let builder = tauri::Builder::default()
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_fs::init())
-        .setup(move |app| {
-            let packaged_backend = app
+        .setup(|app| {
+            let config_dir = app.path().app_config_dir().map_err(|error| {
+                format!("cannot resolve protected control storage directory: {error}")
+            })?;
+            let resource_dir = app
                 .path()
                 .resource_dir()
-                .ok()
-                .and_then(|path| packaged_repo(&path));
-            let repo = std::env::var_os("VEYRA_REPO")
-                .map(std::path::PathBuf::from)
-                .or(packaged_backend)
-                .or_else(|| std::env::current_dir().ok())
-                .unwrap_or_else(|| std::path::PathBuf::from("."));
-            app.manage(std::sync::Mutex::new(control::RuntimeController::new(repo)));
-            let handle = app.handle().clone();
-            let stop_signal = std::sync::Arc::clone(&pump_stop_signal);
-            std::thread::Builder::new()
-                .name("veyra-event-pump".into())
-                .spawn(move || {
-                    while !stop_signal.load(std::sync::atomic::Ordering::Acquire) {
-                        std::thread::sleep(std::time::Duration::from_millis(25));
-                        let state = handle.state::<std::sync::Mutex<control::RuntimeController>>();
-                        let events = state
-                            .lock()
-                            .map(|controller| controller.drain_events())
-                            .unwrap_or_default();
-                        for event in events {
-                            emit_runtime_event(&handle, event);
+                .unwrap_or_else(|_| std::env::current_dir().unwrap_or_default());
+            let control =
+                DesktopControlService::bootstrap(runtime_root(&resource_dir), &config_dir);
+            let startup_diagnostic = control.startup_diagnostic().map(str::to_owned);
+            app.manage(Mutex::new(control));
+            let event_pump = EventPump::new();
+            spawn_event_pump(app.handle().clone(), Arc::clone(&event_pump.running));
+            app.manage(event_pump);
+            if let Some(message) = startup_diagnostic {
+                let _ = app.emit(
+                    "veyra://event",
+                    serde_json::json!({
+                        "type": "diagnostics",
+                        "schema_version": 1,
+                        "diagnostic": {
+                            "code": "CONTROL_UNAVAILABLE",
+                            "message": message
                         }
-                    }
-                })
-                .map_err(|error| format!("failed to start event pump: {error}"))?;
+                    }),
+                );
+            }
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
             commands::runtime_status,
             commands::runtime_command,
+            commands::runtime_stop,
             commands::runtime_configure,
             commands::runtime_validate_config,
             commands::choose_dataset,
+            commands::open_dataset,
             commands::export_diagnostics,
             commands::runtime_shutdown,
         ]);
     let app = builder
         .build(tauri::generate_context!())
         .expect("error while building Veyra");
-    app.run(move |app_handle, event| {
+    app.run(|app_handle, event| {
         if matches!(event, tauri::RunEvent::Exit) {
-            stop_signal.store(true, std::sync::atomic::Ordering::Release);
-            if let Some(state) =
-                app_handle.try_state::<std::sync::Mutex<control::RuntimeController>>()
-            {
-                if let Ok(mut controller) = state.lock() {
-                    let _ = controller.stop();
+            if let Some(pump) = app_handle.try_state::<EventPump>() {
+                pump.stop();
+            }
+            if let Some(state) = app_handle.try_state::<Mutex<DesktopControlService>>() {
+                match state.lock() {
+                    Ok(mut service) => {
+                        if let Err(error) = service.shutdown() {
+                            eprintln!("control daemon shutdown unavailable: {error}");
+                        }
+                    }
+                    Err(_) => {
+                        eprintln!("control daemon shutdown unavailable: client lock poisoned")
+                    }
                 }
             }
         }
     });
 }
 
+fn spawn_event_pump(app_handle: tauri::AppHandle, running: Arc<AtomicBool>) {
+    thread::Builder::new()
+        .name("veyra-desktop-event-pump".to_owned())
+        .spawn(move || {
+            while running.load(Ordering::Acquire) {
+                let events = app_handle
+                    .try_state::<Mutex<DesktopControlService>>()
+                    .and_then(|service| service.lock().ok().map(|service| service.drain_events()))
+                    .unwrap_or_default();
+                for event in events {
+                    match forwardable_runtime_event(event) {
+                        Ok((channel, payload)) => {
+                            let _ = app_handle.emit(channel, payload);
+                        }
+                        Err(error) => {
+                            let _ = app_handle.emit(
+                                "veyra://event",
+                                serde_json::json!({
+                                    "type": "diagnostics",
+                                    "schema_version": 1,
+                                    "diagnostic": {
+                                        "code": "RUNTIME_EVENT_REJECTED",
+                                        "message": error,
+                                    }
+                                }),
+                            );
+                        }
+                    }
+                }
+                thread::sleep(Duration::from_millis(16));
+            }
+        })
+        .expect("failed to spawn desktop event pump");
+}
+
+fn forwardable_runtime_event(
+    event: supervisor::RuntimeEvent,
+) -> Result<(&'static str, serde_json::Value), String> {
+    let (channel, payload) = telemetry::event_payload(event.metadata, event.payload)?;
+    Ok((channel.name(), payload))
+}
+
+/// Tauri places configured resources beneath the application resource
+/// directory. Development fallback remains the repository root, whereas a
+/// packaged application must supervise the staged `backend` directory.
+///
+/// The staged marker (`manifest.json`, always written by
+/// `scripts/stage_tauri_backend.py`) is required: an unstaged `backend`
+/// directory (for example a bare `.gitkeep` placeholder shipped by a build
+/// that skipped staging) must never masquerade as a runnable backend.
+fn runtime_root(resource_dir: &Path) -> PathBuf {
+    let staged_backend = resource_dir.join("backend");
+    if staged_backend.join("manifest.json").is_file()
+        && staged_backend.join("runtime/__main__.py").is_file()
+    {
+        staged_backend
+    } else {
+        resource_dir.to_path_buf()
+    }
+}
+
 #[cfg(test)]
 mod tests {
-    use super::{
-        control::{
-            state::{RuntimeState, StateError},
-            AppState,
-        },
-        packaged_repo,
-    };
+    use super::control::state::{AppState, RuntimeState, StateError};
+    use super::forwardable_runtime_event;
+    use super::supervisor::RuntimeEvent;
+    use serde_json::json;
+    use std::fs;
 
     #[test]
     fn a_new_application_starts_booting_and_cannot_play_without_a_dataset() {
@@ -118,10 +181,89 @@ mod tests {
     }
 
     #[test]
-    fn packaged_repo_resolves_the_backend_resource_directory() {
-        let root = std::env::temp_dir().join(format!("veyra-resource-test-{}", std::process::id()));
-        std::fs::create_dir_all(root.join("backend/runtime")).unwrap();
-        assert_eq!(packaged_repo(&root), Some(root.join("backend")));
-        std::fs::remove_dir_all(root).unwrap();
+    fn renderer_filesystem_capability_scopes_writes_to_user_chosen_paths() {
+        let capability = include_str!("../capabilities/default.json");
+
+        // Writes are only reachable through dialog-picked paths
+        // (openJsonFile/saveJsonFile/screenshot in tauri-api.ts), so the
+        // scope must cover user directories — but nothing broader. In
+        // particular no filesystem root, no recursive-everything glob, and
+        // no shell/process plugin may appear.
+        for allowed in [
+            "$HOME/**",
+            "$DOCUMENT/**",
+            "$DOWNLOAD/**",
+            "$DESKTOP/**",
+            "$APPDATA/**",
+            "$APPCONFIG/**",
+        ] {
+            assert!(
+                capability.contains(allowed),
+                "renderer capability must scope writes to user directories ({allowed})"
+            );
+        }
+        for forbidden in [
+            "\"/**\"",
+            "\"/\"",
+            "\"/tmp/**\"",
+            "shell:",
+            "\"process",
+            "http:",
+        ] {
+            assert!(
+                !capability.contains(forbidden),
+                "renderer capability must not grant {forbidden}"
+            );
+        }
+        assert!(capability.contains("dialog:default"));
+        assert!(capability.contains("fs:allow-read-text-file"));
+        assert!(capability.contains("fs:allow-write-text-file"));
+        assert!(capability.contains("fs:allow-write-file"));
+    }
+
+    #[test]
+    fn packaged_resource_directory_resolves_the_staged_backend_root() {
+        let root =
+            std::env::temp_dir().join(format!("veyra-resource-root-test-{}", std::process::id()));
+        let backend = root.join("backend");
+        fs::create_dir_all(backend.join("runtime")).unwrap();
+        fs::write(backend.join("manifest.json"), "{\"schema_version\":1}").unwrap();
+        fs::write(backend.join("runtime/__main__.py"), "# staged").unwrap();
+
+        assert_eq!(super::runtime_root(&root), backend);
+
+        fs::remove_dir_all(root).unwrap();
+    }
+
+    #[test]
+    fn unstaged_backend_placeholder_never_masquerades_as_a_runnable_backend() {
+        let root = std::env::temp_dir().join(format!(
+            "veyra-resource-root-unstaged-test-{}",
+            std::process::id()
+        ));
+        let backend = root.join("backend");
+        fs::create_dir_all(&backend).unwrap();
+        fs::write(backend.join(".gitkeep"), "").unwrap();
+
+        assert_eq!(super::runtime_root(&root), root);
+
+        fs::remove_dir_all(root).unwrap();
+    }
+
+    #[test]
+    fn runtime_visualization_event_uses_the_renderer_binary_channel() {
+        let (channel, payload) = forwardable_runtime_event(RuntimeEvent {
+            metadata: json!({
+                "type": "visualization",
+                "schema_version": 1,
+                "generation": 7
+            }),
+            payload: vec![9, 8, 7],
+        })
+        .unwrap();
+
+        assert_eq!(channel, "veyra://visualization");
+        assert_eq!(payload["metadata"]["generation"], 7);
+        assert_eq!(payload["payload"], json!([9, 8, 7]));
     }
 }

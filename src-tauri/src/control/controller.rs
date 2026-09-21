@@ -79,6 +79,25 @@ impl RuntimeController {
         )
     }
 
+    /// Inspect and open a supported dataset using the product's explicit safe
+    /// defaults.  Dataset discovery stays in Python so the Rust control layer
+    /// never learns dataset-specific file layouts.
+    pub fn open_dataset(
+        &mut self,
+        dataset: &str,
+        root: &Path,
+        requested_sequence: Option<&str>,
+    ) -> Result<Value, String> {
+        let catalog = self.datasets(dataset, root)?;
+        let sequence = select_openable_sequence(&catalog, requested_sequence)?;
+        let configured = self.configure(dataset_open_configuration(dataset, root, &sequence))?;
+        Ok(json!({
+            "catalog": catalog,
+            "selected_sequence": sequence,
+            "configured": configured,
+        }))
+    }
+
     pub fn command(&mut self, command: &str, args: Value) -> Result<Value, String> {
         if command == "status" {
             return self.refresh_status();
@@ -90,11 +109,22 @@ impl RuntimeController {
                 .ok_or_else(|| "layer must be a string".to_owned())?;
             if !matches!(
                 layer,
-                "semantic" | "elevation" | "traversability" | "motion" | "lod" | "utility"
+                "semantic"
+                    | "elevation"
+                    | "ground"
+                    | "terrain"
+                    | "traversability"
+                    | "motion"
+                    | "lod"
+                    | "utility"
             ) {
                 return Err(format!("unsupported layer: {layer}"));
             }
             self.layer = layer.to_owned();
+            return Ok(json!({"status": self.status()}));
+        }
+        if command == "stop" {
+            self.stop()?;
             return Ok(json!({"status": self.status()}));
         }
         let response = if command == "restart" {
@@ -198,6 +228,58 @@ fn inject_mapper(config: &mut Value, mapper: &Path) -> Result<(), String> {
     Ok(())
 }
 
+fn dataset_open_configuration(dataset: &str, root: &Path, sequence: &str) -> Value {
+    json!({
+        "dataset": dataset,
+        "dataset_root": root.to_string_lossy(),
+        "sequence": sequence,
+        "pipeline": {
+            "semantic": {"mode": "ground_truth"},
+            "ground": {
+                "enabled": true,
+                "parameter_overrides": {"min_range": 0.0, "max_range": 100.0}
+            },
+            "terrain": {"enabled": true},
+            "temporal": {"enabled": false}
+        }
+    })
+}
+
+fn select_openable_sequence(
+    catalog: &Value,
+    requested_sequence: Option<&str>,
+) -> Result<String, String> {
+    if catalog.get("status").and_then(Value::as_str) == Some("invalid") {
+        let diagnostic = catalog
+            .get("diagnostics")
+            .and_then(Value::as_array)
+            .and_then(|values| values.first())
+            .and_then(Value::as_str)
+            .unwrap_or("dataset adapter rejected the selected root");
+        return Err(format!("dataset is invalid: {diagnostic}"));
+    }
+    let sequences = catalog
+        .get("sequences")
+        .and_then(Value::as_array)
+        .ok_or_else(|| "dataset catalog has no sequences".to_owned())?;
+    let matches_requested = |entry: &&Value| match requested_sequence {
+        None => true,
+        Some(requested) => entry.get("id").and_then(Value::as_str) == Some(requested),
+    };
+    sequences
+        .iter()
+        .filter(matches_requested)
+        .find_map(|entry| {
+            let id = entry.get("id").and_then(Value::as_str)?;
+            let frames = entry.get("frames").and_then(Value::as_u64)?;
+            (frames > 0).then(|| id.to_owned())
+        })
+        .ok_or_else(|| match requested_sequence {
+            Some(sequence) => format!("sequence {sequence} is unavailable or has no frames"),
+            None => "dataset has no openable sequence".to_owned(),
+        })
+}
+
 fn supervisor_error(error: SupervisorError) -> String {
     error.to_string()
 }
@@ -251,5 +333,46 @@ mod tests {
         let controller = RuntimeController::new(&root);
         assert_eq!(controller.mapper, mapper);
         std::fs::remove_dir_all(root).unwrap();
+    }
+
+    #[test]
+    fn dataset_open_configuration_uses_explicit_production_defaults() {
+        let config = super::dataset_open_configuration(
+            "semanticposs",
+            std::path::Path::new("/data/semanticposs"),
+            "00",
+        );
+
+        assert_eq!(config["dataset"], "semanticposs");
+        assert_eq!(config["dataset_root"], "/data/semanticposs");
+        assert_eq!(config["sequence"], "00");
+        assert_eq!(config["pipeline"]["semantic"]["mode"], "ground_truth");
+        assert_eq!(config["pipeline"]["ground"]["enabled"], true);
+        assert_eq!(config["pipeline"]["terrain"]["enabled"], true);
+        assert_eq!(config["pipeline"]["temporal"]["enabled"], false);
+    }
+
+    #[test]
+    fn selects_only_nonempty_dataset_sequences_without_accepting_invalid_catalogs() {
+        let catalog = json!({
+            "status": "partial",
+            "sequences": [
+                {"id": "00", "frames": 0},
+                {"id": "01", "frames": 4}
+            ]
+        });
+        assert_eq!(
+            super::select_openable_sequence(&catalog, None),
+            Ok("01".to_owned())
+        );
+        assert_eq!(
+            super::select_openable_sequence(&catalog, Some("00")).unwrap_err(),
+            "sequence 00 is unavailable or has no frames"
+        );
+        assert!(
+            super::select_openable_sequence(&json!({"status": "invalid"}), None)
+                .unwrap_err()
+                .starts_with("dataset is invalid:")
+        );
     }
 }

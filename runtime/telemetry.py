@@ -5,6 +5,8 @@ import os
 import time
 from collections import deque
 
+import numpy as np
+
 
 def summary(values):
     values = sorted(values)
@@ -54,7 +56,7 @@ class Telemetry:
         self.latencies.append(elapsed_ms)
         self.completed.append(time.monotonic())
 
-    def report(self, state, frame, visual_ms, pid):
+    def report(self, state, frame, visual_ms, pid, semantic_config=None):
         metrics = frame.get("map", {}).get("metrics", {})
         snapshot = frame.get("map", {}).get("snapshot", {})
         timings = frame.get("perception_timings_ms", {})
@@ -64,6 +66,43 @@ class Telemetry:
         topology = metrics.get("topology", {})
         topology_frames = topology.get("per_frame", {})
         now = time.monotonic()
+        semantic_config = semantic_config or {}
+
+        def counts(values):
+            if values is None:
+                return None
+            array = np.asarray(values)
+            if array.size == 0:
+                return {}
+            unique, amounts = np.unique(array, return_counts=True)
+            return {str(value): int(amount) for value, amount in zip(unique, amounts)}
+
+        def finite_mean(values):
+            if values is None:
+                return None
+            array = np.asarray(values, dtype=float)
+            finite = array[np.isfinite(array)]
+            return float(finite.mean()) if finite.size else None
+
+        ground = frame.get("ground")
+        semantic = frame.get("semantic_labels")
+        point_count = int(
+            frame.get("n_points") or (len(semantic) if semantic is not None else 0)
+        )
+        ground_count = (
+            int(np.count_nonzero(np.asarray(ground))) if ground is not None else None
+        )
+        semantic_counts = counts(semantic)
+        provider = (
+            semantic_config.get("provider")
+            or semantic_config.get("backend")
+            or semantic_config.get("mode")
+        )
+        model = semantic_config.get("model") or semantic_config.get("checkpoint")
+        execution_provider = semantic_config.get("execution_provider")
+        if provider == "ground_truth":
+            provider = "Ground Truth"
+        semantic_status = pipeline_status.get("semantic", "unavailable")
 
         def cpu_percent(process_id):
             current = cpu_seconds(process_id)
@@ -148,6 +187,33 @@ class Telemetry:
                     for name in ("semantic", "ground", "terrain", "temporal")
                 },
                 "provenance": frame.get("pose", {}).get("provenance", {}),
-                "backend": pipeline_status.get("semantic", "unavailable"),
+                "backend": semantic_status,
+                "provider": provider,
+                "model": model,
+                "execution_provider": execution_provider,
+                "points": point_count,
+                "ground_ratio": (
+                    ground_count / point_count
+                    if ground_count is not None and point_count
+                    else None
+                ),
+                "semantic_confidence_mean": finite_mean(
+                    frame.get("semantic_confidence")
+                ),
+                "unknown_ratio": (
+                    semantic_counts.get("0", 0) / point_count
+                    if semantic_counts is not None and point_count
+                    else None
+                ),
+                "drivable_counts": counts(frame.get("drivable")),
+                "semantic_class_counts": semantic_counts,
+                "motion_point_counts": counts(frame.get("motion_state")),
+                "track_counts": None,
+            },
+            "health": {
+                "runtime": state.get("state", "unavailable"),
+                "perception": semantic_status,
+                "mapper": "available" if snapshot else "unavailable",
+                "telemetry": "fresh",
             },
         }

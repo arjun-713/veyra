@@ -6,13 +6,13 @@ sharing the same observation mapping and C++ engine implementation.
 ```text
 dataset adapter -> perception pipeline -> binary ObservationFrame
   -> C++ adaptive map + resource governor -> bounded telemetry + typed visuals
-  -> Electron main/preload -> Svelte renderer
+  -> Tauri commands/events -> Svelte renderer
 ```
 
 `python -m runtime` owns replay state, the bounded command queue, perception,
 map child supervision, telemetry windows and benchmark jobs. The mapper runs as
-`build/apps/runtime/veyra_runtime --engine`; Electron never performs perception
-or map work. Renderer backpressure replaces an obsolete pending visual frame
+`build/apps/runtime/veyra_runtime --engine`; the desktop shell never performs
+perception or map work. Renderer backpressure replaces an obsolete pending visual frame
 with the newest frame and counts that replacement. Control responses remain
 ordered and bounded.
 
@@ -33,12 +33,12 @@ source .venv/bin/activate
 python -m pip install -r requirements.txt -r requirements-dev.txt
 cd apps/desktop
 npm ci
-VEYRA_PYTHON="$VIRTUAL_ENV/bin/python" npm start
+VEYRA_PYTHON="$VIRTUAL_ENV/bin/python" npm run tauri:dev
 ```
 
 Choose a dataset root in the desktop, select its adapter and sequence, validate
-the configuration, then start or step playback. The mapper executable is set by
-Electron's trusted main process; imported configuration cannot launch another
+the configuration, then start or step playback. The mapper executable is set by the Tauri shell's trusted Rust
+supervisor; imported configuration cannot launch another
 program. Missing semantic models fail startup with an explicit perception
 error rather than fabricated labels.
 
@@ -58,7 +58,7 @@ the current budget and intervention counters.
 
 ## Packaging boundary
 
-Electron Forge creates the OS-specific shell. `scripts/package_backend.py`
+Tauri creates the OS-specific shell (see `docs/tauri.md`). `scripts/package_backend.py`
 creates the versioned `backend/` contract documented in
 `apps/desktop/README.md` from a native C++ runtime and a prepared, relocatable
 Python environment. Datasets and model weights stay external and are never

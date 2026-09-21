@@ -1,8 +1,10 @@
+import importlib.util
+import os
 import tempfile
 import unittest
-import importlib.util
 from dataclasses import replace
 from pathlib import Path
+from unittest import mock
 
 import numpy as np
 
@@ -11,7 +13,7 @@ from datasets.rellis import Rellis3DDataset
 from datasets.semanticposs import SemanticPOSSDataset
 from perception.ground import GroundEvidence, PatchworkPPUnavailableError
 from perception.pipeline import PerceptionPipeline, load_perception_pipeline
-from perception.semantic import SemanticResult
+from perception.semantic import GroundTruthSemanticProvider, SemanticResult
 from perception.temporal import MotionEvidence
 from perception.terrain import TerrainEvidence
 
@@ -24,6 +26,29 @@ class _SemanticProvider:
             semantic_confidence=np.array([0.9, 0.8, 0.8], dtype=np.float32),
             mode="ground_truth",
         )
+
+
+class _DatasetAwareSemanticProvider:
+    supported_datasets = frozenset({"semanticposs"})
+
+    def __init__(self):
+        self.inference_calls = 0
+
+    def infer(self, points, labels=None):
+        self.inference_calls += 1
+        del points, labels
+        return SemanticResult(
+            semantic_class=np.array([4, 7, 7], dtype=np.int32),
+            semantic_confidence=np.array([0.9, 0.8, 0.8], dtype=np.float32),
+            mode="model",
+        )
+
+
+class _IncompatibleSemanticProvider:
+    supported_datasets = frozenset({"semantickitti"})
+
+    def infer(self, points, labels=None):
+        raise AssertionError("incompatible provider must not be called")
 
 
 class _GroundSegmenter:
@@ -78,6 +103,7 @@ def _frame(timestamp=2.0):
         height_complexity=np.full(3, np.nan, dtype=np.float32),
         motion_probability=np.zeros(3, dtype=np.float32),
         velocity_xy=np.zeros((3, 2), dtype=np.float32),
+        instance_id=np.array([7, 8, 9], dtype=np.int32),
         dataset="synthetic-test",
         sequence="00",
         frame_id="000000",
@@ -85,6 +111,25 @@ def _frame(timestamp=2.0):
 
 
 class PerceptionPipelineTests(unittest.TestCase):
+    def test_incompatible_provider_is_rejected_before_inference(self):
+        with self.assertRaisesRegex(
+            ValueError,
+            "semantic provider .* supports only semantickitti, not semanticposs",
+        ):
+            PerceptionPipeline(
+                semantic_provider=_IncompatibleSemanticProvider()
+            ).process(replace(_frame(), dataset="semanticposs"))
+
+    def test_dataset_compatible_labelled_provider_is_allowed(self):
+        provider = _DatasetAwareSemanticProvider()
+
+        output = PerceptionPipeline(semantic_provider=provider).process(
+            replace(_frame(), dataset="semanticposs")
+        )
+
+        self.assertEqual(provider.inference_calls, 1)
+        self.assertEqual(output.status.semantic, "model")
+
     def test_config_requires_explicit_semantic_mode(self):
         with self.assertRaisesRegex(Exception, "semantic.mode"):
             PerceptionPipeline.from_config({"semantic": {}, "ground": {}})
@@ -130,6 +175,7 @@ class PerceptionPipelineTests(unittest.TestCase):
         np.testing.assert_array_equal(result.frame.semantic_class, [0, 0, 1])
         np.testing.assert_array_equal(result.frame.ground, [True, True, False])
         np.testing.assert_array_equal(result.frame.points, points)
+        np.testing.assert_array_equal(result.frame.instance_id, [7, 8, 9])
 
     def test_strict_required_ground_failure_raises(self):
         class BrokenGround:
@@ -309,6 +355,150 @@ class PerceptionPipelineTests(unittest.TestCase):
 
         self.assertEqual(output.status.temporal, "unavailable")
         np.testing.assert_array_equal(output.frame.motion_probability, np.zeros(3))
+
+
+class CenetModeTests(unittest.TestCase):
+    """`mode: cenet` wiring: neural selection plus failure-safe fallback.
+
+    All cases are hermetic: no real checkpoint, no torch import, no real
+    inference. The neural-selection case patches the provider constructor
+    with a NumPy-only fake.
+    """
+
+    @staticmethod
+    def _config(semantic):
+        return {
+            "semantic": semantic,
+            "ground": {"enabled": False},
+            "terrain": {"enabled": False},
+            "temporal": {"enabled": False},
+        }
+
+    def test_cenet_mode_falls_back_to_ground_truth_when_weights_absent(self):
+        with mock.patch.dict(os.environ):
+            os.environ.pop("VEYRA_CENET_CHECKPOINT", None)
+            pipeline = PerceptionPipeline.from_config(
+                self._config(
+                    {"mode": "cenet", "checkpoint": "/nonexistent/cenet-weights.bin"}
+                )
+            )
+
+        self.assertIsInstance(pipeline.semantic_provider, GroundTruthSemanticProvider)
+        self.assertEqual(pipeline.semantic_requested_mode, "cenet")
+        self.assertIsNotNone(pipeline.semantic_fallback_reason)
+        self.assertIn(
+            "/nonexistent/cenet-weights.bin", pipeline.semantic_fallback_reason
+        )
+
+        output = pipeline.process(_frame())
+
+        # Provenance stays explicit: fallback output is reported as ground
+        # truth, never relabelled as neural output.
+        self.assertEqual(output.status.semantic, "ground_truth")
+        self.assertTrue(
+            any(
+                "cenet" in diagnostic and "ground_truth" in diagnostic
+                for diagnostic in output.status.diagnostics
+            )
+        )
+
+    def test_cenet_env_override_wins_over_config_checkpoint(self):
+        with mock.patch.dict(
+            os.environ, {"VEYRA_CENET_CHECKPOINT": "/nonexistent/env-override.bin"}
+        ):
+            pipeline = PerceptionPipeline.from_config(
+                self._config({"mode": "cenet", "checkpoint": "/nonexistent/config.bin"})
+            )
+
+        self.assertIsInstance(pipeline.semantic_provider, GroundTruthSemanticProvider)
+        reason = pipeline.semantic_fallback_reason or ""
+        self.assertIn("/nonexistent/env-override.bin", reason)
+        self.assertNotIn("/nonexistent/config.bin", reason)
+
+    def test_cenet_mode_selects_neural_provider_without_real_inference(self):
+        class FakeCENet:
+            supported_datasets = frozenset({"semanticposs"})
+
+            def __init__(self, checkpoint_path, *, threads=4):
+                self.checkpoint_path = Path(checkpoint_path)
+                self.threads = threads
+
+            def infer(self, points, labels=None):
+                del labels
+                count = np.asarray(points).shape[0]
+                return SemanticResult(
+                    np.zeros(count, dtype=np.int32),
+                    np.zeros(count, dtype=np.float32),
+                    "model",
+                )
+
+        with tempfile.TemporaryDirectory() as directory:
+            mock_checkpoint = str(Path(directory) / "mock-weights.bin")
+            Path(mock_checkpoint).write_bytes(b"mock-cenet-weights")
+            with (
+                mock.patch.dict(
+                    os.environ, {"VEYRA_CENET_CHECKPOINT": mock_checkpoint}
+                ),
+                mock.patch(
+                    "perception.semantic.cenet.CENetSemanticProvider", FakeCENet
+                ),
+            ):
+                pipeline = PerceptionPipeline.from_config(
+                    self._config(
+                        {
+                            "mode": "cenet",
+                            "checkpoint": "/mock/config.bin",
+                            "threads": 2,
+                        }
+                    )
+                )
+
+        self.assertIsInstance(pipeline.semantic_provider, FakeCENet)
+        self.assertIsNone(pipeline.semantic_fallback_reason)
+        self.assertEqual(pipeline.semantic_requested_mode, "cenet")
+        # The env override reaches the provider constructor, not the config.
+        self.assertEqual(
+            pipeline.semantic_provider.checkpoint_path,
+            Path(mock_checkpoint),
+        )
+        self.assertEqual(pipeline.semantic_provider.threads, 2)
+
+        output = pipeline.process(replace(_frame(), dataset="semanticposs"))
+
+        self.assertEqual(output.status.semantic, "model")
+        self.assertFalse(
+            any("fallback" in diagnostic for diagnostic in output.status.diagnostics)
+        )
+
+    def test_cenet_mode_rejects_invalid_threads(self):
+        with self.assertRaisesRegex(Exception, "threads"):
+            PerceptionPipeline.from_config(
+                self._config(
+                    {"mode": "cenet", "checkpoint": "/mock/x.bin", "threads": 0}
+                )
+            )
+
+    def test_cenet_build_pipeline_keeps_blank_checkpoint_unresolved(self):
+        from viewer.runtime import build_pipeline
+
+        for blank in ("", "   "):
+            with mock.patch.dict(os.environ):
+                os.environ.pop("VEYRA_CENET_CHECKPOINT", None)
+                pipeline = build_pipeline(
+                    {
+                        "semantic": {"mode": "cenet", "checkpoint": blank},
+                        "ground": {"enabled": False},
+                        "terrain": {"enabled": False},
+                        "temporal": {"enabled": False},
+                    },
+                    repo_root="/tmp/RT2",
+                )
+            self.assertIsInstance(
+                pipeline.semantic_provider, GroundTruthSemanticProvider
+            )
+            self.assertIn(
+                "no checkpoint configured", pipeline.semantic_fallback_reason or ""
+            )
 
 
 if __name__ == "__main__":

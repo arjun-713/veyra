@@ -1,0 +1,10 @@
+6e3cece (HEAD -> demo-readiness) feat(control): shared open_dataset operation across daemon, CLI and MCP
+eb491a5 fix(desktop): prevent Tauri dev renderer port collisions
+ac1869e fix(runtime): enable ground and terrain in default sessions
+4e0ff74 fix(control): bound idle local client connections
+d198bab fix(mcp): stop runtime without closing control daemon
+357a445 feat(cli): expose shared benchmark command
+358fe5e feat(tauri): relay runtime events to desktop
+b1dd125 docs(datasets): pin verified RELLIS metadata archive
+c4f7652 fix(control): keep daemon alive when stopping runtime
+63a2332 fix(tauri): resolve staged backend resource root

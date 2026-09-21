@@ -24,7 +24,7 @@ logical versus allocated-map memory availability, current/peak process RSS,
 per-level cells, topology churn, and stream late/drop accounting.
 
 Pass
-`--policies ablation_distance,ablation_geometry,ablation_semantics,ablation_motion,utility_lod`
+`--policies ablation_distance,ablation_geometry,ablation_semantics,ablation_motion,ablation_traversability,utility_lod`
 to run the complete UtilityLOD signal experiment. Its structured result,
 delta directions, CSV behavior, and compatibility rules are defined in
 [`docs/benchmark-contract.md`](../docs/benchmark-contract.md). Scheduled CI

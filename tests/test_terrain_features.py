@@ -199,6 +199,121 @@ class TerrainAnalyzerTests(unittest.TestCase):
         self.assertEqual(evidence.drivable[1], "non_drivable")
         self.assertGreater(float(evidence.step[1]), 0.2)
 
+    def test_slope_matches_analytic_grade_on_gentle_plane(self):
+        axis = (np.arange(25, dtype=np.float64) - 12) * 0.3
+        xx, yy = np.meshgrid(axis, axis, indexing="xy")
+        points = np.column_stack((xx.ravel(), yy.ravel(), (0.1 * xx).ravel()))
+
+        evidence = TerrainAnalyzer().analyze(
+            points, GroundEvidence(np.ones(len(points)), np.ones(len(points)))
+        )
+
+        # A 10% grade is well inside the default 0.45 rad slope budget.
+        self.assertAlmostEqual(
+            float(np.nanmedian(evidence.slope)), np.arctan(0.1), delta=0.005
+        )
+        self.assertLess(float(np.nanmax(evidence.roughness)), 1e-6)
+        self.assertTrue(np.all(evidence.drivable == "drivable"))
+
+    def test_roughness_channel_marks_washboard_ground_non_drivable(self):
+        axis = (np.arange(25, dtype=np.float64) - 12) * 0.3
+        xx, yy = np.meshgrid(axis, axis, indexing="xy")
+        zz = 0.15 * np.sin(2.0 * np.pi * xx) * np.sin(2.0 * np.pi * yy)
+        points = np.column_stack((xx.ravel(), yy.ravel(), zz.ravel()))
+
+        evidence = TerrainAnalyzer().analyze(
+            points, GroundEvidence(np.ones(len(points)), np.ones(len(points)))
+        )
+
+        # Plane-fit residual must see the 0.15 m washboard while the fitted
+        # grade stays near zero, so the veto comes from surface texture.
+        self.assertGreater(float(np.nanmedian(evidence.roughness)), 0.05)
+        self.assertLess(float(np.nanmedian(evidence.roughness)), 0.12)
+        self.assertLess(float(np.nanmedian(evidence.slope)), 0.05)
+        self.assertGreater(float(np.nanmedian(evidence.height_complexity)), 0.05)
+        self.assertTrue(np.all(evidence.drivable == "non_drivable"))
+
+    def test_step_magnitude_is_recovered_on_curb_discontinuity(self):
+        axis = (np.arange(25, dtype=np.float64) - 12) * 0.3
+        xx, yy = np.meshgrid(axis, axis, indexing="xy")
+        zz = np.where(xx >= 0.0, 0.3, 0.0)
+        points = np.column_stack((xx.ravel(), yy.ravel(), zz.ravel()))
+
+        evidence = TerrainAnalyzer().analyze(
+            points, GroundEvidence(np.ones(len(points)), np.ones(len(points)))
+        )
+
+        self.assertGreater(float(np.nanmax(evidence.step)), 0.29)
+        self.assertLessEqual(float(np.nanmax(evidence.step)), 0.31)
+        self.assertGreater(
+            float(np.count_nonzero(evidence.drivable == "non_drivable")) / len(points),
+            0.2,
+        )
+
+    def test_elevated_flat_plane_has_negligible_height_spread(self):
+        # Regression: height spread must be elevation-invariant.  A flat
+        # plane at z=5 m is exactly as drivable as one at z=0 m.
+        axis = (np.arange(25, dtype=np.float64) - 12) * 0.3
+        xx, yy = np.meshgrid(axis, axis, indexing="xy")
+        points = np.column_stack((xx.ravel(), yy.ravel(), np.full(xx.size, 5.0)))
+
+        evidence = TerrainAnalyzer().analyze(
+            points, GroundEvidence(np.ones(len(points)), np.ones(len(points)))
+        )
+
+        self.assertLess(float(np.nanmax(evidence.height_complexity)), 1e-6)
+        self.assertLess(float(np.nanmax(evidence.slope)), 1e-6)
+        self.assertTrue(np.all(evidence.drivable == "drivable"))
+
+    def test_step_ignores_empty_cells_at_support_edge(self):
+        # A flat patch surrounded by empty space has no neighbor heights to
+        # compare against; the zero fill of empty cells must not fabricate a
+        # phantom step that vetoes genuinely flat ground.
+        axis = (np.arange(9, dtype=np.float64) - 4) * 0.5
+        xx, yy = np.meshgrid(axis, axis, indexing="xy")
+        points = np.column_stack((xx.ravel(), yy.ravel(), np.zeros(xx.size)))
+
+        evidence = TerrainAnalyzer().analyze(
+            points, GroundEvidence(np.ones(len(points)), np.ones(len(points)))
+        )
+
+        self.assertEqual(float(np.nanmax(evidence.step)), 0.0)
+        self.assertTrue(np.all(evidence.drivable == "drivable"))
+
+    def test_sparse_ground_patch_stays_unknown(self):
+        points = grid(size=2, spacing=2.0)
+
+        evidence = TerrainAnalyzer(min_ground_neighbors=6).analyze(
+            points, GroundEvidence(np.ones(len(points)), np.ones(len(points)))
+        )
+
+        # Four isolated returns cannot form a supported neighborhood.
+        self.assertTrue(np.all(evidence.drivable == "unknown"))
+        self.assertTrue(np.all(evidence.confidence == 0.0))
+
+    def test_non_ground_slab_is_never_counted_as_drivable(self):
+        ground_points = grid(size=9, spacing=0.5)
+        slab = grid(size=5, spacing=0.2).copy()
+        slab[:, 2] += 2.0
+        points = np.vstack((ground_points, slab)).astype(np.float64)
+        mask = np.ones(len(points), dtype=bool)
+        mask[len(ground_points) :] = False
+
+        evidence = TerrainAnalyzer().analyze(
+            points, GroundEvidence(mask, np.ones(len(points)))
+        )
+
+        slab_labels = evidence.drivable[len(ground_points) :]
+        self.assertTrue(np.all(slab_labels == "unknown"))
+        self.assertTrue(np.all(evidence.drivable[~mask] != "drivable"))
+        self.assertGreater(
+            float(
+                np.count_nonzero(evidence.drivable[: len(ground_points)] == "drivable")
+            )
+            / len(ground_points),
+            0.5,
+        )
+
     def test_realistic_scan_size_completes_with_aligned_outputs(self):
         rng = np.random.default_rng(20250915)
         points = np.column_stack(

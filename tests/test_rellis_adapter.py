@@ -91,7 +91,7 @@ class Rellis3DAdapterTests(unittest.TestCase):
         np.testing.assert_array_equal(mapped, [0, 15, 15, 6, 14, 15, 0, 0, 17])
 
     def test_reports_absent_metadata_without_claiming_world_coordinates(self):
-        root = Path("data/raw/rellis3d/Rellis-3D")
+        root = Path(__file__).parents[3] / "data/raw/rellis3d/Rellis-3D"
         if not root.is_dir():
             self.skipTest("original local RELLIS-3D data is unavailable")
 
@@ -102,7 +102,7 @@ class Rellis3DAdapterTests(unittest.TestCase):
         self.assertEqual(frame.provenance.pose_source, "identity_absent")
 
     def test_original_local_frame_maps_real_labels(self):
-        root = Path(__file__).parents[1] / "data/raw/rellis3d/Rellis-3D"
+        root = Path(__file__).parents[3] / "data/raw/rellis3d/Rellis-3D"
         if not root.is_dir():
             self.skipTest("original local RELLIS-3D data is unavailable")
         adapter = Rellis3DDataset(root, sequences=["00000"])
@@ -128,6 +128,31 @@ class Rellis3DAdapterTests(unittest.TestCase):
             np.testing.assert_array_equal(frame.semantic_class, [1, 2])
             np.testing.assert_array_equal(frame.raw_semantic_class, [10, 20])
 
+    def test_rejects_incomplete_scan_records_nonfinite_points_and_label_mismatch(self):
+        with tempfile.TemporaryDirectory() as raw:
+            root = Path(raw)
+            write_frame(root, "00000", "0", [1.0, 2.0])
+            scan = root / "00000" / "vel_cloud_node_kitti_bin" / "0.bin"
+            labels = (
+                root / "00000" / "vel_cloud_node_semantickitti_label_id" / "0.label"
+            )
+            scan.write_bytes(b"123")
+            labels.write_bytes(b"")
+            with self.assertRaisesRegex(ValueError, "complete XYZ/intensity"):
+                Rellis3DDataset(root).load_frame("00000", "0")
+
+            np.array([[np.nan, 0.0, 0.0, 0.5]], dtype=np.float32).tofile(scan)
+            np.array([10], dtype=np.uint32).tofile(labels)
+            with self.assertRaisesRegex(ValueError, "non-finite"):
+                Rellis3DDataset(root).load_frame("00000", "0")
+
+            np.array(
+                [[1.0, 0.0, 0.0, 0.5], [2.0, 0.0, 0.0, 0.5]], dtype=np.float32
+            ).tofile(scan)
+            np.array([10], dtype=np.uint32).tofile(labels)
+            with self.assertRaisesRegex(ValueError, "length mismatch"):
+                Rellis3DDataset(root).load_frame("00000", "0")
+
     def test_unknown_mapped_label_has_zero_semantic_confidence(self):
         with tempfile.TemporaryDirectory() as raw:
             root = Path(raw)
@@ -150,7 +175,7 @@ class Rellis3DAdapterTests(unittest.TestCase):
             sequence_metadata = metadata_root / "00000"
             sequence_metadata.mkdir()
             (sequence_metadata / "poses.txt").write_text(
-                "1 0 0 0 0 1 0 0 0 0 1 0\n" "1 0 0 1 0 1 0 0 0 0 1 0\n"
+                "1 0 0 0 0 1 0 0 0 0 1 0\n1 0 0 1 0 1 0 0 0 0 1 0\n"
             )
             (sequence_metadata / "calib.txt").write_text(
                 "P0: 1 0 0 0 0 1 0 0 0 0 1 0\n"
@@ -208,13 +233,56 @@ class Rellis3DAdapterTests(unittest.TestCase):
                 np.testing.assert_array_equal(left.semantic_class, right.semantic_class)
 
     def test_actual_local_data_smoke_is_skipped_when_unavailable(self):
-        root = Path("data/raw/rellis3d/Rellis-3D")
+        root = Path(__file__).parents[3] / "data/raw/rellis3d/Rellis-3D"
         if not root.is_dir():
             self.skipTest("original local RELLIS-3D data is not available")
         adapter = Rellis3DDataset(root, sequences=["00000"])
         sequences = adapter.list_sequences()
         self.assertIn("00000", sequences)
         self.assertTrue(adapter.list_frames("00000"))
+
+    def test_malformed_paths_report_useful_reason(self):
+        with tempfile.TemporaryDirectory() as raw:
+            root = Path(raw)
+            missing = root / "does-not-exist"
+            with self.assertRaisesRegex(FileNotFoundError, "root does not exist"):
+                Rellis3DDataset(missing)
+
+            (root / "00000").mkdir()
+            with self.assertRaisesRegex(FileNotFoundError, "scan directory"):
+                Rellis3DDataset(root).list_frames("00000")
+
+            write_frame(root, "00000", "0", [1.0])
+            with self.assertRaisesRegex(FileNotFoundError, "does not exist"):
+                Rellis3DDataset(root).load_frame("00000", "no-such-frame")
+
+            (
+                root / "00000" / "vel_cloud_node_semantickitti_label_id" / "0.label"
+            ).unlink()
+            with self.assertRaisesRegex(FileNotFoundError, "label file is missing"):
+                Rellis3DDataset(root, require_labels=True).load_frame("00000", "0")
+
+    def test_discovery_rejects_unmatched_label_files_before_replay(self):
+        with tempfile.TemporaryDirectory() as raw:
+            root = Path(raw)
+            write_frame(root, "00000", "0", [1.0])
+            labels = root / "00000" / "vel_cloud_node_semantickitti_label_id"
+            np.array([10], dtype=np.uint32).tofile(labels / "000001.label")
+
+            with self.assertRaisesRegex(ValueError, "label has no matching scan"):
+                Rellis3DDataset(root).list_frames("00000")
+
+    def test_rejects_label_files_with_trailing_bytes(self):
+        with tempfile.TemporaryDirectory() as raw:
+            root = Path(raw)
+            write_frame(root, "00000", "0", [1.0])
+            labels = (
+                root / "00000" / "vel_cloud_node_semantickitti_label_id" / "0.label"
+            )
+            labels.write_bytes(labels.read_bytes() + b"x")
+
+            with self.assertRaisesRegex(ValueError, "complete uint32 label records"):
+                Rellis3DDataset(root).load_frame("00000", "0")
 
 
 if __name__ == "__main__":

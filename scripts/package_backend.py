@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Create and verify the allowlisted backend directory consumed by Electron Forge."""
+"""Create and verify the allowlisted backend directory consumed by Tauri."""
 
 from __future__ import annotations
 
@@ -87,6 +87,19 @@ def _digest(path: Path) -> str:
 
 def _python_relative(platform: str) -> Path:
     return Path("python.exe") if platform == "win32" else Path("bin/python3")
+
+
+def _product_version(repo: Path) -> str:
+    """Read the single product version used by the Tauri application."""
+
+    config = repo / "src-tauri" / "tauri.conf.json"
+    try:
+        value = json.loads(config.read_text(encoding="utf-8")).get("version")
+    except (OSError, json.JSONDecodeError):
+        value = None
+    if not isinstance(value, str) or not value.strip():
+        raise ValueError(f"Tauri product version is missing from {config}")
+    return value.strip()
 
 
 def _source_python(root: Path, platform: str) -> Path:
@@ -194,8 +207,8 @@ def stage_backend(
     platform: str,
     arch: str,
 ) -> Path:
-    repo, mapper, python_runtime, output = map(
-        lambda value: Path(value).resolve(), (repo, mapper, python_runtime, output)
+    repo, mapper, python_runtime, output = (
+        Path(value).resolve() for value in (repo, mapper, python_runtime, output)
     )
     if platform not in {"linux", "darwin", "win32"}:
         raise ValueError("unsupported release platform")
@@ -230,6 +243,8 @@ def stage_backend(
     }
     manifest = {
         "schema_version": 1,
+        "product": "veyra",
+        "version": _product_version(repo),
         "platform": platform,
         "arch": arch,
         "files": files,
@@ -244,8 +259,12 @@ def stage_backend(
 def verify_backend(root: Path, platform: str | None = None) -> dict:
     root = Path(root).resolve(strict=True)
     manifest = json.loads((root / "manifest.json").read_text(encoding="utf-8"))
-    if manifest.get("schema_version") != 1 or not isinstance(
-        manifest.get("files"), dict
+    if (
+        manifest.get("schema_version") != 1
+        or manifest.get("product") != "veyra"
+        or not isinstance(manifest.get("version"), str)
+        or not manifest["version"].strip()
+        or not isinstance(manifest.get("files"), dict)
     ):
         raise ValueError("unsupported backend manifest")
     if platform is not None and manifest.get("platform") != platform:

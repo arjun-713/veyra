@@ -144,6 +144,14 @@ class GenericManifestAdapterTests(unittest.TestCase):
         _manifest(self.root, [self.frame(point="nan.bin", labels=None)])
         with self.assertRaises(ValueError):
             ManifestDataset(self.root).load_frame("s", "000001")
+
+        np.array([10], dtype=np.uint32).tofile(self.root / "short.label")
+        _manifest(
+            self.root,
+            [self.frame(point="points/a.bin", labels="short.label")],
+        )
+        with self.assertRaisesRegex(ValueError, "one non-negative integer"):
+            ManifestDataset(self.root).load_frame("s", "000001")
         (self.root / "odd.bin").write_bytes(b"123")
         _manifest(self.root, [self.frame(point="odd.bin", labels=None)])
         with self.assertRaises(ValueError):

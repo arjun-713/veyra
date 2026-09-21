@@ -1,0 +1,218 @@
+{
+  "checks": {
+    "deterministic_ordering": true,
+    "deterministic_replay": true,
+    "finite_points_and_intensity": true,
+    "point_label_alignment": true,
+    "taxonomy_and_instance_mapping": true
+  },
+  "dataset": "rellis3d",
+  "intensity": {
+    "constraint": "finite byte-scale reflectance [0, 255]",
+    "observed_max": 236.0,
+    "observed_min": 0.0
+  },
+  "metadata": {
+    "calibration": {
+      "observed_sources": [
+        "identity_absent"
+      ],
+      "status": "unavailable"
+    },
+    "labels": {
+      "observed_sources": [
+        "dataset"
+      ],
+      "status": "available"
+    },
+    "pose": {
+      "observed_sources": [
+        "identity_absent"
+      ],
+      "status": "unavailable"
+    },
+    "timestamp": {
+      "observed_sources": [
+        "absent"
+      ],
+      "status": "unavailable"
+    }
+  },
+  "representative_frame_count": 10,
+  "representative_frames": [
+    {
+      "frame_id": "000000",
+      "intensity_max": 235.0,
+      "intensity_min": 0.0,
+      "labels": 36383,
+      "nonzero_instance_ids": 0,
+      "points": 36383,
+      "provenance": {
+        "calibration_source": "identity_absent",
+        "coordinate_frame": "lidar",
+        "label_source": "dataset",
+        "pose_source": "identity_absent",
+        "timestamp_source": "absent"
+      },
+      "raw_taxonomy_ids": 9,
+      "sequence": "00000"
+    },
+    {
+      "frame_id": "002841",
+      "intensity_max": 236.0,
+      "intensity_min": 0.0,
+      "labels": 39598,
+      "nonzero_instance_ids": 0,
+      "points": 39598,
+      "provenance": {
+        "calibration_source": "identity_absent",
+        "coordinate_frame": "lidar",
+        "label_source": "dataset",
+        "pose_source": "identity_absent",
+        "timestamp_source": "absent"
+      },
+      "raw_taxonomy_ids": 4,
+      "sequence": "00000"
+    },
+    {
+      "frame_id": "000000",
+      "intensity_max": 233.0,
+      "intensity_min": 0.0,
+      "labels": 35218,
+      "nonzero_instance_ids": 0,
+      "points": 35218,
+      "provenance": {
+        "calibration_source": "identity_absent",
+        "coordinate_frame": "lidar",
+        "label_source": "dataset",
+        "pose_source": "identity_absent",
+        "timestamp_source": "absent"
+      },
+      "raw_taxonomy_ids": 9,
+      "sequence": "00001"
+    },
+    {
+      "frame_id": "002314",
+      "intensity_max": 235.0,
+      "intensity_min": 0.0,
+      "labels": 35809,
+      "nonzero_instance_ids": 0,
+      "points": 35809,
+      "provenance": {
+        "calibration_source": "identity_absent",
+        "coordinate_frame": "lidar",
+        "label_source": "dataset",
+        "pose_source": "identity_absent",
+        "timestamp_source": "absent"
+      },
+      "raw_taxonomy_ids": 9,
+      "sequence": "00001"
+    },
+    {
+      "frame_id": "000000",
+      "intensity_max": 226.0,
+      "intensity_min": 0.0,
+      "labels": 41622,
+      "nonzero_instance_ids": 0,
+      "points": 41622,
+      "provenance": {
+        "calibration_source": "identity_absent",
+        "coordinate_frame": "lidar",
+        "label_source": "dataset",
+        "pose_source": "identity_absent",
+        "timestamp_source": "absent"
+      },
+      "raw_taxonomy_ids": 7,
+      "sequence": "00002"
+    },
+    {
+      "frame_id": "004138",
+      "intensity_max": 226.0,
+      "intensity_min": 0.0,
+      "labels": 42350,
+      "nonzero_instance_ids": 0,
+      "points": 42350,
+      "provenance": {
+        "calibration_source": "identity_absent",
+        "coordinate_frame": "lidar",
+        "label_source": "dataset",
+        "pose_source": "identity_absent",
+        "timestamp_source": "absent"
+      },
+      "raw_taxonomy_ids": 7,
+      "sequence": "00002"
+    },
+    {
+      "frame_id": "000000",
+      "intensity_max": 236.0,
+      "intensity_min": 0.0,
+      "labels": 36218,
+      "nonzero_instance_ids": 0,
+      "points": 36218,
+      "provenance": {
+        "calibration_source": "identity_absent",
+        "coordinate_frame": "lidar",
+        "label_source": "dataset",
+        "pose_source": "identity_absent",
+        "timestamp_source": "absent"
+      },
+      "raw_taxonomy_ids": 9,
+      "sequence": "00003"
+    },
+    {
+      "frame_id": "002179",
+      "intensity_max": 233.0,
+      "intensity_min": 0.0,
+      "labels": 37145,
+      "nonzero_instance_ids": 0,
+      "points": 37145,
+      "provenance": {
+        "calibration_source": "identity_absent",
+        "coordinate_frame": "lidar",
+        "label_source": "dataset",
+        "pose_source": "identity_absent",
+        "timestamp_source": "absent"
+      },
+      "raw_taxonomy_ids": 8,
+      "sequence": "00003"
+    },
+    {
+      "frame_id": "000000",
+      "intensity_max": 233.0,
+      "intensity_min": 0.0,
+      "labels": 35949,
+      "nonzero_instance_ids": 0,
+      "points": 35949,
+      "provenance": {
+        "calibration_source": "identity_absent",
+        "coordinate_frame": "lidar",
+        "label_source": "dataset",
+        "pose_source": "identity_absent",
+        "timestamp_source": "absent"
+      },
+      "raw_taxonomy_ids": 7,
+      "sequence": "00004"
+    },
+    {
+      "frame_id": "002055",
+      "intensity_max": 235.0,
+      "intensity_min": 0.0,
+      "labels": 37998,
+      "nonzero_instance_ids": 0,
+      "points": 37998,
+      "provenance": {
+        "calibration_source": "identity_absent",
+        "coordinate_frame": "lidar",
+        "label_source": "dataset",
+        "pose_source": "identity_absent",
+        "timestamp_source": "absent"
+      },
+      "raw_taxonomy_ids": 7,
+      "sequence": "00004"
+    }
+  ],
+  "root": "/home/arjun/Captain/SIH/Lidar/data/raw/rellis3d/Rellis-3D",
+  "schema_version": 1,
+  "status": "validated_local",
+  "total_frame_count": 13532
+}

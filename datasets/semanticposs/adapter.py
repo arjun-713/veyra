@@ -126,6 +126,10 @@ class SemanticPOSSDataset:
         if ref.label_path is None and self.require_labels:
             raise FileNotFoundError(f"label file is missing for {sequence}/{frame_id}")
 
+        if ref.scan_path.stat().st_size % (4 * np.dtype(np.float32).itemsize):
+            raise ValueError(
+                f"scan does not contain complete XYZ/intensity records: {ref.scan_path}"
+            )
         raw_points = np.fromfile(ref.scan_path, dtype=np.float32)
         if raw_points.size % 4:
             raise ValueError(
@@ -154,6 +158,7 @@ class SemanticPOSSDataset:
             self.default_label_mapping if label_mapping is None else label_mapping,
         )
         raw_semantic_class = (raw_labels & 0xFFFF).astype(np.int32, copy=False)
+        instance_id = (raw_labels >> 16).astype(np.int32, copy=False)
         confidence = np.where(semantic_class == 0, 0.0, 1.0).astype(np.float32)
 
         # Crop in the sensor frame. A valid world translation must not make a
@@ -162,6 +167,7 @@ class SemanticPOSSDataset:
         world_points = self._transform_points(points[mask], pose.matrix)
         semantic_class = semantic_class[mask]
         raw_semantic_class = raw_semantic_class[mask]
+        instance_id = instance_id[mask]
         confidence = confidence[mask]
         count = world_points.shape[0]
         return ObservationFrame(
@@ -178,6 +184,7 @@ class SemanticPOSSDataset:
             motion_probability=np.zeros(count, dtype=np.float32),
             velocity_xy=np.zeros((count, 2), dtype=np.float32),
             raw_semantic_class=raw_semantic_class,
+            instance_id=instance_id,
             dataset=self.dataset_name,
             sequence=str(sequence),
             frame_id=str(frame_id),
@@ -232,12 +239,14 @@ class SemanticPOSSDataset:
                 self._sequence_root(sequence) / name,
             )
         )
-        frame_index = self._frame_index(sequence, frame_id)
-        if frame_index is None:
-            return None, "absent"
         for path in candidates:
             if path.is_file():
                 values = self._cached_lines(metadata, path)
+                frame_index = self._frame_index(
+                    sequence, frame_id, total_lines=len(values)
+                )
+                if frame_index is None:
+                    return None, "absent"
                 if frame_index >= len(values):
                     raise ValueError(
                         f"timestamp file has no value for {sequence}/{frame_id}"
@@ -305,8 +314,8 @@ class SemanticPOSSDataset:
     ) -> tuple[PoseSE3, bool]:
         if path is None:
             return PoseSE3.identity(timestamp), False
-        frame_index = self._frame_index(sequence, frame_id)
         lines = self._cached_lines(self._metadata(sequence), path)
+        frame_index = self._frame_index(sequence, frame_id, total_lines=len(lines))
         if frame_index >= len(lines):
             raise ValueError(f"pose file has no value for {sequence}/{frame_id}")
         try:
@@ -372,11 +381,46 @@ class SemanticPOSSDataset:
             metadata[key] = cls._nonempty_lines(path)
         return metadata[key]  # type: ignore[return-value]
 
-    def _frame_index(self, sequence: str, frame_id: str) -> int:
-        for index, ref in enumerate(self.list_frames(sequence)):
+    def _frame_index(
+        self, sequence: str, frame_id: str, total_lines: int | None = None
+    ) -> int:
+        """Return the metadata line index for a frame.
+
+        Two file layouts exist in the wild and are disambiguated by size:
+
+        - Per-present files (e.g. SemanticPOSS timestamps written for the
+          frames on disk, ``len(lines) == len(refs)``): the line is the
+          frame's position in sorted :meth:`list_frames` order. A numeric
+          frame id does NOT name its own line here (frames ``"2"`` and
+          ``"10"`` map to lines 0 and 1).
+        - Absolute files (e.g. KITTI ``poses.txt``/``times.txt`` with one
+          line per sequence frame while only a subset of scans is checked
+          out, ``len(lines) > len(refs)``): a numeric frame id names its
+          own line, so frame ``"000400"`` resolves line 400 rather than
+          its checkout position.
+
+        When the layout is unknown (``total_lines is None``) the historical
+        numeric behavior is kept; when the file is short
+        (``total_lines < len(refs)``), refs-position behavior is kept.
+        Non-numeric frame ids always use refs-position.
+        """
+        refs = self.list_frames(sequence)
+        for position, ref in enumerate(refs):
             if ref.frame_id == str(frame_id):
-                return index
-        raise FileNotFoundError(f"frame {sequence}/{frame_id} does not exist")
+                break
+        else:
+            raise FileNotFoundError(f"frame {sequence}/{frame_id} does not exist")
+        try:
+            numeric = int(str(frame_id))
+        except ValueError:
+            return position
+        if numeric < 0:
+            return position
+        if total_lines is None:
+            return numeric
+        if total_lines > len(refs):
+            return numeric
+        return position
 
     @staticmethod
     def _transform_points(points: np.ndarray, matrix: np.ndarray) -> np.ndarray:
