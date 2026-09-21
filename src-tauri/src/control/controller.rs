@@ -109,11 +109,22 @@ impl RuntimeController {
                 .ok_or_else(|| "layer must be a string".to_owned())?;
             if !matches!(
                 layer,
-                "semantic" | "elevation" | "traversability" | "motion" | "lod" | "utility"
+                "semantic"
+                    | "elevation"
+                    | "ground"
+                    | "terrain"
+                    | "traversability"
+                    | "motion"
+                    | "lod"
+                    | "utility"
             ) {
                 return Err(format!("unsupported layer: {layer}"));
             }
             self.layer = layer.to_owned();
+            return Ok(json!({"status": self.status()}));
+        }
+        if command == "stop" {
+            self.stop()?;
             return Ok(json!({"status": self.status()}));
         }
         let response = if command == "restart" {

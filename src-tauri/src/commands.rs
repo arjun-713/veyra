@@ -37,6 +37,13 @@ pub fn runtime_command(
 }
 
 #[tauri::command]
+pub fn runtime_stop(
+    state: tauri::State<'_, Mutex<DesktopControlService>>,
+) -> Result<Value, String> {
+    request(&state, "stop", json!({}))
+}
+
+#[tauri::command]
 pub fn runtime_configure(
     config: Value,
     state: tauri::State<'_, Mutex<DesktopControlService>>,
@@ -86,6 +93,7 @@ pub fn open_dataset(
     if dataset.is_empty() {
         return Err("dataset format is required".to_owned());
     }
+    choose_dataset_allowlist_check(&dataset)?;
     let root = validated_dataset_root(&root)?;
     let mut args = serde_json::Map::new();
     args.insert("dataset".to_owned(), Value::String(dataset));

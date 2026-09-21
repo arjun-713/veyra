@@ -44,6 +44,7 @@ COMMANDS = {
         "warmup_frames",
         "hardware_profile",
     ),
+    "validation": (),
     "presets": (),
     "diagnostics": (),
 }
@@ -239,6 +240,8 @@ class ProductRuntime:
             if layer not in (
                 "semantic",
                 "elevation",
+                "ground",
+                "terrain",
                 "traversability",
                 "motion",
                 "lod",
@@ -251,6 +254,42 @@ class ProductRuntime:
             raise ValueError("configure a dataset before playback")
         if command == "benchmark":
             return self._start_benchmark(args)
+        if command == "validation":
+            if self.session is None or self.config is None:
+                raise ValueError("configure a dataset before validation")
+            target = max(0, self.index)
+            started = time.perf_counter()
+            frame = self.session.frame_payload(
+                target, budget=self.config["visualization"]["point_budget"], binary=True
+            )
+            map_status = frame.get("map", {}).get("status")
+            pipeline = frame.get("pipeline_status", {})
+            semantic = pipeline.get("semantic", "unavailable")
+            ground = pipeline.get("ground", "unavailable")
+            terrain = pipeline.get("terrain", "unavailable")
+            result = {
+                "status": "pass"
+                if map_status == "available" and semantic != "unavailable"
+                else "fail",
+                "dataset": self.config["dataset"],
+                "sequence": self.config["sequence"],
+                "frame": target,
+                "points": frame.get("n_points"),
+                "semantic": semantic,
+                "ground": ground,
+                "terrain": terrain,
+                "map": map_status,
+                "elapsed_ms": (time.perf_counter() - started) * 1000,
+                "diagnostics": frame.get("pipeline_status", {}).get("diagnostics", []),
+            }
+            self.outbox.publish(
+                {"type": "validation", "state": "complete", "result": result}
+            )
+            if result["status"] != "pass":
+                raise RuntimeError(
+                    "session validation failed: " + "; ".join(result["diagnostics"])
+                )
+            return result
         if command == "start":
             if self.state == "error":
                 raise RuntimeError("reset the failed session before restarting")
@@ -343,7 +382,11 @@ class ProductRuntime:
             self.telemetry.record((time.perf_counter() - started) * 1000)
             self._publish_status()
             self.last_telemetry = self.telemetry.report(
-                self.status(), frame, visual_ms, self.session.map_runner.pid
+                self.status(),
+                frame,
+                visual_ms,
+                self.session.map_runner.pid,
+                (self.config or {}).get("pipeline", {}).get("semantic", {}),
             )
             self.outbox.publish(self.last_telemetry)
         except Exception as error:

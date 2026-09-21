@@ -35,7 +35,7 @@ python -m pip install -r requirements.txt -r requirements-dev.txt
 ```
 
 Core needs only C++20/CMake; CUDA optional. The long-running runtime and
-Electron application are documented in `docs/product-runtime.md`; engineering
+Tauri desktop application are documented in `docs/product-runtime.md`; engineering
 rules remain in `docs/development.md`.
 The shared benchmark artifact contract is documented in
 `docs/benchmark-contract.md`.
@@ -75,8 +75,8 @@ reported separately. Details: `docs/datasets-benchmarks.md`.
 ## Status
 
 The repository includes the four map policies, long-running replay runtime,
-resource governor, measured telemetry, binary observation transport and an
-Electron/Svelte operator application. No FPS/accuracy/RAM claim is published
+resource governor, measured telemetry, binary observation transport and a
+Tauri/Svelte operator application. No FPS/accuracy/RAM claim is published
 until a reproducible benchmark on named hardware supports it. Scope excludes
 SLAM, planning, control, camera fusion and LLMs. Pose is external.
 

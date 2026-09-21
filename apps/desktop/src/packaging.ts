@@ -39,7 +39,7 @@ export class RotatingLog {
 
 export async function validatePackagedBackend(layout:ReturnType<typeof resolveRuntimeLayout>,platform:NodeJS.Platform,arch:string){
  const manifest=JSON.parse(await readFile(layout.manifest,'utf8'));
- if(manifest.schema_version!==1||manifest.platform!==platform||manifest.arch!==arch||!manifest.files||typeof manifest.files!=='object')throw new Error('Backend manifest does not match this application');
+ if(manifest.schema_version!==1||manifest.product!=='veyra'||typeof manifest.version!=='string'||!manifest.version||manifest.platform!==platform||manifest.arch!==arch||!manifest.files||typeof manifest.files!=='object')throw new Error('Backend manifest does not match this application');
  await Promise.all([access(layout.python),access(layout.mapper)]);
  return manifest;
 }

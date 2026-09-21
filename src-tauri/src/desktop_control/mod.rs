@@ -82,6 +82,7 @@ pub(crate) fn request_for(command: &str, args: Value) -> DesktopControlRequest {
     let command = match command {
         "status" => "status",
         "command" => "command",
+        "stop" => "stop",
         "configure" => "configure",
         "config_validate" => "config_validate",
         "datasets" => "datasets",

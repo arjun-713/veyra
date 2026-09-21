@@ -35,6 +35,7 @@
    color.setRGB(...cellColor(mode,cellRow));mesh.setColorAt(i,color);
   }
   mesh.count=cellCount;mesh.instanceMatrix.needsUpdate=true;if(mesh.instanceColor)mesh.instanceColor.needsUpdate=true;mesh.computeBoundingSphere();
+  onStats({source_points:meta.points.count,source_cells:meta.cells.count,rendered_points:pointCount,rendered_cells:cellCount,sampling_active:clamped.truncated});
   if(follow&&meta.pose?.length===16){const target=new THREE.Vector3(meta.pose[7],meta.pose[11],-meta.pose[3]);const delta=target.clone().sub(controls.target);camera.position.add(delta);controls.target.copy(target);}
  }
  $effect(()=>{frame;mode;showPoints;showCells;boundaries;follow;ready;update();});
@@ -53,7 +54,7 @@
    const pick=(event:MouseEvent)=>{const rect=host.getBoundingClientRect();const ray=new THREE.Raycaster();ray.setFromCamera(new THREE.Vector2((event.clientX-rect.left)/rect.width*2-1,-(event.clientY-rect.top)/rect.height*2+1),camera);const hit=ray.intersectObject(mesh)[0];if(hit?.instanceId!==undefined){const r=cellData.subarray(hit.instanceId*9,hit.instanceId*9+9);onInspect({x:r[0],y:r[1],elevation:r[2],resolution:r[3],semantic_class:r[4],motion:r[5],quality:r[6],drivable_evidence:r[7],utility:r[8]});}};
    host.addEventListener('dblclick',pick);
    const lost=(event:Event)=>{event.preventDefault();failure='WebGL context lost. Switch workspace and back, or reload the window to restore rendering — mapping continues in the backend.';};
-   const restored=()=>{failure='';};
+   const restored=()=>{failure='';lastGeneration=-1;lastIndex=-1;update();};
    renderer.domElement.addEventListener('webglcontextlost',lost,false);
    renderer.domElement.addEventListener('webglcontextrestored',restored,false);
    ready=true;

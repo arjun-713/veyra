@@ -4,7 +4,7 @@ import {mkdtemp,readFile,stat,writeFile} from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import {fileURLToPath} from 'node:url';
-import {resolveRuntimeLayout,RestartBudget,RotatingLog} from '../src/packaging.ts';
+import {resolveRuntimeLayout,RestartBudget,RotatingLog,validatePackagedBackend} from '../src/packaging.ts';
 
 test('packaged runtime layout uses only the staged backend contract',()=>{
  const layout=resolveRuntimeLayout({resourcesPath:'/opt/Veyra/resources',isPackaged:true,platform:'linux'});
@@ -12,6 +12,14 @@ test('packaged runtime layout uses only the staged backend contract',()=>{
  assert.equal(layout.python,path.join('/opt/Veyra/resources','backend','python','bin','python3'));
  assert.equal(layout.mapper,path.join('/opt/Veyra/resources','backend','bin','veyra_runtime'));
  assert.equal(layout.manifest,path.join('/opt/Veyra/resources','backend','manifest.json'));
+});
+
+test('packaged backend manifests require product identity and version',async()=>{
+ const root=await mkdtemp(path.join(os.tmpdir(),'veyra-backend-'));
+ const manifest=path.join(root,'manifest.json');
+ await writeFile(manifest,JSON.stringify({schema_version:1,product:'veyra',version:'0.1.0',platform:'linux',arch:'x64',files:{}}));
+ const layout={repo:root,python:path.join(root,'python','bin','python3'),mapper:path.join(root,'bin','veyra_runtime'),manifest};
+ await assert.rejects(validatePackagedBackend(layout,'linux','x64'),/ENOENT/);
 });
 
 test('restart budget is bounded and resets after a stable session',()=>{

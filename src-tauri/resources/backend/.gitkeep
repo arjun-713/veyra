@@ -1,3 +1,0 @@
-# The release workflow populates this directory with the staged Python/C++ backend.
-# Keeping the directory in the source tree makes Tauri configuration valid for
-# normal Rust test builds without pretending that an empty directory is a package.

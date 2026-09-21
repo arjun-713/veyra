@@ -266,10 +266,12 @@ fn packaged_tauri_session_runs_a_real_semanticposs_flow() {
 
     // 4. Map display evidence: the supervisor must have delivered telemetry
     // with live map statistics plus a binary visualization frame.
-    let (telemetry_cells, visual_bytes) = timed("drain", || {
+    let (telemetry_cells, visual_bytes, perception, health) = timed("drain", || {
         let events = controller.drain_events();
         let mut cells = 0_u64;
         let mut visual = 0_usize;
+        let mut perception = Value::Null;
+        let mut health = Value::Null;
         for event in &events {
             match event.metadata.get("type").and_then(Value::as_str) {
                 Some("telemetry") => {
@@ -280,6 +282,12 @@ fn packaged_tauri_session_runs_a_real_semanticposs_flow() {
                             .and_then(Value::as_u64)
                             .unwrap_or(0),
                     );
+                    perception = event
+                        .metadata
+                        .get("perception")
+                        .cloned()
+                        .unwrap_or(Value::Null);
+                    health = event.metadata.get("health").cloned().unwrap_or(Value::Null);
                 }
                 Some("visualization") => {
                     visual = visual.max(event.payload.len());
@@ -288,7 +296,7 @@ fn packaged_tauri_session_runs_a_real_semanticposs_flow() {
             }
         }
         eprintln!("E2E drained {} events", events.len());
-        (cells, visual)
+        (cells, visual, perception, health)
     });
     assert!(
         telemetry_cells > 0,
@@ -298,6 +306,10 @@ fn packaged_tauri_session_runs_a_real_semanticposs_flow() {
         visual_bytes > 0,
         "a binary visualization frame must reach the renderer channel"
     );
+    assert_eq!(perception["provider"], "Ground Truth");
+    assert!(perception["points"].as_u64().unwrap_or(0) > 0);
+    assert!(health["runtime"].as_str().is_some());
+    assert_eq!(health["telemetry"], "fresh");
     eprintln!("E2E map evidence: active_cells={telemetry_cells} visual_bytes={visual_bytes}");
 
     // 5. Seek back to the first frame (reprocesses deterministically).
@@ -324,6 +336,19 @@ fn packaged_tauri_session_runs_a_real_semanticposs_flow() {
         controller.command("layer", json!({"layer": "lod"})),
     );
     assert_eq!(layered["status"]["layer"], "lod");
+
+    // 7b. Remaining interactive controls: speed, governor, and validation
+    // must reach the real runtime rather than only changing renderer state.
+    ok_response("speed", controller.command("speed", json!({"speed": 2.0})));
+    let status = ok_response("status-after-speed", controller.refresh_status());
+    assert_eq!(status["speed"], 2.0);
+    ok_response(
+        "governor",
+        controller.command("governor", json!({"mode": "automatic"})),
+    );
+    let validation = ok_response("validation", controller.command("validation", json!({})));
+    assert_eq!(validation["result"]["status"], "pass");
+    assert_eq!(validation["result"]["dataset"], DATASET_FORMAT);
 
     // 8. Playback state machine: play then pause.
     timed("start", || {
@@ -365,6 +390,13 @@ fn packaged_tauri_session_runs_a_real_semanticposs_flow() {
         );
         std::thread::sleep(Duration::from_millis(50));
     }
+    // 11. Restart reopens the last real session and remains controllable.
+    ok_response("restart", controller.command("restart", json!({})));
+    assert_eq!(controller.status()["dataset_open"], true);
+    ok_response("restart-step", controller.command("step", json!({})));
+    controller
+        .stop()
+        .unwrap_or_else(|error| panic!("E2E restart stop failed: {error}"));
     eprintln!("E2E real-data flow complete: sequence={sequence} frames={frames}");
 }
 
