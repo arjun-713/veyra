@@ -49,12 +49,12 @@ def main():
             try:
                 request = json.loads(line)
                 if not isinstance(request, dict):
-                    raise ValueError("request must be an object")
+                    raise TypeError("request must be an object")
                 if request.get("command") == "status":
                     runtime.outbox.publish(runtime.handle(request))
                 else:
                     runtime.submit(request)
-            except (ValueError, UnicodeDecodeError) as error:
+            except (TypeError, ValueError, UnicodeDecodeError) as error:
                 runtime.outbox.publish(
                     {
                         "type": "response",
@@ -68,7 +68,7 @@ def main():
         runtime.commands.put(
             {"id": "__eof__", "command": "shutdown", "args": {}}, timeout=2
         )
-    except (ValueError, OSError, BufferError, Exception) as error:
+    except Exception as error:  # noqa: BLE001 - top-level boundary reports and stops the runtime.
         print(str(error), file=sys.stderr)
         runtime.stopping.set()
     worker.join(timeout=35)

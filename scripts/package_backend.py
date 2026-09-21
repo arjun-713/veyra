@@ -194,8 +194,8 @@ def stage_backend(
     platform: str,
     arch: str,
 ) -> Path:
-    repo, mapper, python_runtime, output = map(
-        lambda value: Path(value).resolve(), (repo, mapper, python_runtime, output)
+    repo, mapper, python_runtime, output = (
+        Path(value).resolve() for value in (repo, mapper, python_runtime, output)
     )
     if platform not in {"linux", "darwin", "win32"}:
         raise ValueError("unsupported release platform")

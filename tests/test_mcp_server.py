@@ -8,6 +8,7 @@ from io import BytesIO
 from pathlib import Path
 from unittest.mock import patch
 
+from mcp.control_client import ControlConfigurationError
 from mcp.server import McpServer
 
 
@@ -95,9 +96,7 @@ class McpServerTests(unittest.TestCase):
         daemon = socketserver.TCPServer(("127.0.0.1", 0), LiveHandler)
         thread = threading.Thread(target=daemon.handle_request, daemon=True)
         thread.start()
-        os.environ["VEYRA_CONTROL_ENDPOINT"] = (
-            f"127.0.0.1:{daemon.server_address[1]}"
-        )
+        os.environ["VEYRA_CONTROL_ENDPOINT"] = f"127.0.0.1:{daemon.server_address[1]}"
         server = McpServer(".")
         try:
             response = server.handle(
@@ -242,7 +241,7 @@ class McpServerTests(unittest.TestCase):
 
     def test_missing_daemon_configuration_fails_closed(self):
         os.environ.pop("VEYRA_CONTROL_ENDPOINT", None)
-        with self.assertRaises(Exception):
+        with self.assertRaises(ControlConfigurationError):
             McpServer(".")
 
     def test_oversized_root_is_rejected_before_daemon_contact(self):

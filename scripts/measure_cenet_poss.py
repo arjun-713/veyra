@@ -102,15 +102,29 @@ def prf_per_label(pred, gt, labels):
         fn = int(np.count_nonzero((pred != cls) & (gt == cls)))
         union = tp + fp + fn
         if union == 0:
-            out[str(cls)] = {"iou": None, "precision": None, "recall": None,
-                             "f1": None, "support": 0, "union": 0}
+            out[str(cls)] = {
+                "iou": None,
+                "precision": None,
+                "recall": None,
+                "f1": None,
+                "support": 0,
+                "union": 0,
+            }
             continue
         precision = tp / (tp + fp) if (tp + fp) else 0.0
         recall = tp / (tp + fn) if (tp + fn) else 0.0
-        f1 = 2 * precision * recall / (precision + recall) if (precision + recall) else 0.0
+        f1 = (
+            2 * precision * recall / (precision + recall)
+            if (precision + recall)
+            else 0.0
+        )
         out[str(cls)] = {
-            "iou": tp / union, "precision": precision, "recall": recall, "f1": f1,
-            "support": int(np.count_nonzero(gt == cls)), "union": union,
+            "iou": tp / union,
+            "precision": precision,
+            "recall": recall,
+            "f1": f1,
+            "support": int(np.count_nonzero(gt == cls)),
+            "union": union,
         }
     return out
 
@@ -186,7 +200,9 @@ def main() -> int:
                 "latency_ms": round(elapsed_ms, 1),
                 "pred_histogram_veyra": {
                     str(k): int(v)
-                    for k, v in zip(*np.unique(result.semantic_class, return_counts=True))
+                    for k, v in zip(
+                        *np.unique(result.semantic_class, return_counts=True)
+                    )
                 },
             }
         )
@@ -202,10 +218,13 @@ def main() -> int:
     labelled = gt != 0
 
     veyra = prf_per_label(pred[labelled], gt[labelled], list(range(1, VEYRA_CLASSES)))
-    native_ids = sorted(int(v) for v in np.unique(
-        np.concatenate([fold_to_native(raw_pred), fold_to_native(raw_gt)])))
-    native = prf_per_label(
-        fold_to_native(raw_pred), fold_to_native(raw_gt), native_ids)
+    native_ids = sorted(
+        int(v)
+        for v in np.unique(
+            np.concatenate([fold_to_native(raw_pred), fold_to_native(raw_gt)])
+        )
+    )
+    native = prf_per_label(fold_to_native(raw_pred), fold_to_native(raw_gt), native_ids)
     groups = prf_per_label(group_pred, group_gt, list(range(len(GROUP_NAMES))))
     range_binned = {}
     for lo, hi in RANGE_BINS:
@@ -213,12 +232,15 @@ def main() -> int:
         mask = labelled & (depth >= lo) & (depth < hi)
         b = prf_per_label(pred[mask], gt[mask], list(range(1, VEYRA_CLASSES)))
         bg = prf_per_label(
-            group_pred[mask], group_gt[mask], list(range(len(GROUP_NAMES))))
-        range_binned[key] = {"points": int(mask.sum()),
-                             "veyra_miou_1_19": _mean([v["iou"] for v in b.values()]),
-                             "veyra_prf": b,
-                             "group_miou": _mean([v["iou"] for v in bg.values()]),
-                             "group_prf": bg}
+            group_pred[mask], group_gt[mask], list(range(len(GROUP_NAMES)))
+        )
+        range_binned[key] = {
+            "points": int(mask.sum()),
+            "veyra_miou_1_19": _mean([v["iou"] for v in b.values()]),
+            "veyra_prf": b,
+            "group_miou": _mean([v["iou"] for v in bg.values()]),
+            "group_prf": bg,
+        }
 
     rss_after = resource.getrusage(resource.RUSAGE_SELF).ru_maxrss
     known = pred != 0
@@ -259,9 +281,9 @@ def main() -> int:
             "veyra_accuracy_all": float(np.mean(pred == gt)),
             "veyra_per_class": veyra,
             "native_accuracy": float(
-                np.mean(fold_to_native(raw_pred) == fold_to_native(raw_gt))),
-            "native_mean_iou": _mean(
-                [v["iou"] for k, v in native.items() if k != "0"]),
+                np.mean(fold_to_native(raw_pred) == fold_to_native(raw_gt))
+            ),
+            "native_mean_iou": _mean([v["iou"] for k, v in native.items() if k != "0"]),
             "native_per_class": native,
             "group_accuracy": float(np.mean(group_pred == group_gt)),
             "group_mean_iou": _mean([v["iou"] for v in groups.values()]),
@@ -279,7 +301,9 @@ def main() -> int:
             },
             "pred_histogram_native": {
                 str(k): int(v)
-                for k, v in zip(*np.unique(fold_to_native(raw_pred), return_counts=True))
+                for k, v in zip(
+                    *np.unique(fold_to_native(raw_pred), return_counts=True)
+                )
             },
             "pred_confidence_mean_on_predicted_known": float(conf[known].mean())
             if np.any(known)

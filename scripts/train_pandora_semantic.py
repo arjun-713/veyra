@@ -82,7 +82,9 @@ def _scan_frames(root: Path, sequence: str) -> list[Path]:
 
 def _nll(proba: np.ndarray, targets: np.ndarray) -> float:
     eps = 1e-12
-    return float(-np.log(np.clip(proba[np.arange(len(targets)), targets], eps, 1.0)).mean())
+    return float(
+        -np.log(np.clip(proba[np.arange(len(targets)), targets], eps, 1.0)).mean()
+    )
 
 
 def main() -> int:
@@ -128,7 +130,9 @@ def main() -> int:
         if scan.resolve() in calib_ids:
             raise AssertionError("calibration frame leaked into training frames")
         points = np.fromfile(scan, dtype=np.float32).reshape(-1, 4)
-        raw = (np.fromfile(label_dir_of(scan), dtype=np.uint32) & 0xFFFF).astype(np.int64)
+        raw = (np.fromfile(label_dir_of(scan), dtype=np.uint32) & 0xFFFF).astype(
+            np.int64
+        )
         assert raw.shape[0] == points.shape[0]
         native = fold_to_native(raw)
         feats = extract_features(points)
@@ -152,7 +156,9 @@ def main() -> int:
     for cls in sorted(buckets):
         merged = np.concatenate(buckets[cls], axis=0)
         if merged.shape[0] > args.cap_per_class:
-            merged = merged[rng.choice(merged.shape[0], args.cap_per_class, replace=False)]
+            merged = merged[
+                rng.choice(merged.shape[0], args.cap_per_class, replace=False)
+            ]
         parts.append(merged)
     data = np.concatenate(parts, axis=0)
     order = rng.permutation(data.shape[0])
@@ -187,7 +193,9 @@ def main() -> int:
     cal_X, cal_y = [], []
     for scan in calib_frames:
         points = np.fromfile(scan, dtype=np.float32).reshape(-1, 4)
-        raw = (np.fromfile(label_dir_of(scan), dtype=np.uint32) & 0xFFFF).astype(np.int64)
+        raw = (np.fromfile(label_dir_of(scan), dtype=np.uint32) & 0xFFFF).astype(
+            np.int64
+        )
         cal_X.append(extract_features(points))
         cal_y.append(fold_to_native(raw))
     cal_X = np.concatenate(cal_X, axis=0)
@@ -207,7 +215,9 @@ def main() -> int:
         value = _nll(proba, cal_targets)
         if value < best_nll:
             best_nll, best_T = value, float(temp)
-    base_nll = _nll(mlp_predict_proba(cal_X, mean, scale, coefs, intercepts, 1.0), cal_targets)
+    base_nll = _nll(
+        mlp_predict_proba(cal_X, mean, scale, coefs, intercepts, 1.0), cal_targets
+    )
     print(f"temperature={best_T:.3f} nll {base_nll:.4f} -> {best_nll:.4f}")
 
     import sklearn

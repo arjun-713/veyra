@@ -6,8 +6,8 @@ from pathlib import Path
 def open_adapter(dataset, root):
     from datasets.generic import ManifestDataset
     from datasets.rellis import Rellis3DDataset
-    from datasets.semanticposs import SemanticPOSSDataset
     from datasets.semantickitti import SemanticKITTIDataset
+    from datasets.semanticposs import SemanticPOSSDataset
 
     adapters = {
         "generic": ManifestDataset,

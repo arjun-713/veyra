@@ -18,7 +18,9 @@ import sys
 from pathlib import Path
 
 HERE = Path(__file__).resolve().parent
-REPORT = Path(sys.argv[1]) if len(sys.argv) > 1 else HERE / "benchmark_semanticposs00.json"
+REPORT = (
+    Path(sys.argv[1]) if len(sys.argv) > 1 else HERE / "benchmark_semanticposs00.json"
+)
 OUTPUT = Path(sys.argv[2]) if len(sys.argv) > 2 else HERE / "ablation_matrix.json"
 
 ABLATION_ORDER = [
@@ -32,11 +34,11 @@ ABLATION_ORDER = [
 CONTEXT_POLICIES = ["uniform5", "uniform40", "distance_lod"]
 
 
-def _ms(ns: float | int | None) -> float | None:
+def _ms(ns: float | None) -> float | None:
     return None if ns is None else float(ns) / 1_000_000.0
 
 
-def _mb(value: float | int | None) -> float | None:
+def _mb(value: float | None) -> float | None:
     return None if value is None else float(value) / 1048576.0
 
 
@@ -102,7 +104,9 @@ def _delta(current: float | None, baseline: float | None) -> float | None:
 def main() -> None:
     benchmark = json.loads(REPORT.read_text())
     policies = benchmark["policies"]
-    missing = [name for name in (*CONTEXT_POLICIES, *ABLATION_ORDER) if name not in policies]
+    missing = [
+        name for name in (*CONTEXT_POLICIES, *ABLATION_ORDER) if name not in policies
+    ]
     if missing:
         raise SystemExit(f"benchmark report is missing policies: {missing}")
     digest = benchmark["provenance"]["selection_digest"]
@@ -166,9 +170,7 @@ def main() -> None:
                 "git_sha": benchmark["provenance"]["git_sha"],
                 "hardware": benchmark["provenance"]["hardware"],
                 "perception": benchmark["perception"],
-                "context_policies": {
-                    name: rows[name] for name in CONTEXT_POLICIES
-                },
+                "context_policies": {name: rows[name] for name in CONTEXT_POLICIES},
                 "ablation_matrix": matrix,
                 "utility_ablation_framework": benchmark["utility_ablation"],
             },

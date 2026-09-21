@@ -10,10 +10,10 @@ from __future__ import annotations
 
 import json
 import queue
-import time
-from collections import deque
 import subprocess
 import threading
+import time
+from collections import deque
 from collections.abc import Mapping
 from dataclasses import dataclass
 from pathlib import Path

@@ -8,8 +8,8 @@ import numpy as np
 
 from datasets.common.adapter import (
     reject_orphan_label_files,
-    require_finite_metadata_value,
     require_complete_binary_records,
+    require_finite_metadata_value,
 )
 from datasets.common.taxonomy import SEMANTICKITTI_LABELS
 from datasets.semanticposs.adapter import SemanticPOSSDataset

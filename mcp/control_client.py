@@ -9,7 +9,6 @@ import socket
 from pathlib import Path
 from typing import Any
 
-
 MAX_FRAME_BYTES = 64 * 1024
 MAX_ID_BYTES = 128
 MAX_COMMAND_BYTES = 64
@@ -52,7 +51,7 @@ class ControlClient:
         self._next_id = 1
 
     @classmethod
-    def from_env(cls) -> "ControlClient":
+    def from_env(cls) -> ControlClient:
         endpoint_value = os.environ.get("VEYRA_CONTROL_ENDPOINT")
         if not endpoint_value:
             raise ControlConfigurationError(

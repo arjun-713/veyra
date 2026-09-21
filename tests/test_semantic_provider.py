@@ -176,11 +176,7 @@ def _tiny_pandora_checkpoint(
         coef_1=coef_1,
         intercept_1=intercept_1,
         # Native IDs 22 (ground -> Veyra 12), 7 (car -> Veyra 1), 0 (unknown).
-        classes=(
-            np.array([22, 7, 0], dtype=np.int32)
-            if classes is None
-            else classes
-        ),
+        classes=(np.array([22, 7, 0], dtype=np.int32) if classes is None else classes),
         temperature=np.array(temperature, dtype=np.float64),
     )
     return path
@@ -252,8 +248,7 @@ class PandoraProjectionTests(unittest.TestCase):
         root = Path(
             os.environ.get(
                 "VEYRA_SEMANTICPOSS_ROOT",
-                Path(__file__).resolve().parents[1]
-                / "data/raw/semanticposs/dataset",
+                Path(__file__).resolve().parents[1] / "data/raw/semanticposs/dataset",
             )
         )
         frame = root / "sequences/00/velodyne/000000.bin"
@@ -275,9 +270,7 @@ class PandoraProjectionTests(unittest.TestCase):
 class PandoraTaxonomyTests(unittest.TestCase):
     def test_known_ids_pass_through_unmapped_fold_to_unknown(self):
         raw = np.array([0, 4, 7, 22, 18, 19, 20, 99, 255], dtype=np.int64)
-        np.testing.assert_array_equal(
-            fold_to_native(raw), [0, 4, 7, 22, 0, 0, 0, 0, 0]
-        )
+        np.testing.assert_array_equal(fold_to_native(raw), [0, 4, 7, 22, 0, 0, 0, 0, 0])
 
     def test_groups_cover_every_native_label_exactly_once(self):
         covered = dict(GROUP_OF_NATIVE)
@@ -288,10 +281,19 @@ class PandoraTaxonomyTests(unittest.TestCase):
 
     def test_native_to_group_ids_matches_table(self):
         native = np.array([22, 14, 15, 13, 7, 4, 9, 0], dtype=np.int32)
-        expected = [GROUP_INDEX[name] for name in (
-            "drivable", "non-drivable", "static", "pole",
-            "vehicle", "pedestrian", "vegetation", "unknown",
-        )]
+        expected = [
+            GROUP_INDEX[name]
+            for name in (
+                "drivable",
+                "non-drivable",
+                "static",
+                "pole",
+                "vehicle",
+                "pedestrian",
+                "vegetation",
+                "unknown",
+            )
+        ]
         np.testing.assert_array_equal(native_to_group_ids(native), expected)
 
     def test_extract_features_contract(self):
@@ -312,7 +314,8 @@ class PandoraNativeProviderTests(unittest.TestCase):
 
     def test_supported_datasets_accepts_poss_only(self):
         self.assertEqual(
-            PandoraNativeSemanticProvider.supported_datasets, frozenset({"semanticposs"})
+            PandoraNativeSemanticProvider.supported_datasets,
+            frozenset({"semanticposs"}),
         )
 
     def test_infer_returns_aligned_veyra_classes_and_confidence(self):
@@ -331,12 +334,14 @@ class PandoraNativeProviderTests(unittest.TestCase):
             self.assertEqual(result.semantic_class.shape, (3,))
             self.assertEqual(result.semantic_confidence.shape, (3,))
             # Tiny head predicts native {22, 7, 0} -> Veyra {12, 1, 0}.
+            self.assertTrue({int(c) for c in result.semantic_class} <= {12, 1, 0})
             self.assertTrue(
-                {int(c) for c in result.semantic_class} <= {12, 1, 0}
-            )
-            self.assertTrue(
-                bool(((result.semantic_confidence >= 0.0)
-                      & (result.semantic_confidence <= 1.0)).all())
+                bool(
+                    (
+                        (result.semantic_confidence >= 0.0)
+                        & (result.semantic_confidence <= 1.0)
+                    ).all()
+                )
             )
             unknown = result.semantic_class == 0
             np.testing.assert_array_equal(
@@ -410,8 +415,9 @@ class PandoraNativeProviderTests(unittest.TestCase):
                 provider.infer(np.zeros((1, 3), dtype=np.float32))
 
     def test_rejects_native_checkpoint_with_unknown_class_contract(self):
-        with tempfile.TemporaryDirectory() as directory, self.assertRaisesRegex(
-            ValueError, "class IDs"
+        with (
+            tempfile.TemporaryDirectory() as directory,
+            self.assertRaisesRegex(ValueError, "class IDs"),
         ):
             self._provider(
                 directory,
@@ -463,8 +469,7 @@ def _cenet_checkpoint() -> Path:
             "SENet_valid_best"
         ),
         Path(
-            "/home/arjun/Captain/SIH/Lidar/data/cache/cenet-work/model/"
-            "SENet_valid_best"
+            "/home/arjun/Captain/SIH/Lidar/data/cache/cenet-work/model/SENet_valid_best"
         ),
     ]
     for candidate in candidates:
@@ -495,9 +500,7 @@ class CENetRenderTests(unittest.TestCase):
         points = rng.uniform(-40, 40, size=(200, 4)).astype(np.float32)
         points[:, 3] = rng.uniform(0, 255, size=200).astype(np.float32)
         image, rows, cols, valid = render_cenet_image(points)
-        self.assertEqual(
-            image.shape, (1, 5, CENET_IMAGE_HEIGHT, CENET_IMAGE_WIDTH)
-        )
+        self.assertEqual(image.shape, (1, 5, CENET_IMAGE_HEIGHT, CENET_IMAGE_WIDTH))
         self.assertEqual(rows.shape, (200,))
         # Empty pixels are exactly zero (masked after normalization).
         occupied = np.zeros((CENET_IMAGE_HEIGHT, CENET_IMAGE_WIDTH), bool)
@@ -521,9 +524,7 @@ class CENetRenderTests(unittest.TestCase):
 
         points = np.array([[10.0, 0.0, -1.0, 200.0]], np.float32)
         image, rows, cols, _ = render_cenet_image(points)
-        raw = (
-            float(image[0, 4, rows[0], cols[0]]) * CENET_STDS[4] + CENET_MEANS[4]
-        )
+        raw = float(image[0, 4, rows[0], cols[0]]) * CENET_STDS[4] + CENET_MEANS[4]
         self.assertAlmostEqual(raw, 200.0, places=3)
 
     def test_render_rejects_bad_input(self):
@@ -605,8 +606,14 @@ class CENetProviderTests(unittest.TestCase):
             first.semantic_confidence[unknown],
             np.zeros(int(unknown.sum()), dtype=np.float32),
         )
-        self.assertTrue(bool(((first.semantic_confidence >= 0.0)
-                              & (first.semantic_confidence <= 1.0)).all()))
+        self.assertTrue(
+            bool(
+                (
+                    (first.semantic_confidence >= 0.0)
+                    & (first.semantic_confidence <= 1.0)
+                ).all()
+            )
+        )
 
     def test_real_checkpoint_frame_accuracy_smoke(self):
         from datasets.common.taxonomy import SEMANTIC_POSS_LABELS, map_dataset_labels

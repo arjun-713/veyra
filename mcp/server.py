@@ -9,7 +9,6 @@ from typing import Any
 
 from .control_client import ControlClient, ControlClientError
 
-
 SUPPORTED_DATASETS = frozenset(("rellis3d", "semanticposs", "semantickitti", "generic"))
 SUPPORTED_POLICIES = frozenset(("uniform5", "uniform40", "distance_lod", "utility_lod"))
 SUPPORTED_LAYERS = frozenset(
@@ -162,7 +161,11 @@ TOOLS = {
             {
                 "dataset": {"type": "string", "maxLength": MAX_DATASET_LEN},
                 "sequence": {"type": "string", "maxLength": MAX_SEQUENCE_LEN},
-                "count": {"type": "integer", "minimum": 1, "maximum": MAX_BENCHMARK_COUNT},
+                "count": {
+                    "type": "integer",
+                    "minimum": 1,
+                    "maximum": MAX_BENCHMARK_COUNT,
+                },
             },
             ["dataset", "sequence", "count"],
         ),
@@ -182,6 +185,7 @@ TOOLS = {
         _tool("export_diagnostics", "Return bounded diagnostics for export.", {}),
     ),
 }
+
 
 class McpServer:
     def __init__(self, repo: str | Path | None = None):
@@ -270,14 +274,14 @@ class McpServer:
 
 def _validate_arguments(schema: dict, arguments: Any) -> None:
     if not isinstance(arguments, dict):
-        raise ValueError("tool arguments must be an object")
+        raise TypeError("tool arguments must be an object")
     properties = schema["properties"]
     unknown = set(arguments) - set(properties)
     if unknown:
-        raise ValueError(f"unknown tool argument: {sorted(unknown)[0]}")
+        raise ValueError(f"unknown tool argument: {min(unknown)}")
     missing = set(schema.get("required", ())) - set(arguments)
     if missing:
-        raise ValueError(f"missing tool argument: {sorted(missing)[0]}")
+        raise ValueError(f"missing tool argument: {min(missing)}")
     for name, value in arguments.items():
         expected = properties[name]["type"]
         valid = (

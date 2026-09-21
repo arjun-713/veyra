@@ -103,13 +103,27 @@ def _build_network_types():
     torch_f = torch.nn.functional
 
     class _BasicConv2d(torch_nn.Module):
-        def __init__(self, in_planes, out_planes, kernel_size, stride=1,
-                     padding=0, dilation=1, relu=True):
+        def __init__(
+            self,
+            in_planes,
+            out_planes,
+            kernel_size,
+            stride=1,
+            padding=0,
+            dilation=1,
+            relu=True,
+        ):
             super().__init__()
             self.relu = relu
             self.conv = torch_nn.Conv2d(
-                in_planes, out_planes, kernel_size=kernel_size, stride=stride,
-                padding=padding, dilation=dilation, bias=False)
+                in_planes,
+                out_planes,
+                kernel_size=kernel_size,
+                stride=stride,
+                padding=padding,
+                dilation=dilation,
+                bias=False,
+            )
             self.bn = torch_nn.BatchNorm2d(out_planes)
             if self.relu:
                 self.relu = torch_nn.LeakyReLU()
@@ -124,14 +138,23 @@ def _build_network_types():
     class _BasicBlock(torch_nn.Module):
         expansion = 1
 
-        def __init__(self, inplanes, planes, stride=1, downsample=None, groups=1,
-                     base_width=64, dilation=1, if_BN=None):
+        def __init__(
+            self,
+            inplanes,
+            planes,
+            stride=1,
+            downsample=None,
+            groups=1,
+            base_width=64,
+            dilation=1,
+            if_BN=None,
+        ):
             super().__init__()
             self.if_BN = if_BN
             if self.if_BN:
                 norm_layer = torch_nn.BatchNorm2d
             if groups != 1 or base_width != 64:
-                raise ValueError('BasicBlock only supports groups=1 and base_width=64')
+                raise ValueError("BasicBlock only supports groups=1 and base_width=64")
             if dilation > 1:
                 raise NotImplementedError("Dilation > 1 not supported in BasicBlock")
             self.conv1 = conv3x3(inplanes, planes, stride)
@@ -160,9 +183,18 @@ def _build_network_types():
             return out
 
     class _ResNet34(torch_nn.Module):
-        def __init__(self, nclasses, aux, block=None, layers=(3, 4, 6, 3),
-                     if_BN=True, zero_init_residual=False, norm_layer=None,
-                     groups=1, width_per_group=64):
+        def __init__(
+            self,
+            nclasses,
+            aux,
+            block=None,
+            layers=(3, 4, 6, 3),
+            if_BN=True,
+            zero_init_residual=False,
+            norm_layer=None,
+            groups=1,
+            width_per_group=64,
+        ):
             super().__init__()
             if block is None:
                 block = _BasicBlock
@@ -207,13 +239,30 @@ def _build_network_types():
                     downsample = torch_nn.Sequential(
                         conv1x1(self.inplanes, planes * block.expansion, stride)
                     )
-            layers = [block(self.inplanes, planes, stride, downsample, self.groups,
-                            self.base_width, previous_dilation, if_BN=self.if_BN)]
+            layers = [
+                block(
+                    self.inplanes,
+                    planes,
+                    stride,
+                    downsample,
+                    self.groups,
+                    self.base_width,
+                    previous_dilation,
+                    if_BN=self.if_BN,
+                )
+            ]
             self.inplanes = planes * block.expansion
             for _ in range(1, blocks):
-                layers.append(block(self.inplanes, planes, groups=self.groups,
-                                    base_width=self.base_width, dilation=self.dilation,
-                                    if_BN=self.if_BN))
+                layers.append(
+                    block(
+                        self.inplanes,
+                        planes,
+                        groups=self.groups,
+                        base_width=self.base_width,
+                        dilation=self.dilation,
+                        if_BN=self.if_BN,
+                    )
+                )
             return torch_nn.Sequential(*layers)
 
         def forward(self, x):
@@ -224,12 +273,15 @@ def _build_network_types():
             x_2 = self.layer2(x_1)
             x_3 = self.layer3(x_2)
             x_4 = self.layer4(x_3)
-            res_2 = torch_f.interpolate(x_2, size=x.size()[2:], mode='bilinear',
-                                        align_corners=True)
-            res_3 = torch_f.interpolate(x_3, size=x.size()[2:], mode='bilinear',
-                                        align_corners=True)
-            res_4 = torch_f.interpolate(x_4, size=x.size()[2:], mode='bilinear',
-                                        align_corners=True)
+            res_2 = torch_f.interpolate(
+                x_2, size=x.size()[2:], mode="bilinear", align_corners=True
+            )
+            res_3 = torch_f.interpolate(
+                x_3, size=x.size()[2:], mode="bilinear", align_corners=True
+            )
+            res_4 = torch_f.interpolate(
+                x_4, size=x.size()[2:], mode="bilinear", align_corners=True
+            )
             res = [x, x_1, res_2, res_3, res_4]
             out = torch.cat(res, dim=1)
             out = self.conv_1(out)
@@ -238,9 +290,11 @@ def _build_network_types():
             out = torch_f.softmax(out, dim=1)
             if self.aux:
                 aux_outputs = []
-                for head, feat in ((self.aux_head1, res_2),
-                                   (self.aux_head2, res_3),
-                                   (self.aux_head3, res_4)):
+                for head, feat in (
+                    (self.aux_head1, res_2),
+                    (self.aux_head2, res_3),
+                    (self.aux_head3, res_4),
+                ):
                     aux_outputs.append(torch_f.softmax(head(feat), dim=1))
                 return [out, *aux_outputs]
             return out
@@ -314,8 +368,9 @@ def render_cenet_image(
     image = np.zeros((5, CENET_IMAGE_HEIGHT, CENET_IMAGE_WIDTH), np.float32)
     ordered = np.flatnonzero(valid)
     ordered = ordered[np.argsort(depth[ordered], kind="stable")]
-    _, first = np.unique(rows[ordered] * CENET_IMAGE_WIDTH + cols[ordered],
-                         return_index=True)
+    _, first = np.unique(
+        rows[ordered] * CENET_IMAGE_WIDTH + cols[ordered], return_index=True
+    )
     selected = ordered[first]
     image[0, rows[selected], cols[selected]] = depth[selected]
     image[1:, rows[selected], cols[selected]] = points[selected].T
@@ -363,7 +418,9 @@ class CENetSemanticProvider:
             payload = torch.load(str(path), map_location="cpu", weights_only=False)
         except Exception as error:
             raise ValueError(f"cannot load CENet checkpoint: {error}") from error
-        state = payload.get("state_dict", payload) if isinstance(payload, dict) else None
+        state = (
+            payload.get("state_dict", payload) if isinstance(payload, dict) else None
+        )
         if not isinstance(state, dict):
             raise TypeError("CENet checkpoint has no state_dict mapping")
         try:
@@ -411,7 +468,10 @@ class CENetSemanticProvider:
             main = output[0] if isinstance(output, (list, tuple)) else output
             scores = np.asarray(main[0].detach().cpu(), dtype=np.float64)
             if scores.shape != (
-                CENET_N_LEARNING_CLASSES, CENET_IMAGE_HEIGHT, CENET_IMAGE_WIDTH):
+                CENET_N_LEARNING_CLASSES,
+                CENET_IMAGE_HEIGHT,
+                CENET_IMAGE_WIDTH,
+            ):
                 raise ValueError("CENet output breaks the 14x40x1800 contract")
             selected = scores[:, rows[valid], cols[valid]]
             if not np.allclose(selected.sum(axis=0), 1.0, atol=2e-3):
@@ -437,7 +497,9 @@ class CENetSemanticProvider:
             raise ValueError("CENet inference requires finite sensor-frame XYZI (N, 4)")
         count = points_array.shape[0]
         if count == 0:
-            return SemanticResult(np.zeros(0, np.int32), np.zeros(0, np.float32), "model")
+            return SemanticResult(
+                np.zeros(0, np.int32), np.zeros(0, np.float32), "model"
+            )
         raw, confidence, _ = self.infer_raw(points_array)
         mapped = np.array(
             [SEMANTIC_POSS_LABELS.get(int(raw_id), 0) for raw_id in raw],

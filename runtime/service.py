@@ -1,6 +1,7 @@
 """Single-owner playback controller. Desktop commands never execute map work."""
 
 from __future__ import annotations
+
 import copy
 import json
 import queue
@@ -207,7 +208,10 @@ class ProductRuntime:
         if command == "status":
             return self.status()
         if command == "metrics":
-            return self.last_telemetry or {"status": "unavailable", "reason": "no frame processed"}
+            return self.last_telemetry or {
+                "status": "unavailable",
+                "reason": "no frame processed",
+            }
         if command == "shutdown":
             self.stopping.set()
             return None
@@ -474,7 +478,7 @@ class ProductRuntime:
                         },
                     }
                 )
-            except Exception as error:
+            except Exception as error:  # noqa: BLE001 - worker boundary reports benchmark failure.
                 self.outbox.publish(
                     {"type": "benchmark", "state": "error", "error": str(error)}
                 )
@@ -496,8 +500,9 @@ class ProductRuntime:
                 self.commands.task_done()
             try:
                 self.tick()
-            except Exception:
-                pass  # _process published actionable failure and stopped playback.
+            except Exception as error:  # noqa: BLE001 - keep the playback worker alive to close cleanly.
+                self.error = str(error)
+                self.stopping.set()
         self.close()
 
     def close(self):
