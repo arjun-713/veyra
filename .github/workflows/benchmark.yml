@@ -1,9 +1,6 @@
 name: SemanticPOSS benchmark
 
 on:
-  pull_request:
-  schedule:
-    - cron: "17 2 * * *"
   workflow_dispatch:
     inputs:
       semanticposs_sequence:
@@ -36,6 +33,10 @@ on:
 permissions:
   contents: read
   actions: read
+
+concurrency:
+  group: semanticposs-benchmark-${{ github.ref }}
+  cancel-in-progress: true
 
 env:
   SEMANTIC_POSS_URL: http://www.poss.pku.edu.cn/OpenDataResource/SemanticPOSS/SemanticPOSS_dataset.zip
@@ -147,8 +148,6 @@ jobs:
           cmake --build "$RUNNER_TEMP/veyra-build" --target veyra_benchmark --parallel
           echo "build_finished_epoch=$(date +%s)" >> artifacts/workflow-provenance.env
       - name: Run shared perception and four-policy map benchmark
-        id: benchmark
-        continue-on-error: true
         run: |
           set -euo pipefail
           echo "benchmark_started_epoch=$(date +%s)" >> artifacts/workflow-provenance.env
@@ -183,42 +182,26 @@ jobs:
           echo "benchmark_finished_epoch=$(date +%s)" >> artifacts/workflow-provenance.env
           exit "$rc"
       - name: Render Actions job summary
-        id: report
         if: always()
         run: |
-          set -uo pipefail
-          report_rc=0
+          set -euo pipefail
           map_path="$(find artifacts/map -type f -name '*.json' -print -quit)"
           perception_path="$GITHUB_WORKSPACE/artifacts/semanticposs-perception.json"
           if [[ -z "$map_path" || ! -f "$perception_path" ]]; then
             echo "benchmark evidence is incomplete: map=${map_path:-missing}, perception=$perception_path" >&2
-            {
-              echo "## SemanticPOSS benchmark"
-              echo
-              echo "Benchmark evidence is incomplete; inspect the failed benchmark step and uploaded diagnostics."
-            } >> "$GITHUB_STEP_SUMMARY"
-            report_rc=1
-          else
-            baseline_path=""
-            if candidate="$(find artifacts/baseline -type f -name '*.json' -print -quit)"; then
-              baseline_path="$candidate"
-            fi
-            render_args=(--map "$map_path" --perception "$perception_path")
-            if [[ -n "$baseline_path" ]]; then
-              render_args+=(--baseline "$baseline_path")
-            fi
-            python -m benchmarks.render_report "${render_args[@]}" --output artifacts/summary.md
-            render_rc=$?
-            if [[ "$render_rc" == 0 ]]; then
-              cat artifacts/summary.md >> "$GITHUB_STEP_SUMMARY"
-              python -m benchmarks.render_report "${render_args[@]}" --fail-on-correctness
-              correctness_rc=$?
-              if [[ "$correctness_rc" != 0 ]]; then report_rc="$correctness_rc"; fi
-            else
-              report_rc="$render_rc"
-              echo "Benchmark report rendering failed with exit code $render_rc." >&2
-            fi
+            exit 1
           fi
+          baseline_path=""
+          if candidate="$(find artifacts/baseline -type f -name '*.json' -print -quit)"; then
+            baseline_path="$candidate"
+          fi
+          render_args=(--map "$map_path" --perception "$perception_path")
+          if [[ -n "$baseline_path" ]]; then
+            render_args+=(--baseline "$baseline_path")
+          fi
+          python -m benchmarks.render_report "${render_args[@]}" --output artifacts/summary.md
+          cat artifacts/summary.md >> "$GITHUB_STEP_SUMMARY"
+          python -m benchmarks.render_report "${render_args[@]}" --fail-on-correctness
           echo "" >> "$GITHUB_STEP_SUMMARY"
           df --output=avail -B1 . | tail -1 | tr -d ' ' | sed 's/^/free_disk_after_bytes=/' >> artifacts/workflow-provenance.env
           echo "benchmark_finished_at=$(date --iso-8601=seconds)" >> artifacts/workflow-provenance.env
