@@ -16,7 +16,7 @@
 }
 
 .nav-inner {
-  width: min(1360px, calc(100% - 48px));
+  width: calc(100% - 96px);
   height: var(--nav-h);
   margin: 0 auto;
   display: flex;

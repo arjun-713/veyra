@@ -70,7 +70,7 @@ button {
 }
 
 .wrap {
-  width: min(var(--max), calc(100% - 48px));
+  width: calc(100% - 96px);
   margin: 0 auto;
 }
 
@@ -91,7 +91,7 @@ button {
   border: 0;
   border-top: 1px solid var(--line);
   margin: 96px auto 0;
-  width: min(var(--max), calc(100% - 48px));
+  width: calc(100% - 96px);
 }
 
 /* Reveal-on-scroll: visible by default, animated only with motion OK. */
@@ -127,6 +127,11 @@ button {
 }
 
 @media (max-width: 760px) {
+  .wrap,
+  .divider {
+    width: calc(100% - 40px);
+  }
+
   .section {
     padding: 88px 0 4px;
   }
