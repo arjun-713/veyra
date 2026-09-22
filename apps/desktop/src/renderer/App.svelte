@@ -6,7 +6,7 @@
  let workspace=$state('Dashboard'),status=$state<Json>({state:'unconfigured',index:0,frames:0,policy:'distance_lod',speed:1}),telemetry=$state<Json>({}),desktop=$state<Json>({}),render=$state<Json>({}),info=$state<Json>({});
  let frame=$state.raw<WireFrame|null>(null),samples=$state<Json[]>([]),error=$state(''),notice=$state(''),busy=$state(false),catalog=$state<Json|null>(null),inspector=$state<Json|null>(null);
  let dataset=$state('generic'),sequence=$state(''),config=$state<Json>(defaultSessionConfig());
- let configText=$state(''),mode=$state('semantic'),showPoints=$state(true),showCells=$state(true),boundaries=$state(false),view=$state('orbit'),follow=$state(false),seekIndex=$state(0),preset=$state('LowResource');
+ let configText=$state(''),mode=$state('semantic'),showPoints=$state(true),showCells=$state(true),boundaries=$state(false),view=$state('orbit'),follow=$state(false),accumulate=$state(20),seekIndex=$state(0),preset=$state('LowResource');
  let report=$state<Json|null>(null),previousReport=$state<Json|null>(null),benchmarkState=$state('idle'),benchmarkCount=$state(100),validationState=$state('idle'),validationResult=$state<Json|null>(null);
  let events=$state<DashboardEvent[]>([]);
  let now=$state(Date.now()),awaitingFrame=$state(false);
@@ -22,7 +22,9 @@
 let governorOverride=$state('automatic');
 function syncGovernorOverride(value:unknown){if(value==='automatic'||value==='disabled'||value==='conserve')governorOverride=value;}
  async function setGovernor(mode:string){const previous=governorOverride;governorOverride=mode;const response=await command('governor',{mode});if(!response)governorOverride=previous;}
- async function setLayer(layer:string){const response=await command('layer',{layer});if(response){mode=layer;notice=`Layer changed to ${layer}.`;}}
+ async function setLayer(layer:string){const response=await command('layer',{layer});if(response){mode=layer;notice=`Layer changed to ${layer}.`;
+  // Points have no LOD/utility colour and would bury the cells; reveal the map.
+  if(layer==='lod'||layer==='utility'){showPoints=false;showCells=true;}}}
  async function stopRuntime(){await action(async()=>{const response=await window.veyra.stop();if(response?.status)status=response.status;clearSessionView();awaitingFrame=false;notice='Runtime stopped. Open the dataset again to begin a new session.';});}
  async function runValidation(){await action(async()=>{validationState='running';validationResult=null;try{const response=await window.veyra.command('validation');if(response?.status)status=response.status;if(response?.result)validationResult=response.result;validationState=response?.result?.status==='pass'?'pass':'fail';}catch(error){validationState='fail';throw error;}});}
  async function runBenchmark(){await action(async()=>{benchmarkState='running';try{const response=await window.veyra.command('benchmark',{dataset:status.dataset,sequence:status.sequence,count:benchmarkCount});if(response.result?.report){report=response.result.report;benchmarkState='complete';}}catch(e){benchmarkState='failed';throw e;}});}
@@ -68,7 +70,7 @@ function confirmSaved(ok:unknown,saved:string,cancelled:string){notice=ok?saved:
   {:else if workspace==='Map'}
    <div class="map-workspace">
     <aside class="layer-panel"><div class="panel-heading">LAYERS <span>DISPLAY</span></div>
-     <label class="toggle"><input type="checkbox" bind:checked={showPoints}/>Raw LiDAR</label><label class="toggle"><input type="checkbox" bind:checked={showCells}/>Adaptive map</label><div class="separator"></div>
+     <label class="toggle"><input type="checkbox" bind:checked={showPoints}/>Raw LiDAR</label><label class="accumulate" title="Display only: overlays recent pose-aligned scans. The mapper still receives one scan per frame.">Accumulate<select bind:value={accumulate} disabled={!showPoints}>{#each [[1,'off'],[10,'10 scans'],[20,'20 scans'],[50,'50 scans']] as [value,label]}<option value={value}>{label}</option>{/each}</select></label><label class="toggle"><input type="checkbox" bind:checked={showCells}/>Adaptive map</label><div class="separator"></div>
      {#each [['semantic','Semantic'],['elevation','Elevation'],['ground','Ground'],['terrain','Traversability'],['motion','Motion'],['lod','LOD resolution'],['utility','Utility']] as [value,label]}
       <button class="layer" class:selected={mode===value} onclick={()=>setLayer(value)} disabled={!playbackEnabled()}><span class="layer-dot" style:background={value==='lod'?'#45d3c9':undefined}></span>{label}{#if layerUnavailable(frame,value)}<small>n/a</small>{/if}</button>
      {/each}
@@ -77,10 +79,10 @@ function confirmSaved(ok:unknown,saved:string,cancelled:string){notice=ok?saved:
      {#if inspector}<div class="inspector"><div class="panel-heading">CELL INSPECTOR</div>{#each Object.entries(inspector) as [key,value]}<div><span>{key.replaceAll('_',' ')}</span><b>{format(value,3)}</b></div>{/each}<button onclick={()=>inspector=null}>Close</button></div>{:else}<p class="hint">Double-click a cell to inspect its measured fields.</p>{/if}
     </aside>
     <section class="map-stage" aria-label="LiDAR and adaptive map">
-     <MapCanvas {frame} {mode} {showPoints} {showCells} {boundaries} {view} {follow} onStats={value=>render={...render,...value,updated_at:Date.now()}} onInspect={value=>inspector=value}/>
+     <MapCanvas {frame} {mode} {showPoints} {showCells} {boundaries} {view} {follow} {accumulate} onStats={value=>render={...render,...value,updated_at:Date.now()}} onInspect={value=>inspector=value}/>
      <div class="map-toolbar"><div class="segmented">{#each ['orbit','top','driver'] as camera}<button class:active={view===camera} onclick={()=>view=camera}>{camera}</button>{/each}</div><button onclick={()=>action(async()=>{const saved=await window.veyra.screenshot();confirmSaved(saved,'Screenshot saved.','Screenshot cancelled — no file written.');})}>↓ Screenshot</button></div>
      {#if !frame}<div class="map-empty" role="status"><h2>{error?'Preview unavailable':awaitingFrame?'Processing your first frame…':'Open a dataset to begin'}</h2><p>{error?'The error above explains what failed. Return to Dataset to check the session.':awaitingFrame?'The runtime is preparing LiDAR points and map cells. The preview appears when those bytes reach this viewer.':'Choose a dataset directory and sequence, then open its preview.'}</p>{#if !awaitingFrame}<button class="primary" onclick={()=>workspace='Datasets'}>Choose dataset →</button>{/if}</div>{/if}
-     <div class="map-coordinate"><span>WORLD · ODOM</span><span>{format(render.source_points??frame?.metadata.points?.count,0)} source points · {format(render.rendered_points??frame?.metadata.points?.count,0)} rendered · {format(render.source_cells??frame?.metadata.cells?.count,0)} source cells · {render.sampling_active?'SAMPLING ACTIVE':'FULL VIEW'}</span></div>
+     <div class="map-coordinate"><span>WORLD · ODOM</span><span>{format(render.source_points??frame?.metadata.points?.count,0)} source points · {format(render.rendered_points??frame?.metadata.points?.count,0)} rendered{#if (render.accumulated_scans??1)>1} from {render.accumulated_scans} scans{/if} · {format(render.source_cells??frame?.metadata.cells?.count,0)} source cells · {render.sampling_active?'SAMPLING ACTIVE':'FULL VIEW'}</span></div>
      {#if frame&&layerUnavailable(frame,mode)}<div class="layer-warning">{mode[0].toUpperCase()+mode.slice(1)} values are unavailable in the current map snapshot.</div>{/if}
     </section>
    </div>

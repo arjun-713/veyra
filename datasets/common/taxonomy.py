@@ -100,10 +100,47 @@ RELLIS_LABELS: dict[int, VeyraClass] = {
     34: 0,  # rubble has no honest SemanticKITTI equivalent
 }
 
+# PandaSet semantic segmentation ``classes.json`` (42 classes, identical in every
+# labelled sequence). Mapped by meaning; atmospheric returns (smoke, exhaust,
+# spray, reflection) and classes without an honest target stay unknown.
+PANDASET_LABELS: dict[int, VeyraClass] = {
+    5: 15,  # vegetation -> vegetation
+    6: 12,  # ground (unpaved, non-road) -> other-ground
+    7: 9,  # road -> road
+    8: 9,  # lane line marking -> road
+    9: 9,  # stop line marking -> road
+    10: 9,  # other road marking -> road
+    11: 11,  # sidewalk -> sidewalk
+    12: 12,  # driveway -> other-ground
+    13: 1,  # car -> car
+    14: 1,  # pickup truck -> car (SemanticKITTI convention)
+    15: 4,  # medium-sized truck -> truck
+    16: 4,  # semi-truck -> truck
+    17: 5,  # towed object -> other-vehicle
+    18: 3,  # motorcycle -> motorcycle
+    19: 5,  # construction vehicle -> other-vehicle
+    20: 5,  # uncommon vehicle -> other-vehicle
+    21: 5,  # pedicab -> other-vehicle
+    22: 5,  # emergency vehicle -> other-vehicle
+    23: 5,  # bus -> other-vehicle (SemanticKITTI learning_map)
+    26: 2,  # bicycle -> bicycle
+    27: 5,  # train -> other-vehicle (SemanticKITTI on-rails)
+    28: 5,  # trolley -> other-vehicle
+    29: 5,  # tram / subway -> other-vehicle
+    30: 6,  # pedestrian -> person
+    31: 6,  # pedestrian with object -> person
+    35: 14,  # road barriers -> fence (guard rails in SemanticKITTI)
+    36: 19,  # signs -> traffic-sign
+    38: 19,  # construction signs -> traffic-sign
+    39: 14,  # temporary construction barriers -> fence
+    41: 13,  # building -> building
+}
+
 DATASET_TAXONOMY_VERSIONS = {
     "semantickitti": "SemanticKITTI-v1.1-learning_map",
     "semanticposs": "SemanticPOSS-v1.0-LABEL_DICT",
     "rellis3d": "RELLIS-3D-v1.1-learning_map",
+    "pandaset": "PandaSet-semseg-classes-v1",
 }
 
 
@@ -165,6 +202,7 @@ def map_dataset_labels(
 
 __all__ = [
     "DATASET_TAXONOMY_VERSIONS",
+    "PANDASET_LABELS",
     "RELLIS_LABELS",
     "SEMANTICKITTI_LABELS",
     "SEMANTIC_POSS_LABELS",
