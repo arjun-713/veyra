@@ -1152,8 +1152,10 @@ std::string render(const Result& result) {
           << ",\"ground_mean_z\":" << leaf.stats.ground.mean_z
           << ",\"obstacle_count\":" << leaf.stats.obstacle.count
           << ",\"obstacle_min_z\":" << leaf.stats.obstacle.min_z
+          << ",\"obstacle_max_z\":" << leaf.stats.obstacle.max_z
           << ",\"overhead_count\":" << leaf.stats.overhead.count
           << ",\"overhead_min_z\":" << leaf.stats.overhead.min_z
+          << ",\"overhead_max_z\":" << leaf.stats.overhead.max_z
           << ",\"occupancy_logodds\":" << leaf.stats.occupancy_logodds << '}';
     }
     out << ']';
