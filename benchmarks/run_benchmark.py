@@ -691,21 +691,77 @@ def mapping_quality_report(
     # reference inside a coarse leaf hides precisely the detail LOD discards.
     # Four lookups per reference bin also avoid leaf_count * reference_count.
     owners = {
-        (int(leaf["level"]), int(leaf["ix"]), int(leaf["iy"])): float(leaf["mean_z"])
+        (int(leaf["level"]), int(leaf["ix"]), int(leaf["iy"])): (
+            float(leaf["mean_z"]),
+            int(leaf["level"]),
+        )
         for leaf in snapshot.get("leaves", [])
         if int(leaf["count"]) > 0
     }
+    band_errors: dict[tuple[float, float], list[float]] = {
+        band: [] for band in _RANGE_BANDS
+    }
+    band_levels: dict[tuple[float, float], list[int]] = {
+        band: [] for band in _RANGE_BANDS
+    }
+    band_reference: dict[tuple[float, float], int] = {
+        band: 0 for band in _RANGE_BANDS
+    }
+    mean_range_by_cell = fine_reference.get("mean_range_by_cell", {})
     for (ix, iy), value in reference.items():
         for level in range(4):
             estimate = owners.get((level, ix >> level, iy >> level))
             if estimate is not None:
-                errors.append(estimate - value)
+                errors.append(estimate[0] - value)
+                cell_range = mean_range_by_cell.get((ix, iy))
+                if cell_range is not None:
+                    for band in _RANGE_BANDS:
+                        if band[0] <= cell_range < band[1]:
+                            band_errors[band].append(estimate[0] - value)
+                            band_levels[band].append(estimate[1])
+                            break
                 break
+    for (ix, iy) in reference:
+        cell_range = mean_range_by_cell.get((ix, iy))
+        if cell_range is not None:
+            for band in _RANGE_BANDS:
+                if band[0] <= cell_range < band[1]:
+                    band_reference[band] += 1
+                    break
     rmse = (
         math.sqrt(sum(error * error for error in errors) / len(errors))
         if errors
         else None
     )
+    elevation_by_range = []
+    for band in _RANGE_BANDS:
+        band_err = band_errors[band]
+        levels = band_levels[band]
+        elevation_by_range.append(
+            {
+                "min_m": band[0],
+                "max_m": band[1],
+                "reference_bins": band_reference[band],
+                "sample_count": len(band_err),
+                "coverage": (
+                    len(band_err) / band_reference[band] if band_reference[band] else None
+                ),
+                "rmse_m": (
+                    math.sqrt(sum(e * e for e in band_err) / len(band_err))
+                    if band_err
+                    else None
+                ),
+                "mean_owner_level": (
+                    sum(levels) / len(levels) if levels else None
+                ),
+                "scope": (
+                    "observed 5cm bins banded by mean point range; "
+                    "unavailable without retained source frames"
+                    if mean_range_by_cell
+                    else "unavailable: source frames were not retained"
+                ),
+            }
+        )
     topology = mixed_resolution_topology_report(snapshot, set(reference))
     retention = (
         field_retention_report(frames, snapshot)
@@ -751,21 +807,40 @@ def mapping_quality_report(
             "reference_bins": len(reference),
             "coverage": len(errors) / len(reference) if reference else None,
             "scope": "observed reference bins covered by final active leaves; excludes evicted/uncovered bins",
+            "by_range": elevation_by_range,
         },
         "mixed_resolution_topology": topology,
         "field_retention": retention,
     }
 
 
+# Veyra distance hierarchy for range-banded map quality. A bin belongs to the
+# band containing its mean point range; bands are half-open [min, max).
+_RANGE_BANDS: tuple[tuple[float, float], ...] = (
+    (0.0, 10.0),
+    (10.0, 30.0),
+    (30.0, 60.0),
+    (60.0, 100.0),
+)
+
+
 def _fine_reference(frames: list[Any]) -> dict[str, Any]:
-    bins: dict[tuple[int, int], tuple[float, int]] = {}
+    bins: dict[tuple[int, int], tuple[float, float, int]] = {}
     for frame in frames:
+        pose = np.asarray(frame.pose.matrix, dtype=np.float64)
+        origin_x, origin_y = float(pose[0, 3]), float(pose[1, 3])
         for x, y, z, _intensity in frame.points:
             key = (math.floor(float(x) * 20), math.floor(float(y) * 20))
-            total, count = bins.get(key, (0.0, 0))
-            bins[key] = (total + float(z), count + 1)
+            total_z, total_r, count = bins.get(key, (0.0, 0.0, 0))
+            point_range = math.hypot(float(x) - origin_x, float(y) - origin_y)
+            bins[key] = (total_z + float(z), total_r + point_range, count + 1)
     return {
-        "mean_z_by_cell": {key: total / count for key, (total, count) in bins.items()}
+        "mean_z_by_cell": {
+            key: total_z / count for key, (total_z, _total_r, count) in bins.items()
+        },
+        "mean_range_by_cell": {
+            key: total_r / count for key, (_total_z, total_r, count) in bins.items()
+        },
     }
 
 
@@ -805,12 +880,18 @@ def _finalize_policy_runs(
     default streaming path (bounded memory, retention unavailable); the
     opt-in ``--retain-frames`` path supplies it so field and task-class
     retention are measured on the identical stream every policy consumed.
+    Retained frames also supply per-bin ranges, so the point-built reference
+    (with range bands) is preferred over the Uniform5-snapshot reference
+    whenever frames are available.
     """
-    fine_reference = (
-        _fine_reference_from_snapshot(runs_by_policy["uniform5"][0]["snapshot"])
-        if runs_by_policy.get("uniform5")
-        else {"mean_z_by_cell": {}}
-    )
+    if frames is not None:
+        fine_reference = _fine_reference(frames)
+    else:
+        fine_reference = (
+            _fine_reference_from_snapshot(runs_by_policy["uniform5"][0]["snapshot"])
+            if runs_by_policy.get("uniform5")
+            else {"mean_z_by_cell": {}}
+        )
     for runs in runs_by_policy.values():
         for result in runs:
             result["quality"] = mapping_quality_report(

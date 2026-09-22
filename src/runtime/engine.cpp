@@ -1052,6 +1052,8 @@ std::string render(const Result& result) {
       const auto& leaf = snapshot.leaves[index];
       out << "{\"level\":" << leaf.id.level << ",\"ix\":" << leaf.id.ix << ",\"iy\":" << leaf.id.iy
           << ",\"count\":" << leaf.stats.count << ",\"mean_z\":" << leaf.stats.mean_z()
+          << ",\"semantic_class\":" << leaf.stats.semantic_class
+          << ",\"drivable_evidence\":" << leaf.stats.drivable_evidence()
           << ",\"ground_count\":" << leaf.stats.ground.count
           << ",\"ground_mean_z\":" << leaf.stats.ground.mean_z
           << ",\"obstacle_count\":" << leaf.stats.obstacle.count
