@@ -89,11 +89,14 @@ class Telemetry:
         point_count = int(
             frame.get("n_points") or (len(semantic) if semantic is not None else 0)
         )
+        # Absent ground status means unknown provenance, not an unavailable
+        # stage: measured ground evidence is still reported. Only explicit
+        # non-measurement statuses suppress the ratio (never fabricate zero).
         ground_count = (
             int(np.count_nonzero(np.asarray(ground)))
             if ground is not None
             and pipeline_status.get("ground")
-            not in {None, "unavailable", "disabled", "invalid", "skipped"}
+            not in {"unavailable", "disabled", "invalid", "skipped"}
             else None
         )
         semantic_counts = counts(semantic)
