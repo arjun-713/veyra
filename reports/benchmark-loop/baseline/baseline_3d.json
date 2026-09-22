@@ -1,0 +1,267 @@
+{
+  "analytical_3d_reference": {
+    "bounds_max_m": [
+      97.07123565673828,
+      98.54447937011719,
+      18.11607551574707
+    ],
+    "bounds_min_m": [
+      -94.81878662109375,
+      -97.51241302490234,
+      -6.1457438468933105
+    ],
+    "dense_voxel_count": 7334413339,
+    "dimensions": [
+      3839,
+      3923,
+      487
+    ],
+    "estimated_bytes_per_voxel": 16,
+    "estimated_dense_bytes": 117350613424,
+    "executed_through_map_engine": false,
+    "representation": "dense_uniform_3d_voxels",
+    "status": "analytical_only",
+    "voxel_size_m": 0.05,
+    "warning": "memory estimate only; no dense grid was allocated or timed"
+  },
+  "comparison": {
+    "accounted_sparse_bytes_measured": 15811616,
+    "bytes_ratio_measured_over_analytical": 0.00013473824753579245,
+    "dense_voxels_analytical": 7334413339,
+    "estimated_dense_bytes_analytical": 117350613424,
+    "occupied_voxels_measured": 494113,
+    "peak_rss_bytes_measured": 371245056,
+    "sparsity_occupied_over_dense": 6.736912376789623e-05,
+    "table_markdown": "| quantity | ANALYTICAL (dense, never allocated/timed) | MEASURED (sparse voxel-hash) |\n| --- | --- | --- |\n| representation | dense_uniform_3d_voxels | sparse_voxel_hash_occupancy_5cm |\n| voxel size | 0.05 m | 0.05 m |\n| elements | 7334413339 dense voxels | 494113 occupied voxels |\n| memory | 117350613424 B estimated | 15811616 B accounted (ratio 0.000135) |\n| peak RSS | n/a (never ran) | 371245056 B (process peak, incl. interpreter) |\n| update latency p50/p95/p99 | n/a (never ran) | 25.241/46.387/46.387 ms (n=10) |\n| sparsity occupied/dense | \u2014 | 0.000067 |"
+  },
+  "elements": {
+    "frames": [
+      {
+        "cumulative_voxels": 62840,
+        "frame_index": 0,
+        "insert_latency_ns": 24382961,
+        "new_voxels": 62840,
+        "points": 66021
+      },
+      {
+        "cumulative_voxels": 116580,
+        "frame_index": 1,
+        "insert_latency_ns": 22709885,
+        "new_voxels": 53740,
+        "points": 66049
+      },
+      {
+        "cumulative_voxels": 169753,
+        "frame_index": 2,
+        "insert_latency_ns": 39764868,
+        "new_voxels": 53173,
+        "points": 66035
+      },
+      {
+        "cumulative_voxels": 221133,
+        "frame_index": 3,
+        "insert_latency_ns": 25988886,
+        "new_voxels": 51380,
+        "points": 65970
+      },
+      {
+        "cumulative_voxels": 271664,
+        "frame_index": 4,
+        "insert_latency_ns": 22705777,
+        "new_voxels": 50531,
+        "points": 65978
+      },
+      {
+        "cumulative_voxels": 321042,
+        "frame_index": 5,
+        "insert_latency_ns": 46387261,
+        "new_voxels": 49378,
+        "points": 65930
+      },
+      {
+        "cumulative_voxels": 367269,
+        "frame_index": 6,
+        "insert_latency_ns": 25240815,
+        "new_voxels": 46227,
+        "points": 65963
+      },
+      {
+        "cumulative_voxels": 411982,
+        "frame_index": 7,
+        "insert_latency_ns": 25622337,
+        "new_voxels": 44713,
+        "points": 65989
+      },
+      {
+        "cumulative_voxels": 453868,
+        "frame_index": 8,
+        "insert_latency_ns": 28029333,
+        "new_voxels": 41886,
+        "points": 65886
+      },
+      {
+        "cumulative_voxels": 494113,
+        "frame_index": 9,
+        "insert_latency_ns": 24544730,
+        "new_voxels": 40245,
+        "points": 65916
+      }
+    ],
+    "occupied_voxels": 494113,
+    "per_frame_insert_latency_ns": [
+      24382961,
+      22709885,
+      39764868,
+      25988886,
+      22705777,
+      46387261,
+      25240815,
+      25622337,
+      28029333,
+      24544730
+    ],
+    "per_frame_new_voxels": [
+      62840,
+      53740,
+      53173,
+      51380,
+      50531,
+      49378,
+      46227,
+      44713,
+      41886,
+      40245
+    ],
+    "per_frame_points": [
+      66021,
+      66049,
+      66035,
+      65970,
+      65978,
+      65930,
+      65963,
+      65989,
+      65886,
+      65916
+    ]
+  },
+  "input": {
+    "bounds_max_m": [
+      97.07123565673828,
+      98.54447937011719,
+      18.11607551574707
+    ],
+    "bounds_min_m": [
+      -94.81878662109375,
+      -97.51241302490234,
+      -6.1457438468933105
+    ],
+    "count": 10,
+    "dataset": "semanticposs",
+    "dataset_root": "data/raw/semanticposs/dataset",
+    "expected_digest_prefix": "4cd60ac5",
+    "frames_voxelized": 10,
+    "load_latency_ns": 1819842874,
+    "perception_executed": true,
+    "perception_latency_ns": {
+      "count": 10,
+      "max": 161788183.0,
+      "mean": 133278524.4,
+      "min": 118400027.0,
+      "p50": 128948502.0,
+      "p95": 161788183.0,
+      "p99": 161788183.0
+    },
+    "point_count": 659737,
+    "sequence": "00",
+    "start": 0,
+    "stream_digest": "a5d6ea7c6bdad6d2b335335e6f9778e9456b61ec195b5131d36da62fbd3d65a0",
+    "stream_digest_matches_closure_4cd60ac5": false,
+    "window_radius_m": 100.23456068316398
+  },
+  "measurement_scope": "per-frame update latency covers voxelize (floor+pack+unique) + hash-insert only; dataset load and perception are timed separately and excluded, mirroring the map_update stage scope",
+  "memory_accounting": {
+    "accounted_bytes": 15811616,
+    "bytes_per_entry": 32,
+    "method": "accounted, not malloc-hooked: occupied_voxels * 32 B (8 B packed key + 8 B occupancy/count payload + 16 B open-addressing hash-slot overhead). Python set object overhead is excluded from this figure; process-level cost is reported separately as peak RSS."
+  },
+  "provenance": {
+    "build": {
+      "cpp_mapper_binary_used": false,
+      "note": "baseline_3d.py uses numpy only; no cmake/cargo artifact is built or executed",
+      "type": "pure_python_no_cpp"
+    },
+    "config": {
+      "perception_config": "configs/perception.yaml",
+      "perception_executed": true,
+      "perception_sha256": "7fb3085bb8a47d0a7024b0a435d7a586a782f258d37ccf220e31365e9382832d"
+    },
+    "cpu_count": 8,
+    "cpu_model": "Intel(R) Core(TM) i5-8350U CPU @ 1.70GHz",
+    "dataset": "semanticposs",
+    "dataset_root": null,
+    "frame_count": 10,
+    "frames_voxelized": 10,
+    "git_dirty": true,
+    "git_sha": "2c5f8c50ca46da0cccf5f6b6720a6d97922bb7fd",
+    "gpu": {
+      "name": null,
+      "note": "no discrete GPU visible (nvidia-smi absent/failed); baseline runs CPU-only"
+    },
+    "host": "mallik-fedora",
+    "mem_total_bytes": 16489123840,
+    "numpy": "2.2.6",
+    "os": {
+      "machine": "x86_64",
+      "platform": "Linux-7.2.5-200.fc44.x86_64-x86_64-with-glibc2.43",
+      "processor": "Intel(R) Core(TM) i5-8350U CPU @ 1.70GHz"
+    },
+    "platform": "Linux-7.2.5-200.fc44.x86_64-x86_64-with-glibc2.43",
+    "point_count": 659737,
+    "policy": {
+      "leg": "measured_3d",
+      "representation": "sparse_voxel_hash_occupancy_5cm",
+      "suite": "reference",
+      "voxel_size_m": 0.05
+    },
+    "python": "3.13.15",
+    "sequence": "00",
+    "start_frame": 0,
+    "timestamp_utc": "2026-09-22T16:51:54.168220+00:00",
+    "voxel_size_m": 0.05
+  },
+  "representation": "sparse_voxel_hash_occupancy_5cm",
+  "rss": {
+    "base_ru_maxrss_bytes_before_voxel_loop": 70967296,
+    "note": "process peak incl. interpreter + retained frames + voxel set; accounted voxel bytes are the comparator against the analytical dense estimate, not RSS",
+    "peak_rss_bytes": 371245056,
+    "ru_maxrss_bytes": 371245056,
+    "vmhwm_bytes": 371245056
+  },
+  "schema": "veyra-baseline-3d/1",
+  "status": "measured",
+  "tail_reliability": {
+    "p95_reliable": false,
+    "p99_reliable": false,
+    "samples": 10
+  },
+  "update_latency_ms": {
+    "count": 10,
+    "max": 46.387261,
+    "mean": 28.5376853,
+    "min": 22.705777,
+    "p50": 25.240815,
+    "p95": 46.387261,
+    "p99": 46.387261
+  },
+  "update_latency_ns": {
+    "count": 10,
+    "max": 46387261.0,
+    "mean": 28537685.3,
+    "min": 22705777.0,
+    "p50": 25240815.0,
+    "p95": 46387261.0,
+    "p99": 46387261.0
+  },
+  "voxel_size_m": 0.05
+}

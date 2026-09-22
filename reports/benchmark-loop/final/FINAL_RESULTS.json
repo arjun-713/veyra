@@ -1,0 +1,245 @@
+{
+ "provenance": {
+  "build_type": "Release",
+  "compiler": "c++ (GCC) 16.2.1 20260819 (Red Hat 16.2.1-2)",
+  "config_digest": "fea60ebeea07480781e9713f0b08cfefa86a62ffe74d9a563f52e9df454a110e",
+  "config_sha256": {
+   "benchmark.yaml": "f2d60b90a3de53fbfc6347c5e527fd01291c1f2e2ea5e77ccafb1c8c21d3cf07",
+   "datasets.yaml": "2925075c5e70d169070e61c9ecb8fd6226c716e7602f4a552cc9c56f245f48b7",
+   "distance_lod.yaml": "50cfb183cf26ff738c5bc4aed4f7dde58d6ee1a0e20831b62d740d21a18e2414",
+   "hardware_profiles.yaml": "16cccff4b2958c05f2bc9e9936cb6278cf3120b0eb8c744fc4552209a38c5d45",
+   "perception.yaml": "7fb3085bb8a47d0a7024b0a435d7a586a782f258d37ccf220e31365e9382832d",
+   "resource_governor.yaml": "c0b54b59500eedb1972c3493794dbccf751bad9ca96bf264b8787bf95d4959a5",
+   "utility_lod.yaml": "7c98ee39e870aa97912ce00436e2f9416d2bce50f8a178965abc82eeb87faa77"
+  },
+  "dataset_sha256": null,
+  "frame_range": {
+   "count": 10,
+   "end_exclusive": 10,
+   "sequence": "00",
+   "start": 0
+  },
+  "git_sha": "764957b01290ca2a11d96f3015ebe08af4146358",
+  "hardware": {
+   "capture": "runtime",
+   "logical_cpu_count": 8,
+   "machine": "x86_64",
+   "os": "Linux-7.2.5-200.fc44.x86_64-x86_64-with-glibc2.43",
+   "physical_memory_bytes": 16489123840,
+   "processor": "Intel(R) Core(TM) i5-8350U CPU @ 1.70GHz",
+   "profile": "auto",
+   "python": "3.13.15"
+  },
+  "map_window_radius_m": 100.23556068316398,
+  "measurement_scope": {
+   "map_update": "C++ map update calls only; excludes protocol parsing, snapshotting, and JSON/CSV serialization",
+   "map_window_follow": "C++ public map window-center update from the transmitted world-frame pose; excludes serialization",
+   "perception": "Python PerceptionPipeline processing, shared once before all policy runs",
+   "protocol_parse_and_validate": "C++ token parsing and Observation construction; excludes stdin I/O",
+   "snapshot_and_topology": "C++ map snapshot plus topology extraction; excludes JSON/CSV serialization"
+  },
+  "model_checkpoint_sha256": "067086f808985de376e19c174e249190b7c97996cd54be1dbb9d8b298804b548",
+  "perception_executed": true,
+  "policy_execution_order": [
+   [
+    "uniform5",
+    "uniform40",
+    "distance_lod",
+    "utility_lod"
+   ],
+   [
+    "uniform40",
+    "distance_lod",
+    "utility_lod",
+    "uniform5"
+   ]
+  ],
+  "protocol_version": 3,
+  "pull_request_number": null,
+  "repetitions": 2,
+  "sample_adequacy": {
+   "fps_samples_per_policy": {
+    "p95_reliable": false,
+    "p99_reliable": false,
+    "samples": 2
+   },
+   "measured_frames_per_run": 8,
+   "note": "nearest-rank p95 needs >=20 samples and p99 >=100; short-run tails equal the max and are descriptive only, not SLO evidence",
+   "repetitions": 2,
+   "stage_latency_samples_per_policy": {
+    "p95_reliable": false,
+    "p99_reliable": false,
+    "samples": 16
+   }
+  },
+  "selection_digest": "a5d6ea7c6bdad6d2b335335e6f9778e9456b61ec195b5131d36da62fbd3d65a0",
+  "timestamp_utc": "2026-09-22T18:07:46.341015+00:00",
+  "warmup_frames": 2,
+  "workflow_event": null,
+  "workflow_run_id": null
+ },
+ "perception": {
+  "bridge": {
+   "max_ms": 391.119494,
+   "mean_ms": 212.35363681249999,
+   "p50_ms": 218.870505,
+   "p95_ms": 318.482167,
+   "p99_ms": 391.119494,
+   "samples": 64
+  },
+  "dataset_load": {
+   "max_ms": 107.758589,
+   "mean_ms": 67.0053489,
+   "p50_ms": 53.322213,
+   "p95_ms": 107.758589,
+   "p99_ms": 107.758589,
+   "samples": 10
+  },
+  "ground": {
+   "max_ms": 109.14093300016248,
+   "mean_ms": 60.772202299995115,
+   "p50_ms": 54.441330000372545,
+   "p95_ms": 109.14093300016248,
+   "p99_ms": 109.14093300016248,
+   "samples": 10
+  },
+  "semantic": {
+   "max_ms": 1.171447000160697,
+   "mean_ms": 0.5018078001739923,
+   "p50_ms": 0.4100149999430869,
+   "p95_ms": 1.171447000160697,
+   "p99_ms": 1.171447000160697,
+   "samples": 10
+  },
+  "sensor_transform": {
+   "max_ms": 4.259710999576782,
+   "mean_ms": 2.2975112998210534,
+   "p50_ms": 2.0506189994193846,
+   "p95_ms": 4.259710999576782,
+   "p99_ms": 4.259710999576782,
+   "samples": 10
+  },
+  "temporal": {
+   "max_ms": 0.0009369996405439451,
+   "mean_ms": 0.0007731000550847966,
+   "p50_ms": 0.000764999640523456,
+   "p95_ms": 0.0009369996405439451,
+   "p99_ms": 0.0009369996405439451,
+   "samples": 10
+  },
+  "terrain": {
+   "max_ms": 131.05435900070006,
+   "mean_ms": 68.22389540002405,
+   "p50_ms": 62.66388400035794,
+   "p95_ms": 131.05435900070006,
+   "p99_ms": 131.05435900070006,
+   "samples": 10
+  },
+  "total": {
+   "max_ms": 258.8443489994461,
+   "mean_ms": 142.7805862997957,
+   "p50_ms": 130.5361599997923,
+   "p95_ms": 258.8443489994461,
+   "p99_ms": 258.8443489994461,
+   "samples": 10
+  }
+ },
+ "policies": [
+  {
+   "policy": "uniform5",
+   "logical_bytes": 55789720,
+   "allocated_bytes": 83219664,
+   "rss_bytes": 274755584,
+   "active_leaves": 303205,
+   "map_p50_ns": 424057628,
+   "map_p95_ns": 538108734,
+   "e2e_p50_ns": 687255309,
+   "e2e_p95_ns": 955069416,
+   "fps": 1.3851268166413906,
+   "rmse_m": 4.657653214733103e-17,
+   "coverage": 0.9988239634736891,
+   "band_rmse_0_10": 3.027344360966802e-17,
+   "band_rmse_10_30": 5.267456753923486e-17,
+   "band_rmse_30_60": 4.657040725661136e-17,
+   "band_rmse_60_100": 2.0553527270805008e-17,
+   "semantic_retention": 0.9952374243606088,
+   "hazard_retention": 0.9329177926946213,
+   "pedestrian_retention": 0.9684290604792697,
+   "pole_retention": 0.9636752136752137,
+   "vehicle_retention": 0.9909956056398781,
+   "point_conservation": true
+  },
+  {
+   "policy": "uniform40",
+   "logical_bytes": 4669000,
+   "allocated_bytes": 6887816,
+   "rss_bytes": 34975744,
+   "active_leaves": 25375,
+   "map_p50_ns": 328013802,
+   "map_p95_ns": 458130312,
+   "e2e_p50_ns": 493847319,
+   "e2e_p95_ns": 680494357,
+   "fps": 1.9804170294153218,
+   "rmse_m": 0.5637673428461342,
+   "coverage": 0.9994893959059434,
+   "band_rmse_0_10": 0.11397766632473597,
+   "band_rmse_10_30": 0.4153613284855785,
+   "band_rmse_30_60": 0.8053879033994975,
+   "band_rmse_60_100": 0.7226779173801795,
+   "semantic_retention": 0.944525958786196,
+   "hazard_retention": 0.8439979077674135,
+   "pedestrian_retention": 0.7481932293647775,
+   "pole_retention": 0.938034188034188,
+   "vehicle_retention": 0.9770576658668751,
+   "point_conservation": true
+  },
+  {
+   "policy": "distance_lod",
+   "logical_bytes": 27101912,
+   "allocated_bytes": 39824368,
+   "rss_bytes": 146132992,
+   "active_leaves": 145671,
+   "map_p50_ns": 343493300,
+   "map_p95_ns": 364309295,
+   "e2e_p50_ns": 676127201,
+   "e2e_p95_ns": 802023859,
+   "fps": 1.4389478777747104,
+   "rmse_m": 0.43214997727391147,
+   "coverage": 0.9943800607454161,
+   "band_rmse_0_10": 0.01891576940975485,
+   "band_rmse_10_30": 0.2398969852210479,
+   "band_rmse_30_60": 0.6260471604122925,
+   "band_rmse_60_100": 0.7229096537966956,
+   "semantic_retention": 0.9720602434892567,
+   "hazard_retention": 0.8903757301019963,
+   "pedestrian_retention": 0.8604031951312286,
+   "pole_retention": 0.9551282051282052,
+   "vehicle_retention": 0.9708839942846359,
+   "point_conservation": true
+  },
+  {
+   "policy": "utility_lod",
+   "logical_bytes": 28841448,
+   "allocated_bytes": 43514304,
+   "rss_bytes": 159322112,
+   "active_leaves": 152883,
+   "map_p50_ns": 418716651,
+   "map_p95_ns": 442408078,
+   "e2e_p50_ns": 812504065,
+   "e2e_p95_ns": 937138309,
+   "fps": 1.210471368806884,
+   "rmse_m": 0.43439100752580756,
+   "coverage": 0.9808045802834346,
+   "band_rmse_0_10": 0.018520217255453084,
+   "band_rmse_10_30": 0.24131369392886468,
+   "band_rmse_30_60": 0.6302695846028571,
+   "band_rmse_60_100": 0.7285715742657819,
+   "semantic_retention": 0.9592775729419729,
+   "hazard_retention": 0.8477464911515997,
+   "pedestrian_retention": 0.8588817040699885,
+   "pole_retention": 0.938034188034188,
+   "vehicle_retention": 0.9533065537972124,
+   "point_conservation": true
+  }
+ ]
+}

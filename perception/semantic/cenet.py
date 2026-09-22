@@ -438,6 +438,14 @@ class CENetSemanticProvider:
         self.threads = threads
         self.checkpoint_path = path
 
+    @property
+    def execution_device(self) -> str:
+        """Verified torch device of the loaded weights, never assumed."""
+        try:
+            return str(next(self._model.parameters()).device)
+        except Exception:  # noqa: BLE001 - device query must not break inference
+            return "unavailable"
+
     def infer_raw(
         self, points: np.ndarray
     ) -> tuple[np.ndarray, np.ndarray, np.ndarray]:

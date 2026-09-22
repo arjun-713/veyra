@@ -87,6 +87,30 @@ void checkBoundaryAndSignedOwnership() {
   }
 }
 
+void checkWindowEdgePointYieldsExactlyOneLeaf() {  // Pins the investigated 100 m boundary: an accepted window-edge return must
+  // own exactly one leaf with count 1, never vanish silently.
+  Map map(ResolutionPolicy::Uniform5, {.window_radius_m = 100.001, .tile_size_m = 0.4});
+  map.set_window_center(0.0, 0.0);
+  CHECK(map.accepts(100.0, 0.0));
+  map.update(point(100.0, 0.0, 0.0, 1));
+  const MapSnapshot snapshot = map.snapshot();
+  checkTopology(snapshot);
+  CHECK(snapshot.point_count == 1);
+  CHECK(snapshot.leaves.size() == 1);
+  CHECK(snapshot.leaves[0].stats.count == 1);
+}
+
+// The O(n) bookkeeping accessor must agree exactly with the snapshot total,
+// including after window eviction: conservation math depends on it.
+void checkPointCountMatchesSnapshotTotal() {
+  Map map(ResolutionPolicy::Uniform40, {.window_radius_m = 0.75, .tile_size_m = 0.4});
+  map.update(point(-0.6, -0.1, 1.0, 1));
+  map.update(point(0.6, 0.1, 3.0, 2));
+  CHECK(map.point_count() == map.snapshot().point_count);
+  map.set_window_center(0.6, 0.0);
+  CHECK(map.point_count() == map.snapshot().point_count);
+}
+
 void checkRepeatedPublicSplitMergePreservesEvidence() {
   Map map(ResolutionPolicy::Uniform40, {.window_radius_m = 5.0, .tile_size_m = 0.8});
   const std::array<std::pair<double, double>, 3> centres{{{-0.62, -0.58}, {0.22, 0.18},
@@ -172,5 +196,7 @@ int main() {
   checkBoundaryAndSignedOwnership();
   checkRepeatedPublicSplitMergePreservesEvidence();
   checkRollingWindowConservesSurvivorIdentity();
+  checkWindowEdgePointYieldsExactlyOneLeaf();
+  checkPointCountMatchesSnapshotTotal();
   return 0;
 }
