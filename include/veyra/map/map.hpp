@@ -220,6 +220,10 @@ struct MapSnapshot {
   std::uint64_t topology_change_count = 0;
   std::uint64_t split_count = 0;
   std::uint64_t merge_count = 0;
+  // Set by Map::snapshot(), which emits leaves ordered by (level, ix, iy).
+  // Queries then use that order; a hand-built snapshot keeps the default and
+  // is scanned instead, so the answer never depends on the flag.
+  bool leaves_ordered_by_id = false;
 
   [[nodiscard]] std::size_t count_at_level(int level) const;
   [[nodiscard]] bool has_no_parent_descendant_overlap() const;
@@ -294,6 +298,9 @@ class Map {
   void split(core::CellId id);
   void merge_children(core::CellId parent);
   [[nodiscard]] MapSnapshot snapshot() const;
+  // Evidence count held by active leaves and retained priors; equals
+  // snapshot().point_count without copying or ordering the leaves.
+  [[nodiscard]] std::size_t point_count() const;
 
  private:
   struct Impl;
@@ -315,6 +322,7 @@ class Uniform5Map {
   void evict_stale_before(std::uint64_t minimum_timestamp);
   ClearingStats clear_free_space(const DepthImage& image, const SensorPose& pose);
   [[nodiscard]] MapSnapshot snapshot() const;
+  [[nodiscard]] std::size_t point_count() const;
 
  private:
   Map map_;
@@ -335,6 +343,7 @@ class Uniform40Map {
   void evict_stale_before(std::uint64_t minimum_timestamp);
   ClearingStats clear_free_space(const DepthImage& image, const SensorPose& pose);
   [[nodiscard]] MapSnapshot snapshot() const;
+  [[nodiscard]] std::size_t point_count() const;
 
  private:
   Map map_;
@@ -358,6 +367,7 @@ class DistanceLodMap {
   void split(core::CellId id);
   void merge_children(core::CellId parent);
   [[nodiscard]] MapSnapshot snapshot() const;
+  [[nodiscard]] std::size_t point_count() const;
 
  private:
   Map map_;

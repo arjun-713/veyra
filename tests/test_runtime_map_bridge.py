@@ -147,6 +147,51 @@ class RuntimeMapBridgeTests(unittest.TestCase):
         )
         self.assertLess(distances[-1], 1.5)
 
+    def test_binary_map_cells_match_the_json_rows_they_replace(self):
+        from runtime.visualization import pack_visualization
+        from viewer.runtime import PersistentMapEngine
+
+        engine = PersistentMapEngine(_benchmark_binary())
+        try:
+            engine.process_frame(_grid_frame())
+            text = engine.map_cells(budget=4)
+            binary = engine.map_cells_binary(budget=4)
+        finally:
+            engine.close()
+
+        self.assertEqual(binary["status"], "available")
+        self.assertEqual(binary["cell_count"], text["cell_count"])
+        self.assertEqual(binary["total_leaves"], text["total_leaves"])
+        frame = {
+            "shown": 0,
+            "points": np.empty((0, 3)),
+            "intensity": [],
+            "semantic_labels": [],
+            "ground": [],
+            "drivable": [],
+            "semantic_confidence": [],
+            "slope": [],
+            "roughness": [],
+            "height_complexity": [],
+            "motion_probability": [],
+            "velocity_xy": np.empty((0, 2)),
+            "observation_quality": [],
+            "terrain_confidence": [],
+            "pipeline_status": {"semantic": "a", "ground": "a", "terrain": "a", "temporal": "a"},
+            "index": 0,
+            "dataset": "fixture",
+            "seq": "00",
+            "id": "0",
+            "pose": {"matrix": np.eye(4), "available": False},
+            "n_points": 0,
+        }
+        _, from_text = pack_visualization(frame, text, 1)
+        _, from_binary = pack_visualization(frame, binary, 1)
+        # JSON carries six decimals; the binary rows carry full float32.
+        np.testing.assert_allclose(
+            np.frombuffer(from_binary, "<f4"), np.frombuffer(from_text, "<f4"), atol=1e-6
+        )
+
     def test_engine_map_cells_match_snapshot_topology(self):
         from viewer.runtime import PersistentMapEngine
 

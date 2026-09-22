@@ -98,3 +98,27 @@ overhead) alongside the pooled accumulator. Design and rationale:
 Tests: `test_layered_terrain` (14 cases), `test_occupancy_uncertainty`
 (9 cases) and `test_depth_image_clearing` (8 cases) cover all nine, plus
 the measured per-cell memory cost so it cannot drift silently.
+
+## Storage invariants
+
+16. **An active leaf owns no prior** — no retained non-spatial prior exists
+    at an active leaf or at any of its descendants. Every path that creates
+    a leaf first absorbs them (`coarsen_to`, `merge_children`, or a split of
+    a parent that itself held none), and a prior is only created by
+    splitting a leaf. With exclusivity (2) this makes the existing-leaf fast
+    path in `Map::update_at_level` exact: `refine_ancestors` and
+    `coarsen_to` would move nothing, so they are skipped.
+17. **Storage order is not semantic** — each tile level keeps its cells in
+    a dense array with an open-addressed position index (append on insert,
+    swap-with-last on erase). The order is a deterministic function of the
+    operation history; `Map::snapshot()` sorts explicitly and sets
+    `leaves_ordered_by_id`, which `count_at_level` and
+    `has_no_parent_descendant_overlap` use, while hand-built snapshots are
+    scanned.
+
+Tests: `test_map_public_properties` checks ordered queries against full
+scans, catches injected overlaps and duplicates through both paths, and
+asserts exact evidence conservation under split/merge churn. The storage
+rewrite was also checked by a differential run against the previous
+implementation (three policies, 26 checkpoints, every leaf id and
+statistic hashed) and a byte-identical 40-frame PandaSet engine replay.
