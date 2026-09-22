@@ -1593,7 +1593,9 @@ std::string render_cells(const veyra::map::MapSnapshot& snapshot, std::size_t bu
             : 0.0;
     if (!std::exchange(first, false)) out << ',';
     out << "{\"l\":" << leaf.id.level << ",\"ix\":" << leaf.id.ix << ",\"iy\":" << leaf.id.iy
-        << ",\"z\":" << leaf.stats.mean_z() << ",\"c\":" << leaf.stats.semantic_class
+        << ",\"z\":" << leaf.stats.mean_z() << ",\"zmin\":" << leaf.stats.min_z()
+        << ",\"zmax\":" << leaf.stats.max_z() << ",\"zvar\":" << leaf.stats.variance_z()
+        << ",\"n\":" << leaf.stats.count << ",\"c\":" << leaf.stats.semantic_class
         << ",\"semantic_confidence\":" << leaf.stats.semantic_confidence()
         << ",\"ground_evidence\":" << leaf.stats.ground_evidence()
         << ",\"terrain_confidence\":" << leaf.stats.terrain_confidence()

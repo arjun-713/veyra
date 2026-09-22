@@ -27,7 +27,13 @@ def pack_visualization(frame, cells, generation):
     points[:, 15] = frame["observation_quality"]
     points[:, 16] = frame["terrain_confidence"]
     rows = cells.get("cells", []) if cells.get("status") == "available" else []
-    mapped = np.empty((len(rows), 9), dtype="<f4")
+    # Cell row layout (v3, 17 floats = 68-byte stride):
+    # 0:x 1:y 2:z_mean 3:size 4:class 5:motion 6:quality 7:drivable_ev
+    # 8:utility 9:sem_conf 10:ground_ev 11:terrain_conf 12:geom_complex
+    # 13:count 14:zmin 15:zmax 16:zvar.
+    # Anything the engine did not supply stays NaN so the UI renders
+    # "Unavailable" instead of a fabricated zero.
+    mapped = np.empty((len(rows), 17), dtype="<f4")
     for index, cell in enumerate(rows):
         size = 0.05 * 2 ** cell["l"]
         # The C++ map-cell schema names this field explicitly.  ``d`` was
@@ -46,20 +52,31 @@ def pack_visualization(frame, cells, generation):
             cell["q"],
             drivable_evidence,
             cell["u"],
+            cell.get("semantic_confidence", float("nan")),
+            cell.get("ground_evidence", float("nan")),
+            cell.get("terrain_confidence", float("nan")),
+            cell.get("geometry_complexity", float("nan")),
+            cell.get("n", float("nan")),
+            cell.get("zmin", float("nan")),
+            cell.get("zmax", float("nan")),
+            cell.get("zvar", float("nan")),
         )
     status = frame["pipeline_status"]
     metadata = {
         "type": "visualization",
-        # Version 2 adds enriched per-point evidence fields while preserving
-        # the existing binary envelope and cell layout.
-        "schema_version": 2,
+        # Version 3 extends the cell rows with the stored evidence the C++
+        # leaf dump already emits (semantic confidence, ground/terrain
+        # evidence, geometry complexity, point count, height min/max/var).
+        # The point layout is unchanged. Older v2 frames (9-float cells)
+        # remain decodable by the desktop viewer.
+        "schema_version": 3,
         "generation": generation,
         "index": frame["index"],
         "dataset": frame["dataset"],
         "sequence": frame["seq"],
         "frame_id": frame["id"],
         "points": {"count": count, "offset": 0, "stride": 68},
-        "cells": {"count": len(rows), "offset": points.nbytes, "stride": 36},
+        "cells": {"count": len(rows), "offset": points.nbytes, "stride": 68},
         "pose": np.asarray(frame["pose"]["matrix"]).reshape(-1).tolist(),
         "pose_available": frame["pose"]["available"],
         "provenance": dict(frame["pose"].get("provenance", {})),

@@ -417,7 +417,7 @@ class ProductServiceTests(unittest.TestCase):
                 self.assertEqual(visual[0]["points"]["count"], 2)
                 self.assertGreater(len(visual[1]), 0)
                 self.assertEqual(visual[0]["layers"]["utility"], "available")
-                self.assertEqual(visual[0]["cells"]["stride"], 36)
+                self.assertEqual(visual[0]["cells"]["stride"], 68)
                 call("policy", policy="uniform40")
                 self.assertEqual(service.status()["policy"], "uniform40")
                 self.assertEqual(service.status()["index"], -1)
@@ -468,14 +468,14 @@ class ProductServiceTests(unittest.TestCase):
                 event for event in events if event[0]["type"] == "visualization"
             )
             metadata, payload = visual
-            self.assertEqual(metadata["schema_version"], 2)
+            self.assertEqual(metadata["schema_version"], 3)
             self.assertGreater(metadata["points"]["count"], 0)
             self.assertGreater(metadata["cells"]["count"], 0)
             self.assertEqual(metadata["points"]["stride"], 68)
-            self.assertEqual(metadata["cells"]["stride"], 36)
+            self.assertEqual(metadata["cells"]["stride"], 68)
             self.assertEqual(
                 len(payload),
-                metadata["points"]["count"] * 68 + metadata["cells"]["count"] * 36,
+                metadata["points"]["count"] * 68 + metadata["cells"]["count"] * 68,
             )
         finally:
             service.close()

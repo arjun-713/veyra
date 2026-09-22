@@ -1,5 +1,5 @@
 import {test} from 'node:test';import assert from 'node:assert/strict';
-import {comparisonMetrics,datasetFormats,defaultSessionConfig, FIRST_CPU_SAMPLE_NOTE, clampRenderCounts, formatRenderAge, inputTargetFps,isRenderStale,layerUnavailable,mapActivity,MEMORY_DOMAIN_NOTE,perceptionStages,profileConfig,recordEvent, renderAgeMs,summarizeVisual, RENDER_CAPACITY} from '../src/renderer/dashboard.ts';
+import {comparisonMetrics,datasetFormats,defaultSessionConfig, FIRST_CPU_SAMPLE_NOTE, clampRenderCounts, formatRenderAge, inputTargetFps,isRenderStale,layerUnavailable,mapActivity,MEMORY_DOMAIN_NOTE,perceptionStages,profileConfig,recordEvent, renderAgeMs,summarizeVisual, RENDER_CAPACITY,inspectorRows,lodLabel,resolutionLabel,datasetCapabilities,sessionPhase,GLOSSARY} from '../src/renderer/dashboard.ts';
 test('comparison requires measured matching policy reports and never fabricates reduction',()=>{
  assert.equal(comparisonMetrics(null).memoryReduction,null);
  assert.equal(comparisonMetrics({policies:{uniform5:{aggregate:{peak_rss_bytes:100}},utility_lod:{aggregate:{peak_rss_bytes:25}}}}).memoryReduction,75);
@@ -127,4 +127,24 @@ test('new sessions use bounded low-resource rendering without limiting mapper in
  assert.equal(value.playback.full_sequence,false);
  assert.equal(value.visualization.point_budget,15000);
  assert.equal(value.visualization.cell_budget,10000);
+});
+test('cell inspector labels every stored field and never fabricates missing evidence',()=>{
+  const full:any={x:1.234,y:-2.5,elevation:4.5,resolution:0.05,lod_level:0,semantic_class:9,motion:0.7,quality:0.8,drivable_evidence:-0.4,utility:0.6,semantic_confidence:0.9,ground_evidence:0.6,terrain_confidence:0.5,geometry_complexity:0.3,point_count:42,height_min:4.1,height_max:4.9,height_variance:0.04};
+  const rows=inspectorRows(full);
+  const byKey=Object.fromEntries(rows.map(r=>[r.key,r.value]));
+  assert.equal(byKey.resolution,'5 cm');assert.equal(byKey.lod,'L0');assert.equal(byKey.count,'42');
+  assert.equal(byKey.class,'Road');assert.equal(byKey.trav,'Non-drivable');assert.equal(byKey.motion,'MOVING');
+  const empty=Object.fromEntries(inspectorRows({}).map(r=>[r.key,r.value]));
+  assert.ok(Object.values(empty).every(v=>v==='Unavailable'||v==='Unknown'));
+  assert.equal(empty.trav,'Unavailable');
+});
+test('inspector derives LOD from resolution and reports dataset capabilities honestly',()=>{
+  assert.equal(lodLabel(null,0.4),'L3');assert.equal(lodLabel(null,NaN),'Unavailable');
+  assert.equal(resolutionLabel(0.1),'10 cm');assert.equal(resolutionLabel(NaN),'Unavailable');
+  const caps=datasetCapabilities({sequences:[{id:'00',frames:488,labels:488,poses:true,timestamps:false}]},'00');
+  assert.equal(caps.semantic,'available');assert.match(caps.motion,/no dataset timestamps/);
+  assert.equal(sessionPhase(null,{state:'unconfigured',frames:0},false),'EMPTY');
+  assert.equal(sessionPhase({sequences:[]},{state:'unconfigured',frames:0},true),'VALIDATING');
+  assert.equal(sessionPhase({sequences:[]},{state:'ready',frames:10},false),'READY');
+  assert.ok(Object.keys(GLOSSARY).length>=6);
 });

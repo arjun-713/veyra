@@ -15,3 +15,8 @@ test('world coordinates and 5/10/20/40cm colors remain distinguishable',()=>{
  assert.deepEqual(displayPosition(2,3,4),[3,4,-2]);
  const colors=[.05,.1,.2,.4].map(r=>cellColor('lod',[0,0,0,r,0,0,0,0]).join(','));assert.equal(new Set(colors).size,4);
 });
+test('extended v3 cell rows keep legacy color indices stable',()=>{
+  const v2=[0,0,1.5,.05,9,.2,.8,-.4,0.7];
+  const v3=[...v2,0.7,0.9,0.6,0.5,0.3,42,1.2,1.8,0.01];
+  for(const mode of ['lod','semantic','motion','terrain','utility'])assert.deepEqual(cellColor(mode,v2 as any),cellColor(mode,v3 as any));
+});

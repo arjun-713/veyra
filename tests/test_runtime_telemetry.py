@@ -62,7 +62,7 @@ class RuntimeTelemetryTests(unittest.TestCase):
                 "semantic_confidence": [0.0, 0.8, 0.9, 0.7],
                 "drivable": ["drivable", "drivable", "unknown", "non_drivable"],
                 "motion_state": ["STATIC", "STATIC", "MOVING", "STATIC"],
-                "pipeline_status": {"semantic": "model"},
+                "pipeline_status": {"semantic": "model", "ground": "pypatchworkpp.patchworkpp"},
                 "perception_timings_ms": {},
                 "map": {"snapshot": {"active_leaf_count": 1}, "metrics": {}},
             },

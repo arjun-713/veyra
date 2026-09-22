@@ -7,6 +7,7 @@
  const count=(values:unknown,key:string)=>typeof values==='object'&&values!==null&&typeof (values as Json)[key]==='number'?String((values as Json)[key]):'—';
  const semanticClass=(values:unknown,key:string)=>count(values,key);
  const perception=()=>telemetry.perception??{};
+ const totalRss=(value:Json)=>{const procs=value.processes??[];if(!procs.length||procs.some((p:Json)=>typeof p.rss_bytes!=='number'||!Number.isFinite(p.rss_bytes)))return null;return procs.reduce((s:number,p:Json)=>s+p.rss_bytes,0)/1048576;};
  const health=()=>telemetry.health??{};
  const stages=()=>telemetry.perception_stages_ms??{};
 </script>
@@ -23,6 +24,16 @@
   <div class="stage-item"><span>Vehicles / people</span><strong>{semanticClass(perception().semantic_class_counts,'1')} / {semanticClass(perception().semantic_class_counts,'6')}</strong><small>taxonomy IDs</small></div>
   <div class="stage-item"><span>Tracks</span><strong>{perception().track_counts==null?'Unavailable':'available'}</strong><small>no track data reported</small></div>
  </div>
+</section>
+
+<section class="card memory-domains" aria-label="Memory domains">
+ <h3>Memory by domain <span>MEASURED · NOT COMPARABLE</span></h3>
+ <div class="data-row"><span title="Live C++ snapshot payload bytes">Logical map memory</span><b>{display(telemetry.map?.logical_bytes?telemetry.map.logical_bytes/1048576:null,' MB')}</b></div>
+ <div class="data-row"><span title="Live C++ allocated bytes (tile tables + index + overhead)">Allocated map memory</span><b>{display(telemetry.map?.allocated_bytes?telemetry.map.allocated_bytes/1048576:null,' MB')}</b></div>
+ <div class="data-row"><span title="OS-measured RSS of the C++ mapper process">Mapper RSS</span><b>{display((telemetry.processes??[]).find((p:Json)=>p.name==='mapper')?.rss_bytes!=null?(telemetry.processes??[]).find((p:Json)=>p.name==='mapper').rss_bytes/1048576:null,' MB')}</b></div>
+ <div class="data-row"><span title="OS-measured RSS of the Python runtime process">Python runtime RSS</span><b>{display((telemetry.processes??[]).find((p:Json)=>p.name==='runtime')?.rss_bytes!=null?(telemetry.processes??[]).find((p:Json)=>p.name==='runtime').rss_bytes/1048576:null,' MB')}</b></div>
+ <div class="data-row"><span title="Sum of measured backend processes; excludes the desktop shell">Total backend RSS</span><b>{display(totalRss(telemetry),' MB')}</b></div>
+ <p class="hint">Logical vs allocated vs process RSS measure different domains — do not compare across rows. No system-wide RAM is shown as Veyra RAM.</p>
 </section>
 
 <section class="card health-status" aria-label="Runtime health">

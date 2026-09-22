@@ -49,7 +49,15 @@ export class RollingTelemetry {
 }
 export function validateVisualization(metadata:Json,payload:Uint8Array){
   for(const key of ['points','cells']){
-    const s=metadata[key];const expected=key==='points'?68:36;if(!s||s.stride!==expected)throw new Error('Invalid visualization stride');
+    const s=metadata[key];
+    // v2 cells are 9 floats (36 B); v3 cells carry the full stored evidence
+    // (17 floats, 68 B). Points are 17 floats in both versions.
+    const expected=key==='points'?[68]:[36,68];
+    if(!s||!expected.includes(s.stride))throw new Error('Invalid visualization stride');
     if(!Number.isSafeInteger(s.count)||!Number.isSafeInteger(s.offset)||s.count<0||s.count>100000||s.offset<0||s.offset%4||s.offset+s.count*s.stride>payload.byteLength)throw new Error('Visualization section outside bounds');
   }
 }
+// Cell row field indices for the v3 layout (17 floats). v2 rows expose only
+// indices 0..8; anything else must render as Unavailable, never fabricated.
+export const CELL_V3_FIELDS={x:0,y:1,z:2,size:3,class:4,motion:5,quality:6,drivable:7,utility:8,semanticConfidence:9,groundEvidence:10,terrainConfidence:11,geometryComplexity:12,count:13,zmin:14,zmax:15,zvar:16} as const;
+export const CELL_V3_STRIDE=68, CELL_V2_STRIDE=36;
