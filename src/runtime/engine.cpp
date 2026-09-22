@@ -2,6 +2,7 @@
 
 #include <algorithm>
 #include <array>
+#include <charconv>
 #include <bit>
 #include <chrono>
 #include <cmath>
@@ -22,6 +23,13 @@
 #include <utility>
 #include <variant>
 #include <vector>
+
+#if defined(_WIN32)
+#include <io.h>
+#else
+#include <cerrno>
+#include <unistd.h>
+#endif
 
 #include "veyra/map/map.hpp"
 #include "veyra/metrics/metrics.hpp"
@@ -520,17 +528,74 @@ veyra::map::Observation observation_values(const std::array<double, 20>& v, Inpu
           .velocity_y = value(16)};
 }
 
+// Decode one packed little-endian scalar from memory and advance the cursor.
+template <typename T>
+T take_scalar(const unsigned char*& cursor) {
+  std::array<unsigned char, sizeof(T)> bytes{};
+  std::memcpy(bytes.data(), cursor, sizeof(T));
+  cursor += sizeof(T);
+  if constexpr (std::endian::native == std::endian::big) std::reverse(bytes.begin(), bytes.end());
+  T value;
+  std::memcpy(&value, bytes.data(), sizeof(T));
+  return value;
+}
+
 // Read packed scalars without unaligned loads, struct padding or host-endian assumptions.
 template <typename T>
 T read_scalar(std::istream& input) {
   std::array<unsigned char, sizeof(T)> bytes{};
   if (!input.read(reinterpret_cast<char*>(bytes.data()), bytes.size()))
     throw std::invalid_argument("truncated binary frame");
-  if constexpr (std::endian::native == std::endian::big) std::reverse(bytes.begin(), bytes.end());
-  T value;
-  std::memcpy(&value, bytes.data(), sizeof(T));
-  return value;
+  const unsigned char* cursor = bytes.data();
+  return take_scalar<T>(cursor);
 }
+
+// libc++ ignores sync_with_stdio(false): std::cin stays an unbuffered stdio
+// wrapper that takes a lock and calls getc() per byte, which dominated binary
+// frame ingestion (~7 MB per 100k-point frame). This buffer reads whatever the
+// pipe has available, so the line protocol never blocks waiting for a full
+// buffer, and bulk reads become memcpy.
+class FdInputBuffer final : public std::streambuf {
+ public:
+  explicit FdInputBuffer(int fd) : fd_(fd), buffer_(1U << 20U) {}
+
+ protected:
+  int_type underflow() override {
+    if (gptr() < egptr()) return traits_type::to_int_type(*gptr());
+    std::ptrdiff_t count = 0;
+    do {
+#if defined(_WIN32)
+      count = _read(fd_, buffer_.data(), static_cast<unsigned>(buffer_.size()));
+#else
+      count = ::read(fd_, buffer_.data(), buffer_.size());
+#endif
+    }
+#if defined(_WIN32)
+    while (false);
+#else
+    while (count < 0 && errno == EINTR);
+#endif
+    if (count <= 0) return traits_type::eof();
+    setg(buffer_.data(), buffer_.data(), buffer_.data() + count);
+    return traits_type::to_int_type(*gptr());
+  }
+
+  std::streamsize xsgetn(char* out, std::streamsize count) override {
+    std::streamsize copied = 0;
+    while (copied < count) {
+      if (gptr() == egptr() && traits_type::eq_int_type(underflow(), traits_type::eof())) break;
+      const auto chunk = std::min<std::streamsize>(count - copied, egptr() - gptr());
+      std::memcpy(out + copied, gptr(), static_cast<std::size_t>(chunk));
+      setg(eback(), gptr() + chunk, egptr());
+      copied += chunk;
+    }
+    return copied;
+  }
+
+ private:
+  int fd_;
+  std::vector<char> buffer_;
+};
 
 veyra::map::Observation parse_observation_record(std::istringstream& input, int stream_version,
                                                  InputSummary& summary) {
@@ -1280,22 +1345,28 @@ class PersistentEngineSession {
     marker << count;
     std::istringstream frame(marker.str());
     begin_frame(frame);
+    // V3 rows carry one trailing float. V2 rows do not, and their NaN
+    // default below is what marks them as lacking a ground model.
+    constexpr std::size_t kRowBytesV2 = 67;
+    const std::size_t row_bytes = binary_version >= 3 ? kRowBytesV2 + 4 : kRowBytesV2;
+    std::array<unsigned char, kRowBytesV2 + 4> row{};
     for (std::size_t point = 0; point < count; ++point) {
       const auto started = Clock::now();
+      if (!input.read(reinterpret_cast<char*>(row.data()), static_cast<std::streamsize>(row_bytes)))
+        throw std::invalid_argument("truncated binary frame");
+      const unsigned char* cursor = row.data();
       std::array<double, 20> values{};
       values[19] = std::numeric_limits<double>::quiet_NaN();
-      for (std::size_t i = 0; i < 4; ++i) values[i] = read_scalar<float>(input);
-      values[4] = read_scalar<std::uint32_t>(input);
-      values[5] = read_scalar<float>(input);
-      values[6] = read_scalar<std::uint8_t>(input);
-      values[7] = read_scalar<std::uint8_t>(input);
-      for (std::size_t i = 8; i < 14; ++i) values[i] = read_scalar<float>(input);
-      values[14] = read_scalar<std::uint8_t>(input);
-      for (std::size_t i = 15; i < 18; ++i) values[i] = read_scalar<float>(input);
-      values[18] = read_scalar<std::int32_t>(input);
-      // V3 rows carry one trailing float. V2 rows do not, and their NaN
-      // default above is what marks them as lacking a ground model.
-      if (binary_version >= 3) values[19] = read_scalar<float>(input);
+      for (std::size_t i = 0; i < 4; ++i) values[i] = take_scalar<float>(cursor);
+      values[4] = take_scalar<std::uint32_t>(cursor);
+      values[5] = take_scalar<float>(cursor);
+      values[6] = take_scalar<std::uint8_t>(cursor);
+      values[7] = take_scalar<std::uint8_t>(cursor);
+      for (std::size_t i = 8; i < 14; ++i) values[i] = take_scalar<float>(cursor);
+      values[14] = take_scalar<std::uint8_t>(cursor);
+      for (std::size_t i = 15; i < 18; ++i) values[i] = take_scalar<float>(cursor);
+      values[18] = take_scalar<std::int32_t>(cursor);
+      if (binary_version >= 3) values[19] = take_scalar<float>(cursor);
       auto observation = observation_values(values, input_summary_);
       observation.timestamp = input_summary_.timestamp_us.value_or(result_.input_frames);
       parse_duration_ += std::chrono::nanoseconds{duration_ns(started)};
@@ -1563,16 +1634,58 @@ int run_binary(const Options& options) {
 // cell_count reports what is actually returned so the caller can distinguish
 // a decimated view from the map.
 std::string render_cells(const veyra::map::MapSnapshot& snapshot, std::size_t budget,
-                         const veyra::policy::UtilityConfig& config) {
+                         const veyra::policy::UtilityConfig& config,
+                         std::array<double, 2> center = {}) {
   const std::size_t total = snapshot.leaves.size();
-  const std::size_t stride = std::max<std::size_t>(1, (total + budget - 1) / budget);
-  const std::size_t shown = (total + stride - 1) / stride;
-  std::ostringstream out;
-  out << std::setprecision(6) << std::fixed;
-  out << "{\"status\":\"available\",\"cell_count\":" << shown << ",\"total_leaves\":" << total
-      << ",\"cells\":[";
+  // Over budget, send the leaves nearest the vehicle rather than every n-th
+  // leaf: a uniform stride thinned the whole map into a sparse checkerboard,
+  // while the near field is what the display is for. Snapshot order is kept.
+  std::vector<std::size_t> selected(total);
+  for (std::size_t index = 0; index < total; ++index) selected[index] = index;
+  if (total > budget) {
+    std::vector<double> distance(total);
+    for (std::size_t index = 0; index < total; ++index) {
+      const auto& id = snapshot.leaves[index].id;
+      const double size = 0.05 * std::ldexp(1.0, id.level);
+      const double dx = (static_cast<double>(id.ix) + 0.5) * size - center[0];
+      const double dy = (static_cast<double>(id.iy) + 0.5) * size - center[1];
+      distance[index] = dx * dx + dy * dy;
+    }
+    std::nth_element(selected.begin(), selected.begin() + static_cast<std::ptrdiff_t>(budget),
+                     selected.end(), [&](std::size_t left, std::size_t right) {
+                       return distance[left] < distance[right] ||
+                              (distance[left] == distance[right] && left < right);
+                     });
+    selected.resize(budget);
+    std::sort(selected.begin(), selected.end());
+  }
+  const std::size_t shown = selected.size();
+  // Formatted with std::to_chars: identical "%.6f" text, without the
+  // locale-aware ostream path that dominated this response at 50k cells.
+  std::string out;
+  out.reserve(64 + shown * 300);
+  char scratch[64];
+  const auto integer = [&](std::int64_t value) {
+    const auto end = std::to_chars(scratch, scratch + sizeof(scratch), value).ptr;
+    out.append(scratch, end);
+  };
+  const auto real = [&](double value) {
+    if (!std::isfinite(value)) {
+      // Match ostream's fixed formatting of non-finite values.
+      out += std::isnan(value) ? "nan" : (value < 0 ? "-inf" : "inf");
+      return;
+    }
+    const auto end =
+        std::to_chars(scratch, scratch + sizeof(scratch), value, std::chars_format::fixed, 6).ptr;
+    out.append(scratch, end);
+  };
+  out += "{\"status\":\"available\",\"cell_count\":";
+  integer(static_cast<std::int64_t>(shown));
+  out += ",\"total_leaves\":";
+  integer(static_cast<std::int64_t>(total));
+  out += ",\"cells\":[";
   bool first = true;
-  for (std::size_t index = 0; index < total; index += stride) {
+  for (const std::size_t index : selected) {
     const auto& leaf = snapshot.leaves[index];
     const double risk = leaf.stats.drivable_evidence() < 0.0F
                             ? static_cast<double>(leaf.stats.terrain_confidence())
@@ -1591,18 +1704,37 @@ std::string render_cells(const veyra::map::MapSnapshot& snapshot, std::size_t bu
                           config.uncertainty_weight,
                   0.0, 1.0)
             : 0.0;
-    if (!std::exchange(first, false)) out << ',';
-    out << "{\"l\":" << leaf.id.level << ",\"ix\":" << leaf.id.ix << ",\"iy\":" << leaf.id.iy
-        << ",\"z\":" << leaf.stats.mean_z() << ",\"c\":" << leaf.stats.semantic_class
-        << ",\"semantic_confidence\":" << leaf.stats.semantic_confidence()
-        << ",\"ground_evidence\":" << leaf.stats.ground_evidence()
-        << ",\"terrain_confidence\":" << leaf.stats.terrain_confidence()
-        << ",\"geometry_complexity\":" << leaf.stats.geometry_complexity()
-        << ",\"m\":" << leaf.stats.motion_evidence() << ",\"q\":" << leaf.stats.observation_quality()
-        << ",\"drivable_evidence\":" << leaf.stats.drivable_evidence() << ",\"u\":" << utility << '}';
+    if (!std::exchange(first, false)) out += ',';
+    out += "{\"l\":";
+    integer(leaf.id.level);
+    out += ",\"ix\":";
+    integer(leaf.id.ix);
+    out += ",\"iy\":";
+    integer(leaf.id.iy);
+    out += ",\"z\":";
+    real(leaf.stats.mean_z());
+    out += ",\"c\":";
+    integer(leaf.stats.semantic_class);
+    out += ",\"semantic_confidence\":";
+    real(leaf.stats.semantic_confidence());
+    out += ",\"ground_evidence\":";
+    real(leaf.stats.ground_evidence());
+    out += ",\"terrain_confidence\":";
+    real(leaf.stats.terrain_confidence());
+    out += ",\"geometry_complexity\":";
+    real(leaf.stats.geometry_complexity());
+    out += ",\"m\":";
+    real(leaf.stats.motion_evidence());
+    out += ",\"q\":";
+    real(leaf.stats.observation_quality());
+    out += ",\"drivable_evidence\":";
+    real(leaf.stats.drivable_evidence());
+    out += ",\"u\":";
+    real(utility);
+    out += '}';
   }
-  out << "]}";
-  return out.str();
+  out += "]}";
+  return out;
 }
 
 // Long-lived line protocol for the viewer/runtime. Frames retain the exact V2
@@ -1698,7 +1830,13 @@ int run_engine(const Options& options) {
           require_end(args, "map cells request");
           budget = static_cast<std::size_t>(parsed);
         }
-        std::cout << render_cells(session.result().snapshot, budget, session.display_utility())
+        // Sensor-frame input has no pose; its vehicle sits at the origin.
+        const auto& input = session.result().last_input;
+        const std::array<double, 2> center =
+            input ? std::array<double, 2>{input->pose_translation[0], input->pose_translation[1]}
+                  : std::array<double, 2>{};
+        std::cout << render_cells(session.result().snapshot, budget, session.display_utility(),
+                                  center)
                   << '\n'
                   << std::flush;
         continue;
@@ -1730,6 +1868,8 @@ int run_engine(const Options& options) {
 
 int veyra::runtime::engine_main(int argc, char** argv) {
   std::ios::sync_with_stdio(false);
+  static FdInputBuffer stdin_buffer(0);
+  std::cin.rdbuf(&stdin_buffer);
   std::cin.tie(nullptr);
   try {
     const auto options = parse_options(argc, argv);

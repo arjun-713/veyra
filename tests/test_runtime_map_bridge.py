@@ -123,6 +123,30 @@ class RuntimeMapBridgeTests(unittest.TestCase):
         self.assertEqual(report["status"], "available")
         self.assertEqual(report["snapshot"]["point_count"], 1)
 
+    def test_engine_map_cells_over_budget_keep_the_cells_nearest_the_vehicle(self):
+        from viewer.runtime import PersistentMapEngine
+
+        engine = PersistentMapEngine(_benchmark_binary())
+        try:
+            engine.process_frame(_grid_frame())
+            cells = engine.map_cells(budget=3)
+        finally:
+            engine.close()
+
+        self.assertEqual(cells["status"], "available")
+        self.assertEqual(cells["cell_count"], 3)
+        self.assertGreater(cells["total_leaves"], 3)
+        # Identity pose: the vehicle is at the origin, so the retained cells
+        # must be the three closest to it, not an even stride through the map.
+        distances = sorted(
+            np.hypot(
+                (cell["ix"] + 0.5) * 0.05 * 2 ** cell["l"],
+                (cell["iy"] + 0.5) * 0.05 * 2 ** cell["l"],
+            )
+            for cell in cells["cells"]
+        )
+        self.assertLess(distances[-1], 1.5)
+
     def test_engine_map_cells_match_snapshot_topology(self):
         from viewer.runtime import PersistentMapEngine
 

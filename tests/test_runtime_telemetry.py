@@ -1,7 +1,7 @@
 import os
 import unittest
 
-from runtime.telemetry import Telemetry, rss_bytes
+from runtime.telemetry import Telemetry, processing_fps, rss_bytes
 
 
 class RuntimeTelemetryTests(unittest.TestCase):
@@ -76,6 +76,17 @@ class RuntimeTelemetryTests(unittest.TestCase):
         self.assertEqual(report["perception"]["drivable_counts"]["unknown"], 1)
         self.assertIsNone(report["perception"]["track_counts"])
         self.assertEqual(report["health"]["mapper"], "available")
+
+
+class ProcessingFpsTests(unittest.TestCase):
+    def test_idle_time_before_playback_does_not_dilute_throughput(self):
+        # One preview frame, a 60 s pause, then ten frames at 2 fps.
+        completed = [0.0] + [60.0 + 0.5 * index for index in range(10)]
+        self.assertAlmostEqual(processing_fps(completed), 2.0)
+
+    def test_fewer_than_two_recent_completions_is_unavailable(self):
+        self.assertIsNone(processing_fps([]))
+        self.assertIsNone(processing_fps([0.0, 30.0]))
 
 
 if __name__ == "__main__":
