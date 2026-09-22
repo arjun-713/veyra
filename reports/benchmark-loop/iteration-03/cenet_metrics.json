@@ -1,0 +1,1620 @@
+{
+  "method": "direct CENetSemanticProvider.infer on sensor-frame points (tag-free beam projection, per-point argmax, no KNN); provider dataset gate accepts semanticposs",
+  "dataset": {
+    "name": "semanticposs",
+    "version": "SemanticPOSS-v1.0-LABEL_DICT",
+    "root": "/home/arjun/Captain/SIH/Lidar/data/raw/semanticposs/dataset",
+    "sequence": "00",
+    "frames": [
+      "000000",
+      "000001",
+      "000002",
+      "000003",
+      "000004",
+      "000005",
+      "000006",
+      "000007"
+    ],
+    "num_frames": 8,
+    "total_points": 532806
+  },
+  "taxonomy": {
+    "version": "veyra-semantic-kitti-learning-v1",
+    "mapping": "SEMANTIC_POSS_LABELS raw->Veyra(SemanticKITTI-learning)",
+    "native_head": "14 CENet POSS learning IDs -> raw via learning_map_inv; raw 0 + unmapped fold to unknown",
+    "groups": {
+      "drivable": 0,
+      "non-drivable": 1,
+      "static": 2,
+      "pole": 3,
+      "vehicle": 4,
+      "pedestrian": 5,
+      "vegetation": 6,
+      "unknown": 7
+    },
+    "unmapped_raw_become_unknown": true
+  },
+  "checkpoint": {
+    "path": "/home/arjun/Captain/SIH/Lidar/data/cache/models/cenet-poss/SENet_valid_best",
+    "sha256": "9c07ceadcd005a11bddc6c92b61d6f7724339f9519ef177afdebc3c59ffbb0ce",
+    "contract": {
+      "architecture": "CENet ResNet-pipeline (vendored ResNet_34, Hardswish)",
+      "source": "huixiancheng/CENet @ 9a84103 (MIT)",
+      "image_shape": [
+        40,
+        1800
+      ],
+      "channels": [
+        "range",
+        "x",
+        "y",
+        "z",
+        "remission_raw_byte"
+      ],
+      "fov_degrees": {
+        "up": 7.0,
+        "down": -16.0
+      },
+      "normalization_means": [
+        22.26779,
+        0.51144063,
+        1.5727469,
+        -0.6350901,
+        13.875261
+      ],
+      "normalization_stds": [
+        17.735949,
+        17.422485,
+        22.217215,
+        1.6433295,
+        14.0925865
+      ],
+      "learning_classes": 14,
+      "learning_to_raw": [
+        0,
+        4,
+        6,
+        7,
+        8,
+        9,
+        10,
+        13,
+        14,
+        15,
+        16,
+        17,
+        21,
+        22
+      ],
+      "yaw_column_offset": 675,
+      "postprocessing": "per-point argmax at own pixel, no KNN"
+    },
+    "threads": 4
+  },
+  "sensor_evidence": {
+    "beam_fov_fraction": 1.0
+  },
+  "metrics": {
+    "veyra_all_return_mean_iou_1_19": 0.628317333013467,
+    "veyra_accuracy_labelled": 0.8910005492084994,
+    "veyra_accuracy_all": 0.862790584190118,
+    "veyra_per_class": {
+      "1": {
+        "iou": 0.8826953380428141,
+        "precision": 0.977841111506947,
+        "recall": 0.9007120902199713,
+        "f1": 0.9376932318326491,
+        "support": 91421,
+        "union": 93287
+      },
+      "2": {
+        "iou": 0.5731279030248102,
+        "precision": 0.6428208386277001,
+        "recall": 0.8409242021276596,
+        "f1": 0.728647558692208,
+        "support": 12032,
+        "union": 17654
+      },
+      "3": {
+        "iou": null,
+        "precision": null,
+        "recall": null,
+        "f1": null,
+        "support": 0,
+        "union": 0
+      },
+      "4": {
+        "iou": null,
+        "precision": null,
+        "recall": null,
+        "f1": null,
+        "support": 0,
+        "union": 0
+      },
+      "5": {
+        "iou": null,
+        "precision": null,
+        "recall": null,
+        "f1": null,
+        "support": 0,
+        "union": 0
+      },
+      "6": {
+        "iou": 0.6713174134692782,
+        "precision": 0.8287512421331567,
+        "recall": 0.7794392523364486,
+        "f1": 0.8033392197784557,
+        "support": 3210,
+        "union": 3727
+      },
+      "7": {
+        "iou": 0.28688524590163933,
+        "precision": 0.9114583333333334,
+        "recall": 0.2951096121416526,
+        "f1": 0.445859872611465,
+        "support": 593,
+        "union": 610
+      },
+      "8": {
+        "iou": null,
+        "precision": null,
+        "recall": null,
+        "f1": null,
+        "support": 0,
+        "union": 0
+      },
+      "9": {
+        "iou": null,
+        "precision": null,
+        "recall": null,
+        "f1": null,
+        "support": 0,
+        "union": 0
+      },
+      "10": {
+        "iou": null,
+        "precision": null,
+        "recall": null,
+        "f1": null,
+        "support": 0,
+        "union": 0
+      },
+      "11": {
+        "iou": null,
+        "precision": null,
+        "recall": null,
+        "f1": null,
+        "support": 0,
+        "union": 0
+      },
+      "12": {
+        "iou": 0.8793907223632587,
+        "precision": 0.9703081232492997,
+        "recall": 0.9037093254909402,
+        "f1": 0.9358253309428495,
+        "support": 147574,
+        "union": 151655
+      },
+      "13": {
+        "iou": 0.7634830024708188,
+        "precision": 0.8938950588548248,
+        "recall": 0.8395690193628982,
+        "f1": 0.8658807614262247,
+        "support": 96060,
+        "union": 105633
+      },
+      "14": {
+        "iou": 0.6231958432227853,
+        "precision": 0.7188575234007918,
+        "recall": 0.8240383392001357,
+        "f1": 0.7678627884919381,
+        "support": 23579,
+        "union": 31178
+      },
+      "15": {
+        "iou": 0.782980266883873,
+        "precision": 0.8244087102177554,
+        "recall": 0.9396899343210631,
+        "f1": 0.8782825939541026,
+        "support": 130940,
+        "union": 157147
+      },
+      "16": {
+        "iou": 0.0,
+        "precision": 0.0,
+        "recall": 0.0,
+        "f1": 0.0,
+        "support": 0,
+        "union": 117
+      },
+      "17": {
+        "iou": null,
+        "precision": null,
+        "recall": null,
+        "f1": null,
+        "support": 0,
+        "union": 0
+      },
+      "18": {
+        "iou": 0.7517857142857143,
+        "precision": 0.928744760644165,
+        "recall": 0.7978017813151412,
+        "f1": 0.8583078491335373,
+        "support": 5277,
+        "union": 5600
+      },
+      "19": {
+        "iou": 0.6966292134831461,
+        "precision": 0.9659024103468548,
+        "recall": 0.7141925668332971,
+        "f1": 0.8211920529801325,
+        "support": 4601,
+        "union": 4717
+      }
+    },
+    "native_accuracy": 0.8587572212024639,
+    "native_mean_iou": 0.4266687714638665,
+    "native_per_class": {
+      "0": {
+        "iou": 0.027463275852058294,
+        "precision": 0.809931506849315,
+        "recall": 0.027641421224871437,
+        "f1": 0.05345840867992767,
+        "support": 17112,
+        "union": 17223
+      },
+      "4": {
+        "iou": 0.36793225894564324,
+        "precision": 0.4455838570956004,
+        "recall": 0.6785894206549118,
+        "f1": 0.5379392971246005,
+        "support": 1985,
+        "union": 3661
+      },
+      "5": {
+        "iou": 0.0,
+        "precision": 0.0,
+        "recall": 0.0,
+        "f1": 0.0,
+        "support": 1225,
+        "union": 1225
+      },
+      "6": {
+        "iou": 0.28688524590163933,
+        "precision": 0.9114583333333334,
+        "recall": 0.2951096121416526,
+        "f1": 0.445859872611465,
+        "support": 593,
+        "union": 610
+      },
+      "7": {
+        "iou": 0.8824777622977172,
+        "precision": 0.977574109909418,
+        "recall": 0.9007120902199713,
+        "f1": 0.9375704510002619,
+        "support": 91421,
+        "union": 93310
+      },
+      "8": {
+        "iou": 0.0,
+        "precision": 0.0,
+        "recall": 0.0,
+        "f1": 0.0,
+        "support": 0,
+        "union": 141
+      },
+      "9": {
+        "iou": 0.769057202860143,
+        "precision": 0.8089878036753345,
+        "recall": 0.9396899343210631,
+        "f1": 0.8694543077711236,
+        "support": 130940,
+        "union": 159992
+      },
+      "10": {
+        "iou": 0.5140165956492487,
+        "precision": 0.6715499560503956,
+        "recall": 0.6866387058118634,
+        "f1": 0.6790105169604503,
+        "support": 3338,
+        "union": 4459
+      },
+      "11": {
+        "iou": 0.0,
+        "precision": 0.0,
+        "recall": 0.0,
+        "f1": 0.0,
+        "support": 94,
+        "union": 94
+      },
+      "12": {
+        "iou": 0.0,
+        "precision": 0.0,
+        "recall": 0.0,
+        "f1": 0.0,
+        "support": 1169,
+        "union": 1169
+      },
+      "13": {
+        "iou": 0.7503118873641063,
+        "precision": 0.9264964788732394,
+        "recall": 0.7978017813151412,
+        "f1": 0.8573465023928316,
+        "support": 5277,
+        "union": 5611
+      },
+      "14": {
+        "iou": 0.2471590909090909,
+        "precision": 1.0,
+        "recall": 0.2471590909090909,
+        "f1": 0.3963553530751709,
+        "support": 352,
+        "union": 352
+      },
+      "15": {
+        "iou": 0.6761147858454264,
+        "precision": 0.7764267560073937,
+        "recall": 0.8395690193628982,
+        "f1": 0.8067642998619531,
+        "support": 96060,
+        "union": 119283
+      },
+      "16": {
+        "iou": 0.2638888888888889,
+        "precision": 0.5277777777777778,
+        "recall": 0.34545454545454546,
+        "f1": 0.4175824175824176,
+        "support": 55,
+        "union": 72
+      },
+      "17": {
+        "iou": 0.6169233211620893,
+        "precision": 0.7105243911358151,
+        "recall": 0.8240383392001357,
+        "f1": 0.7630829651448208,
+        "support": 23579,
+        "union": 31495
+      },
+      "21": {
+        "iou": 0.5728034420289855,
+        "precision": 0.6424126984126984,
+        "recall": 0.8409242021276596,
+        "f1": 0.7283852854366136,
+        "support": 12032,
+        "union": 17664
+      },
+      "22": {
+        "iou": 0.879129861568886,
+        "precision": 0.9699905447668922,
+        "recall": 0.9037093254909402,
+        "f1": 0.9356776022226589,
+        "support": 147574,
+        "union": 151700
+      }
+    },
+    "group_accuracy": 0.8676929313859079,
+    "group_mean_iou": 0.6065278159594454,
+    "group_prf": {
+      "0": {
+        "iou": 0.879129861568886,
+        "precision": 0.9699905447668922,
+        "recall": 0.9037093254909402,
+        "f1": 0.9356776022226589,
+        "support": 147574,
+        "union": 151700
+      },
+      "1": {
+        "iou": 0.25,
+        "precision": 0.8617886178861789,
+        "recall": 0.26044226044226043,
+        "f1": 0.39999999999999997,
+        "support": 407,
+        "union": 424
+      },
+      "2": {
+        "iou": 0.6756643020319827,
+        "precision": 0.7708622292673262,
+        "recall": 0.8454684509231939,
+        "f1": 0.8064435116420909,
+        "support": 119639,
+        "union": 149706
+      },
+      "3": {
+        "iou": 0.7256894049346879,
+        "precision": 0.9425662938293327,
+        "recall": 0.7592630087062159,
+        "f1": 0.8410428931875525,
+        "support": 9878,
+        "union": 10335
+      },
+      "4": {
+        "iou": 0.8544472190692395,
+        "precision": 0.9393161966558523,
+        "recall": 0.9043692213059609,
+        "f1": 0.9215114997967888,
+        "support": 104046,
+        "union": 110125
+      },
+      "5": {
+        "iou": 0.6705976949879389,
+        "precision": 0.8276546477009593,
+        "recall": 0.7794392523364486,
+        "f1": 0.8028236804107172,
+        "support": 3210,
+        "union": 3731
+      },
+      "6": {
+        "iou": 0.7692307692307693,
+        "precision": 0.8087443180325284,
+        "recall": 0.9402779899190469,
+        "f1": 0.8695652173913043,
+        "support": 130940,
+        "union": 160056
+      },
+      "7": {
+        "iou": 0.027463275852058294,
+        "precision": 0.809931506849315,
+        "recall": 0.027641421224871437,
+        "f1": 0.05345840867992767,
+        "support": 17112,
+        "union": 17223
+      }
+    },
+    "range_binned": {
+      "0-10m": {
+        "points": 80842,
+        "veyra_miou_1_19": 0.35535290712279693,
+        "veyra_prf": {
+          "1": {
+            "iou": 0.9729134266459305,
+            "precision": 0.9939360237263002,
+            "recall": 0.9787228494693749,
+            "f1": 0.9862707744859752,
+            "support": 38351,
+            "union": 38580
+          },
+          "2": {
+            "iou": 0.0,
+            "precision": 0.0,
+            "recall": 0.0,
+            "f1": 0.0,
+            "support": 0,
+            "union": 432
+          },
+          "3": {
+            "iou": null,
+            "precision": null,
+            "recall": null,
+            "f1": null,
+            "support": 0,
+            "union": 0
+          },
+          "4": {
+            "iou": null,
+            "precision": null,
+            "recall": null,
+            "f1": null,
+            "support": 0,
+            "union": 0
+          },
+          "5": {
+            "iou": null,
+            "precision": null,
+            "recall": null,
+            "f1": null,
+            "support": 0,
+            "union": 0
+          },
+          "6": {
+            "iou": 0.0,
+            "precision": 0.0,
+            "recall": 0.0,
+            "f1": 0.0,
+            "support": 0,
+            "union": 29
+          },
+          "7": {
+            "iou": 0.0,
+            "precision": 0.0,
+            "recall": 0.0,
+            "f1": 0.0,
+            "support": 0,
+            "union": 5
+          },
+          "8": {
+            "iou": null,
+            "precision": null,
+            "recall": null,
+            "f1": null,
+            "support": 0,
+            "union": 0
+          },
+          "9": {
+            "iou": null,
+            "precision": null,
+            "recall": null,
+            "f1": null,
+            "support": 0,
+            "union": 0
+          },
+          "10": {
+            "iou": null,
+            "precision": null,
+            "recall": null,
+            "f1": null,
+            "support": 0,
+            "union": 0
+          },
+          "11": {
+            "iou": null,
+            "precision": null,
+            "recall": null,
+            "f1": null,
+            "support": 0,
+            "union": 0
+          },
+          "12": {
+            "iou": 0.923128775504913,
+            "precision": 0.9945532247702578,
+            "recall": 0.9278194705023973,
+            "f1": 0.960028041036979,
+            "support": 38376,
+            "union": 38571
+          },
+          "13": {
+            "iou": null,
+            "precision": null,
+            "recall": null,
+            "f1": null,
+            "support": 0,
+            "union": 0
+          },
+          "14": {
+            "iou": 0.591428147708735,
+            "precision": 0.6027811366384522,
+            "recall": 0.9691373025516403,
+            "f1": 0.7432671698816513,
+            "support": 4115,
+            "union": 6743
+          },
+          "15": {
+            "iou": 0.0,
+            "precision": 0.0,
+            "recall": 0.0,
+            "f1": 0.0,
+            "support": 0,
+            "union": 73
+          },
+          "16": {
+            "iou": null,
+            "precision": null,
+            "recall": null,
+            "f1": null,
+            "support": 0,
+            "union": 0
+          },
+          "17": {
+            "iou": null,
+            "precision": null,
+            "recall": null,
+            "f1": null,
+            "support": 0,
+            "union": 0
+          },
+          "18": {
+            "iou": null,
+            "precision": null,
+            "recall": null,
+            "f1": null,
+            "support": 0,
+            "union": 0
+          },
+          "19": {
+            "iou": null,
+            "precision": null,
+            "recall": null,
+            "f1": null,
+            "support": 0,
+            "union": 0
+          }
+        },
+        "group_miou": 0.3568168544596181,
+        "group_prf": {
+          "0": {
+            "iou": 0.923128775504913,
+            "precision": 0.9945532247702578,
+            "recall": 0.9278194705023973,
+            "f1": 0.960028041036979,
+            "support": 38376,
+            "union": 38571
+          },
+          "1": {
+            "iou": 0.0,
+            "precision": 0.0,
+            "recall": 0.0,
+            "f1": 0.0,
+            "support": 0,
+            "union": 17
+          },
+          "2": {
+            "iou": 0.591428147708735,
+            "precision": 0.6027811366384522,
+            "recall": 0.9691373025516403,
+            "f1": 0.7432671698816513,
+            "support": 4115,
+            "union": 6743
+          },
+          "3": {
+            "iou": null,
+            "precision": null,
+            "recall": null,
+            "f1": null,
+            "support": 0,
+            "union": 0
+          },
+          "4": {
+            "iou": 0.9831610580036787,
+            "precision": 0.9934556686997723,
+            "recall": 0.9895700242496936,
+            "f1": 0.9915090396070646,
+            "support": 38351,
+            "union": 38601
+          },
+          "5": {
+            "iou": 0.0,
+            "precision": 0.0,
+            "recall": 0.0,
+            "f1": 0.0,
+            "support": 0,
+            "union": 29
+          },
+          "6": {
+            "iou": 0.0,
+            "precision": 0.0,
+            "recall": 0.0,
+            "f1": 0.0,
+            "support": 0,
+            "union": 73
+          },
+          "7": {
+            "iou": 0.0,
+            "precision": 0.0,
+            "recall": 0.0,
+            "f1": 0.0,
+            "support": 0,
+            "union": 105
+          }
+        }
+      },
+      "10-30m": {
+        "points": 301150,
+        "veyra_miou_1_19": 0.686338333721913,
+        "veyra_prf": {
+          "1": {
+            "iou": 0.8753874767513949,
+            "precision": 0.9686467808323593,
+            "recall": 0.9009145260769903,
+            "f1": 0.9335537190082644,
+            "support": 42317,
+            "union": 43551
+          },
+          "2": {
+            "iou": 0.5902319152203962,
+            "precision": 0.6262017272282875,
+            "recall": 0.9113113587858668,
+            "f1": 0.7423218079969095,
+            "support": 8434,
+            "union": 13022
+          },
+          "3": {
+            "iou": null,
+            "precision": null,
+            "recall": null,
+            "f1": null,
+            "support": 0,
+            "union": 0
+          },
+          "4": {
+            "iou": null,
+            "precision": null,
+            "recall": null,
+            "f1": null,
+            "support": 0,
+            "union": 0
+          },
+          "5": {
+            "iou": null,
+            "precision": null,
+            "recall": null,
+            "f1": null,
+            "support": 0,
+            "union": 0
+          },
+          "6": {
+            "iou": 0.7637037037037037,
+            "precision": 0.8338050950262839,
+            "recall": 0.9008300567933596,
+            "f1": 0.8660226795464091,
+            "support": 2289,
+            "union": 2700
+          },
+          "7": {
+            "iou": 0.5985915492957746,
+            "precision": 0.9042553191489362,
+            "recall": 0.6390977443609023,
+            "f1": 0.748898678414097,
+            "support": 133,
+            "union": 142
+          },
+          "8": {
+            "iou": null,
+            "precision": null,
+            "recall": null,
+            "f1": null,
+            "support": 0,
+            "union": 0
+          },
+          "9": {
+            "iou": null,
+            "precision": null,
+            "recall": null,
+            "f1": null,
+            "support": 0,
+            "union": 0
+          },
+          "10": {
+            "iou": null,
+            "precision": null,
+            "recall": null,
+            "f1": null,
+            "support": 0,
+            "union": 0
+          },
+          "11": {
+            "iou": null,
+            "precision": null,
+            "recall": null,
+            "f1": null,
+            "support": 0,
+            "union": 0
+          },
+          "12": {
+            "iou": 0.8880021879914434,
+            "precision": 0.9707424373471719,
+            "recall": 0.9124220921946666,
+            "f1": 0.9406791937419807,
+            "support": 99637,
+            "union": 102377
+          },
+          "13": {
+            "iou": 0.7899167826959816,
+            "precision": 0.9321564356813969,
+            "recall": 0.8381001460104784,
+            "f1": 0.8826296175693766,
+            "support": 58215,
+            "union": 61766
+          },
+          "14": {
+            "iou": 0.6732375542933512,
+            "precision": 0.7989057172309888,
+            "recall": 0.8106042320379757,
+            "f1": 0.8047124600638978,
+            "support": 12429,
+            "union": 14965
+          },
+          "15": {
+            "iou": 0.7892786297171772,
+            "precision": 0.8182321938725249,
+            "recall": 0.9570910033704952,
+            "f1": 0.882231103203792,
+            "support": 69426,
+            "union": 84187
+          },
+          "16": {
+            "iou": 0.0,
+            "precision": 0.0,
+            "recall": 0.0,
+            "f1": 0.0,
+            "support": 0,
+            "union": 3
+          },
+          "17": {
+            "iou": null,
+            "precision": null,
+            "recall": null,
+            "f1": null,
+            "support": 0,
+            "union": 0
+          },
+          "18": {
+            "iou": 0.8239635337529846,
+            "precision": 0.9370525796099728,
+            "recall": 0.8722426470588235,
+            "f1": 0.9034868499345471,
+            "support": 4352,
+            "union": 4607
+          },
+          "19": {
+            "iou": 0.7574083375188347,
+            "precision": 0.9792207792207792,
+            "recall": 0.7697805002552323,
+            "f1": 0.8619605601600457,
+            "support": 3918,
+            "union": 3982
+          }
+        },
+        "group_miou": 0.6925720146173189,
+        "group_prf": {
+          "0": {
+            "iou": 0.8880021879914434,
+            "precision": 0.9707424373471719,
+            "recall": 0.9124220921946666,
+            "f1": 0.9406791937419807,
+            "support": 99637,
+            "union": 102377
+          },
+          "1": {
+            "iou": null,
+            "precision": null,
+            "recall": null,
+            "f1": null,
+            "support": 0,
+            "union": 0
+          },
+          "2": {
+            "iou": 0.7779351218105053,
+            "precision": 0.9134437738637763,
+            "recall": 0.8398448558971746,
+            "f1": 0.8750995604590106,
+            "support": 70644,
+            "union": 76266
+          },
+          "3": {
+            "iou": 0.7933162552398696,
+            "precision": 0.9554059739167017,
+            "recall": 0.8238210399032648,
+            "f1": 0.8847477436530095,
+            "support": 8270,
+            "union": 8588
+          },
+          "4": {
+            "iou": 0.8357963287651626,
+            "precision": 0.903143486834474,
+            "recall": 0.9180882006131593,
+            "f1": 0.9105545268492349,
+            "support": 50884,
+            "union": 55894
+          },
+          "5": {
+            "iou": 0.7637037037037037,
+            "precision": 0.8338050950262839,
+            "recall": 0.9008300567933596,
+            "f1": 0.8660226795464091,
+            "support": 2289,
+            "union": 2700
+          },
+          "6": {
+            "iou": 0.7892505048105476,
+            "precision": 0.8182019677137333,
+            "recall": 0.9570910033704952,
+            "f1": 0.8822135331956956,
+            "support": 69426,
+            "union": 84190
+          },
+          "7": {
+            "iou": 0.0,
+            "precision": 0.0,
+            "recall": 0.0,
+            "f1": 0.0,
+            "support": 0,
+            "union": 6
+          }
+        }
+      },
+      "30-60m": {
+        "points": 116293,
+        "veyra_miou_1_19": 0.5032057413614113,
+        "veyra_prf": {
+          "1": {
+            "iou": 0.6417364520165559,
+            "precision": 0.9442005381673984,
+            "recall": 0.6670335167583792,
+            "f1": 0.7817776735459662,
+            "support": 9995,
+            "union": 10389
+          },
+          "2": {
+            "iou": 0.6088272383354351,
+            "precision": 0.8122476446837147,
+            "recall": 0.7085412386263575,
+            "f1": 0.7568584417620317,
+            "support": 3407,
+            "union": 3965
+          },
+          "3": {
+            "iou": null,
+            "precision": null,
+            "recall": null,
+            "f1": null,
+            "support": 0,
+            "union": 0
+          },
+          "4": {
+            "iou": null,
+            "precision": null,
+            "recall": null,
+            "f1": null,
+            "support": 0,
+            "union": 0
+          },
+          "5": {
+            "iou": null,
+            "precision": null,
+            "recall": null,
+            "f1": null,
+            "support": 0,
+            "union": 0
+          },
+          "6": {
+            "iou": 0.4582463465553236,
+            "precision": 0.8557504873294347,
+            "recall": 0.49660633484162897,
+            "f1": 0.6284896206156049,
+            "support": 884,
+            "union": 958
+          },
+          "7": {
+            "iou": 0.21377672209026127,
+            "precision": 0.967741935483871,
+            "recall": 0.215311004784689,
+            "f1": 0.35225048923679064,
+            "support": 418,
+            "union": 421
+          },
+          "8": {
+            "iou": null,
+            "precision": null,
+            "recall": null,
+            "f1": null,
+            "support": 0,
+            "union": 0
+          },
+          "9": {
+            "iou": null,
+            "precision": null,
+            "recall": null,
+            "f1": null,
+            "support": 0,
+            "union": 0
+          },
+          "10": {
+            "iou": null,
+            "precision": null,
+            "recall": null,
+            "f1": null,
+            "support": 0,
+            "union": 0
+          },
+          "11": {
+            "iou": null,
+            "precision": null,
+            "recall": null,
+            "f1": null,
+            "support": 0,
+            "union": 0
+          },
+          "12": {
+            "iou": 0.6516510784500859,
+            "precision": 0.8600579418062728,
+            "recall": 0.7289420305327212,
+            "f1": 0.7890904888477985,
+            "support": 9367,
+            "union": 10478
+          },
+          "13": {
+            "iou": 0.7703940955298705,
+            "precision": 0.8925782510487253,
+            "recall": 0.8491220530451866,
+            "f1": 0.8703080263033697,
+            "support": 32576,
+            "union": 35905
+          },
+          "14": {
+            "iou": 0.5635331230283912,
+            "precision": 0.6841299019607843,
+            "recall": 0.7617260787992496,
+            "f1": 0.7208457751593899,
+            "support": 5863,
+            "union": 7925
+          },
+          "15": {
+            "iou": 0.8052972850605565,
+            "precision": 0.8392511080028985,
+            "recall": 0.9521642704190884,
+            "f1": 0.8921492229835639,
+            "support": 52304,
+            "union": 61843
+          },
+          "16": {
+            "iou": 0.0,
+            "precision": 0.0,
+            "recall": 0.0,
+            "f1": 0.0,
+            "support": 0,
+            "union": 84
+          },
+          "17": {
+            "iou": null,
+            "precision": null,
+            "recall": null,
+            "f1": null,
+            "support": 0,
+            "union": 0
+          },
+          "18": {
+            "iou": 0.4599774520856821,
+            "precision": 0.8589473684210527,
+            "recall": 0.4975609756097561,
+            "f1": 0.6301158301158302,
+            "support": 820,
+            "union": 887
+          },
+          "19": {
+            "iou": 0.36182336182336183,
+            "precision": 0.8552188552188552,
+            "recall": 0.38543247344461307,
+            "f1": 0.5313807531380753,
+            "support": 659,
+            "union": 702
+          }
+        },
+        "group_miou": 0.6217542771760537,
+        "group_prf": {
+          "0": {
+            "iou": 0.6516510784500859,
+            "precision": 0.8600579418062728,
+            "recall": 0.7289420305327212,
+            "f1": 0.7890904888477985,
+            "support": 9367,
+            "union": 10478
+          },
+          "1": {
+            "iou": null,
+            "precision": null,
+            "recall": null,
+            "f1": null,
+            "support": 0,
+            "union": 0
+          },
+          "2": {
+            "iou": 0.7512507781338621,
+            "precision": 0.8684897915667147,
+            "recall": 0.8476807409141757,
+            "f1": 0.8579591084429348,
+            "support": 38439,
+            "union": 43373
+          },
+          "3": {
+            "iou": 0.4192938209331652,
+            "precision": 0.8613989637305699,
+            "recall": 0.4496281271129141,
+            "f1": 0.5908485117725455,
+            "support": 1479,
+            "union": 1586
+          },
+          "4": {
+            "iou": 0.6443040582297603,
+            "precision": 0.9266245309105273,
+            "recall": 0.6789435600578871,
+            "f1": 0.7836799465463961,
+            "support": 13820,
+            "union": 14563
+          },
+          "5": {
+            "iou": 0.4582463465553236,
+            "precision": 0.8557504873294347,
+            "recall": 0.49660633484162897,
+            "f1": 0.6284896206156049,
+            "support": 884,
+            "union": 958
+          },
+          "6": {
+            "iou": 0.8057795807541254,
+            "precision": 0.8389734960033656,
+            "recall": 0.9531966962373815,
+            "f1": 0.892445112728119,
+            "support": 52304,
+            "union": 61873
+          },
+          "7": {
+            "iou": null,
+            "precision": null,
+            "recall": null,
+            "f1": null,
+            "support": 0,
+            "union": 0
+          }
+        }
+      },
+      "60m+": {
+        "points": 17002,
+        "veyra_miou_1_19": 0.22500792122743007,
+        "veyra_prf": {
+          "1": {
+            "iou": 0.02346805736636245,
+            "precision": 0.6666666666666666,
+            "recall": 0.023746701846965697,
+            "f1": 0.045859872611464965,
+            "support": 758,
+            "union": 767
+          },
+          "2": {
+            "iou": 0.07659574468085106,
+            "precision": 0.2903225806451613,
+            "recall": 0.09424083769633508,
+            "f1": 0.1422924901185771,
+            "support": 191,
+            "union": 235
+          },
+          "3": {
+            "iou": null,
+            "precision": null,
+            "recall": null,
+            "f1": null,
+            "support": 0,
+            "union": 0
+          },
+          "4": {
+            "iou": null,
+            "precision": null,
+            "recall": null,
+            "f1": null,
+            "support": 0,
+            "union": 0
+          },
+          "5": {
+            "iou": null,
+            "precision": null,
+            "recall": null,
+            "f1": null,
+            "support": 0,
+            "union": 0
+          },
+          "6": {
+            "iou": 0.025,
+            "precision": 0.25,
+            "recall": 0.02702702702702703,
+            "f1": 0.04878048780487805,
+            "support": 37,
+            "union": 40
+          },
+          "7": {
+            "iou": 0.0,
+            "precision": 0.0,
+            "recall": 0.0,
+            "f1": 0.0,
+            "support": 42,
+            "union": 42
+          },
+          "8": {
+            "iou": null,
+            "precision": null,
+            "recall": null,
+            "f1": null,
+            "support": 0,
+            "union": 0
+          },
+          "9": {
+            "iou": null,
+            "precision": null,
+            "recall": null,
+            "f1": null,
+            "support": 0,
+            "union": 0
+          },
+          "10": {
+            "iou": null,
+            "precision": null,
+            "recall": null,
+            "f1": null,
+            "support": 0,
+            "union": 0
+          },
+          "11": {
+            "iou": null,
+            "precision": null,
+            "recall": null,
+            "f1": null,
+            "support": 0,
+            "union": 0
+          },
+          "12": {
+            "iou": 0.08296943231441048,
+            "precision": 0.35185185185185186,
+            "recall": 0.0979381443298969,
+            "f1": 0.1532258064516129,
+            "support": 194,
+            "union": 229
+          },
+          "13": {
+            "iou": 0.5272544586787239,
+            "precision": 0.6092004063270933,
+            "recall": 0.7967356234579617,
+            "f1": 0.6904605263157895,
+            "support": 5269,
+            "union": 7962
+          },
+          "14": {
+            "iou": 0.5831715210355987,
+            "precision": 0.707221350078493,
+            "recall": 0.7687713310580204,
+            "f1": 0.7367130008176614,
+            "support": 1172,
+            "union": 1545
+          },
+          "15": {
+            "iou": 0.6151756609923941,
+            "precision": 0.78743625405656,
+            "recall": 0.7376764386536373,
+            "f1": 0.7617445902006951,
+            "support": 9210,
+            "union": 11044
+          },
+          "16": {
+            "iou": 0.0,
+            "precision": 0.0,
+            "recall": 0.0,
+            "f1": 0.0,
+            "support": 0,
+            "union": 30
+          },
+          "17": {
+            "iou": null,
+            "precision": null,
+            "recall": null,
+            "f1": null,
+            "support": 0,
+            "union": 0
+          },
+          "18": {
+            "iou": 0.05660377358490566,
+            "precision": 0.8571428571428571,
+            "recall": 0.05714285714285714,
+            "f1": 0.10714285714285714,
+            "support": 105,
+            "union": 106
+          },
+          "19": {
+            "iou": 0.48484848484848486,
+            "precision": 0.64,
+            "recall": 0.6666666666666666,
+            "f1": 0.6530612244897959,
+            "support": 24,
+            "union": 33
+          }
+        },
+        "group_miou": 0.24809464823375693,
+        "group_prf": {
+          "0": {
+            "iou": 0.08296943231441048,
+            "precision": 0.35185185185185186,
+            "recall": 0.0979381443298969,
+            "f1": 0.1532258064516129,
+            "support": 194,
+            "union": 229
+          },
+          "1": {
+            "iou": null,
+            "precision": null,
+            "recall": null,
+            "f1": null,
+            "support": 0,
+            "union": 0
+          },
+          "2": {
+            "iou": 0.560970396494603,
+            "precision": 0.6428658909981629,
+            "recall": 0.8149355690110232,
+            "f1": 0.7187457209366014,
+            "support": 6441,
+            "union": 9357
+          },
+          "3": {
+            "iou": 0.15827338129496402,
+            "precision": 0.6875,
+            "recall": 0.17054263565891473,
+            "f1": 0.2732919254658385,
+            "support": 129,
+            "union": 139
+          },
+          "4": {
+            "iou": 0.04448742746615087,
+            "precision": 0.5168539325842697,
+            "recall": 0.04641775983854692,
+            "f1": 0.0851851851851852,
+            "support": 991,
+            "union": 1034
+          },
+          "5": {
+            "iou": 0.025,
+            "precision": 0.25,
+            "recall": 0.02702702702702703,
+            "f1": 0.04878048780487805,
+            "support": 37,
+            "union": 40
+          },
+          "6": {
+            "iou": 0.6168672518324133,
+            "precision": 0.7873642873642873,
+            "recall": 0.7401737242128121,
+            "f1": 0.7630400716364449,
+            "support": 9210,
+            "union": 11051
+          },
+          "7": {
+            "iou": null,
+            "precision": null,
+            "recall": null,
+            "f1": null,
+            "support": 0,
+            "union": 0
+          }
+        }
+      }
+    },
+    "gt_histogram_veyra": {
+      "0": 17519,
+      "1": 91421,
+      "2": 12032,
+      "6": 3210,
+      "7": 593,
+      "12": 147574,
+      "13": 96060,
+      "14": 23579,
+      "15": 130940,
+      "18": 5277,
+      "19": 4601
+    },
+    "pred_histogram_veyra": {
+      "0": 707,
+      "1": 84233,
+      "2": 15750,
+      "6": 3023,
+      "7": 192,
+      "12": 137490,
+      "13": 103872,
+      "14": 27346,
+      "15": 152095,
+      "16": 141,
+      "18": 4544,
+      "19": 3413
+    },
+    "gt_histogram_native": {
+      "0": 17112,
+      "4": 1985,
+      "5": 1225,
+      "6": 593,
+      "7": 91421,
+      "9": 130940,
+      "10": 3338,
+      "11": 94,
+      "12": 1169,
+      "13": 5277,
+      "14": 352,
+      "15": 96060,
+      "16": 55,
+      "17": 23579,
+      "21": 12032,
+      "22": 147574
+    },
+    "pred_histogram_native": {
+      "0": 584,
+      "4": 3023,
+      "6": 192,
+      "7": 84233,
+      "8": 141,
+      "9": 152095,
+      "10": 3413,
+      "13": 4544,
+      "14": 87,
+      "15": 103872,
+      "16": 36,
+      "17": 27346,
+      "21": 15750,
+      "22": 137490
+    },
+    "pred_confidence_mean_on_predicted_known": 0.9404010772705078,
+    "pred_confidence_p50_on_predicted_known": 0.9970666766166687,
+    "pred_confidence_mean_on_correct": 0.9617372155189514,
+    "pred_confidence_mean_on_wrong": 0.7759705781936646
+  },
+  "performance": {
+    "latency_ms_p50": 5411.578378500053,
+    "latency_ms_p95": 6320.136244049945,
+    "latency_ms_p99": 6398.039568009963,
+    "latency_ms_per_frame": [
+      5328.8,
+      6139.3,
+      5494.3,
+      4610.1,
+      3716.4,
+      3901.6,
+      5938.8,
+      6417.5
+    ],
+    "peak_rss_mb": 1003.8,
+    "rss_delta_mb": 660.6
+  },
+  "per_frame": [
+    {
+      "frame_id": "000000",
+      "points": 66658,
+      "beam_fov_fraction": 1.0,
+      "latency_ms": 5328.8,
+      "pred_histogram_veyra": {
+        "0": 92,
+        "1": 11287,
+        "2": 1681,
+        "6": 321,
+        "7": 12,
+        "12": 16917,
+        "13": 12630,
+        "14": 3260,
+        "15": 19440,
+        "16": 12,
+        "18": 610,
+        "19": 396
+      }
+    },
+    {
+      "frame_id": "000001",
+      "points": 66653,
+      "beam_fov_fraction": 1.0,
+      "latency_ms": 6139.3,
+      "pred_histogram_veyra": {
+        "0": 77,
+        "1": 10556,
+        "2": 1965,
+        "6": 377,
+        "7": 42,
+        "12": 17034,
+        "13": 13028,
+        "14": 3308,
+        "15": 19342,
+        "16": 8,
+        "18": 557,
+        "19": 359
+      }
+    },
+    {
+      "frame_id": "000002",
+      "points": 66616,
+      "beam_fov_fraction": 1.0,
+      "latency_ms": 5494.3,
+      "pred_histogram_veyra": {
+        "0": 100,
+        "1": 10930,
+        "2": 1899,
+        "6": 381,
+        "7": 6,
+        "12": 17181,
+        "13": 12661,
+        "14": 3509,
+        "15": 19013,
+        "16": 4,
+        "18": 598,
+        "19": 334
+      }
+    },
+    {
+      "frame_id": "000003",
+      "points": 66532,
+      "beam_fov_fraction": 1.0,
+      "latency_ms": 4610.1,
+      "pred_histogram_veyra": {
+        "0": 97,
+        "1": 10731,
+        "2": 2124,
+        "6": 345,
+        "7": 19,
+        "12": 17002,
+        "13": 12546,
+        "14": 3257,
+        "15": 19313,
+        "16": 8,
+        "18": 578,
+        "19": 512
+      }
+    },
+    {
+      "frame_id": "000004",
+      "points": 66546,
+      "beam_fov_fraction": 1.0,
+      "latency_ms": 3716.4,
+      "pred_histogram_veyra": {
+        "0": 81,
+        "1": 10207,
+        "2": 2229,
+        "6": 409,
+        "7": 12,
+        "12": 16819,
+        "13": 13040,
+        "14": 3546,
+        "15": 19293,
+        "16": 34,
+        "18": 538,
+        "19": 338
+      }
+    },
+    {
+      "frame_id": "000005",
+      "points": 66532,
+      "beam_fov_fraction": 1.0,
+      "latency_ms": 3901.6,
+      "pred_histogram_veyra": {
+        "0": 106,
+        "1": 9899,
+        "2": 2013,
+        "6": 345,
+        "7": 45,
+        "12": 17543,
+        "13": 13839,
+        "14": 3264,
+        "15": 18344,
+        "16": 18,
+        "18": 575,
+        "19": 541
+      }
+    },
+    {
+      "frame_id": "000006",
+      "points": 66602,
+      "beam_fov_fraction": 1.0,
+      "latency_ms": 5938.8,
+      "pred_histogram_veyra": {
+        "0": 80,
+        "1": 10424,
+        "2": 1827,
+        "6": 421,
+        "7": 41,
+        "12": 17628,
+        "13": 13232,
+        "14": 3416,
+        "15": 18454,
+        "16": 18,
+        "18": 540,
+        "19": 521
+      }
+    },
+    {
+      "frame_id": "000007",
+      "points": 66667,
+      "beam_fov_fraction": 1.0,
+      "latency_ms": 6417.5,
+      "pred_histogram_veyra": {
+        "0": 74,
+        "1": 10199,
+        "2": 2012,
+        "6": 424,
+        "7": 15,
+        "12": 17366,
+        "13": 12896,
+        "14": 3786,
+        "15": 18896,
+        "16": 39,
+        "18": 548,
+        "19": 412
+      }
+    }
+  ],
+  "hardware": {
+    "cpu": "Intel(R) Core(TM) i5-8350U CPU @ 1.70GHz",
+    "platform": "Linux-7.2.5-200.fc44.x86_64-x86_64-with-glibc2.43",
+    "python": "3.14.7"
+  },
+  "software": {
+    "git_sha": "8bdb337884c3d4598ee54cdb67506d984a669f13",
+    "numpy": "2.4.4",
+    "torch": "2.14.0+cpu"
+  }
+}
