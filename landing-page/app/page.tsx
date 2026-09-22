@@ -1,12 +1,13 @@
 import Nav from "../components/Nav";
-import Hero from "../components/Hero";
+import Hero from "../components/hero/Hero";
 import Problem from "../components/sections/Problem";
-import Pipeline from "../components/sections/Pipeline";
+import Pipeline from "../components/technology/Pipeline";
 import Explainer from "../components/sections/Explainer";
 import Resolution from "../components/sections/Resolution";
-import Evidence from "../components/sections/Evidence";
-import Showcase from "../components/sections/Showcase";
-import Download from "../components/sections/Download";
+import Evidence from "../components/evidence/Evidence";
+import RangeQuality from "../components/evidence/RangeQuality";
+import Showcase from "../components/screenshots/Showcase";
+import Download from "../components/downloads/Download";
 import Engineering from "../components/sections/Engineering";
 import Footer from "../components/Footer";
 
@@ -21,6 +22,7 @@ export default function Page() {
         <Explainer />
         <Resolution />
         <Evidence />
+        <RangeQuality />
         <Showcase />
         <Download />
         <Engineering />

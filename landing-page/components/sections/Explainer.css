@@ -1,101 +1,113 @@
-.explainer-grid {
+.cell-grid {
   display: grid;
   grid-template-columns: 7fr 5fr;
-  gap: 64px;
+  gap: 72px;
   align-items: start;
 }
 
-.cell-formula {
-  font-size: 13px;
-  letter-spacing: 0.04em;
-  color: var(--teal);
-  border: 1px solid var(--line);
-  border-radius: var(--radius-sm);
-  background: rgba(98, 224, 215, 0.05);
-  padding: 16px 20px;
-  margin-bottom: 8px;
-  overflow-x: auto;
-  white-space: nowrap;
+.cell-diagram {
+  border-top: 2px solid var(--ink);
+  padding-top: 36px;
 }
 
-.cell-fields {
-  list-style: none;
-  margin: 28px 0 0;
-  padding: 0;
+.cell-xy {
+  font-size: clamp(28px, 3.4vw, 44px);
+  font-weight: 600;
+  color: var(--ink);
+  margin-bottom: 10px;
+}
+
+.cell-arrows {
   display: flex;
-  flex-direction: column;
+  gap: 10px;
+  margin-bottom: 30px;
 }
 
-.cell-fields li {
+.cell-arrows span {
+  width: 44px;
+  height: 2px;
+  background: var(--teal);
+  position: relative;
+}
+
+.cell-arrows span::after {
+  content: "";
+  position: absolute;
+  right: 0;
+  top: -3px;
+  border: solid var(--teal);
+  border-width: 0 2px 2px 0;
+  padding: 3px;
+  transform: rotate(-45deg);
+}
+
+.cell-diagram ul {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.cell-diagram li {
   display: grid;
-  grid-template-columns: 150px 1fr;
-  gap: 20px;
-  padding: 18px 0;
-  border-bottom: 1px solid var(--line-soft);
-  font-size: 14.5px;
-}
-
-.cell-fields li:first-child {
-  border-top: 1px solid var(--line-soft);
-}
-
-.cell-fields strong {
-  font-family: var(--font-display);
+  grid-template-columns: 190px 1fr;
+  gap: 24px;
+  padding: 20px 0;
+  border-top: 1px solid var(--line);
   font-size: 15px;
+}
+
+.cell-diagram li strong {
+  font-family: var(--font-display);
+  font-size: 16px;
   font-weight: 600;
 }
 
-.cell-fields span {
-  color: var(--ink-dim);
+.cell-diagram li span {
+  color: var(--ink-soft);
 }
 
-.voxel-contrast figure {
-  margin: 0;
-  border: 1px solid var(--line-soft);
+.voxel-note {
+  background: var(--paper-soft);
   border-radius: var(--radius);
-  background: var(--panel);
-  padding: 30px;
+  padding: 36px;
   position: sticky;
   top: calc(var(--nav-h) + 24px);
 }
 
-.voxel-contrast figcaption {
-  font-size: 11px;
-  letter-spacing: 0.14em;
-  color: var(--violet);
-  margin-bottom: 24px;
+.voxel-note .meta-label {
+  margin-bottom: 22px;
 }
 
-.voxel-stack {
+.voxel-field {
   display: grid;
-  grid-template-columns: repeat(9, 1fr);
-  gap: 5px;
+  grid-template-columns: repeat(8, 1fr);
+  gap: 6px;
   margin-bottom: 24px;
 }
 
-.voxel-stack span {
+.voxel-field span {
   aspect-ratio: 1;
-  border-radius: 2px;
-  background: rgba(217, 102, 217, 0.28);
-  border: 1px solid rgba(217, 102, 217, 0.45);
+  border-radius: 3px;
+  background: #c3b2e8;
+  border: 1px solid #b39ddb;
 }
 
-.voxel-contrast p {
-  font-size: 14px;
-  color: var(--ink-dim);
+.voxel-note p:last-child {
+  font-size: 14.5px;
+  color: var(--ink-soft);
 }
 
 @media (max-width: 900px) {
-  .explainer-grid {
+  .cell-grid {
     grid-template-columns: 1fr;
     gap: 40px;
   }
 
-  .voxel-contrast figure {
+  .voxel-note {
     position: static;
   }
 
-  .cell-fields li {
+  .cell-diagram li {
     grid-template-columns: 1fr;
     gap: 6px;
   }

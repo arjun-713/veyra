@@ -1,4 +1,4 @@
-/* Veyra landing — global styles. Tokens live in tokens.css. */
+/* Veyra landing — light global styles. */
 
 *,
 *::before,
@@ -18,37 +18,37 @@ html {
 
 body {
   margin: 0;
-  background: var(--void);
+  background: var(--paper);
   color: var(--ink);
   font-family: var(--font-ui);
   font-size: 16px;
   line-height: 1.6;
   -webkit-font-smoothing: antialiased;
+  overflow-x: clip;
 }
 
 ::selection {
-  background: rgba(98, 224, 215, 0.28);
-  color: #fff;
+  background: rgba(20, 184, 176, 0.25);
+  color: var(--ink);
 }
 
 :focus-visible {
-  outline: 2px solid var(--teal);
+  outline: 2px solid var(--teal-ink);
   outline-offset: 3px;
   border-radius: 4px;
 }
 
 h1,
 h2,
-h3 {
-  font-family: var(--font-display);
-  font-weight: 600;
-  line-height: 1.08;
-  letter-spacing: -0.02em;
+h3,
+p,
+dl,
+dd,
+figure {
   margin: 0;
-  text-wrap: balance;
 }
 
-p {
+dd {
   margin: 0;
 }
 
@@ -64,15 +64,9 @@ button {
   font: inherit;
 }
 
-/* Tabular numerals everywhere a number can change. */
-.tnum {
-  font-family: var(--font-mono);
-  font-variant-numeric: tabular-nums;
-}
-
-/* Section shell: generous separation, more space above the heading. */
+/* Page language: oversized left-aligned heads, strong whitespace. */
 .section {
-  padding: 120px 0 40px;
+  padding: 132px 0 8px;
 }
 
 .wrap {
@@ -81,26 +75,23 @@ button {
 }
 
 .section-head {
-  max-width: 72ch;
-  margin-bottom: 56px;
+  max-width: 880px;
+  margin-bottom: 64px;
 }
 
 .section-head h2 {
-  font-size: clamp(30px, 4vw, 46px);
-  margin-bottom: 18px;
+  margin-bottom: 22px;
 }
 
-.section-head p {
-  color: var(--ink-dim);
-  font-size: 17px;
-  max-width: 68ch;
+.section-head > p {
+  max-width: 66ch;
 }
 
-/* Fine technical rule used under section content. */
-.rule {
+.divider {
   border: 0;
-  border-top: 1px solid var(--line-soft);
-  margin: 72px 0 0;
+  border-top: 1px solid var(--line);
+  margin: 96px auto 0;
+  width: min(var(--max), calc(100% - 48px));
 }
 
 /* Reveal-on-scroll: visible by default, animated only with motion OK. */
@@ -112,10 +103,10 @@ button {
 @media (prefers-reduced-motion: no-preference) {
   .reveal {
     opacity: 0;
-    transform: translateY(22px);
+    transform: translateY(26px);
     transition:
-      opacity 0.7s cubic-bezier(0.22, 1, 0.36, 1),
-      transform 0.7s cubic-bezier(0.22, 1, 0.36, 1);
+      opacity 0.8s cubic-bezier(0.22, 1, 0.36, 1),
+      transform 0.8s cubic-bezier(0.22, 1, 0.36, 1);
   }
 
   .reveal.is-in {
@@ -124,24 +115,23 @@ button {
   }
 }
 
-/* Thin custom scrollbar in the instrument voice. */
 ::-webkit-scrollbar {
   width: 10px;
 }
 ::-webkit-scrollbar-track {
-  background: var(--void);
+  background: var(--paper-soft);
 }
 ::-webkit-scrollbar-thumb {
-  background: #22333f;
+  background: #b9c9d6;
   border-radius: 6px;
 }
 
 @media (max-width: 760px) {
   .section {
-    padding: 84px 0 28px;
+    padding: 88px 0 4px;
   }
 
   .section-head {
-    margin-bottom: 36px;
+    margin-bottom: 40px;
   }
 }

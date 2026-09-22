@@ -9,24 +9,23 @@ export default function Footer() {
         <Reveal>
           <div className="footer-close">
             {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img src="/veyra-logo.png" alt="Veyra logo" width={56} height={56} />
-            <h2>Map only what matters.</h2>
-            <p>Adaptive semantic 2.5D LiDAR mapping — measured, bounded, open.</p>
+            <img src="/veyra-logo.png" alt="Veyra logo" width={64} height={64} />
+            <h2 className="display-lg">Map more intelligently.</h2>
             <div className="footer-ctas">
-              <a className="btn-primary" href="#download">
+              <a className="btn-download" href="#download">
                 Download Veyra
               </a>
-              <a className="btn-ghost" href={GITHUB_URL} target="_blank" rel="noreferrer">
-                View on GitHub
+              <a className="btn-explore" href={GITHUB_URL} target="_blank" rel="noreferrer">
+                GitHub
               </a>
             </div>
           </div>
         </Reveal>
         <div className="footer-base">
-          <p className="tnum">VEYRA · SIH26053 · ADAPTIVE 2.5D LIDAR MAPPING</p>
+          <p className="measure">VEYRA · SIH26053 · ADAPTIVE 2.5D LIDAR MAPPING</p>
           <p>
-            Benchmark figures on this page are measured on named hardware or labeled
-            analytical. Full methodology lives in the repository.
+            Figures are measured on named hardware or labeled analytical.
+            Methodology lives in the repository.
           </p>
           <p>
             <a href={GITHUB_URL} target="_blank" rel="noreferrer">

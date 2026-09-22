@@ -1,13 +1,8 @@
 /**
- * Download manifest — single source of truth for install artifacts.
- *
- * status "coming-soon" renders a disabled card with the reason; no fake URLs.
- * When the `tauri-v*` release workflow publishes artifacts, set status to
- * "available" and fill url/version/size/checksum. Matches the matrix in
- * .github/workflows/release-tauri.yml.
+ * Download manifest — single source of truth.
+ * Cards link to the GitHub releases page, the production destination for
+ * packaged artifacts. Fine print states release status honestly.
  */
-
-export type ReleaseStatus = "available" | "coming-soon";
 
 export interface ReleaseArtifact {
   id: string;
@@ -16,44 +11,33 @@ export interface ReleaseArtifact {
   detail: string;
   arch: string;
   format: string;
-  status: ReleaseStatus;
-  reason?: string;
-  version?: string;
-  url?: string;
-  size?: string;
-  checksum?: string;
+  url: string;
+  availability: string;
 }
+
+export const GITHUB_URL = "https://github.com/arjun-713/veyra";
+export const RELEASES_URL = "https://github.com/arjun-713/veyra/releases";
 
 export const RELEASES: ReleaseArtifact[] = [
   {
     id: "linux-deb",
     os: "Linux",
     title: "Debian / Ubuntu",
-    detail: "For Ubuntu 24.04 and derivatives",
+    detail: "Ubuntu 24.04 and derivatives",
     arch: "x64",
     format: ".deb",
-    status: "coming-soon",
-    reason: "No tauri-v* release published yet — build from source meanwhile.",
+    url: RELEASES_URL,
+    availability: "Ships with the first tagged release",
   },
   {
     id: "linux-rpm",
     os: "Linux",
     title: "Fedora / RHEL",
-    detail: "For Fedora 44 and derivatives",
+    detail: "Fedora 44 and derivatives",
     arch: "x64",
     format: ".rpm",
-    status: "coming-soon",
-    reason: "No tauri-v* release published yet — build from source meanwhile.",
-  },
-  {
-    id: "linux-appimage",
-    os: "Linux",
-    title: "Universal AppImage",
-    detail: "Runs on most modern distributions",
-    arch: "x64",
-    format: ".AppImage",
-    status: "coming-soon",
-    reason: "No tauri-v* release published yet — build from source meanwhile.",
+    url: RELEASES_URL,
+    availability: "Ships with the first tagged release",
   },
   {
     id: "windows-nsis",
@@ -61,9 +45,9 @@ export const RELEASES: ReleaseArtifact[] = [
     title: "Windows installer",
     detail: "Windows 10 / 11, 64-bit",
     arch: "x64",
-    format: ".exe (NSIS)",
-    status: "coming-soon",
-    reason: "No tauri-v* release published yet — build from source meanwhile.",
+    format: ".exe",
+    url: RELEASES_URL,
+    availability: "Ships with the first tagged release",
   },
   {
     id: "macos-arm",
@@ -72,8 +56,8 @@ export const RELEASES: ReleaseArtifact[] = [
     detail: "macOS on ARM64",
     arch: "arm64",
     format: ".dmg",
-    status: "coming-soon",
-    reason: "No tauri-v* release published yet — build from source meanwhile.",
+    url: RELEASES_URL,
+    availability: "Ships with the first tagged release",
   },
   {
     id: "macos-intel",
@@ -82,12 +66,10 @@ export const RELEASES: ReleaseArtifact[] = [
     detail: "macOS on x64",
     arch: "x64",
     format: ".dmg",
-    status: "coming-soon",
-    reason: "No tauri-v* release published yet — build from source meanwhile.",
+    url: RELEASES_URL,
+    availability: "Ships with the first tagged release",
   },
 ];
-
-export const GITHUB_URL = "https://github.com/arjun-713/veyra";
 
 export const SOURCE_BUILD = {
   command: "cmake -S . -B build -DCMAKE_BUILD_TYPE=Release && cmake --build build -j",

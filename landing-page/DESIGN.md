@@ -1,45 +1,45 @@
-# DESIGN.md — Veyra Landing Page
+# DESIGN.md — Veyra Landing Page (light world)
 
 Recorded from the built world (`landing-page/`), ground truth over intention.
-Mode: Persuade. Parent world: the Veyra desktop instrument UI (dark ops).
+Mode: Persuade. This page is a full visual-system redesign of the earlier dark
+instrument concept; the dark ops language survives only in the desktop app.
 
 ## World
 
-Night-operations instrument panel. Near-black blue ground (`#070c12` voids,
-`#0b1118` ground, `#101a23` panels), 1px hairline borders (`#263642`), no
-shadows except screenshot frames and the hero stage. One signal color —
-teal `#62e0d7` — reserved for live value, primary action, and evidence chips.
-LOD hues (cyan/green/amber/violet) appear only where resolution is the subject.
-Light neutrals exist in tokens for future prose surfaces; the shipped page is
-dark throughout.
+Bright premium light instrument. Near-white cool ground (`#f7f9fb`), white
+cards only where elevation is earned, navy-black ink (`#0c1522`), hairline
+dividers (`#dfe7ef`), teal signal (`#14b8b0` fills, `#0b6e6c` text accents,
+`#5eead4` glow) used sparingly. Pale-blue background washes only — never
+purple, never gradient headline text (one cyan period).
 
 ## Type
 
-Space Grotesk 600 display (hero, section titles, wordmark), Inter 400–600 UI
-body and controls, IBM Plex Mono tabular for every number, chip, annotation,
-and code line. All three self-hosted via Fontsource — zero runtime font CDN.
+Space Grotesk 600 display (hero clamp 52–108px, section titles), Inter UI
+body/controls, IBM Plex Mono tabular for measures, chips, annotations, code.
+All self-hosted via Fontsource — zero runtime font CDN.
 
 ## Signature
 
-The hero stage: a procedural UGV whose LiDAR sweep lights semantic points that
-resolve into L0–L3 colored cells over polar range rings, with mono HTML
-annotations (2.5D MAP / ACTIVE RADIUS / ADAPTIVE CELLS / SEMANTIC POINTS) and
-an honest "cell sizes exaggerated" caption. Copy renders before WebGL; a static
-SVG poster and an error boundary cover no-WebGL and crash paths.
+Hero: editorial left column (eyebrow rule, huge black headline, factual
+subcopy, dual CTA, divider-separated metrics, honest footnote) beside a
+seamless generated LiDAR scene that bleeds into the page via mask-dissolve —
+no rectangular frame. Four HTML map annotations (mono title + value, hairline
+border, connector dot) overlay the scene; the asset swaps at
+`public/hero/veyra-lidar-map.webp` with zero structural change, and an inline
+SVG stand-in covers failure.
 
 ## Composition
 
-Left-weighted hero (copy 5fr / stage 7fr), then alternating rhythms: density
-rows (Problem), a five-cell instrument strip (Pipeline), sticky voxel contrast
-(2.5D), interactive rings (Resolution), full-width evidence table with
-MEASURED/ANALYTICAL/UNAVAILABLE chips, 2×2 screenshot frames, dashed
-coming-soon release cards, six-cell stack grid, centered close. One spacing
-scale; reveals are single-orchestration IntersectionObserver fades, off under
+Oversized left-aligned heads, strong whitespace, asymmetric grids, thin rules
+instead of card walls. Evidence is an engineering report table with
+MEASURED/ANALYTICAL/UNAVAILABLE chips; range quality is a four-band scale;
+downloads are a ruled five-column list with honest release notes. Motion is
+restrained: one slow hero drift, single-orchestration reveals, off under
 reduced motion.
 
 ## Honesty rules (structural)
 
-Benchmark values live only in `lib/benchmark-data.ts` with evidence kinds;
-downloads only in `lib/releases.ts` with `coming-soon` states. No fake
-screenshots (labeled placeholders under fixed filenames), no invented
-partnerships, no analytical-as-measured claims. UtilityLOD ships no win claim.
+Benchmarks only in `lib/benchmark-data.ts` (FINAL fixed-benchmarks round:
+DistanceLOD headline, UtilityLOD experimental). Downloads only in
+`lib/releases.ts`, all cards linking the real GitHub releases page with
+ships-with-first-tag microcopy. Screenshots are labeled `.webp` placeholders.

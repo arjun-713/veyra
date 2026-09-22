@@ -4,77 +4,78 @@ import { useState } from "react";
 import Reveal from "../ui/Reveal";
 import "./Resolution.css";
 
-/* Interactive range rings: hover or tap a band to read its resolution. */
-
 const BANDS = [
-  { level: "L0", size: "5 cm", range: "0–10 m", color: "#33d9f2", r: 34, width: 26 },
-  { level: "L1", size: "10 cm", range: "10–30 m", color: "#4dd980", r: 62, width: 28 },
-  { level: "L2", size: "20 cm", range: "30–60 m", color: "#ffb340", r: 94, width: 32 },
-  { level: "L3", size: "40 cm", range: "60–100 m", color: "#d966d9", r: 128, width: 34 },
+  { level: "L0", size: "5 cm", range: "0–10 m", blurb: "Curbs, poles, feet. Full detail where steering happens.", color: "var(--lod-0)", r: 44 },
+  { level: "L1", size: "10 cm", range: "10–30 m", blurb: "Lane geometry, vehicles, people. The operating band.", color: "var(--lod-1)", r: 78 },
+  { level: "L2", size: "20 cm", range: "30–60 m", blurb: "Structures and road shape. Context, not control.", color: "var(--lod-2)", r: 112 },
+  { level: "L3", size: "40 cm", range: "60–100 m", blurb: "Distant terrain. Bounded cost at the horizon.", color: "var(--lod-3)", r: 142 },
 ] as const;
 
 export default function Resolution() {
-  const [active, setActive] = useState<number>(0);
+  const [active, setActive] = useState(0);
 
   return (
     <section className="section" aria-labelledby="res-title">
-      <div className="wrap resolution-grid">
-        <div>
-          <div className="section-head" style={{ marginBottom: 32 }}>
-            <h2 id="res-title">Near is fine. Far is coarse. Always.</h2>
-            <p>
-              Distance sets the baseline resolution; utility evidence can only promote
-              important cells finer. Select a band to inspect it.
-            </p>
-          </div>
-          <ul className="band-list tnum">
-            {BANDS.map((band, i) => (
-              <li key={band.level}>
-                <button
-                  className={`band${active === i ? " is-active" : ""}`}
-                  onClick={() => setActive(i)}
-                  aria-pressed={active === i}
-                  style={{ borderColor: active === i ? band.color : undefined }}
-                >
-                  <span className="band-dot" style={{ background: band.color }} aria-hidden="true" />
-                  <strong>
-                    {band.level} · {band.size}
-                  </strong>
-                  <span>{band.range}</span>
-                </button>
-              </li>
-            ))}
-          </ul>
-          <p className="band-note">
-            UtilityLOD promotions — geometry, semantics, motion, traversability risk —
-            refine within these bands under an observation-quality gate, with hysteresis
-            against split/merge churn and a governor that never coarsens the 10 m safety disk.
+      <div className="wrap">
+        <div className="section-head">
+          <h2 id="res-title" className="display-lg">
+            Near is fine.
+            <br />
+            Far is coarse.
+          </h2>
+          <p className="body-lead">
+            Distance sets the baseline; utility evidence can only promote important
+            cells finer. Select a band to inspect it.
           </p>
         </div>
-        <Reveal className="rings-figure">
-          <figure aria-label={`Top-down resolution bands. Active: ${BANDS[active].level}, ${BANDS[active].size}, ${BANDS[active].range}`}>
-            <svg viewBox="0 0 300 300" role="img" aria-hidden="true">
-              {[...BANDS].reverse().map((band) => (
-                <circle
-                  key={band.level}
-                  cx="150"
-                  cy="150"
-                  r={band.r}
-                  fill="none"
-                  stroke={band.color}
-                  strokeWidth={band.width}
-                  opacity={BANDS[active].level === band.level ? 0.85 : 0.22}
-                  style={{ transition: "opacity 0.3s ease" }}
-                />
-              ))}
-              <circle cx="150" cy="150" r="5" fill="#d7e3ed" />
-              <circle cx="150" cy="150" r="10" fill="none" stroke="#62e0d7" strokeWidth="1.5" opacity="0.8" />
-            </svg>
-            <figcaption className="tnum">
-              {BANDS[active].level} · {BANDS[active].size} · {BANDS[active].range}
-            </figcaption>
-          </figure>
-        </Reveal>
+        <div className="rings-layout">
+          <Reveal className="rings-stage">
+            <figure aria-label={`Top-down resolution bands. Active: ${BANDS[active].level}, ${BANDS[active].size}, ${BANDS[active].range}`}>
+              <svg viewBox="0 0 320 320" role="img" aria-hidden="true">
+                <circle cx="160" cy="160" r="150" fill="#fff" />
+                {[...BANDS].reverse().map((band) => (
+                  <circle
+                    key={band.level}
+                    cx="160"
+                    cy="160"
+                    r={band.r}
+                    fill="none"
+                    stroke={band.color}
+                    strokeWidth={band.r === 44 ? 30 : 26}
+                    opacity={BANDS[active].level === band.level ? 0.75 : 0.22}
+                    style={{ transition: "opacity 0.3s ease" }}
+                  />
+                ))}
+                <circle cx="160" cy="160" r="16" fill="#0c1522" />
+                <circle cx="160" cy="160" r="16" fill="none" stroke="#14b8b0" strokeWidth="2" />
+                <circle cx="160" cy="160" r="7" fill="#5eead4" />
+              </svg>
+              <figcaption className="measure">
+                {BANDS[active].level} · {BANDS[active].size} · {BANDS[active].range}
+              </figcaption>
+            </figure>
+          </Reveal>
+          <ol className="rings-list">
+            {BANDS.map((band, i) => (
+              <Reveal as="li" key={band.level} delayMs={i * 60}>
+                <button
+                  className={`ring-row${active === i ? " is-active" : ""}`}
+                  onClick={() => setActive(i)}
+                  aria-pressed={active === i}
+                >
+                  <span className="ring-swatch" style={{ background: band.color }} aria-hidden="true" />
+                  <span className="ring-text">
+                    <strong className="display-md">
+                      {band.size} <span className="measure ring-range">{band.range}</span>
+                    </strong>
+                    <span className="ring-blurb">{band.blurb}</span>
+                  </span>
+                  <span className="measure ring-level">{band.level}</span>
+                </button>
+              </Reveal>
+            ))}
+          </ol>
+        </div>
       </div>
     </section>
   );

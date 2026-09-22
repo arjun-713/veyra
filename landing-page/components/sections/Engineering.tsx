@@ -2,44 +2,41 @@ import Reveal from "../ui/Reveal";
 import { GITHUB_URL } from "../../lib/releases";
 import "./Engineering.css";
 
-/* Engineering credibility: the real stack, no logo cloud. */
-
 const STACK = [
-  { name: "C++20 mapper", detail: "Sparse world-aligned 2.5D map, LOD policy, governor — no CUDA required." },
-  { name: "Python perception", detail: "Patchwork++ ground, ONNX/SalsaNext semantics, terrain and temporal stages." },
-  { name: "Rust + Tauri desktop", detail: "Operator app with map, telemetry, benchmark and validation views." },
-  { name: "Reproducible benchmarks", detail: "Digest-pinned streams, four-policy comparisons, CI regression gates." },
-  { name: "Dataset adapters", detail: "SemanticKITTI, SemanticPOSS, RELLIS-3D and a generic manifest source." },
-  { name: "Measured evidence", detail: "RSS, p50/p95/p99, RMSE, coverage, retention — analytical kept separate." },
+  { name: "C++20 adaptive map", detail: "Sparse world-aligned 2.5D cells, LOD policy, runtime governor." },
+  { name: "Python perception", detail: "Ground, semantics, terrain and temporal stages with measured latency." },
+  { name: "Rust / Tauri desktop", detail: "Operator app: map, telemetry, benchmark comparison, validation." },
+  { name: "ONNX Runtime", detail: "CPU semantic inference behind a swappable provider boundary." },
+  { name: "Three.js visualization", detail: "Decimated live views; mapping latency measured separately." },
+  { name: "Reproducible benchmarks", detail: "Digest-pinned streams, four-policy matrix, CI regression gates." },
 ];
 
 export default function Engineering() {
   return (
     <section className="section" aria-labelledby="eng-title">
-      <div className="wrap">
-        <div className="section-head">
-          <h2 id="eng-title">Built like infrastructure, not a demo.</h2>
-          <p>
-            The repository carries the mapper, the perception stages, the desktop
-            app and the benchmark harness together — so every number on this page
-            traces to code you can run.
+      <div className="wrap eng-grid">
+        <div className="section-head" style={{ marginBottom: 0 }}>
+          <h2 id="eng-title" className="display-lg">
+            Built like
+            <br />
+            infrastructure.
+          </h2>
+          <p className="body-lead">
+            Mapper, perception, desktop and harness ship in one repository — so
+            every number on this page traces to code you can run.{" "}
+            <a className="eng-link" href={GITHUB_URL} target="_blank" rel="noreferrer">
+              Read it on GitHub →
+            </a>
           </p>
         </div>
-        <ul className="stack-list">
+        <ul className="eng-list">
           {STACK.map((item, i) => (
-            <Reveal as="li" key={item.name} delayMs={Math.min(i, 5) * 60}>
+            <Reveal as="li" key={item.name} delayMs={Math.min(i, 5) * 50}>
               <h3>{item.name}</h3>
               <p>{item.detail}</p>
             </Reveal>
           ))}
         </ul>
-        <Reveal>
-          <p className="github-line">
-            <a href={GITHUB_URL} target="_blank" rel="noreferrer">
-              Read the code on GitHub →
-            </a>
-          </p>
-        </Reveal>
       </div>
     </section>
   );

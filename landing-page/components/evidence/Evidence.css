@@ -1,0 +1,135 @@
+.section-head .meta-label {
+  margin-bottom: 20px;
+}
+
+.report-scroll {
+  overflow-x: auto;
+  border-top: 2px solid var(--ink);
+}
+
+.report-table {
+  width: 100%;
+  min-width: 640px;
+  border-collapse: collapse;
+  font-size: 15px;
+}
+
+.report-table th,
+.report-table td {
+  text-align: left;
+  padding: 22px 12px;
+  border-bottom: 1px solid var(--line);
+  vertical-align: top;
+}
+
+.report-table thead th {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  font-weight: 500;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--muted);
+  padding-top: 0;
+}
+
+.report-table thead th:nth-child(2),
+.report-table td:nth-child(2) {
+  text-align: right;
+  white-space: nowrap;
+}
+
+.report-table thead th:nth-child(3),
+.report-table td:nth-child(3) {
+  text-align: right;
+}
+
+.report-table tbody th {
+  font-family: var(--font-ui);
+  font-weight: 600;
+  font-size: 16.5px;
+}
+
+.report-table tbody th span {
+  display: block;
+  font-weight: 400;
+  font-size: 13px;
+  color: var(--muted);
+  margin-top: 6px;
+  max-width: 46ch;
+}
+
+.report-table td.measure {
+  font-size: 15px;
+  color: var(--ink);
+}
+
+.chip {
+  display: inline-block;
+  font-family: var(--font-mono);
+  font-size: 10px;
+  letter-spacing: 0.12em;
+  padding: 5px 11px;
+  border-radius: 20px;
+  border: 1px solid var(--line);
+  background: var(--card);
+  white-space: nowrap;
+}
+
+.chip-measured {
+  color: var(--teal-ink);
+  border-color: rgba(11, 110, 108, 0.4);
+}
+
+.chip-analytical {
+  color: #b45309;
+  border-color: rgba(217, 119, 6, 0.4);
+}
+
+.chip-unavailable {
+  color: var(--muted);
+}
+
+.provenance {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 24px;
+  margin-top: 44px;
+  padding-top: 28px;
+  border-top: 1px solid var(--line);
+}
+
+.provenance div {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  font-size: 12.5px;
+}
+
+.provenance dt {
+  font-family: var(--font-ui);
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  color: var(--muted);
+}
+
+.provenance dd {
+  color: var(--ink-soft);
+}
+
+@media (max-width: 960px) {
+  .provenance {
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .report-table thead th:nth-child(2),
+  .report-table td:nth-child(2) {
+    white-space: normal;
+  }
+}
+
+@media (max-width: 640px) {
+  .provenance {
+    grid-template-columns: 1fr;
+  }
+}
