@@ -208,6 +208,11 @@ class MapPolicyAdapter {
     return std::visit([](const auto& map) { return map.snapshot(); }, map_);
   }
 
+  // O(n) conservation bookkeeping without the snapshot's leaf sort.
+  [[nodiscard]] std::uint64_t point_count() const {
+    return std::visit([](const auto& map) { return map.point_count(); }, map_);
+  }
+
   [[nodiscard]] bool uses_stateful_policy() const noexcept { return utility_.has_value(); }
 
   void apply_governor(const veyra::map::MapSnapshot& snapshot, double frame_time_ms) {
@@ -765,7 +770,7 @@ Result run(const Options& options) {
       scan_image.clear();
       sensor_pose = {pose[3], pose[7], pose[11] + options.sensor_height_m};
       map.set_window_center(pose[3], pose[7]);
-      map_point_count_before_update = map.snapshot().point_count;
+      map_point_count_before_update = map.point_count();
       frame_rejected_before = result.rejected_out_of_window;
       window_duration = std::chrono::nanoseconds{duration_ns(window_started)};
       update_duration = std::chrono::nanoseconds{0};
@@ -1355,7 +1360,7 @@ class PersistentEngineSession {
     parse_duration_ = std::chrono::nanoseconds{duration_ns(started)};
     const auto window_started = Clock::now();
     map_->set_window_center(pose[3], pose[7]);
-    map_point_count_before_update_ = map_->snapshot().point_count;
+    map_point_count_before_update_ = map_->point_count();
     frame_rejected_before_ = result_.rejected_out_of_window;
     window_duration_ = std::chrono::nanoseconds{duration_ns(window_started)};
     update_duration_ = std::chrono::nanoseconds{0};

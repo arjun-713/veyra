@@ -935,6 +935,19 @@ MapSnapshot Map::snapshot() const {
   return snapshot;
 }
 
+std::uint64_t Map::point_count() const {
+  // Same leaf and prior counts as snapshot(), without leaf collection,
+  // sorting, or layer aggregation: O(n) for per-frame bookkeeping.
+  std::uint64_t total = 0;
+  impl_->tiles.for_each_tile([&](TileKey, const Tile& tile) {
+    for (int level = 0; level <= kMaxLevel; ++level) {
+      for (const StoredCell& entry : tile.leaves[level]) total += entry.stats.count;
+      for (const StoredCell& entry : tile.priors[level]) total += entry.stats.count;
+    }
+  });
+  return total;
+}
+
 Uniform5Map::Uniform5Map(MapConfig config) : map_(ResolutionPolicy::Uniform5, config) {}
 Uniform5Map::~Uniform5Map() = default;
 Uniform5Map::Uniform5Map(Uniform5Map&&) noexcept = default;
@@ -951,6 +964,7 @@ ClearingStats Uniform5Map::clear_free_space(const DepthImage& image, const Senso
 }
 
 MapSnapshot Uniform5Map::snapshot() const { return map_.snapshot(); }
+std::uint64_t Uniform5Map::point_count() const { return map_.point_count(); }
 
 Uniform40Map::Uniform40Map(MapConfig config) : map_(ResolutionPolicy::Uniform40, config) {}
 Uniform40Map::~Uniform40Map() = default;
@@ -968,6 +982,7 @@ ClearingStats Uniform40Map::clear_free_space(const DepthImage& image, const Sens
 }
 
 MapSnapshot Uniform40Map::snapshot() const { return map_.snapshot(); }
+std::uint64_t Uniform40Map::point_count() const { return map_.point_count(); }
 
 DistanceLodMap::DistanceLodMap(MapConfig config) : map_(ResolutionPolicy::DistanceLod, config) {}
 DistanceLodMap::~DistanceLodMap() = default;
@@ -988,5 +1003,6 @@ ClearingStats DistanceLodMap::clear_free_space(const DepthImage& image, const Se
 }
 
 MapSnapshot DistanceLodMap::snapshot() const { return map_.snapshot(); }
+std::uint64_t DistanceLodMap::point_count() const { return map_.point_count(); }
 
 }  // namespace veyra::map

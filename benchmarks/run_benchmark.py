@@ -704,9 +704,7 @@ def mapping_quality_report(
     band_levels: dict[tuple[float, float], list[int]] = {
         band: [] for band in _RANGE_BANDS
     }
-    band_reference: dict[tuple[float, float], int] = {
-        band: 0 for band in _RANGE_BANDS
-    }
+    band_reference: dict[tuple[float, float], int] = {band: 0 for band in _RANGE_BANDS}
     mean_range_by_cell = fine_reference.get("mean_range_by_cell", {})
     for (ix, iy), value in reference.items():
         for level in range(4):
@@ -721,7 +719,7 @@ def mapping_quality_report(
                             band_levels[band].append(estimate[1])
                             break
                 break
-    for (ix, iy) in reference:
+    for ix, iy in reference:
         cell_range = mean_range_by_cell.get((ix, iy))
         if cell_range is not None:
             for band in _RANGE_BANDS:
@@ -744,16 +742,16 @@ def mapping_quality_report(
                 "reference_bins": band_reference[band],
                 "sample_count": len(band_err),
                 "coverage": (
-                    len(band_err) / band_reference[band] if band_reference[band] else None
+                    len(band_err) / band_reference[band]
+                    if band_reference[band]
+                    else None
                 ),
                 "rmse_m": (
                     math.sqrt(sum(e * e for e in band_err) / len(band_err))
                     if band_err
                     else None
                 ),
-                "mean_owner_level": (
-                    sum(levels) / len(levels) if levels else None
-                ),
+                "mean_owner_level": (sum(levels) / len(levels) if levels else None),
                 "scope": (
                     "observed 5cm bins banded by mean point range; "
                     "unavailable without retained source frames"
