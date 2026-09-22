@@ -143,5 +143,5 @@ export const HERO_REDUCTION = {
   value: -52,
   unit: "%",
   label: "Measured reduction",
-  footnote: "DistanceLOD vs Uniform5 · SemanticPOSS 00 f0–9 · i5-8350U. See evidence.",
+  footnote: "DistanceLOD vs Uniform5 · SemanticPOSS 00 f0–9 · i5-8350U.",
 } as const;

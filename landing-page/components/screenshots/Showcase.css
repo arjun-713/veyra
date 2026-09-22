@@ -110,3 +110,19 @@
     gap: 56px;
   }
 }
+
+.shot-more {
+  margin-top: 40px;
+}
+
+.shot-more a {
+  color: var(--teal-ink);
+  font-weight: 600;
+  font-size: 15px;
+  text-decoration: none;
+}
+
+.shot-more a:hover {
+  text-decoration: underline;
+  text-underline-offset: 4px;
+}

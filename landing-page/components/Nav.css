@@ -72,7 +72,7 @@
 .nav-cta {
   font-size: 14px;
   font-weight: 600;
-  color: #07332f !important;
+  color: var(--ink-on-teal) !important;
   background: var(--teal-bright);
   text-decoration: none;
   padding: 10px 20px;
@@ -81,7 +81,7 @@
 }
 
 .nav-cta:hover {
-  background: #8df3e6;
+  background: var(--teal-hover);
 }
 
 @media (max-width: 860px) {

@@ -10,7 +10,8 @@ const SHOTS = [
   { file: "validation.webp", title: "Validation", detail: "Session checks with PASS / FAIL." },
 ];
 
-export default function Showcase() {
+export default function Showcase({ limit, moreHref }: { limit?: number; moreHref?: string }) {
+  const shots = typeof limit === "number" ? SHOTS.slice(0, limit) : SHOTS;
   return (
     <section className="section" id="app" aria-labelledby="app-title">
       <div className="wrap">
@@ -26,7 +27,7 @@ export default function Showcase() {
           </p>
         </div>
         <div className="shot-feature">
-          {SHOTS.map((shot, i) => (
+          {shots.map((shot, i) => (
             <Reveal key={shot.file} delayMs={i * 70}>
               <figure className="shot">
                 <div className="shot-frame">
@@ -59,6 +60,11 @@ export default function Showcase() {
             </Reveal>
           ))}
         </div>
+        {moreHref ? (
+          <p className="shot-more">
+            <a href={moreHref}>All application views →</a>
+          </p>
+        ) : null}
       </div>
     </section>
   );

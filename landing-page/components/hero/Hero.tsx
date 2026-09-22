@@ -76,7 +76,7 @@ export default function Hero() {
             fine detail where it matters while reducing unnecessary map state.
           </p>
           <div className="hero-ctas">
-            <a className="btn-download" href="#download">
+            <a className="btn-download" href="/download">
               <svg viewBox="0 0 16 16" width="16" height="16" aria-hidden="true">
                 <path
                   d="M8 2v8m0 0L4.5 6.5M8 10l3.5-3.5M2.5 13.5h11"
@@ -89,8 +89,8 @@ export default function Hero() {
               </svg>
               Download Veyra
             </a>
-            <a className="btn-explore" href="#technology">
-              Explore the technology
+            <a className="btn-explore" href="/technology">
+              How it works
               <span aria-hidden="true">→</span>
             </a>
           </div>
@@ -111,7 +111,7 @@ export default function Hero() {
               </dd>
             </div>
           </dl>
-          <p className="hero-fine">{HERO_REDUCTION.footnote}</p>
+          <p className="hero-fine">{HERO_REDUCTION.footnote} <a href="/evidence">See evidence.</a></p>
         </div>
       </div>
 
@@ -127,16 +127,15 @@ export default function Hero() {
       <div className="wrap hero-strip">
         <div className="hero-strip-group">
           <p>
-            <strong>Richer maps.</strong> Where it matters.
+            <strong>Finer near field.</strong>
           </p>
           <p>
-            <strong>Faster decisions.</strong> In real time.
+            <strong>Coarser far field.</strong>
           </p>
           <p>
-            <strong>Smarter autonomy.</strong> Across any terrain.
+            <strong>Bounded state.</strong>
           </p>
         </div>
-        <p className="hero-strip-note measure">FROM SENSORS TO A DEEPER UNDERSTANDING</p>
       </div>
     </section>
   );

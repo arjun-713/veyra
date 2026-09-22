@@ -5,10 +5,10 @@ import "./Nav.css";
 import { GITHUB_URL } from "../lib/releases";
 
 const LINKS = [
-  { href: "#technology", label: "Technology" },
-  { href: "#evidence", label: "Evidence" },
-  { href: "#app", label: "App" },
-  { href: "#download", label: "Download" },
+  { href: "/technology", label: "Technology" },
+  { href: "/evidence", label: "Evidence" },
+  { href: "/app", label: "App" },
+  { href: "/download", label: "Download" },
 ];
 
 export default function Nav() {
@@ -24,7 +24,7 @@ export default function Nav() {
   return (
     <nav className={`nav${scrolled ? " is-scrolled" : ""}`} aria-label="Primary">
       <div className="nav-inner">
-        <a className="nav-brand" href="#top" aria-label="Veyra home">
+        <a className="nav-brand" href="/" aria-label="Veyra home">
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img src="/veyra-logo.png" alt="" width={30} height={30} />
           <span>VEYRA</span>

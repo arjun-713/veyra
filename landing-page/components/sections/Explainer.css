@@ -88,8 +88,8 @@
 .voxel-field span {
   aspect-ratio: 1;
   border-radius: 3px;
-  background: #c3b2e8;
-  border: 1px solid #b39ddb;
+  background: var(--violet-soft);
+  border: 1px solid var(--violet-line);
 }
 
 .voxel-note p:last-child {

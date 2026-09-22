@@ -10,9 +10,9 @@ export default function Footer() {
           <div className="footer-close">
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img src="/veyra-logo.png" alt="Veyra logo" width={64} height={64} />
-            <h2 className="display-lg">Map more intelligently.</h2>
+            <h2 className="display-lg">Spend resolution where it matters.</h2>
             <div className="footer-ctas">
-              <a className="btn-download" href="#download">
+              <a className="btn-download" href="/download">
                 Download Veyra
               </a>
               <a className="btn-explore" href={GITHUB_URL} target="_blank" rel="noreferrer">

@@ -19,8 +19,8 @@ export default function Pipeline() {
             to drivable cells.
           </h2>
           <p className="body-lead">
-            One straight pipeline. The map never stores raw points — only sufficient
-            statistics per cell — so state stays bounded while evidence stays honest.
+            One straight pipeline. The map never stores raw points, only sufficient
+            statistics per cell. State stays bounded while evidence stays honest.
           </p>
         </div>
         <ol className="flow">

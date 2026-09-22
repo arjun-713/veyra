@@ -98,12 +98,12 @@
 
 .btn-download {
   background: var(--teal-bright);
-  color: #07332f;
+  color: var(--ink-on-teal);
   box-shadow: 0 18px 36px -20px rgba(20, 184, 176, 0.65);
 }
 
 .btn-download:hover {
-  background: #7df0e2;
+  background: var(--teal-hover);
 }
 
 .btn-explore {
