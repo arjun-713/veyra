@@ -37,6 +37,27 @@ from perception.semantic.semantic_provider import (
 
 
 class SemanticProviderTests(unittest.TestCase):
+    def test_ground_truth_reports_bypassed_execution_device(self):
+        self.assertEqual(GroundTruthSemanticProvider.execution_device, "bypassed")
+
+    def test_onnx_reports_verified_session_providers(self):
+        provider = OnnxSemanticProvider.__new__(OnnxSemanticProvider)
+
+        class CudaSession:
+            def get_providers(self):
+                return ["CUDAExecutionProvider", "CPUExecutionProvider"]
+
+        provider._session = CudaSession()
+        self.assertEqual(
+            provider.execution_device, "CUDAExecutionProvider+CPUExecutionProvider"
+        )
+
+        class NoProvidersSession:
+            pass
+
+        provider._session = NoProvidersSession()
+        self.assertEqual(provider.execution_device, "unavailable")
+
     def test_rejects_invalid_classes_before_integer_conversion(self):
         for value in (-1, 1.5, np.nan, np.inf, 2**32):
             with self.subTest(value=value):

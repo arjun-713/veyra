@@ -816,6 +816,7 @@ class RuntimeSession:
                 "terrain": status.terrain,
                 "temporal": status.temporal,
                 "diagnostics": list(status.diagnostics),
+                "semantic_execution": status.semantic_execution,
             },
             "perception_timings_ms": {
                 key: float(value) for key, value in output.timings_ms.items()

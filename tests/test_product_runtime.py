@@ -213,6 +213,56 @@ class ProductTelemetryTests(unittest.TestCase):
         )
         self.assertIsNone(report["perception"]["ground_ratio"])
 
+    def test_runtime_execution_device_wins_over_static_config(self):
+        from runtime.telemetry import Telemetry
+
+        state = {
+            "state": "running",
+            "index": 0,
+            "frames": 10,
+            "queue_depth": 0,
+            "dropped_frames": 0,
+            "visualization_dropped": 0,
+        }
+        base = {
+            "n_points": 1,
+            "pipeline_status": {
+                "semantic": "model",
+                "semantic_execution": "CPUExecutionProvider",
+            },
+        }
+        report = Telemetry().report(state, base, None, None, {"mode": "salsanext"})
+        self.assertEqual(
+            report["perception"]["execution_provider"], "CPUExecutionProvider"
+        )
+
+    def test_ground_truth_neural_bypass_is_explicit(self):
+        from runtime.telemetry import Telemetry
+
+        state = {
+            "state": "running",
+            "index": 0,
+            "frames": 10,
+            "queue_depth": 0,
+            "dropped_frames": 0,
+            "visualization_dropped": 0,
+        }
+        report = Telemetry().report(
+            state,
+            {
+                "n_points": 1,
+                "pipeline_status": {
+                    "semantic": "ground_truth",
+                    "semantic_execution": "bypassed",
+                },
+            },
+            None,
+            None,
+            {"mode": "ground_truth"},
+        )
+        self.assertEqual(report["perception"]["provider"], "Ground Truth")
+        self.assertEqual(report["perception"]["execution_provider"], "bypassed")
+
     def test_map_counts_governor_and_topology_rates_use_engine_schema(self):
         from runtime.telemetry import Telemetry
 
