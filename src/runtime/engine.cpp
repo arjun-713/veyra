@@ -217,7 +217,8 @@ class MapPolicyAdapter {
     return std::visit([](const auto& map) { return map.snapshot(); }, map_);
   }
 
-  [[nodiscard]] std::size_t point_count() const {
+  // O(n) conservation bookkeeping without the snapshot's leaf sort.
+  [[nodiscard]] std::uint64_t point_count() const {
     return std::visit([](const auto& map) { return map.point_count(); }, map_);
   }
 
@@ -1145,6 +1146,8 @@ std::string render(const Result& result) {
       const auto& leaf = snapshot.leaves[index];
       out << "{\"level\":" << leaf.id.level << ",\"ix\":" << leaf.id.ix << ",\"iy\":" << leaf.id.iy
           << ",\"count\":" << leaf.stats.count << ",\"mean_z\":" << leaf.stats.mean_z()
+          << ",\"semantic_class\":" << leaf.stats.semantic_class
+          << ",\"drivable_evidence\":" << leaf.stats.drivable_evidence()
           << ",\"ground_count\":" << leaf.stats.ground.count
           << ",\"ground_mean_z\":" << leaf.stats.ground.mean_z
           << ",\"obstacle_count\":" << leaf.stats.obstacle.count

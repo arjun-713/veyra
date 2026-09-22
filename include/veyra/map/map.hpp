@@ -298,9 +298,7 @@ class Map {
   void split(core::CellId id);
   void merge_children(core::CellId parent);
   [[nodiscard]] MapSnapshot snapshot() const;
-  // Evidence count held by active leaves and retained priors; equals
-  // snapshot().point_count without copying or ordering the leaves.
-  [[nodiscard]] std::size_t point_count() const;
+  [[nodiscard]] std::uint64_t point_count() const;
 
  private:
   struct Impl;
@@ -322,7 +320,7 @@ class Uniform5Map {
   void evict_stale_before(std::uint64_t minimum_timestamp);
   ClearingStats clear_free_space(const DepthImage& image, const SensorPose& pose);
   [[nodiscard]] MapSnapshot snapshot() const;
-  [[nodiscard]] std::size_t point_count() const;
+  [[nodiscard]] std::uint64_t point_count() const;
 
  private:
   Map map_;
@@ -343,7 +341,7 @@ class Uniform40Map {
   void evict_stale_before(std::uint64_t minimum_timestamp);
   ClearingStats clear_free_space(const DepthImage& image, const SensorPose& pose);
   [[nodiscard]] MapSnapshot snapshot() const;
-  [[nodiscard]] std::size_t point_count() const;
+  [[nodiscard]] std::uint64_t point_count() const;
 
  private:
   Map map_;
@@ -367,7 +365,7 @@ class DistanceLodMap {
   void split(core::CellId id);
   void merge_children(core::CellId parent);
   [[nodiscard]] MapSnapshot snapshot() const;
-  [[nodiscard]] std::size_t point_count() const;
+  [[nodiscard]] std::uint64_t point_count() const;
 
  private:
   Map map_;

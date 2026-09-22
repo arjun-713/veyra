@@ -106,10 +106,14 @@ if [[ "$mode" == "full" ]]; then
   # Do this before any C++ build or policy benchmark. A completed inference
   # process is not a successful SIH perception result: the provider must be
   # compatible with SemanticPOSS and satisfy its configured quality floors.
-  "$python_bin" -m scripts.validate_perception \
+  # Report the gate failure as an explicit verdict (not a bare traceback).
+  if ! "$python_bin" -m scripts.validate_perception \
     --dataset semanticposs --root "$dataset_root" --sequence 00 \
     --count "$quality_frames" --config "$repo_dir/$perception_config" \
-    --output "$perception_output"
+    --output "$perception_output"; then
+    echo "REAL DATA: UNAVAILABLE — perception quality gate failed for $perception_config on $dataset_root (see traceback above)" >&2
+    exit 2
+  fi
 fi
 
 echo "SIH26053 VALIDATION ($mode)"

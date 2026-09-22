@@ -115,15 +115,25 @@ class Telemetry:
             else None
         )
         semantic_counts = counts(semantic)
+        # Runtime-verified execution device wins over static config: the
+        # running provider reports what it actually uses; config may be stale.
+        # Ground Truth bypasses neural inference by construction.
+        runtime_execution = pipeline_status.get("semantic_execution")
+        if runtime_execution in (None, "", "unavailable"):
+            runtime_execution = None
+        execution_provider = runtime_execution or semantic_config.get(
+            "execution_provider"
+        )
         provider = (
             semantic_config.get("provider")
             or semantic_config.get("backend")
             or semantic_config.get("mode")
         )
         model = semantic_config.get("model") or semantic_config.get("checkpoint")
-        execution_provider = semantic_config.get("execution_provider")
         if provider == "ground_truth":
             provider = "Ground Truth"
+            if not execution_provider:
+                execution_provider = "bypassed"
         semantic_status = pipeline_status.get("semantic", "unavailable")
 
         def cpu_percent(process_id):

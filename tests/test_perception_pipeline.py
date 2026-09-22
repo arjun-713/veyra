@@ -130,6 +130,22 @@ class PerceptionPipelineTests(unittest.TestCase):
         self.assertEqual(provider.inference_calls, 1)
         self.assertEqual(output.status.semantic, "model")
 
+    def test_status_carries_verified_provider_execution_device(self):
+        from perception.pipeline import PerceptionPipeline as Pipeline
+
+        self.assertEqual(Pipeline()._provider_execution_device(), "bypassed")
+
+        class NoDeviceProvider:
+            supported_datasets = frozenset({"semanticposs"})
+
+            def infer(self, points, labels=None):
+                raise AssertionError("must not run")
+
+        self.assertEqual(
+            Pipeline(semantic_provider=NoDeviceProvider())._provider_execution_device(),
+            "unavailable",
+        )
+
     def test_config_requires_explicit_semantic_mode(self):
         with self.assertRaisesRegex(Exception, "semantic.mode"):
             PerceptionPipeline.from_config({"semantic": {}, "ground": {}})

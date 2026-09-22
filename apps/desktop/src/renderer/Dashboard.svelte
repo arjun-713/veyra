@@ -1,6 +1,6 @@
 <script lang="ts">
  import MapCanvas from './MapCanvas.svelte';import Icon from './Icon.svelte';
- import {comparisonMetrics,MEMORY_DOMAIN_NOTE,summarizeVisual,type DashboardEvent} from './dashboard';
+ import {comparisonMetrics,gateStatistic,MEMORY_DOMAIN_NOTE,MIN_SAMPLES,processingDisplay,summarizeVisual,type DashboardEvent} from './dashboard';
  import {processRss} from './session';
  import type {Json,WireFrame} from '../core';
  let {status,telemetry,frame,report,events,openDataset,openPerformance,openMap,openBenchmarks,busy=false,awaitingFrame=false}=$props<{status:Json;telemetry:Json;frame:WireFrame|null;report:Json|null;events:DashboardEvent[];openDataset:()=>void;openPerformance:()=>void;openMap:()=>void;openBenchmarks:()=>void;busy?:boolean;awaitingFrame?:boolean}>();
@@ -9,7 +9,10 @@
  const memory=(n:any)=>typeof n==='number'?n>=1073741824?f(n/1073741824,2)+' GB':f(n/1048576,1)+' MB':'—';
  let comparison=$derived(comparisonMetrics(report)),summary=$derived(summarizeVisual(frame));
  let rss=$derived(processRss(telemetry.processes??[]));
- let cards=$derived([{icon:'speed',label:'Processing FPS',value:f(telemetry.fps),unit:'FPS',detail:'Runtime throughput'},{icon:'bolt',label:'End-to-End Latency',value:f(telemetry.latency_ms?.end_to_end?.p95),unit:'ms',detail:'Frame time · p95'},{icon:'chip',label:'Backend RSS',value:typeof rss==='number'?f(rss/1048576,0):'—',unit:'MB',detail:'Python runtime + mapper · excludes desktop shell'},{icon:'grid',label:'Active Cells',value:f(telemetry.map?.active_cells,0),unit:'',detail:'Live map leaves'},{icon:'database',label:'Memory Reduction vs Uniform Grid',value:f(comparison.memoryReduction),unit:'%',detail:comparison.memoryReduction===null?'Load a policy benchmark':'Benchmark peak-RSS comparison · not a live session'},{icon:'chart',label:'Semantic mIoU',value:f(report?.perception?.semantic?.miou),unit:report?.perception?.semantic?.miou==null?'':'%',detail:report?.perception?.semantic?.miou==null?'Requires semantic evaluation · benchmark, not live':'Benchmark mIoU · not a live session'}]);
+ let proc=$derived(processingDisplay(status,telemetry));
+ let e2eCount=$derived(telemetry.latency_ms?.end_to_end?.count);
+ let e2eP95=$derived(gateStatistic(telemetry.latency_ms?.end_to_end?.p95,e2eCount,MIN_SAMPLES.p95));
+ let cards=$derived([{icon:'speed',label:'Processing',value:proc.label,unit:'',detail:proc.sub},{icon:'bolt',label:'Rolling E2E p95',value:e2eP95.text,unit:e2eP95.ok?'ms':'',detail:`Backend rolling percentile · ${e2eP95.sub}`},{icon:'chip',label:'Backend RSS',value:typeof rss==='number'?f(rss/1048576,0):'—',unit:'MB',detail:'Python runtime + mapper · excludes desktop shell'},{icon:'grid',label:'Active Cells',value:f(telemetry.map?.active_cells,0),unit:'',detail:'Live map leaves'},{icon:'database',label:'Memory Reduction vs Uniform Grid',value:f(comparison.memoryReduction),unit:'%',detail:comparison.memoryReduction===null?'Load a policy benchmark':'Benchmark peak-RSS comparison · not a live session'},{icon:'chart',label:'Semantic mIoU',value:f(report?.perception?.semantic?.miou),unit:report?.perception?.semantic?.miou==null?'':'%',detail:report?.perception?.semantic?.miou==null?'Requires semantic evaluation · benchmark, not live':'Benchmark mIoU · not a live session'}]);
  function width(value:any,reference:any){return typeof value==='number'&&typeof reference==='number'&&reference>0?Math.max(1,Math.min(100,value/reference*100)):0;}
 </script>
 <div class="dashboard">

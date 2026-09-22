@@ -46,6 +46,52 @@ export function inputTargetFps(config:Json,status:Json):number|null{
  if(typeof speed!=='number'||!Number.isFinite(speed)||speed<=0)return null;
  return fps*speed;
 }
+// Canonical semantic-source presentation. Ground Truth dataset labels must
+// never read as neural inference; neural modes show backend-verified device.
+export function semanticDisplay(provider:unknown,model:unknown,execution:unknown,backend:unknown):{source:string;sourceSub:string;neural:string;neuralSub:string;execution:string;executionSub:string}{
+ const text=(value:unknown)=>typeof value==='string'&&value&&value!=='unavailable'?String(value).replaceAll('_',' '):'Unavailable';
+ if(provider==='Ground Truth')return {source:'DATASET GROUND TRUTH',sourceSub:'dataset labels used directly',neural:'BYPASSED',neuralSub:'model latency not measured',execution:'N/A',executionSub:'no accelerator involved'};
+ return {source:text(provider),sourceSub:`neural inference · ${text(backend)}`,neural:model?'ACTIVE':'UNAVAILABLE',neuralSub:text(model),execution:text(execution),executionSub:'backend-verified device only'};
+}
+// Historical-data marker: stale telemetry values are last measured, never live.
+export function lastMeasuredPrefix(isStale:boolean):string{return isStale?'LAST MEASURED · ':'';}
+// Canonical benchmark capture states. Warmup exclusion is reported post-hoc
+// from the artifact (no live warmup signal exists); never claim COMPLETE
+// merely because the runtime paused.
+export function measurementDisplay(state:unknown):{label:string;sub:string}{
+ if(state==='running')return {label:'MEASURING',sub:'frames processing; warmup excluded per artifact'};
+ if(state==='complete')return {label:'COMPLETE',sub:'results below are the last valid measurement window'};
+ if(state==='failed')return {label:'FAILED',sub:'see error banner; no valid measurement'};
+ return {label:'IDLE',sub:'no measurement running'};
+}
+// Canonical rolling-percentile sample gates. p95/p99 match the benchmark
+// harness tail-reliability rule (nearest-rank tails need >=20/>=100 samples);
+// p50 needs >=5. Below gate the UI must show N/A + counts, never the raw tail.
+export const MIN_SAMPLES={p50:5,p95:20,p99:100} as const;
+export function gateStatistic(value:unknown,count:unknown,minimum:number,decimals=1):{ok:boolean;text:string;sub:string}{
+ const n=typeof count==='number'&&Number.isFinite(count)?Math.floor(count):0;
+ if(typeof value==='number'&&Number.isFinite(value)&&n>=minimum)return {ok:true,text:value.toLocaleString(undefined,{maximumFractionDigits:decimals}),sub:`n = ${n}`};
+ return {ok:false,text:'N/A',sub:n>0?`insufficient samples ${n} / ${minimum}`:'no samples yet'};
+}
+// Canonical processing-state presentation. Never 0 FPS unless measured zero;
+// never "—" where the runtime state is known.
+export function processingDisplay(status:Json,telemetry:Json):{label:string;sub:string}{
+ const state=status?.state;
+ if(state==='running'){
+  const fps=telemetry?.fps;
+  if(typeof fps==='number'&&Number.isFinite(fps))return {label:`${fps.toLocaleString(undefined,{maximumFractionDigits:1})} FPS`,sub:'measuring'};
+  return {label:'STARTING',sub:'fewer than 2 completed frames'};
+ }
+ if(state==='paused')return {label:'PAUSED',sub:'historical values below are last measured'};
+ if(state==='error')return {label:'ERROR',sub:'see error banner'};
+ if(state==='unconfigured'||state=='stopped'||state==null)return {label:'IDLE',sub:'no session'};
+ return {label:String(state).toUpperCase(),sub:'runtime state'};
+}
+// Configured telemetry publish rate (Hz). A configured cadence, not a measurement.
+export function telemetryConfiguredHz(config:Json):number|null{
+ const hz=config?.visualization?.update_hz;
+ return typeof hz==='number'&&Number.isFinite(hz)&&hz>0?hz:null;
+}
 export function recordEvent(events:DashboardEvent[],event:Json,now=Date.now()):DashboardEvent[]{
  if(event.type==='diagnostics'){
   const diagnostic=(event.diagnostic??{}) as Json;

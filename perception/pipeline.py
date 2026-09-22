@@ -31,6 +31,10 @@ class PipelineStatus:
     terrain: str
     temporal: str
     diagnostics: tuple[str, ...] = ()
+    # Verified semantic execution device reported by the running provider
+    # (e.g. "bypassed", "cpu", "CPUExecutionProvider", "cuda:0").
+    # Never inferred from machine hardware. Defaults to unavailable.
+    semantic_execution: str = "unavailable"
 
 
 @dataclass(frozen=True)
@@ -451,9 +455,17 @@ class PerceptionPipeline:
                 terrain=terrain_status,
                 temporal=temporal_status,
                 diagnostics=tuple(diagnostics),
+                semantic_execution=self._provider_execution_device(),
             ),
             timings_ms={**timings, "total": (perf_counter() - started) * 1000},
         )
+
+    def _provider_execution_device(self) -> str:
+        """Verified execution device from the running provider, same pattern
+        as the dataset-capability gate: a convention attribute, never hardware
+        sniffing. Unknown providers stay unavailable rather than guessed."""
+        device = getattr(self.semantic_provider, "execution_device", None)
+        return device if isinstance(device, str) and device else "unavailable"
 
     def _require_dataset_compatibility(self, frame: ObservationFrame) -> None:
         """Fail closed when a provider declares a dataset capability boundary."""

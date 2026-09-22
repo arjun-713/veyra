@@ -46,10 +46,10 @@ class RuntimeConfig:
     map: dict[str, Any]
 
 
-
 # Nine float32 per display cell; 100,000 cells is the engine's budget ceiling.
 _CELL_ROW_BYTES = 9 * 4
 _MAX_BINARY_CELL_BYTES = 100000 * _CELL_ROW_BYTES
+
 
 def load_runtime_config(path: str | Path) -> RuntimeConfig:
     """Load the viewer-owned JSON selection and optional-stage settings."""
@@ -883,6 +883,7 @@ class RuntimeSession:
                 "terrain": status.terrain,
                 "temporal": status.temporal,
                 "diagnostics": list(status.diagnostics),
+                "semantic_execution": status.semantic_execution,
             },
             "perception_timings_ms": {
                 key: float(value) for key, value in output.timings_ms.items()
