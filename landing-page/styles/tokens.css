@@ -1,0 +1,37 @@
+/* Veyra landing tokens — extracted from the desktop instrument UI (dark op).
+   Light neutrals ship for prose surfaces; the hero and technical sections
+   stay on the dark ops ground. */
+
+:root {
+  --font-display: "Space Grotesk", ui-sans-serif, system-ui, sans-serif;
+  --font-ui: "Inter", ui-sans-serif, system-ui, "Segoe UI", sans-serif;
+  --font-mono: "IBM Plex Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
+
+  --void: #070c12;
+  --ground: #0b1118;
+  --panel: #101a23;
+  --panel-2: #111d27;
+  --line: #263642;
+  --line-soft: #1a2a35;
+
+  --ink: #d7e3ed;
+  --ink-dim: #a9becd;
+  --muted: #718799;
+
+  --teal: #62e0d7;
+  --teal-deep: #55d4c6;
+  --cyan: #33d9f2;
+  --green: #4dd980;
+  --amber: #ffb340;
+  --violet: #d966d9;
+  --red: #ff6b61;
+
+  --paper: #f4f6f8;
+  --paper-ink: #16222e;
+  --paper-muted: #5b6b7c;
+
+  --radius: 14px;
+  --radius-sm: 8px;
+  --max: 1180px;
+  --nav-h: 64px;
+}

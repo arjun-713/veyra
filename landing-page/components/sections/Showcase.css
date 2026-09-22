@@ -1,0 +1,95 @@
+.shot-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 22px;
+}
+
+.shot {
+  margin: 0;
+}
+
+.shot-frame {
+  position: relative;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--ground);
+  overflow: hidden;
+  box-shadow:
+    0 1px 0 rgba(255, 255, 255, 0.04) inset,
+    0 24px 60px -24px rgba(0, 0, 0, 0.6);
+}
+
+.shot-bar {
+  display: flex;
+  gap: 7px;
+  padding: 13px 16px;
+  border-bottom: 1px solid var(--line-soft);
+}
+
+.shot-bar span {
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  background: #2b3d49;
+}
+
+.shot-body {
+  position: relative;
+  aspect-ratio: 16 / 10;
+  background: var(--ground);
+}
+
+.shot-frame img {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  background: var(--ground);
+}
+
+.shot-empty {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-content: center;
+  gap: 6px;
+  text-align: center;
+}
+
+.shot-empty p:first-child {
+  font-family: var(--font-display);
+  font-size: 19px;
+  font-weight: 600;
+}
+
+.shot-empty p:last-child {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  letter-spacing: 0.1em;
+  color: var(--muted);
+}
+
+.shot figcaption {
+  display: flex;
+  align-items: baseline;
+  gap: 12px;
+  margin-top: 16px;
+}
+
+.shot figcaption strong {
+  font-size: 15px;
+}
+
+.shot figcaption span {
+  font-size: 13px;
+  color: var(--muted);
+}
+
+@media (max-width: 860px) {
+  .shot-grid {
+    grid-template-columns: 1fr;
+  }
+}

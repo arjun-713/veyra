@@ -159,3 +159,8 @@ observation.md
 
 # agent worktrees (scratch checkouts, never commit)
 worktrees/
+
+# --- Veyra landing page (Next.js, isolated app) ---
+landing-page/node_modules/
+landing-page/.next/
+landing-page/out/

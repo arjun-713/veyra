@@ -1,0 +1,102 @@
+.explainer-grid {
+  display: grid;
+  grid-template-columns: 7fr 5fr;
+  gap: 64px;
+  align-items: start;
+}
+
+.cell-formula {
+  font-size: 13px;
+  letter-spacing: 0.04em;
+  color: var(--teal);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  background: rgba(98, 224, 215, 0.05);
+  padding: 16px 20px;
+  margin-bottom: 8px;
+  overflow-x: auto;
+  white-space: nowrap;
+}
+
+.cell-fields {
+  list-style: none;
+  margin: 28px 0 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.cell-fields li {
+  display: grid;
+  grid-template-columns: 150px 1fr;
+  gap: 20px;
+  padding: 18px 0;
+  border-bottom: 1px solid var(--line-soft);
+  font-size: 14.5px;
+}
+
+.cell-fields li:first-child {
+  border-top: 1px solid var(--line-soft);
+}
+
+.cell-fields strong {
+  font-family: var(--font-display);
+  font-size: 15px;
+  font-weight: 600;
+}
+
+.cell-fields span {
+  color: var(--ink-dim);
+}
+
+.voxel-contrast figure {
+  margin: 0;
+  border: 1px solid var(--line-soft);
+  border-radius: var(--radius);
+  background: var(--panel);
+  padding: 30px;
+  position: sticky;
+  top: calc(var(--nav-h) + 24px);
+}
+
+.voxel-contrast figcaption {
+  font-size: 11px;
+  letter-spacing: 0.14em;
+  color: var(--violet);
+  margin-bottom: 24px;
+}
+
+.voxel-stack {
+  display: grid;
+  grid-template-columns: repeat(9, 1fr);
+  gap: 5px;
+  margin-bottom: 24px;
+}
+
+.voxel-stack span {
+  aspect-ratio: 1;
+  border-radius: 2px;
+  background: rgba(217, 102, 217, 0.28);
+  border: 1px solid rgba(217, 102, 217, 0.45);
+}
+
+.voxel-contrast p {
+  font-size: 14px;
+  color: var(--ink-dim);
+}
+
+@media (max-width: 900px) {
+  .explainer-grid {
+    grid-template-columns: 1fr;
+    gap: 40px;
+  }
+
+  .voxel-contrast figure {
+    position: static;
+  }
+
+  .cell-fields li {
+    grid-template-columns: 1fr;
+    gap: 6px;
+  }
+}

@@ -1,0 +1,93 @@
+.stack-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 0;
+  border: 1px solid var(--line-soft);
+  border-radius: var(--radius);
+  background: var(--panel);
+  overflow: hidden;
+}
+
+.stack-list li {
+  padding: 28px 26px;
+  border-bottom: 1px solid var(--line-soft);
+}
+
+.stack-list li:nth-child(3n + 2) {
+  border-left: 1px solid var(--line-soft);
+  border-right: 1px solid var(--line-soft);
+}
+
+.stack-list li:nth-last-child(-n + 3) {
+  border-bottom: 0;
+}
+
+.stack-list h3 {
+  font-size: 17px;
+  margin-bottom: 10px;
+}
+
+.stack-list p {
+  font-size: 13.5px;
+  color: var(--ink-dim);
+}
+
+.github-line {
+  margin-top: 30px;
+  font-size: 15px;
+}
+
+.github-line a {
+  color: var(--teal);
+  text-decoration: none;
+  font-weight: 600;
+}
+
+.github-line a:hover {
+  text-decoration: underline;
+  text-underline-offset: 4px;
+}
+
+@media (max-width: 900px) {
+  .stack-list {
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .stack-list li:nth-child(3n + 2) {
+    border-left: 0;
+    border-right: 0;
+  }
+
+  .stack-list li:nth-child(2n) {
+    border-left: 1px solid var(--line-soft);
+  }
+
+  .stack-list li:nth-last-child(-n + 3) {
+    border-bottom: 1px solid var(--line-soft);
+  }
+
+  .stack-list li:nth-last-child(-n + 2) {
+    border-bottom: 0;
+  }
+}
+
+@media (max-width: 600px) {
+  .stack-list {
+    grid-template-columns: 1fr;
+  }
+
+  .stack-list li:nth-child(2n) {
+    border-left: 0;
+  }
+
+  .stack-list li:nth-last-child(-n + 2) {
+    border-bottom: 1px solid var(--line-soft);
+  }
+
+  .stack-list li:last-child {
+    border-bottom: 0;
+  }
+}
