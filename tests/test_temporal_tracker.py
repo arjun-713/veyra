@@ -655,8 +655,14 @@ class KittiSeq08TemporalTests(unittest.TestCase):
     def test_moving_vehicle_tracked_with_consistent_velocity(self) -> None:
         frames = self._frames([43, 44, 45, 46, 47])
         _, evidences = self._track(frames)
+        # Second observation (frame 44): confirmation applies from the third
+        # observation on, so the safety property here is zero false-static on
+        # the mover, not full confirmation (measured: 1801 possibly_moving,
+        # 0 static of 10865 mover points).
+        second = (frames[1].raw_semantic_class == 252) & (evidences[1].state != "unknown")
+        self.assertLess(float(np.mean(evidences[1].state[second] == "static")), 0.1)
         medians = []
-        for frame, evidence in zip(frames[1:], evidences[1:], strict=True):
+        for frame, evidence in zip(frames[2:], evidences[2:], strict=True):
             moving = (frame.raw_semantic_class == 252) & (evidence.state != "unknown")
             self.assertGreater(int(moving.sum()), 3000)
             static_share = float(np.mean(evidence.state[moving] == "static"))
@@ -1013,7 +1019,11 @@ class KittiSeq08MotionEvaluatorTests(unittest.TestCase):
         return evaluate_motion(frames, tracker, min_object_points=200)
 
     def test_traffic_window_measures_the_pass_by_car(self):
-        report = self._evaluate([43, 44, 45, 46, 47])
+        # Ten-frame window: velocity tails need samples (nearest-rank p95 on
+        # the old 5-frame n=7 was max-dominated). Measured on 2026-09-22:
+        # association_recall 1.0, velocity median ~0 / p95 1.56 (n=15),
+        # raw252 recall 0.541, static control 0.0497.
+        report = self._evaluate([43, 44, 45, 46, 47, 48, 49, 50, 51, 52])
 
         self.assertEqual(report["status"], "SCORED")
         car = report["per_class"]["1"]
