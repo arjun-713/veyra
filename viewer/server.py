@@ -4,7 +4,7 @@ Reads KITTI-format .bin scans + uint32 .label files from the repo's own
 data/raw/ layout (see configs/datasets.yaml) and serves decimated frames
 as JSON to the static Three.js front-end in viewer/static/.
 
-Run from the repo root:  python3 viewer/server.py [--port 8765]
+Run from the repo root:  python3 viewer/server.py [--port 8765] [--host 127.0.0.1]
 Requires: numpy (pyyaml optional; a fallback parser covers datasets.yaml).
 """
 
@@ -59,7 +59,10 @@ except ImportError:  # minimal fallback for the known datasets.yaml shape
 
 
 def find_repo_root(start: Path) -> Path:
-    for cand in [start, *start.parents]:
+    # Prefer the working directory, then this file's checkout, so the viewer
+    # also starts when launched from outside the repo (e.g. a container WORKDIR).
+    here = Path(__file__).resolve().parent.parent
+    for cand in [start, *start.parents, here]:
         if (cand / "configs" / "datasets.yaml").exists():
             return cand
     raise SystemExit("configs/datasets.yaml not found — run from the repo root.")
@@ -465,16 +468,27 @@ class Handler(http.server.SimpleHTTPRequestHandler):
             return self._send_json({"error": str(error)}, 422)
 
 
-def main() -> None:
+DEFAULT_HOST = "127.0.0.1"
+
+
+def build_arg_parser() -> argparse.ArgumentParser:
     ap = argparse.ArgumentParser(description="Veyra LiDAR dataset visualizer")
     ap.add_argument("--port", type=int, default=8765)
-    ap.add_argument("--host", default="127.0.0.1")
+    ap.add_argument(
+        "--host",
+        default=DEFAULT_HOST,
+        help="bind address; loopback by default, 0.0.0.0 to publish from a container",
+    )
     ap.add_argument(
         "--runtime-config",
         type=Path,
         help="viewer-owned JSON selection and configured perception stages",
     )
-    args = ap.parse_args()
+    return ap
+
+
+def main(argv: list[str] | None = None) -> None:
+    args = build_arg_parser().parse_args(argv)
     global RUNTIME
     if args.runtime_config is not None:
         from viewer.runtime import build_runtime_session, load_runtime_config
