@@ -2,6 +2,7 @@
  import {onMount} from 'svelte';
  import MapCanvas from './MapCanvas.svelte';import Chart from './Chart.svelte';import Dashboard from './Dashboard.svelte';import TelemetrySummary from './TelemetrySummary.svelte';import ComparisonEvidence from './ComparisonEvidence.svelte';import Icon from './Icon.svelte';import {datasetFormats,defaultSessionConfig, FIRST_CPU_SAMPLE_NOTE, formatRenderAge, inputTargetFps,isRenderStale,layerUnavailable,mapActivity,MEMORY_DOMAIN_NOTE,perceptionStages,profileConfig,recordEvent,GLOSSARY,inspectorRows,datasetCapabilities,sessionPhase,semanticName,traversabilityLabel,classNames,type DashboardEvent} from './dashboard';
  import {semanticRGB,cssRGB} from './colors';
+ import veyraLogo from '../assets/veyra-logo.png';
  import {policies,type Json,type WireFrame} from '../core';import {nativeRuntimeUnavailableMessage} from '../api';
  import {acceptFrame,canPlayback,diagnosticMessage,processRss,telemetryFreshness,mergeSessionStatus,validationOutcome} from './session';
  let workspace=$state('Dashboard'),status=$state<Json>({state:'unconfigured',index:0,frames:0,policy:'distance_lod',speed:1}),telemetry=$state<Json>({}),desktop=$state<Json>({}),render=$state<Json>({}),info=$state<Json>({});
@@ -57,7 +58,7 @@ function confirmSaved(ok:unknown,saved:string,cancelled:string){notice=ok?saved:
 
 <div class="application">
  <aside class="rail">
-  <div class="brand"><span class="brand-mark"><i></i></span><span>VEYRA<small>Map smarter.<br/>Move safer.</small></span></div>
+  <div class="brand"><img class="brand-logo" src={veyraLogo} alt="Veyra logo"/><span>VEYRA<small>Map smarter.<br/>Move safer.</small></span></div>
   <nav aria-label="Workspaces">{#each [['Dashboard','Dashboard','home'],['Map','Live Mapping','map'],['Datasets','Datasets','database'],['Performance','Performance','chart'],['Benchmarks','Validation & benchmarks','chart']] as [key,name,icon]}<button class:active={workspace===key} onclick={()=>workspace=key}><Icon name={icon}/>{name}</button>{/each}</nav>
   <div class="rail-bottom"><div class="system-health"><h3><i class:online={['ready','running','paused','ended'].includes(status.state)}></i>{['ready','running','paused','ended'].includes(status.state)?'System Online':'Runtime Standby'}</h3><p>{status.dataset??'No dataset open'}{status.sequence?' · '+status.sequence:''}</p></div><strong>VEYRA · SIH 2026</strong><p>Adaptive Mapping for<br/>Safer Autonomy</p><span class="muted">v{info.version??'0.1.0'} · {info.platform??'desktop'}</span></div>
  </aside>
