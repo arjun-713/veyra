@@ -6,6 +6,16 @@ use crate::supervisor::{RuntimeSupervisor, SupervisorError};
 
 use super::AppState;
 
+/// Build profile of this shell binary. The frontend displays it so
+/// cross-hardware screenshots cannot silently compare Debug against Release.
+fn build_mode() -> &'static str {
+    if cfg!(debug_assertions) {
+        "debug"
+    } else {
+        "release"
+    }
+}
+
 pub struct RuntimeController {
     pub state: AppState,
     supervisor: RuntimeSupervisor,
@@ -40,6 +50,7 @@ impl RuntimeController {
             "repo": self.repo,
             "mapper": self.mapper,
             "layer": self.layer,
+            "build_mode": build_mode(),
         })
     }
 
@@ -159,6 +170,7 @@ impl RuntimeController {
             "state": self.status(),
             "runtime": runtime,
             "supervisor": self.supervisor.diagnostics(),
+            "build_mode": build_mode(),
         })
     }
 
@@ -304,6 +316,10 @@ mod tests {
         let status = controller.status();
         assert_eq!(status["state"], "booting");
         assert_eq!(status["runtime_running"], false);
+        // Build profile travels with status so screenshots cannot silently
+        // compare Debug against Release across machines.
+        let mode = status["build_mode"].as_str().unwrap();
+        assert!(mode == "debug" || mode == "release");
     }
 
     #[test]

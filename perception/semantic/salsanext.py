@@ -175,6 +175,15 @@ class SalsaNextSemanticProvider:
         self.checkpoint_path = path
         self.input_name, self.output_name = inputs[0].name, outputs[0].name
 
+    @property
+    def execution_device(self) -> str:
+        """Verified ORT execution providers, never assumed from hardware."""
+        try:
+            active = list(self.session.get_providers())
+        except Exception:  # noqa: BLE001 - provider query must not break inference
+            return "unavailable"
+        return "+".join(active) if active else "unavailable"
+
     def infer(
         self, points: np.ndarray, labels: np.ndarray | None = None
     ) -> SemanticResult:

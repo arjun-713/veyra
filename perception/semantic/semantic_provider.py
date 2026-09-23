@@ -75,6 +75,9 @@ class SemanticProvider(Protocol):
 class GroundTruthSemanticProvider:
     """Use already mapped dataset labels as deterministic semantic output."""
 
+    # No neural inference runs: the execution device is bypassed by construction.
+    execution_device = "bypassed"
+
     def infer(
         self, points: np.ndarray, labels: np.ndarray | None = None
     ) -> SemanticResult:
@@ -133,6 +136,18 @@ class OnnxSemanticProvider:
         self._input_name, self._label_name, self._confidence_name = (
             self._validate_metadata()
         )
+
+    @property
+    def execution_device(self) -> str:
+        """Verified ORT execution providers, never assumed from hardware."""
+        providers = getattr(self._session, "get_providers", None)
+        if not callable(providers):
+            return "unavailable"
+        try:
+            active = list(providers())
+        except Exception:  # noqa: BLE001 - provider query must not break inference
+            return "unavailable"
+        return "+".join(active) if active else "unavailable"
 
     @classmethod
     def from_model_path(

@@ -46,6 +46,24 @@ def cpu_seconds(pid):
         return None
 
 
+FPS_WINDOW_S = 5.0
+
+
+def processing_fps(completed, window_s=FPS_WINDOW_S):
+    """Throughput over the completions in the trailing window.
+
+    Measuring across the whole history counted idle time (opening a preview,
+    pausing) as processing time and reported e.g. 0.1 fps while frames were
+    completing at ~2 fps.
+    """
+    if not completed:
+        return None
+    recent = [stamp for stamp in completed if completed[-1] - stamp <= window_s]
+    if len(recent) < 2 or recent[-1] <= recent[0]:
+        return None
+    return (len(recent) - 1) / (recent[-1] - recent[0])
+
+
 class Telemetry:
     def __init__(self, capacity=600):
         self.latencies = deque(maxlen=capacity)
@@ -89,23 +107,36 @@ class Telemetry:
         point_count = int(
             frame.get("n_points") or (len(semantic) if semantic is not None else 0)
         )
+        # Absent ground status means unknown provenance, not an unavailable
+        # stage: measured ground evidence is still reported. Only explicit
+        # non-measurement statuses suppress the ratio (never fabricate zero).
         ground_count = (
             int(np.count_nonzero(np.asarray(ground)))
             if ground is not None
             and pipeline_status.get("ground")
-            not in {None, "unavailable", "disabled", "invalid", "skipped"}
+            not in {"unavailable", "disabled", "invalid", "skipped"}
             else None
         )
         semantic_counts = counts(semantic)
+        # Runtime-verified execution device wins over static config: the
+        # running provider reports what it actually uses; config may be stale.
+        # Ground Truth bypasses neural inference by construction.
+        runtime_execution = pipeline_status.get("semantic_execution")
+        if runtime_execution in (None, "", "unavailable"):
+            runtime_execution = None
+        execution_provider = runtime_execution or semantic_config.get(
+            "execution_provider"
+        )
         provider = (
             semantic_config.get("provider")
             or semantic_config.get("backend")
             or semantic_config.get("mode")
         )
         model = semantic_config.get("model") or semantic_config.get("checkpoint")
-        execution_provider = semantic_config.get("execution_provider")
         if provider == "ground_truth":
             provider = "Ground Truth"
+            if not execution_provider:
+                execution_provider = "bypassed"
         semantic_status = pipeline_status.get("semantic", "unavailable")
 
         def cpu_percent(process_id):
@@ -121,11 +152,7 @@ class Telemetry:
                 return None
             return 100 * (current - previous[1]) / (now - previous[0])
 
-        fps = (
-            (len(self.completed) - 1) / (self.completed[-1] - self.completed[0])
-            if len(self.completed) > 1 and self.completed[-1] > self.completed[0]
-            else None
-        )
+        fps = processing_fps(self.completed)
         splits_per_frame = (topology_frames.get("splits") or {}).get("mean")
         merges_per_frame = (topology_frames.get("merges") or {}).get("mean")
         return {

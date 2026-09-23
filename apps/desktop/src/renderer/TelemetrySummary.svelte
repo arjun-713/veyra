@@ -1,6 +1,7 @@
 <script lang="ts">
  import type {Json} from '../core';
  import {telemetryFreshness} from './session';
+ import {semanticDisplay} from './dashboard';
  let {telemetry={},renderer={},now=Date.now()}=$props<{telemetry?:Json;renderer?:Json;now?:number}>();
  const display=(value:unknown, suffix='')=>typeof value==='number'&&Number.isFinite(value)?`${value.toLocaleString(undefined,{maximumFractionDigits:2})}${suffix}`:'—';
  const state=(value:unknown)=>typeof value==='string'&&value&&value!=='unavailable'?String(value).replaceAll('_',' '):'Unavailable';
@@ -10,13 +11,15 @@
  const totalRss=(value:Json)=>{const procs=value.processes??[];if(!procs.length||procs.some((p:Json)=>typeof p.rss_bytes!=='number'||!Number.isFinite(p.rss_bytes)))return null;return procs.reduce((s:number,p:Json)=>s+p.rss_bytes,0)/1048576;};
  const health=()=>telemetry.health??{};
  const stages=()=>telemetry.perception_stages_ms??{};
+ let sem=$derived(semanticDisplay(perception().provider,perception().model,perception().execution_provider,perception().backend));
 </script>
 
 <section class="card perception-status" aria-label="Perception and runtime telemetry">
  <h3>Perception evidence <span>{state(perception().backend)}</span></h3>
  <div class="stage-grid">
-  <div class="stage-item"><span>Provider</span><strong>{state(perception().provider)}</strong><small>{state(perception().execution_provider)}</small></div>
-  <div class="stage-item"><span>Model</span><strong>{state(perception().model)}</strong><small>{state(perception().backend)}</small></div>
+  <div class="stage-item"><span>Semantic source</span><strong>{sem.source}</strong><small>{sem.sourceSub}</small></div>
+  <div class="stage-item"><span>Neural inference</span><strong>{sem.neural}</strong><small>{sem.neuralSub}</small></div>
+  <div class="stage-item"><span>Execution</span><strong>{sem.execution}</strong><small>{sem.executionSub}</small></div>
   <div class="stage-item"><span>Ground ratio</span><strong>{display(perception().ground_ratio!=null?perception().ground_ratio*100:null,'%')}</strong><small>{display(stages().ground,' ms')}</small></div>
   <div class="stage-item"><span>Semantic confidence</span><strong>{display(perception().semantic_confidence_mean)}</strong><small>{display(stages().semantic,' ms')}</small></div>
   <div class="stage-item"><span>Unknown ratio</span><strong>{display(perception().unknown_ratio!=null?perception().unknown_ratio*100:null,'%')}</strong><small>{display(perception().points, ' points')}</small></div>
@@ -37,7 +40,7 @@
 </section>
 
 <section class="card health-status" aria-label="Runtime health">
- <h3>Runtime health <span>{state(health().telemetry)}</span></h3>
+ <h3>Runtime health <span>{state(health().runtime)}</span></h3>
  <div class="data-row"><span>Runtime</span><b>{state(health().runtime)}</b></div>
  <div class="data-row"><span>Perception</span><b>{state(health().perception)}</b></div>
  <div class="data-row"><span>Mapper</span><b>{state(health().mapper)}</b></div>

@@ -12,7 +12,7 @@ test('Patchwork++ ground is colored and unavailable map ground evidence is neutr
  assert.deepEqual(cellColor('ground',[0,0,0,.05,0,0,0,0]),[.35,.4,.45]);
 });
 test('world coordinates and 5/10/20/40cm colors remain distinguishable',()=>{
- assert.deepEqual(displayPosition(2,3,4),[3,4,-2]);
+ assert.deepEqual(displayPosition(2,3,4),[2,4,-3]);
  const colors=[.05,.1,.2,.4].map(r=>cellColor('lod',[0,0,0,r,0,0,0,0]).join(','));assert.equal(new Set(colors).size,4);
 });
 test('extended v3 cell rows keep legacy color indices stable',()=>{

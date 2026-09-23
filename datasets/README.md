@@ -23,6 +23,10 @@ data/cache/      -> temporary local cache (LOCAL-ONLY, never committed)
   `labels/`, `poses.txt`, `times.txt`, and `calib.txt`. Use
   `datasets/download_semantickitti.sh --help` with authenticated official
   archive URLs; it never embeds credentials or overwrites an existing root.
+- **PandaSet** — dense urban showcase (Pandar64, 64 beams). Fetched per
+  sequence from the public archive and converted to a generic manifest at
+  `data/raw/pandaset/veyra/`; open it as the `generic` dataset type. See
+  `pandaset/README.md`.
 
 Paths configured in `configs/datasets.yaml` (repository-relative).
 `data/` is local-only and must never be committed.
