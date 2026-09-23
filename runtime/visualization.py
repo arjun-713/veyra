@@ -2,6 +2,10 @@
 
 import numpy as np
 
+# v3 display cell: 17 little-endian float32 per row (see pack_visualization).
+CELL_FLOATS = 17
+CELL_STRIDE = CELL_FLOATS * 4
+
 
 def pack_visualization(frame, cells, generation):
     count = int(frame["shown"])
@@ -26,14 +30,17 @@ def pack_visualization(frame, cells, generation):
     points[:, 13:15] = np.asarray(frame["velocity_xy"])
     points[:, 15] = frame["observation_quality"]
     points[:, 16] = frame["terrain_confidence"]
-    rows = cells.get("cells", []) if cells.get("status") == "available" else []
     # Cell row layout (v3, 17 floats = 68-byte stride):
     # 0:x 1:y 2:z_mean 3:size 4:class 5:motion 6:quality 7:drivable_ev
     # 8:utility 9:sem_conf 10:ground_ev 11:terrain_conf 12:geom_complex
     # 13:count 14:zmin 15:zmax 16:zvar.
     # Anything the engine did not supply stays NaN so the UI renders
-    # "Unavailable" instead of a fabricated zero.
-    mapped = np.empty((len(rows), 17), dtype="<f4")
+    # "Unavailable" instead of a fabricated zero. The engine's binary MB
+    # rows use exactly this layout and are forwarded unparsed.
+    available = cells.get("status") == "available"
+    binary = cells.get("cells_binary") if available else None
+    rows = [] if binary is not None or not available else cells.get("cells", [])
+    mapped = np.empty((len(rows), CELL_FLOATS), dtype="<f4")
     for index, cell in enumerate(rows):
         size = 0.05 * 2 ** cell["l"]
         # The C++ map-cell schema names this field explicitly.  ``d`` was
@@ -61,6 +68,9 @@ def pack_visualization(frame, cells, generation):
             cell.get("zmax", float("nan")),
             cell.get("zvar", float("nan")),
         )
+    # The engine's binary rows already use this section's layout; forward them.
+    cell_bytes = binary if binary is not None else mapped.tobytes()
+    cell_count = len(cell_bytes) // CELL_STRIDE
     status = frame["pipeline_status"]
     metadata = {
         "type": "visualization",
@@ -76,7 +86,7 @@ def pack_visualization(frame, cells, generation):
         "sequence": frame["seq"],
         "frame_id": frame["id"],
         "points": {"count": count, "offset": 0, "stride": 68},
-        "cells": {"count": len(rows), "offset": points.nbytes, "stride": 68},
+        "cells": {"count": cell_count, "offset": points.nbytes, "stride": CELL_STRIDE},
         "pose": np.asarray(frame["pose"]["matrix"]).reshape(-1).tolist(),
         "pose_available": frame["pose"]["available"],
         "provenance": dict(frame["pose"].get("provenance", {})),
@@ -91,4 +101,4 @@ def pack_visualization(frame, cells, generation):
         "n_points": frame["n_points"],
         "total_leaves": cells.get("total_leaves", 0),
     }
-    return metadata, points.tobytes() + mapped.tobytes()
+    return metadata, points.tobytes() + cell_bytes

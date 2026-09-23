@@ -1,0 +1,110 @@
+# Keep the Docker build context to tracked sources. Data, weights, builds,
+# virtualenvs and desktop toolchains never enter the image (AGENTS.md
+# Boundaries); data/ is bind-mounted at /app/data by docker-compose.yml.
+
+# --- VCS / editor / agent caches ---
+.git
+.gitignore
+.vscode/
+.idea/
+.claude/
+.agents/
+.impeccable/
+**/.DS_Store
+**/*.swp
+
+# --- Secrets (never in an image layer) ---
+.env
+.env.*
+**/*.pem
+**/*.key
+**/*.p12
+
+# --- Local data, weights, generated maps (never baked into an image) ---
+data/
+data_raw/
+downloads/
+maps/
+checkpoints/
+weights/
+**/*.pt
+**/*.pth
+**/*.ckpt
+**/*.safetensors
+**/*.onnx
+**/*.onnx.data
+**/*.ort
+**/*.engine
+**/*.trt
+**/*.plan
+**/*.bin
+**/*.label
+**/*.pcd
+**/*.pcd.gz
+**/*.ply
+**/*.las
+**/*.laz
+**/*.bag
+**/*.db3
+**/*.mcap
+**/*.zip
+**/*.tar
+**/*.tar.gz
+**/*.tgz
+**/*.7z
+benchmark-results/
+benchmarks/results/
+benchmarks/dumps/
+
+# --- C++ build trees (the image compiles its own in the cpp-build stage) ---
+build/
+build-*/
+cmake-build-*/
+**/CMakeCache.txt
+**/CMakeFiles/
+compile_commands.json
+Testing/
+
+# --- Python envs and caches ---
+.venv/
+venv/
+.env/
+**/__pycache__/
+**/*.py[cod]
+**/*.egg-info/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.hypothesis/
+.cache/
+
+# --- Desktop (Tauri) app: native GUI, stays out of Docker ---
+node_modules/
+apps/desktop/node_modules/
+apps/desktop/dist/
+apps/desktop/.vite/
+apps/desktop/out/
+apps/desktop/coverage/
+apps/desktop/test-results/
+apps/desktop/playwright-report/
+viewer/node_modules/
+viewer/dist/
+viewer/build/
+src-tauri/target/
+src-tauri/gen/
+src-tauri/resources/backend/*
+!src-tauri/resources/backend/.gitkeep
+
+# --- ROS2 workspace outputs ---
+ros2/build/
+ros2/install/
+ros2/log/
+
+# --- Large report payloads (~15 MB of raw per-frame benchmark JSON; only the
+# report scripts next to them read these, no test does) ---
+reports/closure/utility/benchmark_*.json
+
+# --- Docker files themselves (editing them should not bust the COPY cache) ---
+Dockerfile
+docker-compose.yml
+.dockerignore

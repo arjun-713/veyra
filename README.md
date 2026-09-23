@@ -40,6 +40,20 @@ rules remain in `docs/development.md`.
 The shared benchmark artifact contract is documented in
 `docs/benchmark-contract.md`.
 
+## Run with Docker
+
+Tests, the headless runtime, the web viewer and PandaSet tooling run in
+Docker. `data/` is bind-mounted, never baked in. The Tauri desktop stays
+native.
+
+```bash
+docker compose build
+docker compose run --rm test
+docker compose up viewer        # http://localhost:8765
+```
+
+Services, data layout and caveats: `docs/docker.md`.
+
 ## How it works
 
 `Scan + pose → ground (Patchwork++) + semantics (pretrained provider)

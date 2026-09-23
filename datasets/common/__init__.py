@@ -10,6 +10,7 @@ from .observation import (
 )
 from .taxonomy import (
     DATASET_TAXONOMY_VERSIONS,
+    PANDASET_LABELS,
     RELLIS_LABELS,
     SEMANTIC_POSS_LABELS,
     SEMANTICKITTI_LABELS,
@@ -20,6 +21,7 @@ from .taxonomy import (
 
 __all__ = [
     "DATASET_TAXONOMY_VERSIONS",
+    "PANDASET_LABELS",
     "RELLIS_LABELS",
     "SEMANTICKITTI_LABELS",
     "SEMANTIC_POSS_LABELS",

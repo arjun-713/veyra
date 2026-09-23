@@ -389,7 +389,7 @@ class ProductRuntime:
             visual_ms = None
             if self._should_publish_visual(force_visual=force_visual):
                 visual_start = time.perf_counter()
-                cells = self.session.map_cells(
+                cells = self.session.map_cells_binary(
                     budget=self.config["visualization"]["cell_budget"]
                 )
                 if cells.get("status") != "available":

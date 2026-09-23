@@ -4,6 +4,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <random>
+#include <tuple>
 #include <vector>
 
 #include "check.hpp"
@@ -87,6 +88,30 @@ void checkBoundaryAndSignedOwnership() {
   }
 }
 
+void checkWindowEdgePointYieldsExactlyOneLeaf() {  // Pins the investigated 100 m boundary: an accepted window-edge return must
+  // own exactly one leaf with count 1, never vanish silently.
+  Map map(ResolutionPolicy::Uniform5, {.window_radius_m = 100.001, .tile_size_m = 0.4});
+  map.set_window_center(0.0, 0.0);
+  CHECK(map.accepts(100.0, 0.0));
+  map.update(point(100.0, 0.0, 0.0, 1));
+  const MapSnapshot snapshot = map.snapshot();
+  checkTopology(snapshot);
+  CHECK(snapshot.point_count == 1);
+  CHECK(snapshot.leaves.size() == 1);
+  CHECK(snapshot.leaves[0].stats.count == 1);
+}
+
+// The O(n) bookkeeping accessor must agree exactly with the snapshot total,
+// including after window eviction: conservation math depends on it.
+void checkPointCountMatchesSnapshotTotal() {
+  Map map(ResolutionPolicy::Uniform40, {.window_radius_m = 0.75, .tile_size_m = 0.4});
+  map.update(point(-0.6, -0.1, 1.0, 1));
+  map.update(point(0.6, 0.1, 3.0, 2));
+  CHECK(map.point_count() == map.snapshot().point_count);
+  map.set_window_center(0.6, 0.0);
+  CHECK(map.point_count() == map.snapshot().point_count);
+}
+
 void checkRepeatedPublicSplitMergePreservesEvidence() {
   Map map(ResolutionPolicy::Uniform40, {.window_radius_m = 5.0, .tile_size_m = 0.8});
   const std::array<std::pair<double, double>, 3> centres{{{-0.62, -0.58}, {0.22, 0.18},
@@ -166,11 +191,105 @@ void checkRollingWindowConservesSurvivorIdentity() {
   }
 }
 
+// The id-ordered fast paths in MapSnapshot must give the same answers as a
+// full scan, and still catch the violations they exist to catch.
+void checkOrderedSnapshotQueriesMatchFullScan() {
+  Map map(ResolutionPolicy::DistanceLod, {.window_radius_m = 40.0, .tile_size_m = 2.0,
+                                          .distance_boundaries_m = {4.0, 10.0, 20.0}});
+  std::mt19937_64 rng(7);
+  std::uniform_real_distribution<double> coordinate(-30.0, 30.0);
+  for (std::uint64_t t = 1; t <= 4000; ++t) {
+    const double x = coordinate(rng), y = coordinate(rng);
+    if (map.accepts(x, y)) map.update(point(x, y, 0.1, t));
+  }
+  MapSnapshot ordered = map.snapshot();
+  CHECK(ordered.leaves_ordered_by_id);
+  CHECK(ordered.has_no_parent_descendant_overlap());
+  for (int level = 0; level <= 3; ++level) {
+    const auto scanned = static_cast<std::size_t>(
+        std::count_if(ordered.leaves.begin(), ordered.leaves.end(),
+                      [level](const Leaf& leaf) { return leaf.id.level == level; }));
+    CHECK(ordered.count_at_level(level) == scanned);
+    CHECK(scanned > 0);
+  }
+
+  // An ancestor inserted in id order must be caught by the bitmap path.
+  const Leaf fine = *std::find_if(ordered.leaves.begin(), ordered.leaves.end(),
+                                  [](const Leaf& leaf) { return leaf.id.level == 0; });
+  MapSnapshot overlapping = ordered;
+  const Leaf ancestor{fine.id.parent().parent(), {}};
+  overlapping.leaves.insert(
+      std::upper_bound(overlapping.leaves.begin(), overlapping.leaves.end(), ancestor,
+                       [](const Leaf& left, const Leaf& right) {
+                         return std::tuple{left.id.level, left.id.ix, left.id.iy} <
+                                std::tuple{right.id.level, right.id.ix, right.id.iy};
+                       }),
+      ancestor);
+  CHECK(!overlapping.has_no_parent_descendant_overlap());
+  overlapping.leaves_ordered_by_id = false;
+  CHECK(!overlapping.has_no_parent_descendant_overlap());
+
+  // A duplicated leaf is adjacent in id order and must be caught as well.
+  MapSnapshot duplicated = ordered;
+  duplicated.leaves.insert(duplicated.leaves.begin() + 1, duplicated.leaves.front());
+  CHECK(!duplicated.has_no_parent_descendant_overlap());
+}
+
+// Heavy split/merge churn through the public seams exercises swap-erase and
+// the existing-leaf fast path together; evidence must be conserved exactly.
+void checkChurnConservesEvidenceAndExclusivity() {
+  Map map(ResolutionPolicy::DistanceLod, {.window_radius_m = 30.0, .tile_size_m = 1.0,
+                                          .distance_boundaries_m = {3.0, 8.0, 15.0}});
+  std::mt19937_64 rng(11);
+  std::uniform_real_distribution<double> unit(0.0, 1.0);
+  std::size_t accepted = 0;
+  double centre = 0.0;
+  for (int frame = 0; frame < 30; ++frame) {
+    centre += 0.7;
+    map.set_window_center(centre, 0.0);
+    const std::size_t before = map.point_count();
+    std::size_t added = 0;
+    for (int i = 0; i < 1500; ++i) {
+      // Quantised coordinates make repeat hits on existing leaves common.
+      const double x = centre + std::round((unit(rng) - 0.5) * 50.0 * 4.0) / 4.0;
+      const double y = std::round((unit(rng) - 0.5) * 50.0 * 4.0) / 4.0;
+      if (!map.accepts(x, y)) continue;
+      int level = map.level_for(x, y);
+      if (level > 0 && unit(rng) < 0.3) --level;  // finer than distance: forces splits
+      map.update_at_level(point(x, y, unit(rng), static_cast<std::uint64_t>(frame + 1)), level);
+      ++added;
+    }
+    for (int k = 0; k < 40; ++k) {
+      const int level = 1 + static_cast<int>(rng() % 3);
+      const double size = veyra::core::resolution_m(level);
+      const CellId id{level, static_cast<std::int32_t>(std::floor((centre + (unit(rng) - 0.5) * 20.0) / size)),
+                      static_cast<std::int32_t>(std::floor((unit(rng) - 0.5) * 20.0 / size))};
+      if (k % 2 == 0)
+        map.split(id);
+      else
+        map.merge_children(id);
+    }
+    const MapSnapshot snapshot = map.snapshot();
+    CHECK(snapshot.point_count == map.point_count());
+    CHECK(snapshot.has_no_parent_descendant_overlap());
+    checkTopology(snapshot);
+    // Eviction happened in set_window_center, before `before` was read, so
+    // ingestion plus split/merge must conserve every return exactly.
+    CHECK(map.point_count() == before + added);
+    accepted += added;
+  }
+  CHECK(accepted > 0);
+}
+
 }  // namespace
 
 int main() {
+  checkOrderedSnapshotQueriesMatchFullScan();
+  checkChurnConservesEvidenceAndExclusivity();
   checkBoundaryAndSignedOwnership();
   checkRepeatedPublicSplitMergePreservesEvidence();
   checkRollingWindowConservesSurvivorIdentity();
+  checkWindowEdgePointYieldsExactlyOneLeaf();
+  checkPointCountMatchesSnapshotTotal();
   return 0;
 }

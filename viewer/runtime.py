@@ -46,6 +46,12 @@ class RuntimeConfig:
     map: dict[str, Any]
 
 
+# Seventeen float32 per display cell (visualization schema v3); 100,000
+# cells is the engine's budget ceiling.
+_CELL_ROW_BYTES = 17 * 4
+_MAX_BINARY_CELL_BYTES = 100000 * _CELL_ROW_BYTES
+
+
 def load_runtime_config(path: str | Path) -> RuntimeConfig:
     """Load the viewer-owned JSON selection and optional-stage settings."""
 
@@ -216,6 +222,33 @@ class PersistentMapEngine:
                         "status": "unavailable",
                         "reason": "map engine returned invalid JSON",
                     }
+                if "binary_bytes" in response:
+                    # A binary response is a JSON header line followed by
+                    # exactly `binary_bytes` raw bytes (see MB in engine.cpp).
+                    size = response.pop("binary_bytes")
+                    if (
+                        isinstance(size, bool)
+                        or not isinstance(size, int)
+                        or not 0 <= size <= _MAX_BINARY_CELL_BYTES
+                    ):
+                        responses.put_nowait(
+                            {
+                                "status": "unavailable",
+                                "reason": "map engine binary response size is invalid",
+                            }
+                        )
+                        process.kill()
+                        return
+                    payload = output.read(size)
+                    if len(payload) != size:
+                        responses.put_nowait(
+                            {
+                                "status": "unavailable",
+                                "reason": "map engine closed its output",
+                            }
+                        )
+                        return
+                    response["binary"] = payload
                 responses.put_nowait(response)
         except (OSError, ValueError, queue.Full):
             if process.poll() is None:
@@ -329,6 +362,32 @@ class PersistentMapEngine:
                 "reason": response.get("reason", "map cells unavailable"),
             }
         return response
+
+    def map_cells_binary(self, budget: int = 20000) -> dict[str, Any]:
+        """Like map_cells, but rows arrive as packed display floats.
+
+        ``cells_binary`` holds ``cell_count`` rows of seventeen little-endian
+        float32 in the visualization schema-v3 cell layout (see
+        runtime/visualization.py): the frame's cell section, unparsed.
+        """
+
+        with self._lock:
+            clipped = max(1, min(int(budget), 100000))
+            response = self._command(f"MB {clipped}\n")
+        payload = response.get("binary")
+        if response.get("status") != "available" or not isinstance(payload, bytes):
+            return {
+                "status": "unavailable",
+                "reason": response.get("reason", "map cells unavailable"),
+            }
+        if len(payload) != response.get("cell_count", -1) * _CELL_ROW_BYTES:
+            return {"status": "unavailable", "reason": "map cells size mismatch"}
+        return {
+            "status": "available",
+            "cell_count": response["cell_count"],
+            "total_leaves": response.get("total_leaves", 0),
+            "cells_binary": payload,
+        }
 
     def set_governor_override(self, mode: str) -> dict[str, Any]:
         if mode not in {"automatic", "disabled", "conserve"}:
@@ -644,6 +703,15 @@ class RuntimeSession:
                 }
             return self.map_runner.map_cells(budget=budget)
 
+    def map_cells_binary(self, *, budget: int) -> dict[str, Any]:
+        """Packed display cells; runners without binary support use JSON."""
+
+        runner = self.map_runner
+        if runner is None or not hasattr(runner, "map_cells_binary"):
+            return self.map_cells(budget=budget)
+        with self._lock:
+            return runner.map_cells_binary(budget=budget)
+
     def select_sequence(self, sequence: str, *, budget: int) -> dict[str, Any]:
         with self._lock:
             frames = self._require_frames(str(sequence))
@@ -816,6 +884,7 @@ class RuntimeSession:
                 "terrain": status.terrain,
                 "temporal": status.temporal,
                 "diagnostics": list(status.diagnostics),
+                "semantic_execution": status.semantic_execution,
             },
             "perception_timings_ms": {
                 key: float(value) for key, value in output.timings_ms.items()

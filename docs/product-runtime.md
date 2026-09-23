@@ -42,6 +42,16 @@ supervisor; imported configuration cannot launch another
 program. Missing semantic models fail startup with an explicit perception
 error rather than fabricated labels.
 
+## Raw LiDAR accumulation (display only)
+
+The Raw LiDAR view can overlay the last 10/20/50 pose-aligned scans
+(`apps/desktop/src/renderer/accumulation.ts`). It never feeds back into the
+mapper, which still ingests one scan per frame. Only world-frame scans
+accumulate; seeking backwards or changing sequence resets the history, and
+older scans drop classes 1–8 (vehicles, riders, people) so moving traffic
+does not smear. When the leaf count exceeds the cell display budget, the
+engine returns the leaves nearest the vehicle rather than a uniform stride.
+
 ## Measurement scope
 
 The runtime reports perception, binary bridge, C++ mapping, visualization

@@ -52,6 +52,35 @@ the map snapshot emits the corresponding leaf fields; otherwise the artifact
 records `unavailable` with a reason. Consumers show coverage beside RMSE and
 do not treat finer detail alone as quality improvement.
 
+### Reconstruction quality (`quality.reconstruction`)
+
+The standard reconstruction metrics, computed by
+`benchmarks/reconstruction.py` (protocol `veyra-reconstruction-v1`) when
+source frames are retained (`--retain-frames`); otherwise `unavailable`.
+
+| Field | Meaning |
+| --- | --- |
+| `accuracy` | Map → reference nearest distance (`mean_m`, `median_m`, `p90_m`): is what the map claims really there? |
+| `completion` | Reference → map nearest distance: is what was observed still represented? |
+| `chamfer_l1_m` | Mean of accuracy and completion means. |
+| `thresholds` | Precision, recall and F-score at 5, 10 and 20 cm. |
+| `by_range` | The same, banded by distance from the final vehicle position (0–10, 10–30, 30–60, 60–100 m). |
+
+The reference is the accepted world-frame input inside the final map window,
+voxel-averaged at 5 cm. The reconstruction is the voxel centres each active
+leaf claims at its own resolution: the ground layer at its mean height,
+obstacle and overhead layers across `[min_z, max_z]`. Both sets are identical
+across policies, so the comparison isolates resolution policy. Reference
+points are the map's own input, not independent survey ground truth.
+
+`benchmarks/tradeoff_plot.py` plots one point per policy with a
+reconstruction metric on the y axis against measured map update p50 and
+logical map bytes on the x axes:
+
+```bash
+python -m benchmarks.tradeoff_plot results/*.json --output tradeoff.svg
+```
+
 ## CSV and compatibility
 
 CSV contains one row per requested policy with common latency, memory,
