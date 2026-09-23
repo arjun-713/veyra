@@ -174,7 +174,13 @@ def project_pandora_scan(
         )
     up = np.deg2rad(PANDORA_FOV_UP_DEGREES)
     down = np.deg2rad(PANDORA_FOV_DOWN_DEGREES)
-    valid = (depth > 0) & (pitch >= down) & (pitch <= up)
+    # Float32 pitch at the exact FOV edge can round ~1e-9 rad outside the
+    # nominal bound (e.g. a synthesised +7.0 deg return), flipping row 0 to
+    # invalid while the clipped row index is still 0. Admit a sub-row
+    # epsilon (<< 3 deg margin to the out-of-FOV band) so edge rows stay
+    # valid without admitting genuinely out-of-FOV returns.
+    edge_tol = np.deg2rad(1e-3)
+    valid = (depth > 0) & (pitch >= down - edge_tol) & (pitch <= up + edge_tol)
     yaw = -np.arctan2(points[:, 1], points[:, 0])
     cols = np.clip(
         np.floor(0.5 * (yaw / np.pi + 1) * PANDORA_IMAGE_WIDTH),
