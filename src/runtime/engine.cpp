@@ -1676,12 +1676,12 @@ int run_binary(const Options& options) {
 // Decimated leaf dump for map-layer rendering. Coordinates and the common
 // compact fields retain the original viewer contract; the descriptive
 // evidence fields make the Python/desktop boundary lossless for the state
-// that CellStats actually stores. Sampling strides the snapshot order;
-// cell_count reports what is actually returned so the caller can distinguish
-// a decimated view from the map.
+// that CellStats actually stores. cell_count reports what is actually
+// returned so the caller can distinguish a decimated view from the map.
+//
 // Over budget, send the leaves nearest the vehicle rather than every n-th
-  // leaf: a uniform stride thinned the whole map into a sparse checkerboard,
-  // while the near field is what the display is for. Snapshot order is kept.
+// leaf: a uniform stride thinned the whole map into a sparse checkerboard,
+// while the near field is what the display is for. Snapshot order is kept.
 std::vector<std::size_t> select_display_cells(const veyra::map::MapSnapshot& snapshot,
                                               std::size_t budget, std::array<double, 2> center) {
   const std::size_t total = snapshot.leaves.size();
@@ -1727,17 +1727,19 @@ double display_cell_utility(const veyra::map::Leaf& leaf,
              : 0.0;
 }
 
-// Binary display cells: one header line, then `cell_count` rows of nine
-// little-endian float32 -- centre x, centre y, mean z, edge, class, motion,
-// quality, drivable evidence, utility -- which is exactly the cell section of
-// the desktop visualization frame, so the runtime forwards it unparsed.
+// Binary display cells: one header line, then `cell_count` rows of seventeen
+// little-endian float32 in the visualization schema-v3 cell layout -- centre
+// x, centre y, mean z, edge, class, motion, quality, drivable evidence,
+// utility, semantic confidence, ground evidence, terrain confidence, geometry
+// complexity, point count, min z, max z, z variance -- which is exactly the
+// cell section of the desktop frame, so the runtime forwards it unparsed.
 // Formatting ~50k cells as JSON and parsing them back cost more than the
 // whole map update did.
 void write_cells_binary(std::ostream& out, const veyra::map::MapSnapshot& snapshot,
                         std::size_t budget, const veyra::policy::UtilityConfig& config,
                         std::array<double, 2> center) {
   const auto selected = select_display_cells(snapshot, budget, center);
-  constexpr std::size_t kFloats = 9;
+  constexpr std::size_t kFloats = 17;
   std::vector<unsigned char> rows(selected.size() * kFloats * sizeof(float));
   unsigned char* cursor = rows.data();
   const auto put = [&cursor](double value) {
@@ -1760,6 +1762,14 @@ void write_cells_binary(std::ostream& out, const veyra::map::MapSnapshot& snapsh
     put(leaf.stats.observation_quality());
     put(leaf.stats.drivable_evidence());
     put(display_cell_utility(leaf, config));
+    put(leaf.stats.semantic_confidence());
+    put(leaf.stats.ground_evidence());
+    put(leaf.stats.terrain_confidence());
+    put(leaf.stats.geometry_complexity());
+    put(static_cast<double>(leaf.stats.count));
+    put(leaf.stats.min_z());
+    put(leaf.stats.max_z());
+    put(leaf.stats.variance_z());
   }
   out << "{\"status\":\"available\",\"cell_count\":" << selected.size()
       << ",\"total_leaves\":" << snapshot.leaves.size() << ",\"binary_bytes\":" << rows.size()
@@ -1810,6 +1820,14 @@ std::string render_cells(const veyra::map::MapSnapshot& snapshot, std::size_t bu
     integer(leaf.id.iy);
     out += ",\"z\":";
     real(leaf.stats.mean_z());
+    out += ",\"zmin\":";
+    real(leaf.stats.min_z());
+    out += ",\"zmax\":";
+    real(leaf.stats.max_z());
+    out += ",\"zvar\":";
+    real(leaf.stats.variance_z());
+    out += ",\"n\":";
+    integer(static_cast<std::int64_t>(leaf.stats.count));
     out += ",\"c\":";
     integer(leaf.stats.semantic_class);
     out += ",\"semantic_confidence\":";

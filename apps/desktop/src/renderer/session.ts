@@ -43,7 +43,7 @@ export function processRss(processes:Json[]):number|null {
 }
 export function acceptFrame(next:WireFrame,current:WireFrame|null,state?:string,awaiting=false):boolean {
  if(state==='stopped'&&!awaiting)return false;
- if(next.metadata.schema_version!==2)throw new Error('Unsupported visualization schema. Rebuild the desktop and backend together.');
+ if(next.metadata.schema_version!==2&&next.metadata.schema_version!==3)throw new Error('Unsupported visualization schema. Rebuild the desktop and backend together.');
  validateVisualization(next.metadata,next.payload);
  if(next.metadata.cells.offset<next.metadata.points.offset+next.metadata.points.count*next.metadata.points.stride)throw new Error('Visualization sections overlap');
  return !current || next.metadata.generation>=current.metadata.generation;

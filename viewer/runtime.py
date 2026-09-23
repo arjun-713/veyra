@@ -46,8 +46,9 @@ class RuntimeConfig:
     map: dict[str, Any]
 
 
-# Nine float32 per display cell; 100,000 cells is the engine's budget ceiling.
-_CELL_ROW_BYTES = 9 * 4
+# Seventeen float32 per display cell (visualization schema v3); 100,000
+# cells is the engine's budget ceiling.
+_CELL_ROW_BYTES = 17 * 4
 _MAX_BINARY_CELL_BYTES = 100000 * _CELL_ROW_BYTES
 
 
@@ -365,9 +366,9 @@ class PersistentMapEngine:
     def map_cells_binary(self, budget: int = 20000) -> dict[str, Any]:
         """Like map_cells, but rows arrive as packed display floats.
 
-        ``cells_binary`` holds ``cell_count`` rows of nine little-endian
-        float32 (centre x, centre y, z, edge, class, motion, quality,
-        drivable evidence, utility): the visualization frame's cell section.
+        ``cells_binary`` holds ``cell_count`` rows of seventeen little-endian
+        float32 in the visualization schema-v3 cell layout (see
+        runtime/visualization.py): the frame's cell section, unparsed.
         """
 
         with self._lock:

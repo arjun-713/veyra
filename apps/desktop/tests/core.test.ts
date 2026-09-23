@@ -47,3 +47,9 @@ test('desktop runtime bridge failure does not direct Tauri users to Electron',()
  assert.match(nativeRuntimeUnavailableMessage,/desktop runtime bridge/i);
  assert.doesNotMatch(nativeRuntimeUnavailableMessage,/electron/i);
 });
+
+test('visualization accepts v3 evidence cell rows while keeping v2 decodable', () => {
+  validateVisualization({points:{count:1,offset:0,stride:68},cells:{count:1,offset:68,stride:68}},new Uint8Array(136));
+  validateVisualization({points:{count:1,offset:0,stride:68},cells:{count:1,offset:68,stride:36}},new Uint8Array(104));
+  assert.throws(()=>validateVisualization({points:{count:1,offset:0,stride:68},cells:{count:1,offset:68,stride:40}},new Uint8Array(108)), /stride/);
+});

@@ -9,6 +9,10 @@
  const memory=(n:any)=>typeof n==='number'?n>=1073741824?f(n/1073741824,2)+' GB':f(n/1048576,1)+' MB':'—';
  let comparison=$derived(comparisonMetrics(report)),summary=$derived(summarizeVisual(frame));
  let rss=$derived(processRss(telemetry.processes??[]));
+ let storyLayers=$derived(frame?.metadata.layers??{});
+ const storyDot=(v:string)=>v==='available'||v==='model'||v==='ground_truth'?'ok':v==='unavailable'||v==='disabled'||!v?'off':'warn';
+ let storySteps=$derived([['Raw LiDAR',frame?'live':'empty',frame?(typeof frame.metadata.n_points==='number'?`${frame.metadata.n_points.toLocaleString()} pts`:'frame live'):status.frames?'waiting':'no dataset'],['Perception',storyDot(storyLayers.semantic),storyLayers.semantic??'—'],['Terrain',storyDot(storyLayers.terrain),storyLayers.terrain??'—'],['Motion',storyDot(storyLayers.motion),storyLayers.motion??'—'],['Adaptive 2.5D',(frame?.metadata.cells?.count??0)>0?'live':'empty',telemetry.map?.active_cells!=null?`${telemetry.map.active_cells.toLocaleString()} cells`:'—'],['Evidence',report?'ready':'none',report?'benchmark loaded':'run or open a report']]);
+
  let proc=$derived(processingDisplay(status,telemetry));
  let e2eCount=$derived(telemetry.latency_ms?.end_to_end?.count);
  let e2eP95=$derived(gateStatistic(telemetry.latency_ms?.end_to_end?.p95,e2eCount,MIN_SAMPLES.p95));
@@ -16,6 +20,11 @@
  function width(value:any,reference:any){return typeof value==='number'&&typeof reference==='number'&&reference>0?Math.max(1,Math.min(100,value/reference*100)):0;}
 </script>
 <div class="dashboard">
+ <div class="demo-story" aria-label="Demo story">
+  {#each storySteps as [label,state,detail]}
+   <span class="story-step"><i class={state}></i><b>{label}</b><small>{detail}</small></span>{#if label!=='Evidence'}<span class="story-arrow">→</span>{/if}
+  {/each}
+ </div>
  <div class="dashboard-metrics">{#each cards as card}<button class="dashboard-metric" onclick={card.icon==='database'||card.icon==='chart'?openBenchmarks:openPerformance}><span class="metric-symbol"><Icon name={card.icon} size={25}/></span><div><h2>{card.label}</h2><div class="metric-number">{card.value}<small>{card.unit}</small></div><p>{card.detail}</p></div></button>{/each}</div>
  <div class="dashboard-map-grid">
   {#each [{title:'Raw LiDAR Point Cloud',icon:'cube',mode:'raw',cells:false},{title:'Semantic LiDAR',icon:'semantic',mode:'semantic',cells:false},{title:'Adaptive 2.5D Map',icon:'map',mode:'lod',cells:true}] as panel,i}

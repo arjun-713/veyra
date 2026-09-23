@@ -182,6 +182,15 @@ class Telemetry:
                 "mapping": latency.get("p50") / 1e6
                 if latency.get("p50") is not None
                 else None,
+                "mapping_p50": latency.get("p50") / 1e6
+                if latency.get("p50") is not None
+                else None,
+                "mapping_p95": latency.get("p95") / 1e6
+                if latency.get("p95") is not None
+                else None,
+                "mapping_p99": latency.get("p99") / 1e6
+                if latency.get("p99") is not None
+                else None,
                 "visualization": visual_ms,
             },
             "processes": [

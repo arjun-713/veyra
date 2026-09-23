@@ -62,3 +62,10 @@ test('rejected events provide a visible diagnostic rather than an empty viewport
  assert.match(diagnosticMessage({type:'diagnostics',diagnostic:{code:'RUNTIME_EVENT_REJECTED',message:'bad schema'}})!,/bad schema/);
  assert.equal(diagnosticMessage({type:'status'}),null);
 });
+
+test('visualization accepts schema v3 evidence frames and still rejects unknown versions',()=>{
+  const v3={metadata:{schema_version:3,generation:2,index:1,points:{offset:0,count:1,stride:68},cells:{offset:68,count:0,stride:68}},payload:new Uint8Array(68)};
+  assert.equal(acceptFrame(v3 as any,null),true);
+  const bad={metadata:{schema_version:9,generation:1,index:0,points:{offset:0,count:0,stride:68},cells:{offset:0,count:0,stride:68}},payload:new Uint8Array(0)};
+  assert.throws(()=>acceptFrame(bad as any,null),/Unsupported visualization schema/);
+});
