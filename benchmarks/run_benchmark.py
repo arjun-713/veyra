@@ -217,16 +217,36 @@ def _host_memory_bytes() -> int | None:
         return None
 
 
-def hardware_metadata(profile: str) -> dict[str, Any]:
-    """Capture runtime provenance; config profiles never invent hardware values."""
-    cpu_model = None
+def host_cpu_model() -> str | None:
+    """CPU model string as the OS reports it, or None; never guessed.
+
+    Linux exposes it in /proc/cpuinfo; macOS has no /proc and reports it
+    through sysctl (for example "Apple M4 Pro").
+    """
     try:
         for line in Path("/proc/cpuinfo").read_text().splitlines():
             if line.startswith("model name"):
-                cpu_model = line.split(":", 1)[1].strip()
-                break
+                return line.split(":", 1)[1].strip() or None
     except OSError:
         pass
+    if sys.platform == "darwin":
+        try:
+            brand = subprocess.run(
+                ["sysctl", "-n", "machdep.cpu.brand_string"],
+                capture_output=True,
+                text=True,
+                timeout=5,
+                check=False,
+            ).stdout.strip()
+        except (OSError, subprocess.SubprocessError):
+            return None
+        return brand or None
+    return None
+
+
+def hardware_metadata(profile: str) -> dict[str, Any]:
+    """Capture runtime provenance; config profiles never invent hardware values."""
+    cpu_model = host_cpu_model()
     return {
         "profile": profile,
         "capture": "runtime",
