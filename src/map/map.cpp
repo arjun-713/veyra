@@ -15,6 +15,14 @@
 namespace veyra::map {
 namespace {
 
+// (ix, iy) packed into one key that orders exactly like (ix, iy) within a
+// level: each signed index is biased so it sorts as unsigned.
+[[nodiscard]] std::uint64_t planar_key(core::CellId id) noexcept {
+  const auto x = static_cast<std::uint64_t>(static_cast<std::uint32_t>(id.ix) ^ 0x80000000U);
+  const auto y = static_cast<std::uint64_t>(static_cast<std::uint32_t>(id.iy) ^ 0x80000000U);
+  return (x << 32U) | y;
+}
+
 constexpr int kMaxLevel = 3;
 
 struct TileKey {
@@ -42,31 +50,127 @@ struct StoredCell {
   CellStats stats;
 };
 
-[[nodiscard]] bool less_id(const core::CellId& left, const core::CellId& right) noexcept {
-  if (left.level != right.level) return left.level < right.level;
-  if (left.ix != right.ix) return left.ix < right.ix;
-  return left.iy < right.iy;
+[[nodiscard]] std::size_t hash_cell(core::CellId id) noexcept {
+  const auto x = static_cast<std::uint32_t>(id.ix);
+  const auto y = static_cast<std::uint32_t>(id.iy);
+  return mix((static_cast<std::uint64_t>(x) << 32U) | y);
 }
 
-[[nodiscard]] bool less_entry(const StoredCell& left, const core::CellId& right) noexcept {
-  return less_id(left.id, right);
-}
+// Dense, unordered cell storage with an open-addressed position index.
+//
+// This replaced a vector kept sorted by cell id. Sorted insertion and erasure
+// shifted every later cell (~200 B each, ~1,400 per tile), and a moving
+// vehicle performs thousands of splits and merges per frame, so memmove
+// dominated map update. Here insert appends, erase swaps the last cell into
+// the hole, and lookup is one hash probe sequence. Iteration order is still a
+// pure function of the operation history, so the map stays deterministic;
+// every consumer that needs an order (snapshot) sorts explicitly.
+class CellTable {
+ public:
+  [[nodiscard]] StoredCell* find(core::CellId id) {
+    const auto slot = find_slot(id);
+    return slot.has_value() ? &cells_[slots_[*slot] - 1U] : nullptr;
+  }
 
-using CellArray = std::vector<StoredCell>;
+  [[nodiscard]] const StoredCell* find(core::CellId id) const {
+    const auto slot = find_slot(id);
+    return slot.has_value() ? &cells_[slots_[*slot] - 1U] : nullptr;
+  }
 
-[[nodiscard]] CellArray::iterator find_entry(CellArray& cells, core::CellId id) {
-  return std::lower_bound(cells.begin(), cells.end(), id, less_entry);
-}
+  // Folds `stats` into an existing cell, or inserts it.
+  void merge(core::CellId id, const CellStats& stats) {
+    if (StoredCell* existing = find(id)) {
+      existing->stats.merge(stats);
+      return;
+    }
+    if ((cells_.size() + 1U) * 2U > slots_.size()) rehash(std::max<std::size_t>(8U, slots_.size() * 2U));
+    slots_[free_slot_for(id)] = static_cast<std::uint32_t>(cells_.size() + 1U);
+    cells_.push_back({id, stats});
+  }
 
-[[nodiscard]] CellArray::const_iterator find_entry(const CellArray& cells, core::CellId id) {
-  return std::lower_bound(cells.begin(), cells.end(), id, less_entry);
-}
+  [[nodiscard]] std::optional<CellStats> take(core::CellId id) {
+    const auto slot = find_slot(id);
+    if (!slot.has_value()) return std::nullopt;
+    const std::size_t position = slots_[*slot] - 1U;
+    CellStats stats = cells_[position].stats;
+    erase_slot(*slot);
+    const std::size_t last = cells_.size() - 1U;
+    if (position != last) {
+      cells_[position] = cells_[last];
+      slots_[*find_slot(cells_[position].id)] = static_cast<std::uint32_t>(position + 1U);
+    }
+    cells_.pop_back();
+    return stats;
+  }
+
+  template <typename Predicate>
+  void erase_if(Predicate&& predicate) {
+    const auto kept = std::remove_if(cells_.begin(), cells_.end(), predicate);
+    if (kept == cells_.end()) return;
+    cells_.erase(kept, cells_.end());
+    rehash(slots_.size());
+  }
+
+  [[nodiscard]] bool empty() const noexcept { return cells_.empty(); }
+  [[nodiscard]] std::size_t size() const noexcept { return cells_.size(); }
+  [[nodiscard]] std::size_t capacity() const noexcept { return cells_.capacity(); }
+  [[nodiscard]] std::size_t index_bytes() const noexcept {
+    return slots_.capacity() * sizeof(std::uint32_t);
+  }
+  [[nodiscard]] auto begin() noexcept { return cells_.begin(); }
+  [[nodiscard]] auto end() noexcept { return cells_.end(); }
+  [[nodiscard]] auto begin() const noexcept { return cells_.begin(); }
+  [[nodiscard]] auto end() const noexcept { return cells_.end(); }
+
+ private:
+  [[nodiscard]] std::optional<std::size_t> find_slot(core::CellId id) const {
+    if (slots_.empty()) return std::nullopt;
+    const std::size_t mask = slots_.size() - 1U;
+    for (std::size_t slot = hash_cell(id) & mask;; slot = (slot + 1U) & mask) {
+      const std::uint32_t entry = slots_[slot];
+      if (entry == 0U) return std::nullopt;
+      if (cells_[entry - 1U].id == id) return slot;
+    }
+  }
+
+  [[nodiscard]] std::size_t free_slot_for(core::CellId id) const {
+    const std::size_t mask = slots_.size() - 1U;
+    std::size_t slot = hash_cell(id) & mask;
+    while (slots_[slot] != 0U) slot = (slot + 1U) & mask;
+    return slot;
+  }
+
+  // Backward-shift deletion: keeps every probe sequence contiguous without
+  // tombstones, so lookups never degrade as cells churn.
+  void erase_slot(std::size_t hole) {
+    const std::size_t mask = slots_.size() - 1U;
+    for (std::size_t next = (hole + 1U) & mask; slots_[next] != 0U; next = (next + 1U) & mask) {
+      const std::size_t home = hash_cell(cells_[slots_[next] - 1U].id) & mask;
+      const bool stays = hole <= next ? (hole < home && home <= next) : (hole < home || home <= next);
+      if (stays) continue;
+      slots_[hole] = slots_[next];
+      hole = next;
+    }
+    slots_[hole] = 0U;
+  }
+
+  void rehash(std::size_t slot_count) {
+    while (cells_.size() * 2U > slot_count) slot_count *= 2U;
+    slots_.assign(slot_count, 0U);
+    for (std::size_t position = 0; position < cells_.size(); ++position) {
+      slots_[free_slot_for(cells_[position].id)] = static_cast<std::uint32_t>(position + 1U);
+    }
+  }
+
+  std::vector<StoredCell> cells_;
+  std::vector<std::uint32_t> slots_;  // 0 = empty, otherwise position + 1
+};
 
 struct Tile {
-  std::array<CellArray, kMaxLevel + 1> leaves;
+  std::array<CellTable, kMaxLevel + 1> leaves;
   // A prior carries a parent aggregate whose exact child allocation is
   // unknowable after a refinement. It is not an active leaf.
-  std::array<CellArray, kMaxLevel + 1> priors;
+  std::array<CellTable, kMaxLevel + 1> priors;
 
   [[nodiscard]] bool empty() const {
     for (int level = 0; level <= kMaxLevel; ++level) {
@@ -318,58 +422,40 @@ struct Map::Impl {
   [[nodiscard]] std::optional<CellStats> leaf(core::CellId id) const {
     const Tile* tile = tiles.find(tile_key_for(id));
     if (tile == nullptr) return std::nullopt;
-    const CellArray& entries = tile->leaves[id.level];
-    const auto entry = find_entry(entries, id);
-    if (entry == entries.end() || entry->id != id) return std::nullopt;
+    const StoredCell* entry = tile->leaves[id.level].find(id);
+    if (entry == nullptr) return std::nullopt;
     return entry->stats;
   }
 
+  [[nodiscard]] StoredCell* find_leaf(core::CellId id) {
+    Tile* tile = tiles.find(tile_key_for(id));
+    return tile == nullptr ? nullptr : tile->leaves[id.level].find(id);
+  }
+
   void merge_leaf(core::CellId id, const CellStats& stats) {
-    Tile& tile = tiles.find_or_create(tile_key_for(id));
-    CellArray& entries = tile.leaves[id.level];
-    const auto entry = find_entry(entries, id);
-    if (entry != entries.end() && entry->id == id) {
-      entry->stats.merge(stats);
-      return;
-    }
-    entries.insert(entry, {id, stats});
+    tiles.find_or_create(tile_key_for(id)).leaves[id.level].merge(id, stats);
   }
 
   [[nodiscard]] std::optional<CellStats> take_leaf(core::CellId id) {
     const TileKey key = tile_key_for(id);
     Tile* tile = tiles.find(key);
     if (tile == nullptr) return std::nullopt;
-    CellArray& entries = tile->leaves[id.level];
-    const auto entry = find_entry(entries, id);
-    if (entry == entries.end() || entry->id != id) return std::nullopt;
-    CellStats stats = entry->stats;
-    entries.erase(entry);
-    tiles.erase_if_empty(key);
+    auto stats = tile->leaves[id.level].take(id);
+    if (stats.has_value()) tiles.erase_if_empty(key);
     return stats;
   }
 
   void merge_prior(core::CellId id, const CellStats& stats) {
     if (stats.count == 0) return;
-    Tile& tile = tiles.find_or_create(tile_key_for(id));
-    CellArray& entries = tile.priors[id.level];
-    const auto entry = find_entry(entries, id);
-    if (entry != entries.end() && entry->id == id) {
-      entry->stats.merge(stats);
-      return;
-    }
-    entries.insert(entry, {id, stats});
+    tiles.find_or_create(tile_key_for(id)).priors[id.level].merge(id, stats);
   }
 
   [[nodiscard]] std::optional<CellStats> take_prior(core::CellId id) {
     const TileKey key = tile_key_for(id);
     Tile* tile = tiles.find(key);
     if (tile == nullptr) return std::nullopt;
-    CellArray& entries = tile->priors[id.level];
-    const auto entry = find_entry(entries, id);
-    if (entry == entries.end() || entry->id != id) return std::nullopt;
-    CellStats stats = entry->stats;
-    entries.erase(entry);
-    tiles.erase_if_empty(key);
+    auto stats = tile->priors[id.level].take(id);
+    if (stats.has_value()) tiles.erase_if_empty(key);
     return stats;
   }
 
@@ -449,14 +535,27 @@ struct Map::Impl {
     return dx * dx + dy * dy <= config.window_radius_m * config.window_radius_m;
   }
 
-  template <typename Predicate>
-  void erase_entries_if(Predicate&& predicate) {
+  // True when every point of every cell this tile can hold lies inside the
+  // window. A cell is filed under the tile of its minimum corner, so it may
+  // overhang the tile's far edges by at most one coarsest cell.
+  [[nodiscard]] bool tile_inside_window(TileKey key) const {
+    const double overhang = core::resolution_m(kMaxLevel);
+    const double min_x = static_cast<double>(key.ix) * config.tile_size_m;
+    const double min_y = static_cast<double>(key.iy) * config.tile_size_m;
+    const double max_x = min_x + config.tile_size_m + overhang;
+    const double max_y = min_y + config.tile_size_m + overhang;
+    const double far_x = std::max(std::fabs(min_x - center_x), std::fabs(max_x - center_x));
+    const double far_y = std::max(std::fabs(min_y - center_y), std::fabs(max_y - center_y));
+    return far_x * far_x + far_y * far_y <= config.window_radius_m * config.window_radius_m;
+  }
+
+  template <typename Predicate, typename TileFilter>
+  void erase_entries_if(Predicate&& predicate, TileFilter&& skip_tile) {
     std::vector<TileKey> empty_tiles;
     tiles.for_each_tile([&](TileKey key, Tile& tile) {
+      if (skip_tile(key)) return;
       for (int level = 0; level <= kMaxLevel; ++level) {
-        auto remove = [&](CellArray& entries) {
-          entries.erase(std::remove_if(entries.begin(), entries.end(), predicate), entries.end());
-        };
+        auto remove = [&](CellTable& entries) { entries.erase_if(predicate); };
         remove(tile.leaves[level]);
         remove(tile.priors[level]);
       }
@@ -735,21 +834,125 @@ double CellStats::variance_z() const {
 
 std::size_t MapSnapshot::count_at_level(int level) const {
   core::validate_level(level);
+  if (leaves_ordered_by_id) {
+    // Level is the primary sort key, so each level is one contiguous run.
+    const auto first = std::partition_point(leaves.begin(), leaves.end(),
+                                            [level](const Leaf& leaf) { return leaf.id.level < level; });
+    const auto last = std::partition_point(first, leaves.end(),
+                                           [level](const Leaf& leaf) { return leaf.id.level == level; });
+    return static_cast<std::size_t>(last - first);
+  }
   return static_cast<std::size_t>(std::count_if(
       leaves.begin(), leaves.end(), [level](const Leaf& leaf) { return leaf.id.level == level; }));
 }
 
-bool MapSnapshot::has_no_parent_descendant_overlap() const {
-  std::vector<core::CellId> ids;
-  ids.reserve(leaves.size());
-  for (const Leaf& leaf : leaves) ids.push_back(leaf.id);
-  std::sort(ids.begin(), ids.end(), less_id);
-  if (std::adjacent_find(ids.begin(), ids.end()) != ids.end()) return false;
-  for (const core::CellId id : ids) {
-    for (int level = id.level + 1; level <= kMaxLevel; ++level) {
-      if (std::binary_search(ids.begin(), ids.end(), ancestor_at(id, level), less_id)) {
-        return false;
+namespace {
+
+// Occupancy of one level's leaves over their bounding box, one bit per cell.
+class LevelBitmap {
+ public:
+  // Returns false when the box is too large to be worth a dense bitmap.
+  bool build(const std::vector<Leaf>& leaves, int level) {
+    bool any = false;
+    for (const Leaf& leaf : leaves) {
+      if (leaf.id.level != level) continue;
+      if (!any) {
+        min_x_ = max_x_ = leaf.id.ix;
+        min_y_ = max_y_ = leaf.id.iy;
+        any = true;
       }
+      min_x_ = std::min(min_x_, leaf.id.ix);
+      max_x_ = std::max(max_x_, leaf.id.ix);
+      min_y_ = std::min(min_y_, leaf.id.iy);
+      max_y_ = std::max(max_y_, leaf.id.iy);
+    }
+    if (!any) {
+      width_ = 0;
+      return true;
+    }
+    width_ = static_cast<std::uint64_t>(static_cast<std::int64_t>(max_x_) - min_x_ + 1);
+    const auto height = static_cast<std::uint64_t>(static_cast<std::int64_t>(max_y_) - min_y_ + 1);
+    constexpr std::uint64_t kMaxBits = 64ULL * 1024ULL * 1024ULL;
+    if (width_ > kMaxBits || height > kMaxBits / width_) return false;
+    bits_.assign((width_ * height + 63U) / 64U, 0U);
+    for (const Leaf& leaf : leaves) {
+      if (leaf.id.level != level) continue;
+      const std::uint64_t bit = offset(leaf.id);
+      bits_[bit / 64U] |= 1ULL << (bit % 64U);
+    }
+    return true;
+  }
+
+  [[nodiscard]] bool contains(core::CellId id) const {
+    if (width_ == 0 || id.ix < min_x_ || id.ix > max_x_ || id.iy < min_y_ || id.iy > max_y_)
+      return false;
+    const std::uint64_t bit = offset(id);
+    return ((bits_[bit / 64U] >> (bit % 64U)) & 1U) != 0U;
+  }
+
+ private:
+  [[nodiscard]] std::uint64_t offset(core::CellId id) const {
+    return static_cast<std::uint64_t>(static_cast<std::int64_t>(id.iy) - min_y_) * width_ +
+           static_cast<std::uint64_t>(static_cast<std::int64_t>(id.ix) - min_x_);
+  }
+
+  std::int32_t min_x_ = 0, max_x_ = 0, min_y_ = 0, max_y_ = 0;
+  std::uint64_t width_ = 0;
+  std::vector<std::uint64_t> bits_;
+};
+
+}  // namespace
+
+bool MapSnapshot::has_no_parent_descendant_overlap() const {
+  if (leaves_ordered_by_id) {
+    // Id order makes duplicates adjacent. Ancestors are then tested against a
+    // per-level bitmap of the (bounded, windowed) leaf extent: two passes and
+    // no hashing, which kept this check from dominating the frame.
+    if (std::adjacent_find(leaves.begin(), leaves.end(), [](const Leaf& a, const Leaf& b) {
+          return a.id == b.id;
+        }) != leaves.end())
+      return false;
+    std::array<LevelBitmap, kMaxLevel + 1> occupied;
+    bool dense = true;
+    for (int level = 1; level <= kMaxLevel && dense; ++level) dense = occupied[level].build(leaves, level);
+    if (dense) {
+      for (const Leaf& leaf : leaves) {
+        for (int level = leaf.id.level + 1; level <= kMaxLevel; ++level) {
+          if (occupied[level].contains(ancestor_at(leaf.id, level))) return false;
+        }
+      }
+      return true;
+    }
+  }
+  // Flat open-addressed id set: one pass to insert (duplicates fail), one pass
+  // to probe at most three ancestors per leaf.
+  std::size_t capacity = 16;
+  while (capacity < leaves.size() * 2U) capacity *= 2U;
+  struct Slot {
+    core::CellId id;
+    bool used = false;
+  };
+  std::vector<Slot> slots(capacity);
+  const std::size_t mask = capacity - 1U;
+  const auto home = [mask](core::CellId id) {
+    return (hash_cell(id) ^ static_cast<std::size_t>(id.level) * 0x9e3779b97f4a7c15ULL) & mask;
+  };
+  const auto contains = [&](core::CellId id) {
+    for (std::size_t slot = home(id);; slot = (slot + 1U) & mask) {
+      if (!slots[slot].used) return false;
+      if (slots[slot].id == id) return true;
+    }
+  };
+  for (const Leaf& leaf : leaves) {
+    std::size_t slot = home(leaf.id);
+    for (; slots[slot].used; slot = (slot + 1U) & mask) {
+      if (slots[slot].id == leaf.id) return false;
+    }
+    slots[slot] = {leaf.id, true};
+  }
+  for (const Leaf& leaf : leaves) {
+    for (int level = leaf.id.level + 1; level <= kMaxLevel; ++level) {
+      if (contains(ancestor_at(leaf.id, level))) return false;
     }
   }
   return true;
@@ -782,6 +985,20 @@ void Map::update_at_level(const Observation& observation, int level) {
   impl_->validate_observation(observation);
   core::validate_level(level);
   const core::CellId id = index(observation.x, observation.y, level);
+  // Fast path for the common case, a return landing in an existing leaf.
+  // Exclusivity means no ancestor is a leaf, so refine_ancestors would split
+  // nothing; and an active leaf never has a prior at itself or at any
+  // descendant (every path that creates a leaf first absorbs those, and a
+  // prior is only created by splitting a leaf), so coarsen_to would move no
+  // evidence. Skipping both is therefore exact, not an approximation --
+  // docs/map-correctness.md invariant 16 -- and avoids ~2 lookups per
+  // descendant (84 descendants for a 40 cm cell) on every return.
+  if (StoredCell* existing = impl_->find_leaf(id)) {
+    CellStats one;
+    one.add(observation, impl_->config.clearance_envelope_m);
+    existing->stats.merge(one);
+    return;
+  }
   impl_->refine_ancestors(id);
   (void)impl_->coarsen_to(id);
   CellStats one;
@@ -796,13 +1013,16 @@ void Map::set_window_center(double x, double y) {
   impl_->center_x = x;
   impl_->center_y = y;
   impl_->erase_entries_if(
-      [&](const StoredCell& entry) { return !impl_->cell_intersects_window(entry.id); });
+      [&](const StoredCell& entry) { return !impl_->cell_intersects_window(entry.id); },
+      [&](TileKey key) { return impl_->tile_inside_window(key); });
 }
 
 void Map::evict_stale_before(std::uint64_t minimum_timestamp) {
-  impl_->erase_entries_if([minimum_timestamp](const StoredCell& entry) {
-    return entry.stats.last_seen < minimum_timestamp;
-  });
+  impl_->erase_entries_if(
+      [minimum_timestamp](const StoredCell& entry) {
+        return entry.stats.last_seen < minimum_timestamp;
+      },
+      [](TileKey) { return false; });
 }
 
 void Map::split(core::CellId id) {
@@ -875,6 +1095,18 @@ ClearingStats Map::clear_free_space(const DepthImage& image, const SensorPose& p
 
 MapSnapshot Map::snapshot() const {
   MapSnapshot snapshot;
+  // Order by id through compact (key, cell) references and copy each leaf
+  // once, rather than sorting the ~200-byte leaves themselves. Level is the
+  // primary key, so each level is its own bucket.
+  std::array<std::vector<std::pair<std::uint64_t, const StoredCell*>>, kMaxLevel + 1> order;
+  {
+    std::array<std::size_t, kMaxLevel + 1> sizes{};
+    impl_->tiles.for_each_tile([&](TileKey, const Tile& tile) {
+      for (int level = 0; level <= kMaxLevel; ++level) sizes[level] += tile.leaves[level].size();
+    });
+    for (int level = 0; level <= kMaxLevel; ++level) order[level].reserve(sizes[level]);
+  }
+  std::size_t index_bytes = impl_->tiles.allocated_index_bytes();
   impl_->tiles.for_each_tile([&](TileKey, const Tile& tile) {
     snapshot.memory.allocated_tile_bytes += sizeof(Tile);
     for (int level = 0; level <= kMaxLevel; ++level) {
@@ -882,10 +1114,11 @@ MapSnapshot Map::snapshot() const {
           tile.leaves[level].capacity() * sizeof(StoredCell);
       snapshot.memory.allocated_cell_array_bytes +=
           tile.priors[level].capacity() * sizeof(StoredCell);
+      index_bytes += tile.leaves[level].index_bytes() + tile.priors[level].index_bytes();
       snapshot.memory.logical_payload_bytes += tile.leaves[level].size() * sizeof(Leaf);
       snapshot.memory.retained_prior_payload_bytes += tile.priors[level].size() * sizeof(Leaf);
       for (const StoredCell& entry : tile.leaves[level]) {
-        snapshot.leaves.push_back({entry.id, entry.stats});
+        order[level].emplace_back(planar_key(entry.id), &entry);
         snapshot.point_count += entry.stats.count;
         // Accumulated during the walk the snapshot already performs, rather
         // than in a second pass over the leaves afterwards.
@@ -918,11 +1151,21 @@ MapSnapshot Map::snapshot() const {
       }
     }
   });
-  std::sort(snapshot.leaves.begin(), snapshot.leaves.end(),
-            [](const Leaf& left, const Leaf& right) { return less_id(left.id, right.id); });
+  std::size_t total = 0;
+  for (auto& bucket : order) {
+    std::sort(bucket.begin(), bucket.end(),
+              [](const auto& left, const auto& right) { return left.first < right.first; });
+    total += bucket.size();
+  }
+  snapshot.leaves.reserve(total);
+  for (const auto& bucket : order) {
+    for (const auto& [key, entry] : bucket) snapshot.leaves.push_back({entry->id, entry->stats});
+  }
+  snapshot.leaves_ordered_by_id = true;
   snapshot.active_leaf_count = snapshot.leaves.size();
   snapshot.tile_count = impl_->tiles.size();
-  snapshot.memory.allocated_index_bytes = impl_->tiles.allocated_index_bytes();
+  // Includes the per-level cell position indexes, not only the tile table.
+  snapshot.memory.allocated_index_bytes = index_bytes;
   snapshot.memory.allocated_bytes =
       snapshot.memory.allocated_index_bytes + snapshot.memory.allocated_cell_array_bytes;
   snapshot.memory.allocated_overhead_bytes =

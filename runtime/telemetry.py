@@ -46,6 +46,24 @@ def cpu_seconds(pid):
         return None
 
 
+FPS_WINDOW_S = 5.0
+
+
+def processing_fps(completed, window_s=FPS_WINDOW_S):
+    """Throughput over the completions in the trailing window.
+
+    Measuring across the whole history counted idle time (opening a preview,
+    pausing) as processing time and reported e.g. 0.1 fps while frames were
+    completing at ~2 fps.
+    """
+    if not completed:
+        return None
+    recent = [stamp for stamp in completed if completed[-1] - stamp <= window_s]
+    if len(recent) < 2 or recent[-1] <= recent[0]:
+        return None
+    return (len(recent) - 1) / (recent[-1] - recent[0])
+
+
 class Telemetry:
     def __init__(self, capacity=600):
         self.latencies = deque(maxlen=capacity)
@@ -134,11 +152,7 @@ class Telemetry:
                 return None
             return 100 * (current - previous[1]) / (now - previous[0])
 
-        fps = (
-            (len(self.completed) - 1) / (self.completed[-1] - self.completed[0])
-            if len(self.completed) > 1 and self.completed[-1] > self.completed[0]
-            else None
-        )
+        fps = processing_fps(self.completed)
         splits_per_frame = (topology_frames.get("splits") or {}).get("mean")
         merges_per_frame = (topology_frames.get("merges") or {}).get("mean")
         return {

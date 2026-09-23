@@ -2,6 +2,7 @@
 
 #include <algorithm>
 #include <array>
+#include <charconv>
 #include <bit>
 #include <chrono>
 #include <cmath>
@@ -22,6 +23,13 @@
 #include <utility>
 #include <variant>
 #include <vector>
+
+#if defined(_WIN32)
+#include <io.h>
+#else
+#include <cerrno>
+#include <unistd.h>
+#endif
 
 #include "veyra/map/map.hpp"
 #include "veyra/metrics/metrics.hpp"
@@ -75,7 +83,8 @@ struct InputSummary {
   std::optional<std::uint64_t> source_index;
   std::array<double, 3> pose_translation{};
   std::uint64_t point_count = 0;
-  std::map<std::string, NumericSummary> quality;
+  // Transparent comparator: per-point updates look fields up by string_view.
+  std::map<std::string, NumericSummary, std::less<>> quality;
   std::uint64_t ground_true_count = 0;
   std::array<std::uint64_t, 3> drivable_counts{};
   std::array<std::uint64_t, 4> motion_state_counts{};
@@ -215,8 +224,9 @@ class MapPolicyAdapter {
 
   [[nodiscard]] bool uses_stateful_policy() const noexcept { return utility_.has_value(); }
 
-  void apply_governor(const veyra::map::MapSnapshot& snapshot, double frame_time_ms) {
-    if (!governor_.has_value()) return;
+  // Returns whether the map changed, so callers re-snapshot only when needed.
+  bool apply_governor(const veyra::map::MapSnapshot& snapshot, double frame_time_ms) {
+    if (!governor_.has_value()) return false;
     struct SiblingGroup {
       veyra::policy::GovernorCandidate candidate{};
       std::size_t count = 0;
@@ -269,6 +279,7 @@ class MapPolicyAdapter {
     // Candidates are disjoint, complete sibling groups from this exact
     // snapshot; no concurrent mutations can invalidate them.
     governor_->record_applied_actions(actions.size());
+    return !actions.empty();
   }
 
   [[nodiscard]] std::optional<veyra::policy::GovernorStatus> governor_status() const {
@@ -451,13 +462,49 @@ std::int64_t duration_ns(Clock::time_point started) {
 }
 
 void observe_quality(InputSummary& summary, std::string_view name, std::optional<double> value) {
-  summary.quality[std::string(name)].add(value);
+  // Called ~15 times per point; building a std::string key each time was a
+  // measurable share of frame parsing.
+  auto entry = summary.quality.find(name);
+  if (entry == summary.quality.end())
+    entry = summary.quality.emplace(std::string(name), NumericSummary{}).first;
+  entry->second.add(value);
+}
+
+constexpr std::array<const char*, 20> kFieldNames{
+    "x",           "y",
+    "z",           "intensity",
+    "semantic_class", "semantic_confidence",
+    "ground",      "drivable",
+    "slope",       "roughness",
+    "height_complexity", "terrain_confidence",
+    "step",        "motion_probability",
+    "motion_state", "velocity_x",
+    "velocity_y",  "observation_quality",
+    "raw_semantic_class", "height_above_ground"};
+constexpr std::array<std::size_t, 14> kQualityFields{3U,  4U,  5U,  8U,  9U,  10U, 11U,
+                                                     12U, 13U, 15U, 16U, 17U, 18U, 19U};
+// The quality accumulators a frame updates, resolved once instead of looked up
+// by name for every field of every point. std::map nodes are stable, and
+// entries are only ever added, so the pointers stay valid for the frame.
+using QualitySlots = std::array<NumericSummary*, kQualityFields.size()>;
+
+QualitySlots resolve_quality(InputSummary& summary) {
+  QualitySlots slots{};
+  for (std::size_t k = 0; k < kQualityFields.size(); ++k) {
+    const std::string_view name = kFieldNames[kQualityFields[k]];
+    auto entry = summary.quality.find(name);
+    if (entry == summary.quality.end())
+      entry = summary.quality.emplace(std::string(name), NumericSummary{}).first;
+    slots[k] = &entry->second;
+  }
+  return slots;
 }
 
 // This is the sole protocol-to-map observation mapping. Both batch execution
 // and the long-lived engine consume it, preventing a viewer-specific lossy
 // interpretation of V2 semantic, terrain, motion, and quality evidence.
-veyra::map::Observation observation_values(const std::array<double, 20>& v, InputSummary& summary) {
+veyra::map::Observation observation_values(const std::array<double, 20>& v, InputSummary& summary,
+                                           const QualitySlots* quality = nullptr) {
   for (std::size_t i : {0U, 1U, 2U, 3U, 4U, 5U, 6U, 7U, 14U, 18U}) {
     if (!std::isfinite(v[i])) throw std::invalid_argument("nonfinite required point value");
   }
@@ -476,29 +523,14 @@ veyra::map::Observation observation_values(const std::array<double, 20>& v, Inpu
   summary.ground_true_count += static_cast<std::uint64_t>(v[6]);
   ++summary.drivable_counts.at(static_cast<std::size_t>(v[7]));
   ++summary.motion_state_counts.at(static_cast<std::size_t>(v[14]));
-  const std::array<const char*, 20> names{"x",
-                                          "y",
-                                          "z",
-                                          "intensity",
-                                          "semantic_class",
-                                          "semantic_confidence",
-                                          "ground",
-                                          "drivable",
-                                          "slope",
-                                          "roughness",
-                                          "height_complexity",
-                                          "terrain_confidence",
-                                          "step",
-                                          "motion_probability",
-                                          "motion_state",
-                                          "velocity_x",
-                                          "velocity_y",
-                                          "observation_quality",
-                                          "raw_semantic_class",
-                                          "height_above_ground"};
-  for (std::size_t i : {3U, 4U, 5U, 8U, 9U, 10U, 11U, 12U, 13U, 15U, 16U, 17U, 18U, 19U})
-    observe_quality(summary, names[i],
-                    std::isnan(v[i]) ? std::nullopt : std::optional<double>{v[i]});
+  for (std::size_t k = 0; k < kQualityFields.size(); ++k) {
+    const std::size_t i = kQualityFields[k];
+    const auto sample = std::isnan(v[i]) ? std::nullopt : std::optional<double>{v[i]};
+    if (quality != nullptr)
+      (*quality)[k]->add(sample);
+    else
+      observe_quality(summary, kFieldNames[i], sample);
+  }
   const auto value = [&](std::size_t i) {
     return static_cast<float>(std::isnan(v[i]) ? 0.0 : v[i]);
   };
@@ -525,17 +557,74 @@ veyra::map::Observation observation_values(const std::array<double, 20>& v, Inpu
           .velocity_y = value(16)};
 }
 
+// Decode one packed little-endian scalar from memory and advance the cursor.
+template <typename T>
+T take_scalar(const unsigned char*& cursor) {
+  std::array<unsigned char, sizeof(T)> bytes{};
+  std::memcpy(bytes.data(), cursor, sizeof(T));
+  cursor += sizeof(T);
+  if constexpr (std::endian::native == std::endian::big) std::reverse(bytes.begin(), bytes.end());
+  T value;
+  std::memcpy(&value, bytes.data(), sizeof(T));
+  return value;
+}
+
 // Read packed scalars without unaligned loads, struct padding or host-endian assumptions.
 template <typename T>
 T read_scalar(std::istream& input) {
   std::array<unsigned char, sizeof(T)> bytes{};
   if (!input.read(reinterpret_cast<char*>(bytes.data()), bytes.size()))
     throw std::invalid_argument("truncated binary frame");
-  if constexpr (std::endian::native == std::endian::big) std::reverse(bytes.begin(), bytes.end());
-  T value;
-  std::memcpy(&value, bytes.data(), sizeof(T));
-  return value;
+  const unsigned char* cursor = bytes.data();
+  return take_scalar<T>(cursor);
 }
+
+// libc++ ignores sync_with_stdio(false): std::cin stays an unbuffered stdio
+// wrapper that takes a lock and calls getc() per byte, which dominated binary
+// frame ingestion (~7 MB per 100k-point frame). This buffer reads whatever the
+// pipe has available, so the line protocol never blocks waiting for a full
+// buffer, and bulk reads become memcpy.
+class FdInputBuffer final : public std::streambuf {
+ public:
+  explicit FdInputBuffer(int fd) : fd_(fd), buffer_(1U << 20U) {}
+
+ protected:
+  int_type underflow() override {
+    if (gptr() < egptr()) return traits_type::to_int_type(*gptr());
+    std::ptrdiff_t count = 0;
+    do {
+#if defined(_WIN32)
+      count = _read(fd_, buffer_.data(), static_cast<unsigned>(buffer_.size()));
+#else
+      count = ::read(fd_, buffer_.data(), buffer_.size());
+#endif
+    }
+#if defined(_WIN32)
+    while (false);
+#else
+    while (count < 0 && errno == EINTR);
+#endif
+    if (count <= 0) return traits_type::eof();
+    setg(buffer_.data(), buffer_.data(), buffer_.data() + count);
+    return traits_type::to_int_type(*gptr());
+  }
+
+  std::streamsize xsgetn(char* out, std::streamsize count) override {
+    std::streamsize copied = 0;
+    while (copied < count) {
+      if (gptr() == egptr() && traits_type::eq_int_type(underflow(), traits_type::eof())) break;
+      const auto chunk = std::min<std::streamsize>(count - copied, egptr() - gptr());
+      std::memcpy(out + copied, gptr(), static_cast<std::size_t>(chunk));
+      setg(eback(), gptr() + chunk, egptr());
+      copied += chunk;
+    }
+    return copied;
+  }
+
+ private:
+  int fd_;
+  std::vector<char> buffer_;
+};
 
 veyra::map::Observation parse_observation_record(std::istringstream& input, int stream_version,
                                                  InputSummary& summary) {
@@ -809,11 +898,11 @@ Result run(const Options& options) {
       }
       const auto snapshot_started = Clock::now();
       auto snapshot = map.snapshot();
-      map.apply_governor(
+      if (map.apply_governor(
           snapshot,
           static_cast<double>((parse_duration + window_duration + update_duration).count()) /
-              1'000'000.0);
-      snapshot = map.snapshot();
+              1'000'000.0))
+        snapshot = map.snapshot();
       result.governor = map.governor_status();
       const auto governor_interventions =
           result.governor ? result.governor->interventions - previous_governor_interventions : 0;
@@ -1287,31 +1376,48 @@ class PersistentEngineSession {
     marker << count;
     std::istringstream frame(marker.str());
     begin_frame(frame);
+    // V3 rows carry one trailing float. V2 rows do not, and their NaN
+    // default below is what marks them as lacking a ground model.
+    constexpr std::size_t kRowBytesV2 = 67;
+    const std::size_t row_bytes = binary_version >= 3 ? kRowBytesV2 + 4 : kRowBytesV2;
+    std::array<unsigned char, kRowBytesV2 + 4> row{};
+    // Two phases, each timed once: decode every row, then fold them into the
+    // map in the same order. Timing each point separately cost four clock
+    // reads per point, a visible share of the frame.
+    const auto parse_started = Clock::now();
+    pending_.clear();
+    pending_.reserve(count);
+    // Resolved only when a row exists, so an empty frame adds no entries.
+    std::optional<QualitySlots> quality;
     for (std::size_t point = 0; point < count; ++point) {
-      const auto started = Clock::now();
+      if (!input.read(reinterpret_cast<char*>(row.data()), static_cast<std::streamsize>(row_bytes)))
+        throw std::invalid_argument("truncated binary frame");
+      const unsigned char* cursor = row.data();
       std::array<double, 20> values{};
       values[19] = std::numeric_limits<double>::quiet_NaN();
-      for (std::size_t i = 0; i < 4; ++i) values[i] = read_scalar<float>(input);
-      values[4] = read_scalar<std::uint32_t>(input);
-      values[5] = read_scalar<float>(input);
-      values[6] = read_scalar<std::uint8_t>(input);
-      values[7] = read_scalar<std::uint8_t>(input);
-      for (std::size_t i = 8; i < 14; ++i) values[i] = read_scalar<float>(input);
-      values[14] = read_scalar<std::uint8_t>(input);
-      for (std::size_t i = 15; i < 18; ++i) values[i] = read_scalar<float>(input);
-      values[18] = read_scalar<std::int32_t>(input);
-      // V3 rows carry one trailing float. V2 rows do not, and their NaN
-      // default above is what marks them as lacking a ground model.
-      if (binary_version >= 3) values[19] = read_scalar<float>(input);
-      auto observation = observation_values(values, input_summary_);
+      for (std::size_t i = 0; i < 4; ++i) values[i] = take_scalar<float>(cursor);
+      values[4] = take_scalar<std::uint32_t>(cursor);
+      values[5] = take_scalar<float>(cursor);
+      values[6] = take_scalar<std::uint8_t>(cursor);
+      values[7] = take_scalar<std::uint8_t>(cursor);
+      for (std::size_t i = 8; i < 14; ++i) values[i] = take_scalar<float>(cursor);
+      values[14] = take_scalar<std::uint8_t>(cursor);
+      for (std::size_t i = 15; i < 18; ++i) values[i] = take_scalar<float>(cursor);
+      values[18] = take_scalar<std::int32_t>(cursor);
+      if (binary_version >= 3) values[19] = take_scalar<float>(cursor);
+      if (!quality) quality = resolve_quality(input_summary_);
+      auto observation = observation_values(values, input_summary_, &*quality);
       observation.timestamp = input_summary_.timestamp_us.value_or(result_.input_frames);
-      parse_duration_ += std::chrono::nanoseconds{duration_ns(started)};
-      const auto update_started = Clock::now();
+      pending_.push_back(observation);
+    }
+    parse_duration_ += std::chrono::nanoseconds{duration_ns(parse_started)};
+    const auto update_started = Clock::now();
+    for (const auto& observation : pending_) {
       if (ingest_observation(*map_, observation, result_.rejected_out_of_window))
         ++result_.input_points;
-      update_duration_ += std::chrono::nanoseconds{duration_ns(update_started)};
       ++points_;
     }
+    update_duration_ += std::chrono::nanoseconds{duration_ns(update_started)};
     std::istringstream end;
     end_frame(end);
   }
@@ -1390,11 +1496,11 @@ class PersistentEngineSession {
     parse_duration_ += std::chrono::nanoseconds{duration_ns(parse_started)};
     const auto snapshot_started = Clock::now();
     auto snapshot = map_->snapshot();
-    map_->apply_governor(
+    if (map_->apply_governor(
         snapshot,
         static_cast<double>((parse_duration_ + window_duration_ + update_duration_).count()) /
-            1'000'000.0);
-    snapshot = map_->snapshot();
+            1'000'000.0))
+      snapshot = map_->snapshot();
     result_.governor = map_->governor_status();
     const auto governor_interventions =
         result_.governor ? result_.governor->interventions - previous_governor_interventions_ : 0;
@@ -1504,6 +1610,8 @@ class PersistentEngineSession {
   std::chrono::nanoseconds window_duration_{0};
   std::chrono::nanoseconds update_duration_{0};
   InputSummary input_summary_;
+  // Decoded rows of the current binary frame; reused so frames do not allocate.
+  std::vector<veyra::map::Observation> pending_;
 };
 
 // Batch counterpart to run() for compact binary streams. It uses the same
@@ -1569,47 +1677,159 @@ int run_binary(const Options& options) {
 // that CellStats actually stores. Sampling strides the snapshot order;
 // cell_count reports what is actually returned so the caller can distinguish
 // a decimated view from the map.
-std::string render_cells(const veyra::map::MapSnapshot& snapshot, std::size_t budget,
-                         const veyra::policy::UtilityConfig& config) {
+// Over budget, send the leaves nearest the vehicle rather than every n-th
+  // leaf: a uniform stride thinned the whole map into a sparse checkerboard,
+  // while the near field is what the display is for. Snapshot order is kept.
+std::vector<std::size_t> select_display_cells(const veyra::map::MapSnapshot& snapshot,
+                                              std::size_t budget, std::array<double, 2> center) {
   const std::size_t total = snapshot.leaves.size();
-  const std::size_t stride = std::max<std::size_t>(1, (total + budget - 1) / budget);
-  const std::size_t shown = (total + stride - 1) / stride;
-  std::ostringstream out;
-  out << std::setprecision(6) << std::fixed;
-  out << "{\"status\":\"available\",\"cell_count\":" << shown << ",\"total_leaves\":" << total
-      << ",\"cells\":[";
-  bool first = true;
-  for (std::size_t index = 0; index < total; index += stride) {
-    const auto& leaf = snapshot.leaves[index];
-    const double risk = leaf.stats.drivable_evidence() < 0.0F
-                            ? static_cast<double>(leaf.stats.terrain_confidence())
-                            : 0.0;
-    const double semantic =
-        leaf.stats.semantic_class == 0 ? 0.0 : static_cast<double>(leaf.stats.semantic_confidence());
-    const bool quality_gate = leaf.stats.observation_quality() >= config.min_observation_quality;
-    const double utility =
-        quality_gate
-            ? std::clamp(
-                  static_cast<double>(leaf.stats.geometry_complexity()) * config.geometry_weight +
-                      semantic * config.semantic_weight +
-                      static_cast<double>(leaf.stats.motion_evidence()) * config.motion_weight +
-                      risk * config.traversability_risk_weight +
-                      (1.0 - static_cast<double>(leaf.stats.semantic_confidence())) *
-                          config.uncertainty_weight,
-                  0.0, 1.0)
-            : 0.0;
-    if (!std::exchange(first, false)) out << ',';
-    out << "{\"l\":" << leaf.id.level << ",\"ix\":" << leaf.id.ix << ",\"iy\":" << leaf.id.iy
-        << ",\"z\":" << leaf.stats.mean_z() << ",\"c\":" << leaf.stats.semantic_class
-        << ",\"semantic_confidence\":" << leaf.stats.semantic_confidence()
-        << ",\"ground_evidence\":" << leaf.stats.ground_evidence()
-        << ",\"terrain_confidence\":" << leaf.stats.terrain_confidence()
-        << ",\"geometry_complexity\":" << leaf.stats.geometry_complexity()
-        << ",\"m\":" << leaf.stats.motion_evidence() << ",\"q\":" << leaf.stats.observation_quality()
-        << ",\"drivable_evidence\":" << leaf.stats.drivable_evidence() << ",\"u\":" << utility << '}';
+  std::vector<std::size_t> selected(total);
+  for (std::size_t index = 0; index < total; ++index) selected[index] = index;
+  if (total > budget) {
+    std::vector<double> distance(total);
+    for (std::size_t index = 0; index < total; ++index) {
+      const auto& id = snapshot.leaves[index].id;
+      const double size = 0.05 * std::ldexp(1.0, id.level);
+      const double dx = (static_cast<double>(id.ix) + 0.5) * size - center[0];
+      const double dy = (static_cast<double>(id.iy) + 0.5) * size - center[1];
+      distance[index] = dx * dx + dy * dy;
+    }
+    std::nth_element(selected.begin(), selected.begin() + static_cast<std::ptrdiff_t>(budget),
+                     selected.end(), [&](std::size_t left, std::size_t right) {
+                       return distance[left] < distance[right] ||
+                              (distance[left] == distance[right] && left < right);
+                     });
+    selected.resize(budget);
+    std::sort(selected.begin(), selected.end());
   }
-  out << "]}";
-  return out.str();
+  return selected;
+}
+
+double display_cell_utility(const veyra::map::Leaf& leaf,
+                            const veyra::policy::UtilityConfig& config) {
+  const double risk = leaf.stats.drivable_evidence() < 0.0F
+                          ? static_cast<double>(leaf.stats.terrain_confidence())
+                          : 0.0;
+  const double semantic =
+      leaf.stats.semantic_class == 0 ? 0.0 : static_cast<double>(leaf.stats.semantic_confidence());
+  const bool quality_gate = leaf.stats.observation_quality() >= config.min_observation_quality;
+  return quality_gate
+             ? std::clamp(
+                   static_cast<double>(leaf.stats.geometry_complexity()) * config.geometry_weight +
+                       semantic * config.semantic_weight +
+                       static_cast<double>(leaf.stats.motion_evidence()) * config.motion_weight +
+                       risk * config.traversability_risk_weight +
+                       (1.0 - static_cast<double>(leaf.stats.semantic_confidence())) *
+                           config.uncertainty_weight,
+                   0.0, 1.0)
+             : 0.0;
+}
+
+// Binary display cells: one header line, then `cell_count` rows of nine
+// little-endian float32 -- centre x, centre y, mean z, edge, class, motion,
+// quality, drivable evidence, utility -- which is exactly the cell section of
+// the desktop visualization frame, so the runtime forwards it unparsed.
+// Formatting ~50k cells as JSON and parsing them back cost more than the
+// whole map update did.
+void write_cells_binary(std::ostream& out, const veyra::map::MapSnapshot& snapshot,
+                        std::size_t budget, const veyra::policy::UtilityConfig& config,
+                        std::array<double, 2> center) {
+  const auto selected = select_display_cells(snapshot, budget, center);
+  constexpr std::size_t kFloats = 9;
+  std::vector<unsigned char> rows(selected.size() * kFloats * sizeof(float));
+  unsigned char* cursor = rows.data();
+  const auto put = [&cursor](double value) {
+    const auto narrow = static_cast<float>(value);
+    std::array<unsigned char, sizeof(float)> bytes{};
+    std::memcpy(bytes.data(), &narrow, sizeof(float));
+    if constexpr (std::endian::native == std::endian::big) std::reverse(bytes.begin(), bytes.end());
+    std::memcpy(cursor, bytes.data(), bytes.size());
+    cursor += bytes.size();
+  };
+  for (const std::size_t index : selected) {
+    const auto& leaf = snapshot.leaves[index];
+    const double size = 0.05 * std::ldexp(1.0, leaf.id.level);
+    put((static_cast<double>(leaf.id.ix) + 0.5) * size);
+    put((static_cast<double>(leaf.id.iy) + 0.5) * size);
+    put(leaf.stats.mean_z());
+    put(size);
+    put(leaf.stats.semantic_class);
+    put(leaf.stats.motion_evidence());
+    put(leaf.stats.observation_quality());
+    put(leaf.stats.drivable_evidence());
+    put(display_cell_utility(leaf, config));
+  }
+  out << "{\"status\":\"available\",\"cell_count\":" << selected.size()
+      << ",\"total_leaves\":" << snapshot.leaves.size() << ",\"binary_bytes\":" << rows.size()
+      << "}\n";
+  out.write(reinterpret_cast<const char*>(rows.data()), static_cast<std::streamsize>(rows.size()));
+}
+
+std::string render_cells(const veyra::map::MapSnapshot& snapshot, std::size_t budget,
+                         const veyra::policy::UtilityConfig& config,
+                         std::array<double, 2> center = {}) {
+  const std::size_t total = snapshot.leaves.size();
+  const auto selected = select_display_cells(snapshot, budget, center);
+  const std::size_t shown = selected.size();
+  // Formatted with std::to_chars: identical "%.6f" text, without the
+  // locale-aware ostream path that dominated this response at 50k cells.
+  std::string out;
+  out.reserve(64 + shown * 300);
+  char scratch[64];
+  const auto integer = [&](std::int64_t value) {
+    const auto end = std::to_chars(scratch, scratch + sizeof(scratch), value).ptr;
+    out.append(scratch, end);
+  };
+  const auto real = [&](double value) {
+    if (!std::isfinite(value)) {
+      // Match ostream's fixed formatting of non-finite values.
+      out += std::isnan(value) ? "nan" : (value < 0 ? "-inf" : "inf");
+      return;
+    }
+    const auto end =
+        std::to_chars(scratch, scratch + sizeof(scratch), value, std::chars_format::fixed, 6).ptr;
+    out.append(scratch, end);
+  };
+  out += "{\"status\":\"available\",\"cell_count\":";
+  integer(static_cast<std::int64_t>(shown));
+  out += ",\"total_leaves\":";
+  integer(static_cast<std::int64_t>(total));
+  out += ",\"cells\":[";
+  bool first = true;
+  for (const std::size_t index : selected) {
+    const auto& leaf = snapshot.leaves[index];
+    const double utility = display_cell_utility(leaf, config);
+    if (!std::exchange(first, false)) out += ',';
+    out += "{\"l\":";
+    integer(leaf.id.level);
+    out += ",\"ix\":";
+    integer(leaf.id.ix);
+    out += ",\"iy\":";
+    integer(leaf.id.iy);
+    out += ",\"z\":";
+    real(leaf.stats.mean_z());
+    out += ",\"c\":";
+    integer(leaf.stats.semantic_class);
+    out += ",\"semantic_confidence\":";
+    real(leaf.stats.semantic_confidence());
+    out += ",\"ground_evidence\":";
+    real(leaf.stats.ground_evidence());
+    out += ",\"terrain_confidence\":";
+    real(leaf.stats.terrain_confidence());
+    out += ",\"geometry_complexity\":";
+    real(leaf.stats.geometry_complexity());
+    out += ",\"m\":";
+    real(leaf.stats.motion_evidence());
+    out += ",\"q\":";
+    real(leaf.stats.observation_quality());
+    out += ",\"drivable_evidence\":";
+    real(leaf.stats.drivable_evidence());
+    out += ",\"u\":";
+    real(utility);
+    out += '}';
+  }
+  out += "]}";
+  return out;
 }
 
 // Long-lived line protocol for the viewer/runtime. Frames retain the exact V2
@@ -1694,6 +1914,21 @@ int run_engine(const Options& options) {
         std::cout << report << std::flush;
         continue;
       }
+      if (line.rfind("MB ", 0) == 0) {
+        std::istringstream args(line.substr(3));
+        std::uint64_t budget = 0;
+        if (!(args >> budget) || budget == 0 || budget > 100000)
+          throw std::invalid_argument("invalid map cell budget");
+        require_end(args, "binary map cells request");
+        const auto& input = session.result().last_input;
+        const std::array<double, 2> center =
+            input ? std::array<double, 2>{input->pose_translation[0], input->pose_translation[1]}
+                  : std::array<double, 2>{};
+        write_cells_binary(std::cout, session.result().snapshot, static_cast<std::size_t>(budget),
+                           session.display_utility(), center);
+        std::cout << std::flush;
+        continue;
+      }
       if (line == "M" || line.rfind("M ", 0) == 0) {
         std::size_t budget = 32768;
         if (line.size() > 1) {
@@ -1705,7 +1940,13 @@ int run_engine(const Options& options) {
           require_end(args, "map cells request");
           budget = static_cast<std::size_t>(parsed);
         }
-        std::cout << render_cells(session.result().snapshot, budget, session.display_utility())
+        // Sensor-frame input has no pose; its vehicle sits at the origin.
+        const auto& input = session.result().last_input;
+        const std::array<double, 2> center =
+            input ? std::array<double, 2>{input->pose_translation[0], input->pose_translation[1]}
+                  : std::array<double, 2>{};
+        std::cout << render_cells(session.result().snapshot, budget, session.display_utility(),
+                                  center)
                   << '\n'
                   << std::flush;
         continue;
@@ -1737,6 +1978,8 @@ int run_engine(const Options& options) {
 
 int veyra::runtime::engine_main(int argc, char** argv) {
   std::ios::sync_with_stdio(false);
+  static FdInputBuffer stdin_buffer(0);
+  std::cin.rdbuf(&stdin_buffer);
   std::cin.tie(nullptr);
   try {
     const auto options = parse_options(argc, argv);

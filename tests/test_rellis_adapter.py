@@ -91,7 +91,7 @@ class Rellis3DAdapterTests(unittest.TestCase):
         np.testing.assert_array_equal(mapped, [0, 15, 15, 6, 14, 15, 0, 0, 17])
 
     def test_reports_absent_metadata_without_claiming_world_coordinates(self):
-        root = Path(__file__).parents[3] / "data/raw/rellis3d/Rellis-3D"
+        root = Path(__file__).parents[1] / "data/raw/rellis3d/Rellis-3D"
         if not root.is_dir():
             self.skipTest("original local RELLIS-3D data is unavailable")
 
@@ -102,7 +102,7 @@ class Rellis3DAdapterTests(unittest.TestCase):
         self.assertEqual(frame.provenance.pose_source, "identity_absent")
 
     def test_original_local_frame_maps_real_labels(self):
-        root = Path(__file__).parents[3] / "data/raw/rellis3d/Rellis-3D"
+        root = Path(__file__).parents[1] / "data/raw/rellis3d/Rellis-3D"
         if not root.is_dir():
             self.skipTest("original local RELLIS-3D data is unavailable")
         adapter = Rellis3DDataset(root, sequences=["00000"])
@@ -233,7 +233,7 @@ class Rellis3DAdapterTests(unittest.TestCase):
                 np.testing.assert_array_equal(left.semantic_class, right.semantic_class)
 
     def test_actual_local_data_smoke_is_skipped_when_unavailable(self):
-        root = Path(__file__).parents[3] / "data/raw/rellis3d/Rellis-3D"
+        root = Path(__file__).parents[1] / "data/raw/rellis3d/Rellis-3D"
         if not root.is_dir():
             self.skipTest("original local RELLIS-3D data is not available")
         adapter = Rellis3DDataset(root, sequences=["00000"])

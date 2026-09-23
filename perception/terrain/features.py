@@ -6,7 +6,6 @@ from dataclasses import dataclass
 from typing import Any
 
 import numpy as np
-from scipy.ndimage import convolve
 
 
 @dataclass(frozen=True)

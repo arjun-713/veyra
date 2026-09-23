@@ -1,0 +1,84 @@
+# Veyra headless services. One image (built from ./Dockerfile) backs all of
+# them. The Tauri desktop app is a native GUI and is not part of this file.
+#
+#   docker compose build
+#   docker compose run --rm test        # ctest (CI exclusions) + pytest
+#   docker compose up viewer            # http://localhost:8765/
+#   docker compose run --rm pandaset    # download + convert into ./data
+#   docker compose run --rm shell       # interactive dev shell
+#
+# ./data (git-ignored) is bind-mounted at /app/data; datasets and model
+# weights (data/cache/models) stay on the host and never enter the image.
+
+x-veyra-image: &veyra-image
+  image: veyra:dev
+  build:
+    context: .
+    dockerfile: Dockerfile
+    # Match the host user so files written into ./data are yours (Linux hosts;
+    # Docker Desktop on macOS/Windows maps ownership itself).
+    args:
+      VEYRA_UID: ${VEYRA_UID:-1000}
+      VEYRA_GID: ${VEYRA_GID:-1000}
+  init: true
+
+services:
+  # C++ invariant tests with the same exclusions as .github/workflows/ci.yml,
+  # then the Python suites. No data mount, like CI: data-dependent tests skip.
+  test:
+    <<: *veyra-image
+    command:
+      - bash
+      - -c
+      - >-
+        ctest --test-dir build --output-on-failure --parallel 2
+        -E 'python_unittest|benchmark_runtime'
+        && python -m pytest -q tests benchmarks
+
+  # Web viewer. It binds 0.0.0.0 inside the container; the host side is
+  # published on loopback only. Data is mounted read-only.
+  viewer:
+    <<: *veyra-image
+    command: ["python", "viewer/server.py", "--host", "0.0.0.0", "--port", "8765"]
+    ports:
+      - "127.0.0.1:8765:8765"
+    volumes:
+      - ./data:/app/data:ro
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8765/', timeout=3)"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+
+  # One-shot PandaSet job: download selected sequences (stdlib only), then
+  # convert them to the Veyra layout (data/raw/pandaset/veyra). pandas is a
+  # conversion-only dependency: it is pip-installed into this throwaway
+  # container at run time and is NOT part of the image or requirements files.
+  # Override: PANDASET_SEQUENCES="011 021" docker compose run --rm pandaset
+  pandaset:
+    <<: *veyra-image
+    environment:
+      PANDASET_SEQUENCES: ${PANDASET_SEQUENCES:-011 021 039}
+      PANDAS_VERSION: ${PANDAS_VERSION:-3.0.6}
+    command:
+      - bash
+      - -c
+      - >-
+        set -eu;
+        python -m pip install --only-binary=:all: "pandas==$${PANDAS_VERSION}";
+        python -m datasets.pandaset.download --sequences $${PANDASET_SEQUENCES};
+        python -m datasets.pandaset.convert --sequences $${PANDASET_SEQUENCES}
+    volumes:
+      - ./data:/app/data
+
+  # Interactive shell with the built binaries, venv and a writable data mount.
+  # The product runtime speaks a stdio protocol, e.g.:
+  #   docker compose run --rm -T shell python -m runtime --repo /app
+  shell:
+    <<: *veyra-image
+    command: ["bash"]
+    stdin_open: true
+    tty: true
+    volumes:
+      - ./data:/app/data

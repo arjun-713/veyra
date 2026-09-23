@@ -26,7 +26,9 @@ def pack_visualization(frame, cells, generation):
     points[:, 13:15] = np.asarray(frame["velocity_xy"])
     points[:, 15] = frame["observation_quality"]
     points[:, 16] = frame["terrain_confidence"]
-    rows = cells.get("cells", []) if cells.get("status") == "available" else []
+    available = cells.get("status") == "available"
+    binary = cells.get("cells_binary") if available else None
+    rows = [] if binary is not None or not available else cells.get("cells", [])
     mapped = np.empty((len(rows), 9), dtype="<f4")
     for index, cell in enumerate(rows):
         size = 0.05 * 2 ** cell["l"]
@@ -47,6 +49,9 @@ def pack_visualization(frame, cells, generation):
             drivable_evidence,
             cell["u"],
         )
+    # The engine's binary rows already use this section's layout; forward them.
+    cell_bytes = binary if binary is not None else mapped.tobytes()
+    cell_count = len(cell_bytes) // 36
     status = frame["pipeline_status"]
     metadata = {
         "type": "visualization",
@@ -59,7 +64,7 @@ def pack_visualization(frame, cells, generation):
         "sequence": frame["seq"],
         "frame_id": frame["id"],
         "points": {"count": count, "offset": 0, "stride": 68},
-        "cells": {"count": len(rows), "offset": points.nbytes, "stride": 36},
+        "cells": {"count": cell_count, "offset": points.nbytes, "stride": 36},
         "pose": np.asarray(frame["pose"]["matrix"]).reshape(-1).tolist(),
         "pose_available": frame["pose"]["available"],
         "provenance": dict(frame["pose"].get("provenance", {})),
@@ -74,4 +79,4 @@ def pack_visualization(frame, cells, generation):
         "n_points": frame["n_points"],
         "total_leaves": cells.get("total_leaves", 0),
     }
-    return metadata, points.tobytes() + mapped.tobytes()
+    return metadata, points.tobytes() + cell_bytes

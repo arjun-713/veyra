@@ -1,6 +1,8 @@
 const neutral:[number,number,number]=[.35,.4,.45];
 export const levelColors:[number,number,number][]=[[.2,.85,.95],[.3,.85,.5],[1,.7,.25],[.85,.4,.85]];
-export function displayPosition(x:number,y:number,z:number){return [y,z,-x];}
+// World frames are right-handed z-up; three.js is right-handed y-up. (x,z,-y)
+// is a proper rotation, so the scene is not mirrored.
+export function displayPosition(x:number,y:number,z:number){return [x,z,-y];}
 function elevation(z:number):[number,number,number]{const t=Math.max(0,Math.min(1,(z+3)/8));return [.2+t*.75,.8-t*.35,.95-t*.7];}
 function semantic(id:number):[number,number,number]{
  const palette=[[.35,.4,.45],[.95,.3,.38],[.96,.67,.14],[.96,.67,.14],[.95,.3,.38],[.95,.3,.38],[.64,.34,.93],[.64,.34,.93],[.64,.34,.93],[.22,.55,.98],[.44,.53,.81],[.56,.66,.83],[.72,.58,.43],[.48,.54,.62],[.64,.63,.71],[.22,.7,.3],[.48,.6,.31],[.38,.68,.34],[.96,.67,.14],[.9,.72,.34]];
