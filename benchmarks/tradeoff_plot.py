@@ -24,7 +24,7 @@ POLICY_LABELS = {
     "distance_lod": "DistanceLOD",
     "utility_lod": "UtilityLOD",
 }
-POLICY_MARKERS = {"uniform5": "square", "uniform40": "square", "distance_lod": "circle", "utility_lod": "diamond"}
+POLICY_MARKERS = {"uniform5": "square", "uniform40": "triangle", "distance_lod": "circle", "utility_lod": "diamond"}
 SERIES_COLORS = ("#2a6fdb", "#d9480f", "#2b8a3e", "#862e9c", "#c92a2a", "#1098ad")
 METRICS = {
     "chamfer_l1_m": ("Chamfer-L1 (cm, lower is better)", 100.0),
@@ -76,8 +76,9 @@ def _ticks(low: float, high: float, count: int = 5) -> list[float]:
     magnitude = 10 ** math.floor(math.log10(raw))
     step = min((m * magnitude for m in (1, 2, 2.5, 5, 10) if m * magnitude >= raw), default=raw)
     start = math.floor(low / step) * step
+    # End on the first tick at or above `high` so no point falls off the axis.
     ticks, value = [], start
-    while value <= high + step * 1e-9:
+    while not ticks or ticks[-1] < high - step * 1e-9:
         ticks.append(round(value, 10))
         value += step
     return ticks
@@ -86,6 +87,8 @@ def _ticks(low: float, high: float, count: int = 5) -> list[float]:
 def _marker(shape: str, x: float, y: float, color: str) -> str:
     if shape == "square":
         return f'<rect x="{x - 5:.1f}" y="{y - 5:.1f}" width="10" height="10" fill="{color}"/>'
+    if shape == "triangle":
+        return f'<path d="M{x:.1f},{y - 7:.1f} L{x + 7:.1f},{y + 6:.1f} L{x - 7:.1f},{y + 6:.1f} Z" fill="{color}"/>'
     if shape == "diamond":
         return f'<path d="M{x:.1f},{y - 7:.1f} L{x + 7:.1f},{y:.1f} L{x:.1f},{y + 7:.1f} L{x - 7:.1f},{y:.1f} Z" fill="{color}"/>'
     return f'<circle cx="{x:.1f}" cy="{y:.1f}" r="6" fill="{color}"/>'
@@ -122,8 +125,9 @@ def _panel(series, cost: str, metric: str, left: float, top: float, width: float
         color = SERIES_COLORS[index % len(SERIES_COLORS)]
         for point in points:
             x, y = px(point[cost] * x_scale), py(point["quality"] * y_scale)
+            # Shape identifies the policy and colour the series (see legends);
+            # per-point labels collide when policies land close together.
             out.append(_marker(POLICY_MARKERS.get(point["policy"], "circle"), x, y, color))
-            out.append(f'<text x="{x + 9:.1f}" y="{y - 7:.1f}" font-size="10">{escape(POLICY_LABELS.get(point["policy"], point["policy"]))}</text>')
     return out
 
 
@@ -131,16 +135,20 @@ def render_svg(series: list[tuple[str, list[dict[str, Any]]]], metric: str, titl
     """Two panels side by side: quality versus time, quality versus memory."""
     if not any(points for _, points in series):
         raise ValueError("no policy has an available reconstruction report")
-    width, height = 1000, 470
+    width, height = 1000, 500
     body = [
         f'<text x="{width / 2}" y="26" text-anchor="middle" font-size="15" font-weight="600">{escape(title)}</text>'
     ]
     body += _panel(series, "time", metric, 80, 50, 380, 330)
     body += _panel(series, "memory", metric, 580, 50, 380, 330)
+    policies = [p for p in POLICY_LABELS if any(q["policy"] == p for _, pts in series for q in pts)]
+    for index, policy in enumerate(policies):
+        x, y = 80 + index * 150, height - 52
+        body.append(_marker(POLICY_MARKERS.get(policy, "circle"), x + 5, y - 4, "#495057"))
+        body.append(f'<text x="{x + 16}" y="{y}" font-size="11">{escape(POLICY_LABELS[policy])}</text>')
     for index, (name, _points) in enumerate(series):
         color = SERIES_COLORS[index % len(SERIES_COLORS)]
-        y = height - 22
-        x = 80 + index * 190
+        x, y = 80 + index * 150, height - 22
         body.append(f'<rect x="{x}" y="{y - 9}" width="10" height="10" fill="{color}"/>')
         body.append(f'<text x="{x + 16}" y="{y}" font-size="11">{escape(name)}</text>')
     return (
