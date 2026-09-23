@@ -26,6 +26,11 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 
 from benchmarks.protocol import PROTOCOL_VERSION, binary_stream_file
+from benchmarks.reconstruction import (
+    reconstruct_from_leaves,
+    reconstruction_report,
+    reference_cloud,
+)
 from datasets.generic import ManifestDataset
 from datasets.rellis import Rellis3DDataset
 from datasets.semantickitti import SemanticKITTIDataset
@@ -890,6 +895,18 @@ def _finalize_policy_runs(
             if runs_by_policy.get("uniform5")
             else {"mean_z_by_cell": {}}
         )
+    # Reconstruction metrics need the source points, so they exist only on
+    # the retained-frames path. One shared reference keeps policies comparable.
+    reconstruction_reference = None
+    final_center = (0.0, 0.0)
+    if frames:
+        final_pose = np.asarray(frames[-1].pose.matrix, dtype=np.float64)
+        final_center = (float(final_pose[0, 3]), float(final_pose[1, 3]))
+        reconstruction_reference = reference_cloud(
+            frames,
+            center_xy=final_center,
+            radius_m=float(selection.get("window_radius_m", 100.0)),
+        )
     for runs in runs_by_policy.values():
         for result in runs:
             result["quality"] = mapping_quality_report(
@@ -898,6 +915,18 @@ def _finalize_policy_runs(
                 result["snapshot"],
                 fine_reference,
                 frames=frames,
+            )
+            result["quality"]["reconstruction"] = (
+                reconstruction_report(
+                    reconstruct_from_leaves(result["snapshot"].get("leaves", [])),
+                    reconstruction_reference,
+                    center_xy=final_center,
+                )
+                if reconstruction_reference is not None
+                else {
+                    "status": "unavailable",
+                    "reason": "source frames were not retained (--retain-frames)",
+                }
             )
             if result.get("frame_metrics"):
                 frame_conservation = result["frame_metrics"][-1].get(
@@ -1882,6 +1911,26 @@ def run(args: argparse.Namespace) -> dict[str, Any]:
     }
 
 
+def _reconstruction_csv(quality: dict[str, Any]) -> dict[str, Any]:
+    rec = quality.get("reconstruction", {})
+    if rec.get("status") != "available":
+        return {
+            "reconstruction_accuracy_m": None,
+            "reconstruction_completion_m": None,
+            "reconstruction_chamfer_l1_m": None,
+            "reconstruction_fscore_10cm": None,
+        }
+    tenth = next(
+        (row["fscore"] for row in rec["thresholds"] if row["threshold_m"] == 0.10), None
+    )
+    return {
+        "reconstruction_accuracy_m": rec["accuracy"]["mean_m"],
+        "reconstruction_completion_m": rec["completion"]["mean_m"],
+        "reconstruction_chamfer_l1_m": rec["chamfer_l1_m"],
+        "reconstruction_fscore_10cm": tenth,
+    }
+
+
 def _write_csv(path: Path, result: dict[str, Any]) -> None:
     fields = (
         "schema_version",
@@ -1910,6 +1959,10 @@ def _write_csv(path: Path, result: dict[str, Any]) -> None:
         "peak_rss_bytes",
         "elevation_vs_fine_rmse_m",
         "elevation_reference_coverage",
+        "reconstruction_accuracy_m",
+        "reconstruction_completion_m",
+        "reconstruction_chamfer_l1_m",
+        "reconstruction_fscore_10cm",
         "governor_interventions",
         "governor_actions_applied",
         "point_conservation",
@@ -1972,6 +2025,7 @@ def _write_csv(path: Path, result: dict[str, Any]) -> None:
                     "elevation_reference_coverage": report["runs"][-1]["quality"][
                         "elevation_vs_fine_reference"
                     ]["coverage"],
+                    **_reconstruction_csv(report["runs"][-1]["quality"]),
                     "governor_interventions": aggregate["governor"]["interventions"],
                     "governor_actions_applied": aggregate["governor"][
                         "actions_applied"
