@@ -1,7 +1,10 @@
 """Bounded measured telemetry; unsupported counters stay null."""
 
+import ctypes
+import ctypes.util
 import math
 import os
+import sys
 import time
 from collections import deque
 
@@ -21,9 +24,84 @@ def summary(values):
     }
 
 
+class _ProcTaskInfo(ctypes.Structure):
+    """Darwin ``struct proc_taskinfo`` (sys/proc_info.h), PROC_PIDTASKINFO."""
+
+    _fields_ = [
+        ("pti_virtual_size", ctypes.c_uint64),
+        ("pti_resident_size", ctypes.c_uint64),
+        ("pti_total_user", ctypes.c_uint64),
+        ("pti_total_system", ctypes.c_uint64),
+        ("pti_threads_user", ctypes.c_uint64),
+        ("pti_threads_system", ctypes.c_uint64),
+        ("pti_policy", ctypes.c_int32),
+        ("pti_faults", ctypes.c_int32),
+        ("pti_pageins", ctypes.c_int32),
+        ("pti_cow_faults", ctypes.c_int32),
+        ("pti_messages_sent", ctypes.c_int32),
+        ("pti_messages_received", ctypes.c_int32),
+        ("pti_syscalls_mach", ctypes.c_int32),
+        ("pti_syscalls_unix", ctypes.c_int32),
+        ("pti_csw", ctypes.c_int32),
+        ("pti_threadnum", ctypes.c_int32),
+        ("pti_numrunning", ctypes.c_int32),
+        ("pti_priority", ctypes.c_int32),
+    ]
+
+
+class _MachTimebase(ctypes.Structure):
+    _fields_ = [("numer", ctypes.c_uint32), ("denom", ctypes.c_uint32)]
+
+
+_PROC_PIDTASKINFO = 4
+_darwin = None
+
+
+def _darwin_task_info(pid):
+    """Resident bytes and CPU seconds of any process on macOS, else None.
+
+    macOS has no /proc. libproc's proc_pidinfo reports another process's
+    task counters; CPU times are in mach absolute-time units, which are not
+    nanoseconds on Apple Silicon, so they are scaled by the mach timebase.
+    """
+    global _darwin
+    if sys.platform != "darwin":
+        return None
+    if _darwin is None:
+        try:
+            libc = ctypes.CDLL(ctypes.util.find_library("c") or "libSystem.dylib")
+            timebase = _MachTimebase()
+            libc.mach_timebase_info(ctypes.byref(timebase))
+            libc.proc_pidinfo.argtypes = [
+                ctypes.c_int,
+                ctypes.c_int,
+                ctypes.c_uint64,
+                ctypes.c_void_p,
+                ctypes.c_int,
+            ]
+            libc.proc_pidinfo.restype = ctypes.c_int
+            _darwin = (libc, timebase.numer / timebase.denom if timebase.denom else 1.0)
+        except (OSError, AttributeError):
+            _darwin = False
+    if not _darwin:
+        return None
+    libc, ns_per_tick = _darwin
+    info = _ProcTaskInfo()
+    size = libc.proc_pidinfo(
+        int(pid), _PROC_PIDTASKINFO, 0, ctypes.byref(info), ctypes.sizeof(info)
+    )
+    if size != ctypes.sizeof(info):
+        return None
+    ticks = info.pti_total_user + info.pti_total_system
+    return info.pti_resident_size, ticks * ns_per_tick / 1e9
+
+
 def rss_bytes(pid):
     if pid is None:
         return None
+    darwin = _darwin_task_info(pid)
+    if darwin is not None:
+        return darwin[0] or None
     try:
         with open(f"/proc/{pid}/statm") as stream:
             fields = stream.read(256).split()
@@ -37,6 +115,9 @@ def cpu_seconds(pid):
         return None
     if pid == os.getpid():
         return time.process_time()
+    darwin = _darwin_task_info(pid)
+    if darwin is not None:
+        return darwin[1]
     try:
         with open(f"/proc/{pid}/stat") as stream:
             stat = stream.read(4096)

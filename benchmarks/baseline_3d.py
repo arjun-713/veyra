@@ -56,7 +56,9 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from benchmarks.protocol import binary_stream_file
 from benchmarks.regression import max_rss_bytes
 from benchmarks.run_benchmark import (
+    _host_memory_bytes,
     analytical_3d_reference_bounds,
+    host_cpu_model,
     load_selection,
     nearest_rank_summary,
     tail_reliability,
@@ -161,8 +163,9 @@ def mem_total_bytes() -> int | None:
                 if line.startswith("MemTotal:"):
                     return int(line.split()[1]) * 1024
     except (OSError, ValueError, IndexError):
-        return None
-    return None
+        pass
+    # No /proc (macOS): physical pages x page size, as the OS reports them.
+    return _host_memory_bytes()
 
 
 def git_sha(repo: Path) -> str | None:
@@ -209,14 +212,7 @@ def sha256_file(path: Path) -> str | None:
 
 
 def cpu_model() -> str | None:
-    try:
-        with open("/proc/cpuinfo", encoding="utf-8") as handle:
-            for line in handle:
-                if line.startswith("model name"):
-                    return line.split(":", 1)[1].strip() or None
-    except OSError:
-        return None
-    return None
+    return host_cpu_model()
 
 
 def gpu_info() -> dict[str, str | None]:
