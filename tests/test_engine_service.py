@@ -71,8 +71,8 @@ class EngineServiceTests(unittest.TestCase):
         binary = self.binary
         reports = []
         for payload, handshake in (
-            ("".join(frame_records(frame)).encode(), b"VEYRA_ENGINE 3\n"),
-            (binary_frame_bytes(frame), b"VEYRA_ENGINE 3\n"),
+            ("".join(frame_records(frame)).encode(), b"VEYRA_ENGINE 4\n"),
+            (binary_frame_bytes(frame), b"VEYRA_ENGINE 4\n"),
         ):
             result = subprocess.run(
                 [str(binary), "--engine", "--policy", "uniform5"],

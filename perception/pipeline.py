@@ -443,6 +443,16 @@ class PerceptionPipeline:
             height_above_ground=(
                 hag if hag is not None else frame.height_above_ground
             ),
+            ground_gradient_x=(
+                terrain.gradient_x
+                if terrain is not None and terrain.gradient_x is not None
+                else frame.ground_gradient_x
+            ),
+            ground_gradient_y=(
+                terrain.gradient_y
+                if terrain is not None and terrain.gradient_y is not None
+                else frame.ground_gradient_y
+            ),
             raw_semantic_class=frame.raw_semantic_class,
             instance_id=frame.instance_id,
             provenance=frame.provenance,

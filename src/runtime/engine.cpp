@@ -457,7 +457,7 @@ void observe_quality(InputSummary& summary, std::string_view name, std::optional
 // This is the sole protocol-to-map observation mapping. Both batch execution
 // and the long-lived engine consume it, preventing a viewer-specific lossy
 // interpretation of V2 semantic, terrain, motion, and quality evidence.
-veyra::map::Observation observation_values(const std::array<double, 20>& v, InputSummary& summary) {
+veyra::map::Observation observation_values(const std::array<double, 22>& v, InputSummary& summary) {
   for (std::size_t i : {0U, 1U, 2U, 3U, 4U, 5U, 6U, 7U, 14U, 18U}) {
     if (!std::isfinite(v[i])) throw std::invalid_argument("nonfinite required point value");
   }
@@ -476,7 +476,7 @@ veyra::map::Observation observation_values(const std::array<double, 20>& v, Inpu
   summary.ground_true_count += static_cast<std::uint64_t>(v[6]);
   ++summary.drivable_counts.at(static_cast<std::size_t>(v[7]));
   ++summary.motion_state_counts.at(static_cast<std::size_t>(v[14]));
-  const std::array<const char*, 20> names{"x",
+  const std::array<const char*, 22> names{"x",
                                           "y",
                                           "z",
                                           "intensity",
@@ -495,8 +495,10 @@ veyra::map::Observation observation_values(const std::array<double, 20>& v, Inpu
                                           "velocity_y",
                                           "observation_quality",
                                           "raw_semantic_class",
-                                          "height_above_ground"};
-  for (std::size_t i : {3U, 4U, 5U, 8U, 9U, 10U, 11U, 12U, 13U, 15U, 16U, 17U, 18U, 19U})
+                                          "height_above_ground",
+                                          "ground_gradient_x",
+                                          "ground_gradient_y"};
+  for (std::size_t i : {3U, 4U, 5U, 8U, 9U, 10U, 11U, 12U, 13U, 15U, 16U, 17U, 18U, 19U, 20U, 21U})
     observe_quality(summary, names[i],
                     std::isnan(v[i]) ? std::nullopt : std::optional<double>{v[i]});
   const auto value = [&](std::size_t i) {
@@ -522,7 +524,9 @@ veyra::map::Observation observation_values(const std::array<double, 20>& v, Inpu
           .motion_state = static_cast<std::uint8_t>(v[14]),
           .observation_quality = value(17),
           .velocity_x = value(15),
-          .velocity_y = value(16)};
+          .velocity_y = value(16),
+          .ground_gradient_x = static_cast<float>(v[20]),
+          .ground_gradient_y = static_cast<float>(v[21])};
 }
 
 // Read packed scalars without unaligned loads, struct padding or host-endian assumptions.
@@ -541,14 +545,16 @@ veyra::map::Observation parse_observation_record(std::istringstream& input, int 
                                                  InputSummary& summary) {
   std::vector<std::string> fields;
   for (std::string field; input >> field;) fields.push_back(std::move(field));
-  const std::size_t expected_fields = stream_version == 1 ? 6U : (stream_version == 3 ? 20U : 19U);
+  const std::size_t expected_fields = stream_version == 1 ? 6U : (stream_version == 4 ? 22U : (stream_version == 3 ? 20U : 19U));
   if (fields.size() != expected_fields) throw std::invalid_argument("malformed point record");
   if (stream_version >= 2) {
     // V2 records carry no height above ground. It defaults to NaN rather than
     // 0 so a V2 producer is counted as "ground model unavailable" instead of
     // being mistaken for one reporting ground level.
-    std::array<double, 20> values{};
+    std::array<double, 22> values{};
     values[19] = std::numeric_limits<double>::quiet_NaN();
+    values[20] = std::numeric_limits<double>::quiet_NaN();
+    values[21] = std::numeric_limits<double>::quiet_NaN();
     for (std::size_t i = 0; i < fields.size(); ++i)
       values[i] = fields[i] == "NA" ? std::numeric_limits<double>::quiet_NaN()
                                     : real_value(fields[i], "point value");
@@ -631,7 +637,9 @@ veyra::map::Observation parse_observation_record(std::istringstream& input, int 
           .motion_state = static_cast<std::uint8_t>(motion_state),
           .observation_quality = static_cast<float>(observation_quality.value_or(0.0)),
           .velocity_x = static_cast<float>(velocity_x.value_or(0.0)),
-          .velocity_y = static_cast<float>(velocity_y.value_or(0.0))};
+          .velocity_y = static_cast<float>(velocity_y.value_or(0.0)),
+          .ground_gradient_x = std::numeric_limits<float>::quiet_NaN(),
+          .ground_gradient_y = std::numeric_limits<float>::quiet_NaN()};
 }
 
 Result run(const Options& options) {
@@ -688,10 +696,10 @@ Result run(const Options& options) {
       std::string version;
       input >> version;
       require_end(input, "stream header");
-      if (header || (version != "1" && version != "2" && version != "3")) {
+      if (header || (version != "1" && version != "2" && version != "3" && version != "4")) {
         throw std::invalid_argument("invalid stream header");
       }
-      stream_version = version == "1" ? 1 : (version == "3" ? 3 : 2);
+      stream_version = version == "1" ? 1 : (version == "4" ? 4 : (version == "3" ? 3 : 2));
       result.protocol_version = stream_version;
       header = true;
     } else if (kind == "H") {
@@ -1058,13 +1066,25 @@ std::string render(const Result& result) {
       out << "{\"level\":" << leaf.id.level << ",\"ix\":" << leaf.id.ix << ",\"iy\":" << leaf.id.iy
           << ",\"count\":" << leaf.stats.count << ",\"mean_z\":" << leaf.stats.mean_z()
           << ",\"semantic_class\":" << leaf.stats.semantic_class
+          << ",\"semantic_confidence\":" << leaf.stats.semantic_confidence()
+          << ",\"ground_evidence\":" << leaf.stats.ground_evidence()
           << ",\"drivable_evidence\":" << leaf.stats.drivable_evidence()
           << ",\"ground_count\":" << leaf.stats.ground.count
           << ",\"ground_mean_z\":" << leaf.stats.ground.mean_z
+          << ",\"ground_stddev_m\":" << leaf.stats.ground.stddev_z()
+          << ",\"ground_last_seen\":" << leaf.stats.ground.last_seen
+          << ",\"ground_gradient_x\":" << leaf.stats.ground_gradient_x()
+          << ",\"ground_gradient_y\":" << leaf.stats.ground_gradient_y()
+          << ",\"ground_gradient_count\":" << leaf.stats.ground_gradient_count
           << ",\"obstacle_count\":" << leaf.stats.obstacle.count
           << ",\"obstacle_min_z\":" << leaf.stats.obstacle.min_z
           << ",\"overhead_count\":" << leaf.stats.overhead.count
           << ",\"overhead_min_z\":" << leaf.stats.overhead.min_z
+          << ",\"terrain_confidence\":" << leaf.stats.terrain_confidence()
+          << ",\"geometry_complexity\":" << leaf.stats.geometry_complexity()
+          << ",\"motion_evidence\":" << leaf.stats.motion_evidence()
+          << ",\"observation_quality\":" << leaf.stats.observation_quality()
+          << ",\"sorted_envelope_m\":" << leaf.stats.sorted_envelope_m
           << ",\"occupancy_logodds\":" << leaf.stats.occupancy_logodds << '}';
     }
     out << ']';
@@ -1289,8 +1309,10 @@ class PersistentEngineSession {
     begin_frame(frame);
     for (std::size_t point = 0; point < count; ++point) {
       const auto started = Clock::now();
-      std::array<double, 20> values{};
+      std::array<double, 22> values{};
       values[19] = std::numeric_limits<double>::quiet_NaN();
+      values[20] = std::numeric_limits<double>::quiet_NaN();
+      values[21] = std::numeric_limits<double>::quiet_NaN();
       for (std::size_t i = 0; i < 4; ++i) values[i] = read_scalar<float>(input);
       values[4] = read_scalar<std::uint32_t>(input);
       values[5] = read_scalar<float>(input);
@@ -1303,6 +1325,10 @@ class PersistentEngineSession {
       // V3 rows carry one trailing float. V2 rows do not, and their NaN
       // default above is what marks them as lacking a ground model.
       if (binary_version >= 3) values[19] = read_scalar<float>(input);
+      if (binary_version >= 4) {
+        values[20] = read_scalar<float>(input);
+        values[21] = read_scalar<float>(input);
+      }
       auto observation = observation_values(values, input_summary_);
       observation.timestamp = input_summary_.timestamp_us.value_or(result_.input_frames);
       parse_duration_ += std::chrono::nanoseconds{duration_ns(started)};
@@ -1526,9 +1552,9 @@ int run_binary(const Options& options) {
       std::string version;
       input >> version;
       require_end(input, "stream header");
-      if (header || (version != "2" && version != "3"))
-        throw std::invalid_argument("binary stream requires V2 or V3");
-      binary_version = version == "3" ? 3 : 2;
+      if (header || (version != "2" && version != "3" && version != "4"))
+        throw std::invalid_argument("binary stream requires V2, V3, or V4");
+      binary_version = version == "4" ? 4 : (version == "3" ? 3 : 2);
       header = true;
     } else if (kind == "H") {
       if (!header || metadata || trailer || !(input >> digest) || digest.empty()) {
@@ -1630,10 +1656,10 @@ int run_engine(const Options& options) {
   std::string line;
   while (std::getline(std::cin, line)) {
     try {
-      if (line == "VEYRA_ENGINE 2" || line == "VEYRA_ENGINE 3") {
+      if (line == "VEYRA_ENGINE 2" || line == "VEYRA_ENGINE 3" || line == "VEYRA_ENGINE 4") {
         if (started) throw std::invalid_argument("duplicate engine header");
         started = true;
-        session_version = line.back() == '3' ? 3 : 2;
+        session_version = line.back() == '4' ? 4 : (line.back() == '3' ? 3 : 2);
         session.set_protocol_version(session_version);
         std::cout << "{\"status\":\"ready\",\"protocol_version\":" << session_version << "}\n"
                   << std::flush;

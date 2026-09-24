@@ -52,6 +52,10 @@ struct Observation {
   // Transient predictive-refinement input; it is not retained in CellStats.
   float velocity_x = 0.0F;
   float velocity_y = 0.0F;
+  // Local world-frame ground plane derivatives dz/dx and dz/dy. NaN means
+  // the perception fit was unsupported; zero is a measured flat surface.
+  float ground_gradient_x = std::numeric_limits<float>::quiet_NaN();
+  float ground_gradient_y = std::numeric_limits<float>::quiet_NaN();
 };
 
 }  // namespace veyra::map

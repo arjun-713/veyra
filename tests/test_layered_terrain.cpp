@@ -349,24 +349,60 @@ void test_quantised_evidence_does_not_drift() {
 
 // The cost of the layers, asserted rather than estimated.
 //
-// The bill, measured at every stage rather than estimated. The layers took
-// CellStats 88 -> 192; occupancy and outlier accounting took it to 200;
-// removing the pooled elevation fields the layers already reconstruct brought
-// it to 168. Leaf follows at 104 -> 184, so the map is 1.77x its original
-// per-cell size, down from the 2.08x it peaked at. Quantising the evidence
-// floats would have reached 144, and was reverted -- see
-// test_quantised_evidence_does_not_drift for why.
+// CellStats was 168 B and Leaf 184 B before retaining two ground-plane
+// derivatives plus their observation count. They now measure 176 B and
+// 192 B respectively; Observation grows 80 -> 88 B. Quantising the evidence
+// floats was reverted -- see test_quantised_evidence_does_not_drift.
 //
 // Pinned here because an estimate is not a measurement: the first draft of
 // docs/layered-map-design.md guessed +60 B by hand and was wrong by most of a
 // factor of two, and this guard has already caught one silent drift.
 void test_memory_cost_is_what_we_claim() {
   check(sizeof(veyra::map::HeightLayer) == 32, "HeightLayer stays 32 B, zero padding");
-  check(sizeof(veyra::map::CellStats) == 168, "CellStats is 168 B (was 88)");
-  check(sizeof(veyra::map::Leaf) == 184, "Leaf is 184 B (was 104) -- 1.77x, down from a 2.08x peak");
-  // height_above_ground landed in existing tail padding, so the observation
-  // contract grew by nothing.
-  check(sizeof(veyra::map::Observation) == 80, "Observation is unchanged at 80 B");
+  check(sizeof(veyra::map::CellStats) == 176, "CellStats is 176 B with retained ground direction");
+  check(sizeof(veyra::map::Leaf) == 192, "Leaf is 192 B with retained ground direction");
+  check(sizeof(veyra::map::Observation) == 88, "Observation is 88 B with ground gradients");
+}
+
+void test_profile_slope_uses_ground_gradient_evidence() {
+  veyra::map::CellStats cell;
+  for (int i = 0; i < 5; ++i) {
+    auto observation = ret(0.0, 0.0, 1);
+    observation.ground_gradient_x = 0.5F;
+    observation.ground_gradient_y = 0.0F;
+    cell.add(observation, 2.0);
+  }
+
+  veyra::map::VehicleProfile wheeled;
+  wheeled.max_slope_rad = 0.30;
+  const auto wheeled_result = veyra::map::classify(cell, wheeled, 1);
+  check(wheeled_result.traversability == veyra::map::Traversability::NonDrivable,
+        "slope over the wheeled profile limit is refused");
+  check_close(wheeled_result.slope_rad, std::atan(0.5), 1e-6,
+              "slope is reconstructed from retained ground gradient");
+  const double normal_length = std::sqrt(wheeled_result.normal_x * wheeled_result.normal_x +
+                                         wheeled_result.normal_y * wheeled_result.normal_y +
+                                         wheeled_result.normal_z * wheeled_result.normal_z);
+  check_close(normal_length, 1.0, 1e-6, "derived surface normal is normalized");
+  check_close(wheeled_result.normal_x, -0.5 / std::sqrt(1.25), 1e-6,
+              "normal x follows the negative world-frame ground gradient");
+  check_close(wheeled_result.normal_y, 0.0, 1e-6, "normal y follows the world-frame gradient");
+  check_close(wheeled_result.normal_z, 1.0 / std::sqrt(1.25), 1e-6,
+              "normal z is positive for an upward-facing ground surface");
+
+  veyra::map::VehicleProfile legged;
+  legged.max_slope_rad = 0.70;
+  const auto legged_result = veyra::map::classify(cell, legged, 1);
+  check(legged_result.traversability == veyra::map::Traversability::Drivable,
+        "the same physical evidence is evaluated against the second profile");
+
+  veyra::map::CellStats no_direction;
+  for (int i = 0; i < 5; ++i) {
+    no_direction.add(ret(0.0, 0.0, 1), 2.0);
+  }
+  const auto unknown_direction = veyra::map::classify(no_direction, legged, 1);
+  check(!unknown_direction.slope_available,
+        "missing gradient remains unavailable rather than being reported as a flat normal");
 }
 
 }  // namespace
@@ -386,6 +422,7 @@ int main() {
   test_unset_height_above_ground_is_loud();
   test_quantised_evidence_does_not_drift();
   test_memory_cost_is_what_we_claim();
+  test_profile_slope_uses_ground_gradient_evidence();
 
   if (failures == 0) {
     std::printf("test_layered_terrain: all checks passed\n");

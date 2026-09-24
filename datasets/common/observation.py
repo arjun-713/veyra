@@ -178,6 +178,10 @@ class ObservationFrame:
     #
     # Negative is a depression, and must not be clamped: it is a hazard.
     height_above_ground: np.ndarray | None = None
+    # World-frame local ground plane derivatives. NaN means the terrain fit
+    # could not determine a direction; this is not equivalent to flat ground.
+    ground_gradient_x: np.ndarray | None = None
+    ground_gradient_y: np.ndarray | None = None
     provenance: FrameProvenance = FrameProvenance()
 
     def __post_init__(self) -> None:
@@ -247,6 +251,12 @@ class ObservationFrame:
             "height_above_ground": np.full(count, np.nan, dtype=np.float32)
             if self.height_above_ground is None
             else np.asarray(self.height_above_ground, dtype=np.float32),
+            "ground_gradient_x": np.full(count, np.nan, dtype=np.float32)
+            if self.ground_gradient_x is None
+            else np.asarray(self.ground_gradient_x, dtype=np.float32),
+            "ground_gradient_y": np.full(count, np.nan, dtype=np.float32)
+            if self.ground_gradient_y is None
+            else np.asarray(self.ground_gradient_y, dtype=np.float32),
         }
         if any(array.ndim != 1 or array.shape[0] != count for array in arrays.values()):
             raise ValueError("all ObservationFrame per-point fields must have length N")
@@ -302,6 +312,9 @@ class ObservationFrame:
             # NaN is the documented "no ground model" sentinel; infinity is not
             # a sentinel for anything and would propagate into layer routing.
             raise ValueError("height_above_ground must be finite or NaN")
+        for name in ("ground_gradient_x", "ground_gradient_y"):
+            if np.isinf(optional_arrays[name]).any():
+                raise ValueError(f"{name} must be finite or NaN")
         object.__setattr__(self, "points", _freeze(points))
         object.__setattr__(self, "velocity_xy", _freeze(velocity))
         for name, array in arrays.items():
