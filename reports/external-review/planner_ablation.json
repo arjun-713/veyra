@@ -1,0 +1,1537 @@
+{
+  "ablation_order": [
+    "occupancy_only",
+    "semantics_only",
+    "slope_only",
+    "geometry_only",
+    "semantics_slope",
+    "full"
+  ],
+  "algorithm": "deterministic 8-connected A*; no diagonal corner cutting; expansion limit enforced",
+  "cost_definition": "base 1.0 plus 0.5 times capped normalized roughness, 0.5 times capped normalized slope, 0.5 times normalized geometry complexity when available, and in full mode 0.5 times one minus the lesser of semantic and terrain confidence; hard hazards are blocked",
+  "endpoint_selection": "same per-profile endpoints for every policy and ablation, selected from largest 4-connected Uniform5 geometric-ground-support component; this does not assert semantic drivable status",
+  "endpoints_by_profile": {
+    "quadruped_eval": {
+      "goal": [
+        -15,
+        260
+      ],
+      "start": [
+        220,
+        29
+      ]
+    },
+    "ugv_eval": {
+      "goal": [
+        -15,
+        260
+      ],
+      "start": [
+        220,
+        29
+      ]
+    }
+  },
+  "evaluation_lattice_m": 0.05,
+  "evaluation_roi": {
+    "bounds_5cm_lattice_exclusive": [
+      -968,
+      -996,
+      1012,
+      1024
+    ],
+    "bounds_xy_m_exclusive": [
+      -48.400000000000006,
+      -49.800000000000004,
+      50.6,
+      51.2
+    ],
+    "cropped_from_uniform5_bounds": true,
+    "height_cells": 2020,
+    "selection": "centered_aspect_preserving_uniform5_active_bounds_crop",
+    "width_cells": 1980
+  },
+  "hazard_metric_definition": "path cells marked hazardous or unknown by the profile-specific Uniform5 full-evidence reference; relative planner fidelity only, not absolute safety truth",
+  "input_stream_digest_by_policy": {
+    "distance_lod": "1883096196c98522454bf74ac1e29f0f748f3fa3ad0b597b1168958c172cbff2",
+    "uniform40": "1883096196c98522454bf74ac1e29f0f748f3fa3ad0b597b1168958c172cbff2",
+    "uniform5": "1883096196c98522454bf74ac1e29f0f748f3fa3ad0b597b1168958c172cbff2",
+    "utility_lod": "1883096196c98522454bf74ac1e29f0f748f3fa3ad0b597b1168958c172cbff2"
+  },
+  "physical_snapshot_sha256": {
+    "distance_lod": "335c4c4c42d63d4f22762089a9c517c44cdd363c3c073e1bc65713d116d312fc",
+    "uniform40": "79a16080d5bc1fd4caa4bf8216e8e6ae5919abd39dedb9bc8e61e4e6c7da2475",
+    "uniform5": "01ef18da30b63aa1327a15f2176c99fd86315114e2f3ef78b2d973f5b62c920a",
+    "utility_lod": "50599b16de163ba8d449dbd8cf9fb5894d1f4c08d9f8c801f00ff6a356cb9cf2"
+  },
+  "profile_assumptions": {
+    "quadruped_eval": {
+      "max_roughness_m": 0.16,
+      "max_slope_rad": 0.6108652381980153,
+      "max_step_m": 0.28,
+      "min_clearance_m": 0.45,
+      "status": "illustrative_evaluation_assumptions_not_robot_certification"
+    },
+    "ugv_eval": {
+      "max_roughness_m": 0.08,
+      "max_slope_rad": 0.3141592653589793,
+      "max_step_m": 0.12,
+      "min_clearance_m": 1.2,
+      "status": "illustrative_evaluation_assumptions_not_robot_certification"
+    }
+  },
+  "reference": "Uniform5-derived physical evidence, not surveyed ground truth",
+  "reference_is_ground_truth": false,
+  "reference_policy": "uniform5",
+  "runs": [
+    {
+      "ablation": "occupancy_only",
+      "costmap_lattice_m": 0.05,
+      "expanded_nodes": 0,
+      "failure": "start_or_goal_unknown_or_blocked",
+      "goal": [
+        -15,
+        260
+      ],
+      "path_cell_count": 0,
+      "path_cost": null,
+      "path_length_m": null,
+      "path_sha256": null,
+      "physical_snapshot_sha256": "01ef18da30b63aa1327a15f2176c99fd86315114e2f3ef78b2d973f5b62c920a",
+      "planner_success": false,
+      "planning_time_ms": 0.012695,
+      "policy": "uniform5",
+      "profile": "ugv_eval",
+      "reference_hazard_crossings": null,
+      "reference_path_coverage": null,
+      "reference_unknown_crossings": null,
+      "resolution_boundary_crossings": 0,
+      "same_physical_snapshot_for_profiles": true,
+      "source_stream_digest": "1883096196c98522454bf74ac1e29f0f748f3fa3ad0b597b1168958c172cbff2",
+      "start": [
+        220,
+        29
+      ],
+      "status": "measured"
+    },
+    {
+      "ablation": "semantics_only",
+      "costmap_lattice_m": 0.05,
+      "expanded_nodes": 0,
+      "failure": "start_or_goal_unknown_or_blocked",
+      "goal": [
+        -15,
+        260
+      ],
+      "path_cell_count": 0,
+      "path_cost": null,
+      "path_length_m": null,
+      "path_sha256": null,
+      "physical_snapshot_sha256": "01ef18da30b63aa1327a15f2176c99fd86315114e2f3ef78b2d973f5b62c920a",
+      "planner_success": false,
+      "planning_time_ms": 0.013416,
+      "policy": "uniform5",
+      "profile": "ugv_eval",
+      "reference_hazard_crossings": null,
+      "reference_path_coverage": null,
+      "reference_unknown_crossings": null,
+      "resolution_boundary_crossings": 0,
+      "same_physical_snapshot_for_profiles": true,
+      "source_stream_digest": "1883096196c98522454bf74ac1e29f0f748f3fa3ad0b597b1168958c172cbff2",
+      "start": [
+        220,
+        29
+      ],
+      "status": "measured"
+    },
+    {
+      "ablation": "slope_only",
+      "costmap_lattice_m": 0.05,
+      "expanded_nodes": 14260,
+      "failure": null,
+      "goal": [
+        -15,
+        260
+      ],
+      "path_cell_count": 387,
+      "path_cost": 22.44676701960998,
+      "path_length_m": 21.95096679918781,
+      "path_sha256": "a6a4044e3efcbfe9166f4459ce0c608d209d6960beb955073950a06ae865e2d9",
+      "physical_snapshot_sha256": "01ef18da30b63aa1327a15f2176c99fd86315114e2f3ef78b2d973f5b62c920a",
+      "planner_success": true,
+      "planning_time_ms": 160.483258,
+      "policy": "uniform5",
+      "profile": "ugv_eval",
+      "reference_hazard_crossings": 22,
+      "reference_path_coverage": 1.0,
+      "reference_unknown_crossings": 365,
+      "resolution_boundary_crossings": 0,
+      "same_physical_snapshot_for_profiles": true,
+      "source_stream_digest": "1883096196c98522454bf74ac1e29f0f748f3fa3ad0b597b1168958c172cbff2",
+      "start": [
+        220,
+        29
+      ],
+      "status": "measured"
+    },
+    {
+      "ablation": "geometry_only",
+      "costmap_lattice_m": 0.05,
+      "expanded_nodes": 13273,
+      "failure": null,
+      "goal": [
+        -15,
+        260
+      ],
+      "path_cell_count": 387,
+      "path_cost": 22.453035909187555,
+      "path_length_m": 21.99238815542512,
+      "path_sha256": "5584430d08dfc08cf3a10cda5d3d7e285c52179ab29633463a803e2624d3a9be",
+      "physical_snapshot_sha256": "01ef18da30b63aa1327a15f2176c99fd86315114e2f3ef78b2d973f5b62c920a",
+      "planner_success": true,
+      "planning_time_ms": 158.779957,
+      "policy": "uniform5",
+      "profile": "ugv_eval",
+      "reference_hazard_crossings": 1,
+      "reference_path_coverage": 1.0,
+      "reference_unknown_crossings": 386,
+      "resolution_boundary_crossings": 0,
+      "same_physical_snapshot_for_profiles": true,
+      "source_stream_digest": "1883096196c98522454bf74ac1e29f0f748f3fa3ad0b597b1168958c172cbff2",
+      "start": [
+        220,
+        29
+      ],
+      "status": "measured"
+    },
+    {
+      "ablation": "semantics_slope",
+      "costmap_lattice_m": 0.05,
+      "expanded_nodes": 0,
+      "failure": "start_or_goal_unknown_or_blocked",
+      "goal": [
+        -15,
+        260
+      ],
+      "path_cell_count": 0,
+      "path_cost": null,
+      "path_length_m": null,
+      "path_sha256": null,
+      "physical_snapshot_sha256": "01ef18da30b63aa1327a15f2176c99fd86315114e2f3ef78b2d973f5b62c920a",
+      "planner_success": false,
+      "planning_time_ms": 0.009587,
+      "policy": "uniform5",
+      "profile": "ugv_eval",
+      "reference_hazard_crossings": null,
+      "reference_path_coverage": null,
+      "reference_unknown_crossings": null,
+      "resolution_boundary_crossings": 0,
+      "same_physical_snapshot_for_profiles": true,
+      "source_stream_digest": "1883096196c98522454bf74ac1e29f0f748f3fa3ad0b597b1168958c172cbff2",
+      "start": [
+        220,
+        29
+      ],
+      "status": "measured"
+    },
+    {
+      "ablation": "full",
+      "costmap_lattice_m": 0.05,
+      "expanded_nodes": 0,
+      "failure": "start_or_goal_unknown_or_blocked",
+      "goal": [
+        -15,
+        260
+      ],
+      "path_cell_count": 0,
+      "path_cost": null,
+      "path_length_m": null,
+      "path_sha256": null,
+      "physical_snapshot_sha256": "01ef18da30b63aa1327a15f2176c99fd86315114e2f3ef78b2d973f5b62c920a",
+      "planner_success": false,
+      "planning_time_ms": 0.009702,
+      "policy": "uniform5",
+      "profile": "ugv_eval",
+      "reference_hazard_crossings": null,
+      "reference_path_coverage": null,
+      "reference_unknown_crossings": null,
+      "resolution_boundary_crossings": 0,
+      "same_physical_snapshot_for_profiles": true,
+      "source_stream_digest": "1883096196c98522454bf74ac1e29f0f748f3fa3ad0b597b1168958c172cbff2",
+      "start": [
+        220,
+        29
+      ],
+      "status": "measured"
+    },
+    {
+      "ablation": "occupancy_only",
+      "costmap_lattice_m": 0.05,
+      "expanded_nodes": 0,
+      "failure": "start_or_goal_unknown_or_blocked",
+      "goal": [
+        -15,
+        260
+      ],
+      "path_cell_count": 0,
+      "path_cost": null,
+      "path_length_m": null,
+      "path_sha256": null,
+      "physical_snapshot_sha256": "79a16080d5bc1fd4caa4bf8216e8e6ae5919abd39dedb9bc8e61e4e6c7da2475",
+      "planner_success": false,
+      "planning_time_ms": 0.007146,
+      "policy": "uniform40",
+      "profile": "ugv_eval",
+      "reference_hazard_crossings": null,
+      "reference_path_coverage": null,
+      "reference_unknown_crossings": null,
+      "resolution_boundary_crossings": 0,
+      "same_physical_snapshot_for_profiles": true,
+      "source_stream_digest": "1883096196c98522454bf74ac1e29f0f748f3fa3ad0b597b1168958c172cbff2",
+      "start": [
+        220,
+        29
+      ],
+      "status": "measured"
+    },
+    {
+      "ablation": "semantics_only",
+      "costmap_lattice_m": 0.05,
+      "expanded_nodes": 0,
+      "failure": "start_or_goal_unknown_or_blocked",
+      "goal": [
+        -15,
+        260
+      ],
+      "path_cell_count": 0,
+      "path_cost": null,
+      "path_length_m": null,
+      "path_sha256": null,
+      "physical_snapshot_sha256": "79a16080d5bc1fd4caa4bf8216e8e6ae5919abd39dedb9bc8e61e4e6c7da2475",
+      "planner_success": false,
+      "planning_time_ms": 0.005193,
+      "policy": "uniform40",
+      "profile": "ugv_eval",
+      "reference_hazard_crossings": null,
+      "reference_path_coverage": null,
+      "reference_unknown_crossings": null,
+      "resolution_boundary_crossings": 0,
+      "same_physical_snapshot_for_profiles": true,
+      "source_stream_digest": "1883096196c98522454bf74ac1e29f0f748f3fa3ad0b597b1168958c172cbff2",
+      "start": [
+        220,
+        29
+      ],
+      "status": "measured"
+    },
+    {
+      "ablation": "slope_only",
+      "costmap_lattice_m": 0.05,
+      "expanded_nodes": 11897,
+      "failure": null,
+      "goal": [
+        -15,
+        260
+      ],
+      "path_cell_count": 259,
+      "path_cost": 17.593203146457316,
+      "path_length_m": 17.20782104868019,
+      "path_sha256": "5543018a0b558b78e0eaf0c4de19084f621ed82cb29ebe798bb29d297cf66ba7",
+      "physical_snapshot_sha256": "79a16080d5bc1fd4caa4bf8216e8e6ae5919abd39dedb9bc8e61e4e6c7da2475",
+      "planner_success": true,
+      "planning_time_ms": 180.530476,
+      "policy": "uniform40",
+      "profile": "ugv_eval",
+      "reference_hazard_crossings": 0,
+      "reference_path_coverage": 1.0,
+      "reference_unknown_crossings": 259,
+      "resolution_boundary_crossings": 0,
+      "same_physical_snapshot_for_profiles": true,
+      "source_stream_digest": "1883096196c98522454bf74ac1e29f0f748f3fa3ad0b597b1168958c172cbff2",
+      "start": [
+        220,
+        29
+      ],
+      "status": "measured"
+    },
+    {
+      "ablation": "geometry_only",
+      "costmap_lattice_m": 0.05,
+      "expanded_nodes": 13076,
+      "failure": null,
+      "goal": [
+        -15,
+        260
+      ],
+      "path_cell_count": 259,
+      "path_cost": 18.14244004222072,
+      "path_length_m": 17.20782104868019,
+      "path_sha256": "4588508e7d0b189e45896db1530b0e0582d1ba0dd4dba976532c3e9419598c58",
+      "physical_snapshot_sha256": "79a16080d5bc1fd4caa4bf8216e8e6ae5919abd39dedb9bc8e61e4e6c7da2475",
+      "planner_success": true,
+      "planning_time_ms": 207.959442,
+      "policy": "uniform40",
+      "profile": "ugv_eval",
+      "reference_hazard_crossings": 0,
+      "reference_path_coverage": 1.0,
+      "reference_unknown_crossings": 259,
+      "resolution_boundary_crossings": 0,
+      "same_physical_snapshot_for_profiles": true,
+      "source_stream_digest": "1883096196c98522454bf74ac1e29f0f748f3fa3ad0b597b1168958c172cbff2",
+      "start": [
+        220,
+        29
+      ],
+      "status": "measured"
+    },
+    {
+      "ablation": "semantics_slope",
+      "costmap_lattice_m": 0.05,
+      "expanded_nodes": 0,
+      "failure": "start_or_goal_unknown_or_blocked",
+      "goal": [
+        -15,
+        260
+      ],
+      "path_cell_count": 0,
+      "path_cost": null,
+      "path_length_m": null,
+      "path_sha256": null,
+      "physical_snapshot_sha256": "79a16080d5bc1fd4caa4bf8216e8e6ae5919abd39dedb9bc8e61e4e6c7da2475",
+      "planner_success": false,
+      "planning_time_ms": 0.00637,
+      "policy": "uniform40",
+      "profile": "ugv_eval",
+      "reference_hazard_crossings": null,
+      "reference_path_coverage": null,
+      "reference_unknown_crossings": null,
+      "resolution_boundary_crossings": 0,
+      "same_physical_snapshot_for_profiles": true,
+      "source_stream_digest": "1883096196c98522454bf74ac1e29f0f748f3fa3ad0b597b1168958c172cbff2",
+      "start": [
+        220,
+        29
+      ],
+      "status": "measured"
+    },
+    {
+      "ablation": "full",
+      "costmap_lattice_m": 0.05,
+      "expanded_nodes": 0,
+      "failure": "start_or_goal_unknown_or_blocked",
+      "goal": [
+        -15,
+        260
+      ],
+      "path_cell_count": 0,
+      "path_cost": null,
+      "path_length_m": null,
+      "path_sha256": null,
+      "physical_snapshot_sha256": "79a16080d5bc1fd4caa4bf8216e8e6ae5919abd39dedb9bc8e61e4e6c7da2475",
+      "planner_success": false,
+      "planning_time_ms": 0.00678,
+      "policy": "uniform40",
+      "profile": "ugv_eval",
+      "reference_hazard_crossings": null,
+      "reference_path_coverage": null,
+      "reference_unknown_crossings": null,
+      "resolution_boundary_crossings": 0,
+      "same_physical_snapshot_for_profiles": true,
+      "source_stream_digest": "1883096196c98522454bf74ac1e29f0f748f3fa3ad0b597b1168958c172cbff2",
+      "start": [
+        220,
+        29
+      ],
+      "status": "measured"
+    },
+    {
+      "ablation": "occupancy_only",
+      "costmap_lattice_m": 0.05,
+      "expanded_nodes": 0,
+      "failure": "start_or_goal_unknown_or_blocked",
+      "goal": [
+        -15,
+        260
+      ],
+      "path_cell_count": 0,
+      "path_cost": null,
+      "path_length_m": null,
+      "path_sha256": null,
+      "physical_snapshot_sha256": "335c4c4c42d63d4f22762089a9c517c44cdd363c3c073e1bc65713d116d312fc",
+      "planner_success": false,
+      "planning_time_ms": 0.009076,
+      "policy": "distance_lod",
+      "profile": "ugv_eval",
+      "reference_hazard_crossings": null,
+      "reference_path_coverage": null,
+      "reference_unknown_crossings": null,
+      "resolution_boundary_crossings": 0,
+      "same_physical_snapshot_for_profiles": true,
+      "source_stream_digest": "1883096196c98522454bf74ac1e29f0f748f3fa3ad0b597b1168958c172cbff2",
+      "start": [
+        220,
+        29
+      ],
+      "status": "measured"
+    },
+    {
+      "ablation": "semantics_only",
+      "costmap_lattice_m": 0.05,
+      "expanded_nodes": 0,
+      "failure": "start_or_goal_unknown_or_blocked",
+      "goal": [
+        -15,
+        260
+      ],
+      "path_cell_count": 0,
+      "path_cost": null,
+      "path_length_m": null,
+      "path_sha256": null,
+      "physical_snapshot_sha256": "335c4c4c42d63d4f22762089a9c517c44cdd363c3c073e1bc65713d116d312fc",
+      "planner_success": false,
+      "planning_time_ms": 0.008525,
+      "policy": "distance_lod",
+      "profile": "ugv_eval",
+      "reference_hazard_crossings": null,
+      "reference_path_coverage": null,
+      "reference_unknown_crossings": null,
+      "resolution_boundary_crossings": 0,
+      "same_physical_snapshot_for_profiles": true,
+      "source_stream_digest": "1883096196c98522454bf74ac1e29f0f748f3fa3ad0b597b1168958c172cbff2",
+      "start": [
+        220,
+        29
+      ],
+      "status": "measured"
+    },
+    {
+      "ablation": "slope_only",
+      "costmap_lattice_m": 0.05,
+      "expanded_nodes": 15432,
+      "failure": null,
+      "goal": [
+        -15,
+        260
+      ],
+      "path_cell_count": 410,
+      "path_cost": 23.732022873051566,
+      "path_length_m": 23.204520189781086,
+      "path_sha256": "fe4311a6d60bfbfb60695be8710c74f09c9eba489d314d7ad74fab0e14c8b538",
+      "physical_snapshot_sha256": "335c4c4c42d63d4f22762089a9c517c44cdd363c3c073e1bc65713d116d312fc",
+      "planner_success": true,
+      "planning_time_ms": 156.689068,
+      "policy": "distance_lod",
+      "profile": "ugv_eval",
+      "reference_hazard_crossings": 1,
+      "reference_path_coverage": 1.0,
+      "reference_unknown_crossings": 409,
+      "resolution_boundary_crossings": 10,
+      "same_physical_snapshot_for_profiles": true,
+      "source_stream_digest": "1883096196c98522454bf74ac1e29f0f748f3fa3ad0b597b1168958c172cbff2",
+      "start": [
+        220,
+        29
+      ],
+      "status": "measured"
+    },
+    {
+      "ablation": "geometry_only",
+      "costmap_lattice_m": 0.05,
+      "expanded_nodes": 13784,
+      "failure": null,
+      "goal": [
+        -15,
+        260
+      ],
+      "path_cell_count": 410,
+      "path_cost": 23.720547369210678,
+      "path_length_m": 23.204520189781086,
+      "path_sha256": "cb24e8efeb1078908ec979f9a6ab1c62cf0d53d4723fc9c20615c32762855b7c",
+      "physical_snapshot_sha256": "335c4c4c42d63d4f22762089a9c517c44cdd363c3c073e1bc65713d116d312fc",
+      "planner_success": true,
+      "planning_time_ms": 141.977345,
+      "policy": "distance_lod",
+      "profile": "ugv_eval",
+      "reference_hazard_crossings": 1,
+      "reference_path_coverage": 1.0,
+      "reference_unknown_crossings": 409,
+      "resolution_boundary_crossings": 10,
+      "same_physical_snapshot_for_profiles": true,
+      "source_stream_digest": "1883096196c98522454bf74ac1e29f0f748f3fa3ad0b597b1168958c172cbff2",
+      "start": [
+        220,
+        29
+      ],
+      "status": "measured"
+    },
+    {
+      "ablation": "semantics_slope",
+      "costmap_lattice_m": 0.05,
+      "expanded_nodes": 0,
+      "failure": "start_or_goal_unknown_or_blocked",
+      "goal": [
+        -15,
+        260
+      ],
+      "path_cell_count": 0,
+      "path_cost": null,
+      "path_length_m": null,
+      "path_sha256": null,
+      "physical_snapshot_sha256": "335c4c4c42d63d4f22762089a9c517c44cdd363c3c073e1bc65713d116d312fc",
+      "planner_success": false,
+      "planning_time_ms": 0.009083,
+      "policy": "distance_lod",
+      "profile": "ugv_eval",
+      "reference_hazard_crossings": null,
+      "reference_path_coverage": null,
+      "reference_unknown_crossings": null,
+      "resolution_boundary_crossings": 0,
+      "same_physical_snapshot_for_profiles": true,
+      "source_stream_digest": "1883096196c98522454bf74ac1e29f0f748f3fa3ad0b597b1168958c172cbff2",
+      "start": [
+        220,
+        29
+      ],
+      "status": "measured"
+    },
+    {
+      "ablation": "full",
+      "costmap_lattice_m": 0.05,
+      "expanded_nodes": 0,
+      "failure": "start_or_goal_unknown_or_blocked",
+      "goal": [
+        -15,
+        260
+      ],
+      "path_cell_count": 0,
+      "path_cost": null,
+      "path_length_m": null,
+      "path_sha256": null,
+      "physical_snapshot_sha256": "335c4c4c42d63d4f22762089a9c517c44cdd363c3c073e1bc65713d116d312fc",
+      "planner_success": false,
+      "planning_time_ms": 0.007648,
+      "policy": "distance_lod",
+      "profile": "ugv_eval",
+      "reference_hazard_crossings": null,
+      "reference_path_coverage": null,
+      "reference_unknown_crossings": null,
+      "resolution_boundary_crossings": 0,
+      "same_physical_snapshot_for_profiles": true,
+      "source_stream_digest": "1883096196c98522454bf74ac1e29f0f748f3fa3ad0b597b1168958c172cbff2",
+      "start": [
+        220,
+        29
+      ],
+      "status": "measured"
+    },
+    {
+      "ablation": "occupancy_only",
+      "costmap_lattice_m": 0.05,
+      "expanded_nodes": 0,
+      "failure": "start_or_goal_unknown_or_blocked",
+      "goal": [
+        -15,
+        260
+      ],
+      "path_cell_count": 0,
+      "path_cost": null,
+      "path_length_m": null,
+      "path_sha256": null,
+      "physical_snapshot_sha256": "50599b16de163ba8d449dbd8cf9fb5894d1f4c08d9f8c801f00ff6a356cb9cf2",
+      "planner_success": false,
+      "planning_time_ms": 0.008447,
+      "policy": "utility_lod",
+      "profile": "ugv_eval",
+      "reference_hazard_crossings": null,
+      "reference_path_coverage": null,
+      "reference_unknown_crossings": null,
+      "resolution_boundary_crossings": 0,
+      "same_physical_snapshot_for_profiles": true,
+      "source_stream_digest": "1883096196c98522454bf74ac1e29f0f748f3fa3ad0b597b1168958c172cbff2",
+      "start": [
+        220,
+        29
+      ],
+      "status": "measured"
+    },
+    {
+      "ablation": "semantics_only",
+      "costmap_lattice_m": 0.05,
+      "expanded_nodes": 0,
+      "failure": "start_or_goal_unknown_or_blocked",
+      "goal": [
+        -15,
+        260
+      ],
+      "path_cell_count": 0,
+      "path_cost": null,
+      "path_length_m": null,
+      "path_sha256": null,
+      "physical_snapshot_sha256": "50599b16de163ba8d449dbd8cf9fb5894d1f4c08d9f8c801f00ff6a356cb9cf2",
+      "planner_success": false,
+      "planning_time_ms": 0.008862,
+      "policy": "utility_lod",
+      "profile": "ugv_eval",
+      "reference_hazard_crossings": null,
+      "reference_path_coverage": null,
+      "reference_unknown_crossings": null,
+      "resolution_boundary_crossings": 0,
+      "same_physical_snapshot_for_profiles": true,
+      "source_stream_digest": "1883096196c98522454bf74ac1e29f0f748f3fa3ad0b597b1168958c172cbff2",
+      "start": [
+        220,
+        29
+      ],
+      "status": "measured"
+    },
+    {
+      "ablation": "slope_only",
+      "costmap_lattice_m": 0.05,
+      "expanded_nodes": 15432,
+      "failure": null,
+      "goal": [
+        -15,
+        260
+      ],
+      "path_cell_count": 410,
+      "path_cost": 23.732022873051566,
+      "path_length_m": 23.204520189781086,
+      "path_sha256": "fe4311a6d60bfbfb60695be8710c74f09c9eba489d314d7ad74fab0e14c8b538",
+      "physical_snapshot_sha256": "50599b16de163ba8d449dbd8cf9fb5894d1f4c08d9f8c801f00ff6a356cb9cf2",
+      "planner_success": true,
+      "planning_time_ms": 157.224941,
+      "policy": "utility_lod",
+      "profile": "ugv_eval",
+      "reference_hazard_crossings": 1,
+      "reference_path_coverage": 1.0,
+      "reference_unknown_crossings": 409,
+      "resolution_boundary_crossings": 10,
+      "same_physical_snapshot_for_profiles": true,
+      "source_stream_digest": "1883096196c98522454bf74ac1e29f0f748f3fa3ad0b597b1168958c172cbff2",
+      "start": [
+        220,
+        29
+      ],
+      "status": "measured"
+    },
+    {
+      "ablation": "geometry_only",
+      "costmap_lattice_m": 0.05,
+      "expanded_nodes": 13784,
+      "failure": null,
+      "goal": [
+        -15,
+        260
+      ],
+      "path_cell_count": 410,
+      "path_cost": 23.720547369210678,
+      "path_length_m": 23.204520189781086,
+      "path_sha256": "cb24e8efeb1078908ec979f9a6ab1c62cf0d53d4723fc9c20615c32762855b7c",
+      "physical_snapshot_sha256": "50599b16de163ba8d449dbd8cf9fb5894d1f4c08d9f8c801f00ff6a356cb9cf2",
+      "planner_success": true,
+      "planning_time_ms": 143.904402,
+      "policy": "utility_lod",
+      "profile": "ugv_eval",
+      "reference_hazard_crossings": 1,
+      "reference_path_coverage": 1.0,
+      "reference_unknown_crossings": 409,
+      "resolution_boundary_crossings": 10,
+      "same_physical_snapshot_for_profiles": true,
+      "source_stream_digest": "1883096196c98522454bf74ac1e29f0f748f3fa3ad0b597b1168958c172cbff2",
+      "start": [
+        220,
+        29
+      ],
+      "status": "measured"
+    },
+    {
+      "ablation": "semantics_slope",
+      "costmap_lattice_m": 0.05,
+      "expanded_nodes": 0,
+      "failure": "start_or_goal_unknown_or_blocked",
+      "goal": [
+        -15,
+        260
+      ],
+      "path_cell_count": 0,
+      "path_cost": null,
+      "path_length_m": null,
+      "path_sha256": null,
+      "physical_snapshot_sha256": "50599b16de163ba8d449dbd8cf9fb5894d1f4c08d9f8c801f00ff6a356cb9cf2",
+      "planner_success": false,
+      "planning_time_ms": 0.008634,
+      "policy": "utility_lod",
+      "profile": "ugv_eval",
+      "reference_hazard_crossings": null,
+      "reference_path_coverage": null,
+      "reference_unknown_crossings": null,
+      "resolution_boundary_crossings": 0,
+      "same_physical_snapshot_for_profiles": true,
+      "source_stream_digest": "1883096196c98522454bf74ac1e29f0f748f3fa3ad0b597b1168958c172cbff2",
+      "start": [
+        220,
+        29
+      ],
+      "status": "measured"
+    },
+    {
+      "ablation": "full",
+      "costmap_lattice_m": 0.05,
+      "expanded_nodes": 0,
+      "failure": "start_or_goal_unknown_or_blocked",
+      "goal": [
+        -15,
+        260
+      ],
+      "path_cell_count": 0,
+      "path_cost": null,
+      "path_length_m": null,
+      "path_sha256": null,
+      "physical_snapshot_sha256": "50599b16de163ba8d449dbd8cf9fb5894d1f4c08d9f8c801f00ff6a356cb9cf2",
+      "planner_success": false,
+      "planning_time_ms": 0.009029,
+      "policy": "utility_lod",
+      "profile": "ugv_eval",
+      "reference_hazard_crossings": null,
+      "reference_path_coverage": null,
+      "reference_unknown_crossings": null,
+      "resolution_boundary_crossings": 0,
+      "same_physical_snapshot_for_profiles": true,
+      "source_stream_digest": "1883096196c98522454bf74ac1e29f0f748f3fa3ad0b597b1168958c172cbff2",
+      "start": [
+        220,
+        29
+      ],
+      "status": "measured"
+    },
+    {
+      "ablation": "occupancy_only",
+      "costmap_lattice_m": 0.05,
+      "expanded_nodes": 0,
+      "failure": "start_or_goal_unknown_or_blocked",
+      "goal": [
+        -15,
+        260
+      ],
+      "path_cell_count": 0,
+      "path_cost": null,
+      "path_length_m": null,
+      "path_sha256": null,
+      "physical_snapshot_sha256": "01ef18da30b63aa1327a15f2176c99fd86315114e2f3ef78b2d973f5b62c920a",
+      "planner_success": false,
+      "planning_time_ms": 0.008978,
+      "policy": "uniform5",
+      "profile": "quadruped_eval",
+      "reference_hazard_crossings": null,
+      "reference_path_coverage": null,
+      "reference_unknown_crossings": null,
+      "resolution_boundary_crossings": 0,
+      "same_physical_snapshot_for_profiles": true,
+      "source_stream_digest": "1883096196c98522454bf74ac1e29f0f748f3fa3ad0b597b1168958c172cbff2",
+      "start": [
+        220,
+        29
+      ],
+      "status": "measured"
+    },
+    {
+      "ablation": "semantics_only",
+      "costmap_lattice_m": 0.05,
+      "expanded_nodes": 0,
+      "failure": "start_or_goal_unknown_or_blocked",
+      "goal": [
+        -15,
+        260
+      ],
+      "path_cell_count": 0,
+      "path_cost": null,
+      "path_length_m": null,
+      "path_sha256": null,
+      "physical_snapshot_sha256": "01ef18da30b63aa1327a15f2176c99fd86315114e2f3ef78b2d973f5b62c920a",
+      "planner_success": false,
+      "planning_time_ms": 0.009028,
+      "policy": "uniform5",
+      "profile": "quadruped_eval",
+      "reference_hazard_crossings": null,
+      "reference_path_coverage": null,
+      "reference_unknown_crossings": null,
+      "resolution_boundary_crossings": 0,
+      "same_physical_snapshot_for_profiles": true,
+      "source_stream_digest": "1883096196c98522454bf74ac1e29f0f748f3fa3ad0b597b1168958c172cbff2",
+      "start": [
+        220,
+        29
+      ],
+      "status": "measured"
+    },
+    {
+      "ablation": "slope_only",
+      "costmap_lattice_m": 0.05,
+      "expanded_nodes": 14192,
+      "failure": null,
+      "goal": [
+        -15,
+        260
+      ],
+      "path_cell_count": 387,
+      "path_cost": 22.205949793833707,
+      "path_length_m": 21.95096679918781,
+      "path_sha256": "a6a4044e3efcbfe9166f4459ce0c608d209d6960beb955073950a06ae865e2d9",
+      "physical_snapshot_sha256": "01ef18da30b63aa1327a15f2176c99fd86315114e2f3ef78b2d973f5b62c920a",
+      "planner_success": true,
+      "planning_time_ms": 137.507779,
+      "policy": "uniform5",
+      "profile": "quadruped_eval",
+      "reference_hazard_crossings": 22,
+      "reference_path_coverage": 1.0,
+      "reference_unknown_crossings": 365,
+      "resolution_boundary_crossings": 0,
+      "same_physical_snapshot_for_profiles": true,
+      "source_stream_digest": "1883096196c98522454bf74ac1e29f0f748f3fa3ad0b597b1168958c172cbff2",
+      "start": [
+        220,
+        29
+      ],
+      "status": "measured"
+    },
+    {
+      "ablation": "geometry_only",
+      "costmap_lattice_m": 0.05,
+      "expanded_nodes": 13286,
+      "failure": null,
+      "goal": [
+        -15,
+        260
+      ],
+      "path_cell_count": 387,
+      "path_cost": 22.316402843992133,
+      "path_length_m": 21.99238815542512,
+      "path_sha256": "67906df1d22d0e64d1490ea0ec0a6b7d7c50f8d0f7bdf47a4f62879207ce591d",
+      "physical_snapshot_sha256": "01ef18da30b63aa1327a15f2176c99fd86315114e2f3ef78b2d973f5b62c920a",
+      "planner_success": true,
+      "planning_time_ms": 141.432908,
+      "policy": "uniform5",
+      "profile": "quadruped_eval",
+      "reference_hazard_crossings": 1,
+      "reference_path_coverage": 1.0,
+      "reference_unknown_crossings": 386,
+      "resolution_boundary_crossings": 0,
+      "same_physical_snapshot_for_profiles": true,
+      "source_stream_digest": "1883096196c98522454bf74ac1e29f0f748f3fa3ad0b597b1168958c172cbff2",
+      "start": [
+        220,
+        29
+      ],
+      "status": "measured"
+    },
+    {
+      "ablation": "semantics_slope",
+      "costmap_lattice_m": 0.05,
+      "expanded_nodes": 0,
+      "failure": "start_or_goal_unknown_or_blocked",
+      "goal": [
+        -15,
+        260
+      ],
+      "path_cell_count": 0,
+      "path_cost": null,
+      "path_length_m": null,
+      "path_sha256": null,
+      "physical_snapshot_sha256": "01ef18da30b63aa1327a15f2176c99fd86315114e2f3ef78b2d973f5b62c920a",
+      "planner_success": false,
+      "planning_time_ms": 0.00832,
+      "policy": "uniform5",
+      "profile": "quadruped_eval",
+      "reference_hazard_crossings": null,
+      "reference_path_coverage": null,
+      "reference_unknown_crossings": null,
+      "resolution_boundary_crossings": 0,
+      "same_physical_snapshot_for_profiles": true,
+      "source_stream_digest": "1883096196c98522454bf74ac1e29f0f748f3fa3ad0b597b1168958c172cbff2",
+      "start": [
+        220,
+        29
+      ],
+      "status": "measured"
+    },
+    {
+      "ablation": "full",
+      "costmap_lattice_m": 0.05,
+      "expanded_nodes": 0,
+      "failure": "start_or_goal_unknown_or_blocked",
+      "goal": [
+        -15,
+        260
+      ],
+      "path_cell_count": 0,
+      "path_cost": null,
+      "path_length_m": null,
+      "path_sha256": null,
+      "physical_snapshot_sha256": "01ef18da30b63aa1327a15f2176c99fd86315114e2f3ef78b2d973f5b62c920a",
+      "planner_success": false,
+      "planning_time_ms": 0.007716,
+      "policy": "uniform5",
+      "profile": "quadruped_eval",
+      "reference_hazard_crossings": null,
+      "reference_path_coverage": null,
+      "reference_unknown_crossings": null,
+      "resolution_boundary_crossings": 0,
+      "same_physical_snapshot_for_profiles": true,
+      "source_stream_digest": "1883096196c98522454bf74ac1e29f0f748f3fa3ad0b597b1168958c172cbff2",
+      "start": [
+        220,
+        29
+      ],
+      "status": "measured"
+    },
+    {
+      "ablation": "occupancy_only",
+      "costmap_lattice_m": 0.05,
+      "expanded_nodes": 0,
+      "failure": "start_or_goal_unknown_or_blocked",
+      "goal": [
+        -15,
+        260
+      ],
+      "path_cell_count": 0,
+      "path_cost": null,
+      "path_length_m": null,
+      "path_sha256": null,
+      "physical_snapshot_sha256": "79a16080d5bc1fd4caa4bf8216e8e6ae5919abd39dedb9bc8e61e4e6c7da2475",
+      "planner_success": false,
+      "planning_time_ms": 0.00498,
+      "policy": "uniform40",
+      "profile": "quadruped_eval",
+      "reference_hazard_crossings": null,
+      "reference_path_coverage": null,
+      "reference_unknown_crossings": null,
+      "resolution_boundary_crossings": 0,
+      "same_physical_snapshot_for_profiles": true,
+      "source_stream_digest": "1883096196c98522454bf74ac1e29f0f748f3fa3ad0b597b1168958c172cbff2",
+      "start": [
+        220,
+        29
+      ],
+      "status": "measured"
+    },
+    {
+      "ablation": "semantics_only",
+      "costmap_lattice_m": 0.05,
+      "expanded_nodes": 0,
+      "failure": "start_or_goal_unknown_or_blocked",
+      "goal": [
+        -15,
+        260
+      ],
+      "path_cell_count": 0,
+      "path_cost": null,
+      "path_length_m": null,
+      "path_sha256": null,
+      "physical_snapshot_sha256": "79a16080d5bc1fd4caa4bf8216e8e6ae5919abd39dedb9bc8e61e4e6c7da2475",
+      "planner_success": false,
+      "planning_time_ms": 0.005382,
+      "policy": "uniform40",
+      "profile": "quadruped_eval",
+      "reference_hazard_crossings": null,
+      "reference_path_coverage": null,
+      "reference_unknown_crossings": null,
+      "resolution_boundary_crossings": 0,
+      "same_physical_snapshot_for_profiles": true,
+      "source_stream_digest": "1883096196c98522454bf74ac1e29f0f748f3fa3ad0b597b1168958c172cbff2",
+      "start": [
+        220,
+        29
+      ],
+      "status": "measured"
+    },
+    {
+      "ablation": "slope_only",
+      "costmap_lattice_m": 0.05,
+      "expanded_nodes": 10585,
+      "failure": null,
+      "goal": [
+        -15,
+        260
+      ],
+      "path_cell_count": 259,
+      "path_cost": 17.4060176325656,
+      "path_length_m": 17.20782104868019,
+      "path_sha256": "5543018a0b558b78e0eaf0c4de19084f621ed82cb29ebe798bb29d297cf66ba7",
+      "physical_snapshot_sha256": "79a16080d5bc1fd4caa4bf8216e8e6ae5919abd39dedb9bc8e61e4e6c7da2475",
+      "planner_success": true,
+      "planning_time_ms": 173.383914,
+      "policy": "uniform40",
+      "profile": "quadruped_eval",
+      "reference_hazard_crossings": 0,
+      "reference_path_coverage": 1.0,
+      "reference_unknown_crossings": 259,
+      "resolution_boundary_crossings": 0,
+      "same_physical_snapshot_for_profiles": true,
+      "source_stream_digest": "1883096196c98522454bf74ac1e29f0f748f3fa3ad0b597b1168958c172cbff2",
+      "start": [
+        220,
+        29
+      ],
+      "status": "measured"
+    },
+    {
+      "ablation": "geometry_only",
+      "costmap_lattice_m": 0.05,
+      "expanded_nodes": 12869,
+      "failure": null,
+      "goal": [
+        -15,
+        260
+      ],
+      "path_cell_count": 259,
+      "path_cost": 17.74670159114068,
+      "path_length_m": 17.20782104868019,
+      "path_sha256": "4588508e7d0b189e45896db1530b0e0582d1ba0dd4dba976532c3e9419598c58",
+      "physical_snapshot_sha256": "79a16080d5bc1fd4caa4bf8216e8e6ae5919abd39dedb9bc8e61e4e6c7da2475",
+      "planner_success": true,
+      "planning_time_ms": 196.584081,
+      "policy": "uniform40",
+      "profile": "quadruped_eval",
+      "reference_hazard_crossings": 0,
+      "reference_path_coverage": 1.0,
+      "reference_unknown_crossings": 259,
+      "resolution_boundary_crossings": 0,
+      "same_physical_snapshot_for_profiles": true,
+      "source_stream_digest": "1883096196c98522454bf74ac1e29f0f748f3fa3ad0b597b1168958c172cbff2",
+      "start": [
+        220,
+        29
+      ],
+      "status": "measured"
+    },
+    {
+      "ablation": "semantics_slope",
+      "costmap_lattice_m": 0.05,
+      "expanded_nodes": 0,
+      "failure": "start_or_goal_unknown_or_blocked",
+      "goal": [
+        -15,
+        260
+      ],
+      "path_cell_count": 0,
+      "path_cost": null,
+      "path_length_m": null,
+      "path_sha256": null,
+      "physical_snapshot_sha256": "79a16080d5bc1fd4caa4bf8216e8e6ae5919abd39dedb9bc8e61e4e6c7da2475",
+      "planner_success": false,
+      "planning_time_ms": 0.008187,
+      "policy": "uniform40",
+      "profile": "quadruped_eval",
+      "reference_hazard_crossings": null,
+      "reference_path_coverage": null,
+      "reference_unknown_crossings": null,
+      "resolution_boundary_crossings": 0,
+      "same_physical_snapshot_for_profiles": true,
+      "source_stream_digest": "1883096196c98522454bf74ac1e29f0f748f3fa3ad0b597b1168958c172cbff2",
+      "start": [
+        220,
+        29
+      ],
+      "status": "measured"
+    },
+    {
+      "ablation": "full",
+      "costmap_lattice_m": 0.05,
+      "expanded_nodes": 0,
+      "failure": "start_or_goal_unknown_or_blocked",
+      "goal": [
+        -15,
+        260
+      ],
+      "path_cell_count": 0,
+      "path_cost": null,
+      "path_length_m": null,
+      "path_sha256": null,
+      "physical_snapshot_sha256": "79a16080d5bc1fd4caa4bf8216e8e6ae5919abd39dedb9bc8e61e4e6c7da2475",
+      "planner_success": false,
+      "planning_time_ms": 0.004919,
+      "policy": "uniform40",
+      "profile": "quadruped_eval",
+      "reference_hazard_crossings": null,
+      "reference_path_coverage": null,
+      "reference_unknown_crossings": null,
+      "resolution_boundary_crossings": 0,
+      "same_physical_snapshot_for_profiles": true,
+      "source_stream_digest": "1883096196c98522454bf74ac1e29f0f748f3fa3ad0b597b1168958c172cbff2",
+      "start": [
+        220,
+        29
+      ],
+      "status": "measured"
+    },
+    {
+      "ablation": "occupancy_only",
+      "costmap_lattice_m": 0.05,
+      "expanded_nodes": 0,
+      "failure": "start_or_goal_unknown_or_blocked",
+      "goal": [
+        -15,
+        260
+      ],
+      "path_cell_count": 0,
+      "path_cost": null,
+      "path_length_m": null,
+      "path_sha256": null,
+      "physical_snapshot_sha256": "335c4c4c42d63d4f22762089a9c517c44cdd363c3c073e1bc65713d116d312fc",
+      "planner_success": false,
+      "planning_time_ms": 0.008783,
+      "policy": "distance_lod",
+      "profile": "quadruped_eval",
+      "reference_hazard_crossings": null,
+      "reference_path_coverage": null,
+      "reference_unknown_crossings": null,
+      "resolution_boundary_crossings": 0,
+      "same_physical_snapshot_for_profiles": true,
+      "source_stream_digest": "1883096196c98522454bf74ac1e29f0f748f3fa3ad0b597b1168958c172cbff2",
+      "start": [
+        220,
+        29
+      ],
+      "status": "measured"
+    },
+    {
+      "ablation": "semantics_only",
+      "costmap_lattice_m": 0.05,
+      "expanded_nodes": 0,
+      "failure": "start_or_goal_unknown_or_blocked",
+      "goal": [
+        -15,
+        260
+      ],
+      "path_cell_count": 0,
+      "path_cost": null,
+      "path_length_m": null,
+      "path_sha256": null,
+      "physical_snapshot_sha256": "335c4c4c42d63d4f22762089a9c517c44cdd363c3c073e1bc65713d116d312fc",
+      "planner_success": false,
+      "planning_time_ms": 0.028587,
+      "policy": "distance_lod",
+      "profile": "quadruped_eval",
+      "reference_hazard_crossings": null,
+      "reference_path_coverage": null,
+      "reference_unknown_crossings": null,
+      "resolution_boundary_crossings": 0,
+      "same_physical_snapshot_for_profiles": true,
+      "source_stream_digest": "1883096196c98522454bf74ac1e29f0f748f3fa3ad0b597b1168958c172cbff2",
+      "start": [
+        220,
+        29
+      ],
+      "status": "measured"
+    },
+    {
+      "ablation": "slope_only",
+      "costmap_lattice_m": 0.05,
+      "expanded_nodes": 15347,
+      "failure": null,
+      "goal": [
+        -15,
+        260
+      ],
+      "path_cell_count": 410,
+      "path_cost": 23.475807310355933,
+      "path_length_m": 23.204520189781086,
+      "path_sha256": "fe4311a6d60bfbfb60695be8710c74f09c9eba489d314d7ad74fab0e14c8b538",
+      "physical_snapshot_sha256": "335c4c4c42d63d4f22762089a9c517c44cdd363c3c073e1bc65713d116d312fc",
+      "planner_success": true,
+      "planning_time_ms": 157.360904,
+      "policy": "distance_lod",
+      "profile": "quadruped_eval",
+      "reference_hazard_crossings": 1,
+      "reference_path_coverage": 1.0,
+      "reference_unknown_crossings": 409,
+      "resolution_boundary_crossings": 10,
+      "same_physical_snapshot_for_profiles": true,
+      "source_stream_digest": "1883096196c98522454bf74ac1e29f0f748f3fa3ad0b597b1168958c172cbff2",
+      "start": [
+        220,
+        29
+      ],
+      "status": "measured"
+    },
+    {
+      "ablation": "geometry_only",
+      "costmap_lattice_m": 0.05,
+      "expanded_nodes": 13795,
+      "failure": null,
+      "goal": [
+        -15,
+        260
+      ],
+      "path_cell_count": 410,
+      "path_cost": 23.561306364424386,
+      "path_length_m": 23.204520189781086,
+      "path_sha256": "ef71afc9bf1259d01c0271f6b20e120163dfabcf5f7cb23684c780d46bf30552",
+      "physical_snapshot_sha256": "335c4c4c42d63d4f22762089a9c517c44cdd363c3c073e1bc65713d116d312fc",
+      "planner_success": true,
+      "planning_time_ms": 139.367992,
+      "policy": "distance_lod",
+      "profile": "quadruped_eval",
+      "reference_hazard_crossings": 1,
+      "reference_path_coverage": 1.0,
+      "reference_unknown_crossings": 409,
+      "resolution_boundary_crossings": 10,
+      "same_physical_snapshot_for_profiles": true,
+      "source_stream_digest": "1883096196c98522454bf74ac1e29f0f748f3fa3ad0b597b1168958c172cbff2",
+      "start": [
+        220,
+        29
+      ],
+      "status": "measured"
+    },
+    {
+      "ablation": "semantics_slope",
+      "costmap_lattice_m": 0.05,
+      "expanded_nodes": 0,
+      "failure": "start_or_goal_unknown_or_blocked",
+      "goal": [
+        -15,
+        260
+      ],
+      "path_cell_count": 0,
+      "path_cost": null,
+      "path_length_m": null,
+      "path_sha256": null,
+      "physical_snapshot_sha256": "335c4c4c42d63d4f22762089a9c517c44cdd363c3c073e1bc65713d116d312fc",
+      "planner_success": false,
+      "planning_time_ms": 0.009023,
+      "policy": "distance_lod",
+      "profile": "quadruped_eval",
+      "reference_hazard_crossings": null,
+      "reference_path_coverage": null,
+      "reference_unknown_crossings": null,
+      "resolution_boundary_crossings": 0,
+      "same_physical_snapshot_for_profiles": true,
+      "source_stream_digest": "1883096196c98522454bf74ac1e29f0f748f3fa3ad0b597b1168958c172cbff2",
+      "start": [
+        220,
+        29
+      ],
+      "status": "measured"
+    },
+    {
+      "ablation": "full",
+      "costmap_lattice_m": 0.05,
+      "expanded_nodes": 0,
+      "failure": "start_or_goal_unknown_or_blocked",
+      "goal": [
+        -15,
+        260
+      ],
+      "path_cell_count": 0,
+      "path_cost": null,
+      "path_length_m": null,
+      "path_sha256": null,
+      "physical_snapshot_sha256": "335c4c4c42d63d4f22762089a9c517c44cdd363c3c073e1bc65713d116d312fc",
+      "planner_success": false,
+      "planning_time_ms": 0.008817,
+      "policy": "distance_lod",
+      "profile": "quadruped_eval",
+      "reference_hazard_crossings": null,
+      "reference_path_coverage": null,
+      "reference_unknown_crossings": null,
+      "resolution_boundary_crossings": 0,
+      "same_physical_snapshot_for_profiles": true,
+      "source_stream_digest": "1883096196c98522454bf74ac1e29f0f748f3fa3ad0b597b1168958c172cbff2",
+      "start": [
+        220,
+        29
+      ],
+      "status": "measured"
+    },
+    {
+      "ablation": "occupancy_only",
+      "costmap_lattice_m": 0.05,
+      "expanded_nodes": 0,
+      "failure": "start_or_goal_unknown_or_blocked",
+      "goal": [
+        -15,
+        260
+      ],
+      "path_cell_count": 0,
+      "path_cost": null,
+      "path_length_m": null,
+      "path_sha256": null,
+      "physical_snapshot_sha256": "50599b16de163ba8d449dbd8cf9fb5894d1f4c08d9f8c801f00ff6a356cb9cf2",
+      "planner_success": false,
+      "planning_time_ms": 0.006646,
+      "policy": "utility_lod",
+      "profile": "quadruped_eval",
+      "reference_hazard_crossings": null,
+      "reference_path_coverage": null,
+      "reference_unknown_crossings": null,
+      "resolution_boundary_crossings": 0,
+      "same_physical_snapshot_for_profiles": true,
+      "source_stream_digest": "1883096196c98522454bf74ac1e29f0f748f3fa3ad0b597b1168958c172cbff2",
+      "start": [
+        220,
+        29
+      ],
+      "status": "measured"
+    },
+    {
+      "ablation": "semantics_only",
+      "costmap_lattice_m": 0.05,
+      "expanded_nodes": 0,
+      "failure": "start_or_goal_unknown_or_blocked",
+      "goal": [
+        -15,
+        260
+      ],
+      "path_cell_count": 0,
+      "path_cost": null,
+      "path_length_m": null,
+      "path_sha256": null,
+      "physical_snapshot_sha256": "50599b16de163ba8d449dbd8cf9fb5894d1f4c08d9f8c801f00ff6a356cb9cf2",
+      "planner_success": false,
+      "planning_time_ms": 0.006515,
+      "policy": "utility_lod",
+      "profile": "quadruped_eval",
+      "reference_hazard_crossings": null,
+      "reference_path_coverage": null,
+      "reference_unknown_crossings": null,
+      "resolution_boundary_crossings": 0,
+      "same_physical_snapshot_for_profiles": true,
+      "source_stream_digest": "1883096196c98522454bf74ac1e29f0f748f3fa3ad0b597b1168958c172cbff2",
+      "start": [
+        220,
+        29
+      ],
+      "status": "measured"
+    },
+    {
+      "ablation": "slope_only",
+      "costmap_lattice_m": 0.05,
+      "expanded_nodes": 15347,
+      "failure": null,
+      "goal": [
+        -15,
+        260
+      ],
+      "path_cell_count": 410,
+      "path_cost": 23.475807310355933,
+      "path_length_m": 23.204520189781086,
+      "path_sha256": "fe4311a6d60bfbfb60695be8710c74f09c9eba489d314d7ad74fab0e14c8b538",
+      "physical_snapshot_sha256": "50599b16de163ba8d449dbd8cf9fb5894d1f4c08d9f8c801f00ff6a356cb9cf2",
+      "planner_success": true,
+      "planning_time_ms": 181.634689,
+      "policy": "utility_lod",
+      "profile": "quadruped_eval",
+      "reference_hazard_crossings": 1,
+      "reference_path_coverage": 1.0,
+      "reference_unknown_crossings": 409,
+      "resolution_boundary_crossings": 10,
+      "same_physical_snapshot_for_profiles": true,
+      "source_stream_digest": "1883096196c98522454bf74ac1e29f0f748f3fa3ad0b597b1168958c172cbff2",
+      "start": [
+        220,
+        29
+      ],
+      "status": "measured"
+    },
+    {
+      "ablation": "geometry_only",
+      "costmap_lattice_m": 0.05,
+      "expanded_nodes": 13795,
+      "failure": null,
+      "goal": [
+        -15,
+        260
+      ],
+      "path_cell_count": 410,
+      "path_cost": 23.561306364424386,
+      "path_length_m": 23.204520189781086,
+      "path_sha256": "ef71afc9bf1259d01c0271f6b20e120163dfabcf5f7cb23684c780d46bf30552",
+      "physical_snapshot_sha256": "50599b16de163ba8d449dbd8cf9fb5894d1f4c08d9f8c801f00ff6a356cb9cf2",
+      "planner_success": true,
+      "planning_time_ms": 157.265152,
+      "policy": "utility_lod",
+      "profile": "quadruped_eval",
+      "reference_hazard_crossings": 1,
+      "reference_path_coverage": 1.0,
+      "reference_unknown_crossings": 409,
+      "resolution_boundary_crossings": 10,
+      "same_physical_snapshot_for_profiles": true,
+      "source_stream_digest": "1883096196c98522454bf74ac1e29f0f748f3fa3ad0b597b1168958c172cbff2",
+      "start": [
+        220,
+        29
+      ],
+      "status": "measured"
+    },
+    {
+      "ablation": "semantics_slope",
+      "costmap_lattice_m": 0.05,
+      "expanded_nodes": 0,
+      "failure": "start_or_goal_unknown_or_blocked",
+      "goal": [
+        -15,
+        260
+      ],
+      "path_cell_count": 0,
+      "path_cost": null,
+      "path_length_m": null,
+      "path_sha256": null,
+      "physical_snapshot_sha256": "50599b16de163ba8d449dbd8cf9fb5894d1f4c08d9f8c801f00ff6a356cb9cf2",
+      "planner_success": false,
+      "planning_time_ms": 0.008217,
+      "policy": "utility_lod",
+      "profile": "quadruped_eval",
+      "reference_hazard_crossings": null,
+      "reference_path_coverage": null,
+      "reference_unknown_crossings": null,
+      "resolution_boundary_crossings": 0,
+      "same_physical_snapshot_for_profiles": true,
+      "source_stream_digest": "1883096196c98522454bf74ac1e29f0f748f3fa3ad0b597b1168958c172cbff2",
+      "start": [
+        220,
+        29
+      ],
+      "status": "measured"
+    },
+    {
+      "ablation": "full",
+      "costmap_lattice_m": 0.05,
+      "expanded_nodes": 0,
+      "failure": "start_or_goal_unknown_or_blocked",
+      "goal": [
+        -15,
+        260
+      ],
+      "path_cell_count": 0,
+      "path_cost": null,
+      "path_length_m": null,
+      "path_sha256": null,
+      "physical_snapshot_sha256": "50599b16de163ba8d449dbd8cf9fb5894d1f4c08d9f8c801f00ff6a356cb9cf2",
+      "planner_success": false,
+      "planning_time_ms": 0.008354,
+      "policy": "utility_lod",
+      "profile": "quadruped_eval",
+      "reference_hazard_crossings": null,
+      "reference_path_coverage": null,
+      "reference_unknown_crossings": null,
+      "resolution_boundary_crossings": 0,
+      "same_physical_snapshot_for_profiles": true,
+      "source_stream_digest": "1883096196c98522454bf74ac1e29f0f748f3fa3ad0b597b1168958c172cbff2",
+      "start": [
+        220,
+        29
+      ],
+      "status": "measured"
+    }
+  ],
+  "same_input_for_all_policies": true,
+  "same_physical_snapshot_for_profiles": {
+    "distance_lod": true,
+    "uniform40": true,
+    "uniform5": true,
+    "utility_lod": true
+  },
+  "schema_version": 1,
+  "status": "measured"
+}
