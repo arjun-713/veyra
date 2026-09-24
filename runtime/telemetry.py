@@ -188,14 +188,19 @@ class Telemetry:
         point_count = int(
             frame.get("n_points") or (len(semantic) if semantic is not None else 0)
         )
-        # Absent ground status means unknown provenance, not an unavailable
-        # stage: measured ground evidence is still reported. Only explicit
-        # non-measurement statuses suppress the ratio (never fabricate zero).
+        # Fail closed on unknown provenance: a missing ground status means the
+        # stage did not report, so the ratio stays UNAVAILABLE (None) rather
+        # than rendering a plausible-looking number from whatever array is
+        # present. The real PipelineStatus dataclass + viewer serializer always
+        # forward all four stage keys, so None only occurs on synthetic inputs
+        # or a dropped-key plumbing fault -- both must not read as measured.
+        # (See PR #42 da881f6 / iteration-01 audit; reverts the PR #41
+        # telemetry hunk, keeps its pandora.py FOV edge tolerance.)
         ground_count = (
             int(np.count_nonzero(np.asarray(ground)))
             if ground is not None
             and pipeline_status.get("ground")
-            not in {"unavailable", "disabled", "invalid", "skipped"}
+            not in {None, "unavailable", "disabled", "invalid", "skipped"}
             else None
         )
         semantic_counts = counts(semantic)
