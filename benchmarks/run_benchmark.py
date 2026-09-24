@@ -25,7 +25,16 @@ import yaml
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 
+from benchmarks.costmap_eval import (
+    planner_evaluation_report,
+    write_planner_evaluation_artifacts,
+)
 from benchmarks.protocol import PROTOCOL_VERSION, binary_stream_file
+from benchmarks.quality_resource import (
+    build_quality_resource_report,
+    comparison_rows,
+    write_quality_resource_artifacts,
+)
 from datasets.generic import ManifestDataset
 from datasets.rellis import Rellis3DDataset
 from datasets.semantickitti import SemanticKITTIDataset
@@ -192,6 +201,79 @@ def _git_sha(repo: Path) -> str | None:
         ).stdout.strip()
     except (OSError, subprocess.CalledProcessError):
         return None
+
+
+def _git_source_state(repo: Path) -> dict[str, Any]:
+    """Fingerprint source changes not represented by the committed Git SHA."""
+    try:
+        tracked_diff = subprocess.run(
+            ["git", "-C", str(repo), "diff", "--binary", "HEAD", "--"],
+            check=True,
+            capture_output=True,
+        ).stdout
+        status = subprocess.run(
+            ["git", "-C", str(repo), "status", "--porcelain", "--untracked-files=all"],
+            check=True,
+            capture_output=True,
+        ).stdout
+        untracked_output = subprocess.run(
+            [
+                "git",
+                "-C",
+                str(repo),
+                "ls-files",
+                "--others",
+                "--exclude-standard",
+                "-z",
+            ],
+            check=True,
+            capture_output=True,
+        ).stdout
+    except (OSError, subprocess.CalledProcessError):
+        return {
+            "working_tree_dirty": None,
+            "source_state_sha256": None,
+            "untracked_source_files": [],
+        }
+
+    source_suffixes = {
+        ".c",
+        ".cc",
+        ".cpp",
+        ".h",
+        ".hpp",
+        ".json",
+        ".md",
+        ".py",
+        ".sh",
+        ".toml",
+        ".yml",
+        ".yaml",
+    }
+    untracked_source_files = []
+    digest = hashlib.sha256()
+    digest.update(b"veyra-benchmark-source-state-v1\0")
+    digest.update(tracked_diff)
+    for raw_path in sorted(path for path in untracked_output.split(b"\0") if path):
+        relative = Path(os.fsdecode(raw_path))
+        if relative.suffix.lower() not in source_suffixes or relative.parts[0] in {
+            "reports",
+            "benchmark-results",
+        }:
+            continue
+        source_path = repo / relative
+        if not source_path.is_file():
+            continue
+        untracked_source_files.append(relative.as_posix())
+        digest.update(b"\0untracked\0")
+        digest.update(raw_path)
+        digest.update(b"\0")
+        digest.update(source_path.read_bytes())
+    return {
+        "working_tree_dirty": bool(status),
+        "source_state_sha256": digest.hexdigest(),
+        "untracked_source_files": untracked_source_files,
+    }
 
 
 def _pull_request_number() -> int | None:
@@ -777,6 +859,7 @@ def mapping_quality_report(
             },
         }
     )
+    surface = elevation_surface_metrics(snapshot, fine_reference)
     return {
         "point_conservation": {
             "holds": conservation,
@@ -807,8 +890,256 @@ def mapping_quality_report(
             "scope": "observed reference bins covered by final active leaves; excludes evicted/uncovered bins",
             "by_range": elevation_by_range,
         },
+        "high_resolution_surface_comparison": surface,
         "mixed_resolution_topology": topology,
         "field_retention": retention,
+    }
+
+
+def elevation_surface_metrics(
+    snapshot: dict[str, Any],
+    fine_reference: dict[str, Any],
+    *,
+    tolerance_m: float = 0.10,
+) -> dict[str, Any]:
+    """Compare reconstructed active leaves with common observed 5 cm bins.
+
+    Uniform5 is a high-resolution representation reference from this same
+    observation stream, not surveyed ground truth. Height accuracy and RMSE
+    are conditional on bins with exactly one active owner; completion reports
+    the fraction of all reference bins with such support. Symmetric Chamfer is
+    the mean of unsquared nearest-neighbour 3D distances in both directions
+    over that same matched support. Missing support is therefore visible in
+    completion rather than imputed as a zero-height surface.
+    """
+    if not math.isfinite(tolerance_m) or tolerance_m < 0.0:
+        raise ValueError("height tolerance must be finite and non-negative")
+    reference = fine_reference.get("mean_z_by_cell", {})
+    reference_bins = len(reference)
+    accuracy_keys = (
+        "height_accuracy_05cm",
+        "height_accuracy_10cm",
+        "height_accuracy_20cm",
+        "height_accuracy_fraction_within_10cm",
+        "elevation_rmse_m",
+    )
+    if not reference_bins:
+        return {
+            "status": "unavailable",
+            "reason": "no observed 5cm reference bins",
+            "reference": "observed Uniform5 representation from identical stream",
+            "reference_is_ground_truth": False,
+            "reference_bins": 0,
+            "matched_bins": 0,
+            "duplicate_owner_bins": 0,
+            "completion_fraction": None,
+            "height_tolerance_m": tolerance_m,
+            "height_accuracy_fraction_within_tolerance": None,
+            **dict.fromkeys(accuracy_keys, None),
+            "symmetric_chamfer_m": None,
+            "chamfer_distance_m": None,
+            "chamfer_sample_count": 0,
+            "by_range": None,
+        }
+
+    snapshot_frame = snapshot.get("coordinate_frame")
+    reference_frame = fine_reference.get("coordinate_frame")
+    if (
+        snapshot_frame is not None
+        and reference_frame is not None
+        and snapshot_frame != reference_frame
+    ):
+        raise ValueError("surface comparison coordinate frames do not match")
+
+    fine_bins: set[tuple[int, int]] = set()
+    reference_values: dict[tuple[int, int], float] = {}
+    for key, value in reference.items():
+        if not isinstance(key, tuple) or len(key) != 2:
+            raise ValueError("reference bins must use (ix, iy) tuple keys")
+        bin_key = (int(key[0]), int(key[1]))
+        reference_z = float(value)
+        if not math.isfinite(reference_z):
+            raise ValueError("reference elevation must be finite")
+        fine_bins.add(bin_key)
+        reference_values[bin_key] = reference_z
+
+    owners = _fine_cell_owners(snapshot, fine_bins)
+    duplicate_owner_bins = sum(len(owners[key]) > 1 for key in fine_bins)
+    if duplicate_owner_bins:
+        # Do not let iteration order choose a parent or descendant. This is a
+        # topology failure, not a low-quality numeric result.
+        return {
+            "status": "invalid",
+            "reason": "one or more observed reference bins have multiple active leaf owners",
+            "reference": "observed Uniform5 representation from identical stream",
+            "reference_is_ground_truth": False,
+            "reference_bins": reference_bins,
+            "matched_bins": 0,
+            "duplicate_owner_bins": duplicate_owner_bins,
+            "completion_fraction": None,
+            "height_tolerance_m": tolerance_m,
+            "height_accuracy_fraction_within_tolerance": None,
+            **dict.fromkeys(accuracy_keys, None),
+            "symmetric_chamfer_m": None,
+            "chamfer_distance_m": None,
+            "chamfer_sample_count": 0,
+            "by_range": None,
+        }
+
+    reference_xyz: list[tuple[float, float, float]] = []
+    estimate_xyz: list[tuple[float, float, float]] = []
+    matched_keys: list[tuple[int, int]] = []
+    absolute_errors: list[float] = []
+    errors_by_bin: dict[tuple[int, int], float] = {}
+    for ix, iy in sorted(fine_bins):
+        bin_owners = owners[(ix, iy)]
+        if not bin_owners:
+            continue
+        leaf = bin_owners[0]
+        if int(leaf.get("count", 0)) <= 0:
+            continue
+        owner_z = float(leaf["mean_z"])
+        if not math.isfinite(owner_z):
+            raise ValueError("leaf elevation must be finite")
+        reference_z = reference_values[(ix, iy)]
+        x = (int(ix) + 0.5) * 0.05
+        y = (int(iy) + 0.5) * 0.05
+        reference_xyz.append((x, y, reference_z))
+        estimate_xyz.append((x, y, owner_z))
+        matched_keys.append((ix, iy))
+        absolute_errors.append(abs(owner_z - reference_z))
+        errors_by_bin[(ix, iy)] = abs(owner_z - reference_z)
+
+    matched = len(absolute_errors)
+    if not matched:
+        return {
+            "status": "partial",
+            "reason": "no reference bins have an active owner",
+            "reference": "observed Uniform5 representation from identical stream",
+            "reference_is_ground_truth": False,
+            "reference_bins": reference_bins,
+            "matched_bins": 0,
+            "duplicate_owner_bins": 0,
+            "completion_fraction": 0.0,
+            "height_tolerance_m": tolerance_m,
+            **dict.fromkeys(accuracy_keys, None),
+            "symmetric_chamfer_m": None,
+            "chamfer_distance_m": None,
+            "chamfer_sample_count": 0,
+            "by_range": None,
+        }
+
+    # The scipy spatial index is already a required dependency for perception.
+    # Query both directions to compute true unsquared symmetric Chamfer, rather
+    # than relabeling paired vertical RMSE as a point-set distance.
+    from scipy.spatial import cKDTree
+
+    reference_points = np.asarray(reference_xyz, dtype=np.float64)
+    estimate_points = np.asarray(estimate_xyz, dtype=np.float64)
+    reference_to_estimate = cKDTree(estimate_points).query(reference_points, k=1)[0]
+    estimate_to_reference = cKDTree(reference_points).query(estimate_points, k=1)[0]
+    chamfer = 0.5 * (
+        float(np.mean(reference_to_estimate)) + float(np.mean(estimate_to_reference))
+    )
+    accuracy = {
+        tolerance: sum(error <= tolerance for error in absolute_errors) / matched
+        for tolerance in (0.05, 0.10, 0.20)
+    }
+    rmse = math.sqrt(sum(error * error for error in absolute_errors) / matched)
+    mean_range_by_cell = fine_reference.get("mean_range_by_cell")
+    by_range = None
+    if isinstance(mean_range_by_cell, dict):
+        by_range = []
+        for min_m, max_m in _RANGE_BANDS:
+            reference_keys = sorted(
+                {
+                    key
+                    for key in fine_bins
+                    if (range_m := mean_range_by_cell.get(key)) is not None
+                    and math.isfinite(float(range_m))
+                    and min_m <= float(range_m) < max_m
+                }
+            )
+            reference_key_set = set(reference_keys)
+            errors = [
+                errors_by_bin[key] for key in reference_keys if key in errors_by_bin
+            ]
+            matched_indices = [
+                index
+                for index, key in enumerate(matched_keys)
+                if key in reference_key_set
+            ]
+            range_chamfer = None
+            if matched_indices:
+                # Rebuild each range bin's point sets independently. Slicing
+                # global nearest-neighbour distances would permit a sample in
+                # one band to match a nearby point from another band and hide
+                # the degradation of the band being reported.
+                range_reference_points = reference_points[matched_indices]
+                range_estimate_points = estimate_points[matched_indices]
+                range_reference_to_estimate = cKDTree(range_estimate_points).query(
+                    range_reference_points, k=1
+                )[0]
+                range_estimate_to_reference = cKDTree(range_reference_points).query(
+                    range_estimate_points, k=1
+                )[0]
+                range_chamfer = 0.5 * (
+                    float(np.mean(range_reference_to_estimate))
+                    + float(np.mean(range_estimate_to_reference))
+                )
+            by_range.append(
+                {
+                    "min_m": min_m,
+                    "max_m": max_m,
+                    "reference_bins": len(reference_keys),
+                    "matched_bins": len(errors),
+                    "completion_fraction": len(errors) / len(reference_keys)
+                    if reference_keys
+                    else None,
+                    "height_accuracy_05cm": sum(error <= 0.05 for error in errors)
+                    / len(errors)
+                    if errors
+                    else None,
+                    "height_accuracy_10cm": sum(error <= 0.10 for error in errors)
+                    / len(errors)
+                    if errors
+                    else None,
+                    "height_accuracy_20cm": sum(error <= 0.20 for error in errors)
+                    / len(errors)
+                    if errors
+                    else None,
+                    "elevation_rmse_m": math.sqrt(
+                        sum(error * error for error in errors) / len(errors)
+                    )
+                    if errors
+                    else None,
+                    "symmetric_chamfer_m": range_chamfer,
+                }
+            )
+    return {
+        "status": "measured" if matched == reference_bins else "partial",
+        "reference": "observed Uniform5 representation from identical stream",
+        "reference_is_ground_truth": False,
+        "reference_bins": reference_bins,
+        "matched_bins": matched,
+        "duplicate_owner_bins": 0,
+        "completion_fraction": matched / reference_bins,
+        "height_tolerance_m": tolerance_m,
+        "height_accuracy_fraction_within_tolerance": sum(
+            error <= tolerance_m for error in absolute_errors
+        )
+        / matched,
+        "height_accuracy_05cm": accuracy[0.05],
+        "height_accuracy_10cm": accuracy[0.10],
+        "height_accuracy_20cm": accuracy[0.20],
+        "height_accuracy_fraction_within_10cm": accuracy[0.10],
+        "elevation_rmse_m": rmse,
+        "symmetric_chamfer_m": chamfer,
+        "chamfer_distance_m": chamfer,
+        "chamfer_sample_count": matched,
+        "chamfer_definition": "mean of both directed unsquared 3D nearest-neighbour distances in metres on matched observed bins",
+        "height_accuracy_denominator": "matched bins only; completion reports missing support separately",
+        "by_range": by_range,
     }
 
 
@@ -859,6 +1190,44 @@ def _fine_reference_from_snapshot(snapshot: dict[str, Any]) -> dict[str, Any]:
     }
 
 
+def _fine_reference_for_snapshot(
+    frames: list[Any] | None, snapshot: dict[str, Any]
+) -> dict[str, Any]:
+    """Build the reference on the final active Uniform5 map support.
+
+    A rolling map's final snapshot cannot fairly be compared against every
+    location visited earlier in a sequence: those earlier bins may have been
+    correctly evicted. The Uniform5 snapshot defines the shared evaluation
+    mask; retained source frames contribute only range metadata for those
+    active reference bins.
+    """
+    reference = _fine_reference_from_snapshot(snapshot)
+    supported_bins = set(reference["mean_z_by_cell"])
+    if frames is None or not supported_bins:
+        return reference
+
+    range_sums: dict[tuple[int, int], tuple[float, int]] = {}
+    for frame in frames:
+        pose = np.asarray(frame.pose.matrix, dtype=np.float64)
+        if pose.shape != (4, 4) or not np.all(np.isfinite(pose)):
+            raise ValueError("source frame pose must be a finite 4x4 transform")
+        origin_x, origin_y = float(pose[0, 3]), float(pose[1, 3])
+        for x, y, _z, _intensity in frame.points:
+            key = (math.floor(float(x) * 20), math.floor(float(y) * 20))
+            if key not in supported_bins:
+                continue
+            total, count = range_sums.get(key, (0.0, 0))
+            range_sums[key] = (
+                total + math.hypot(float(x) - origin_x, float(y) - origin_y),
+                count + 1,
+            )
+    reference["mean_range_by_cell"] = {
+        key: total / count for key, (total, count) in range_sums.items()
+    }
+    reference["coordinate_frame"] = "odom"
+    return reference
+
+
 def _compact_snapshot(snapshot: dict[str, Any]) -> dict[str, Any]:
     """Drop optional leaf rows after quality calculations have consumed them."""
     compact = dict(snapshot)
@@ -882,14 +1251,14 @@ def _finalize_policy_runs(
     (with range bands) is preferred over the Uniform5-snapshot reference
     whenever frames are available.
     """
-    if frames is not None:
+    if runs_by_policy.get("uniform5"):
+        fine_reference = _fine_reference_for_snapshot(
+            frames, runs_by_policy["uniform5"][0]["snapshot"]
+        )
+    elif frames is not None:
         fine_reference = _fine_reference(frames)
     else:
-        fine_reference = (
-            _fine_reference_from_snapshot(runs_by_policy["uniform5"][0]["snapshot"])
-            if runs_by_policy.get("uniform5")
-            else {"mean_z_by_cell": {}}
-        )
+        fine_reference = {"mean_z_by_cell": {}}
     for runs in runs_by_policy.values():
         for result in runs:
             result["quality"] = mapping_quality_report(
@@ -1710,6 +2079,24 @@ def run(args: argparse.Namespace) -> dict[str, Any]:
     digest, window_radius_m, runs_by_policy, bridge_samples_ns, execution_order = (
         _execute_policy_runs(args, repo, requested, frame_iterator, selection)
     )
+    planner_report = {
+        "schema_version": 1,
+        "status": "not_requested",
+        "reason": "pass --planner-evaluation to run the evaluation-only costmap/planner matrix",
+        "reference_is_ground_truth": False,
+        "runs": [],
+    }
+    if getattr(args, "planner_evaluation", False):
+        planner_snapshots = {
+            policy: {
+                **runs[-1]["snapshot"],
+                "stream_digest": runs[-1].get("stream_digest"),
+            }
+            for policy, runs in runs_by_policy.items()
+            if policy in {"uniform5", "uniform40", "distance_lod", "utility_lod"}
+            and runs
+        }
+        planner_report = planner_evaluation_report(planner_snapshots)
     three_d_reference = analytical_3d_reference_bounds(
         selection["min_xyz"], selection["max_xyz"]
     )
@@ -1809,7 +2196,8 @@ def run(args: argparse.Namespace) -> dict[str, Any]:
         }
     )
     measured_frames_per_run = max(0, selection["frames"] - args.warmup_frames)
-    return {
+    source_state = _git_source_state(repo)
+    result_report = {
         "schema_version": SCHEMA_VERSION,
         "provenance": {
             "protocol_version": PROTOCOL_VERSION,
@@ -1821,6 +2209,7 @@ def run(args: argparse.Namespace) -> dict[str, Any]:
             if checkpoint and checkpoint.is_file()
             else None,
             "git_sha": _git_sha(repo),
+            **source_state,
             "pull_request_number": _pull_request_number(),
             "workflow_run_id": os.environ.get("GITHUB_RUN_ID"),
             "workflow_event": os.environ.get("GITHUB_EVENT_NAME"),
@@ -1878,11 +2267,20 @@ def run(args: argparse.Namespace) -> dict[str, Any]:
             "interpretation": "negative means UtilityLOD retained finer leaves on identical input; detail alone is not quality gain",
         },
         "utility_ablation": utility_ablation_report(results),
+        "planner_evaluation": planner_report,
         "policies": results,
     }
+    result_report["quality_resource"] = build_quality_resource_report(result_report)
+    return result_report
 
 
 def _write_csv(path: Path, result: dict[str, Any]) -> None:
+    quality_rows = {
+        row["policy"]: row
+        for row in (result.get("quality_resource") or {}).get(
+            "policies", comparison_rows(result)
+        )
+    }
     fields = (
         "schema_version",
         "dataset",
@@ -1926,6 +2324,14 @@ def _write_csv(path: Path, result: dict[str, Any]) -> None:
         "semantic_miou_60_100m",
         "analytical_3d_dense_voxels",
         "analytical_3d_estimated_bytes",
+        "runtime_ms",
+        "rss_bytes",
+        "height_accuracy_05cm",
+        "height_accuracy_10cm",
+        "height_accuracy_20cm",
+        "completion_fraction",
+        "chamfer_distance_m",
+        "elevation_rmse_m",
     )
     path.parent.mkdir(parents=True, exist_ok=True)
     with path.open("w", newline="") as file:
@@ -2014,6 +2420,26 @@ def _write_csv(path: Path, result: dict[str, Any]) -> None:
                     "analytical_3d_estimated_bytes": result["reference_baselines"][
                         "uniform_5cm_3d"
                     ]["estimated_dense_bytes"],
+                    "runtime_ms": quality_rows.get(policy, {}).get("runtime_ms"),
+                    "rss_bytes": quality_rows.get(policy, {}).get("rss_bytes"),
+                    "height_accuracy_05cm": quality_rows.get(policy, {}).get(
+                        "height_accuracy_05cm"
+                    ),
+                    "height_accuracy_10cm": quality_rows.get(policy, {}).get(
+                        "height_accuracy_10cm"
+                    ),
+                    "height_accuracy_20cm": quality_rows.get(policy, {}).get(
+                        "height_accuracy_20cm"
+                    ),
+                    "completion_fraction": quality_rows.get(policy, {}).get(
+                        "completion_fraction"
+                    ),
+                    "chamfer_distance_m": quality_rows.get(policy, {}).get(
+                        "chamfer_distance_m"
+                    ),
+                    "elevation_rmse_m": quality_rows.get(policy, {}).get(
+                        "elevation_rmse_m"
+                    ),
                 }
             )
 
@@ -2043,6 +2469,16 @@ def main() -> int:
     parser.add_argument("--hardware-profile", default="auto")
     parser.add_argument("--output", type=Path)
     parser.add_argument("--csv-output", type=Path)
+    parser.add_argument(
+        "--quality-artifact-dir",
+        type=Path,
+        help="Write the quality/resource comparison JSON, CSV, Pareto summary, and SVG plots here",
+    )
+    parser.add_argument(
+        "--planner-evaluation",
+        action="store_true",
+        help="Run the bounded evaluation-only costmap/A* ablation matrix on captured map snapshots",
+    )
     parser.add_argument("--skip-perception", action="store_true")
     parser.add_argument(
         "--retain-frames",
@@ -2081,6 +2517,18 @@ def main() -> int:
     ) as error:
         print(f"veyra benchmark: {error}", file=sys.stderr)
         return 2
+    if args.quality_artifact_dir:
+        artifacts = {
+            "quality_resource": write_quality_resource_artifacts(
+                result, args.quality_artifact_dir
+            )
+        }
+        planner = result.get("planner_evaluation") or {}
+        if planner.get("status") != "not_requested":
+            artifacts["planner_evaluation"] = write_planner_evaluation_artifacts(
+                planner, args.quality_artifact_dir
+            )
+        result["evidence_artifacts"] = artifacts
     rendered = json.dumps(result, indent=2, sort_keys=True) + "\n"
     if args.output:
         args.output.parent.mkdir(parents=True, exist_ok=True)

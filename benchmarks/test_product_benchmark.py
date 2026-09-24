@@ -26,6 +26,50 @@ from benchmarks.run_benchmark import (
 
 
 class ProductBenchmarkTests(unittest.TestCase):
+    def test_provenance_fingerprints_dirty_source_but_excludes_generated_reports(self):
+        from benchmarks.run_benchmark import _git_source_state
+
+        with tempfile.TemporaryDirectory() as directory:
+            repo = Path(directory)
+            subprocess.run(["git", "init", "-q", str(repo)], check=True)
+            subprocess.run(
+                ["git", "-C", str(repo), "config", "user.email", "audit@example.test"],
+                check=True,
+            )
+            subprocess.run(
+                ["git", "-C", str(repo), "config", "user.name", "Veyra Test"],
+                check=True,
+            )
+            (repo / "tracked.py").write_text("VALUE = 1\\n")
+            subprocess.run(["git", "-C", str(repo), "add", "tracked.py"], check=True)
+            subprocess.run(
+                ["git", "-C", str(repo), "commit", "-q", "-m", "baseline"],
+                check=True,
+            )
+            (repo / "tracked.py").write_text("VALUE = 2\\n")
+            (repo / "benchmarks").mkdir()
+            (repo / "benchmarks" / "new_eval.py").write_text("VALUE = 3\\n")
+            (repo / "reports").mkdir()
+            report_file = repo / "reports" / "result.json"
+            report_file.write_text('{"run":1}')
+
+            first = _git_source_state(repo)
+            report_file.write_text('{"run":2}')
+            second = _git_source_state(repo)
+            self.assertTrue(first["working_tree_dirty"])
+            self.assertEqual(
+                first["source_state_sha256"], second["source_state_sha256"]
+            )
+            self.assertEqual(
+                first["untracked_source_files"], ["benchmarks/new_eval.py"]
+            )
+
+            (repo / "benchmarks" / "new_eval.py").write_text("VALUE = 4\\n")
+            changed = _git_source_state(repo)
+            self.assertNotEqual(
+                first["source_state_sha256"], changed["source_state_sha256"]
+            )
+
     def test_compact_snapshot_releases_optional_leaf_rows_after_quality(self):
         snapshot = {"levels": {"0": 1}, "leaves": [{"level": 0, "count": 1}]}
         compact = _compact_snapshot(snapshot)
@@ -494,6 +538,160 @@ class ProductBenchmarkTests(unittest.TestCase):
         self.assertEqual(report["rmse_m"], 1.0)
         self.assertEqual(report["sample_count"], 2)
         self.assertAlmostEqual(report["coverage"], 2 / 3)
+
+    def test_quality_metrics_compare_each_policy_to_common_observed_uniform5_bins(self):
+        from benchmarks.run_benchmark import elevation_surface_metrics
+
+        reference = {
+            "mean_z_by_cell": {(0, 0): 0.0, (1, 0): 2.0, (2, 0): 4.0},
+        }
+        snapshot = {
+            "leaves": [
+                {"level": 1, "ix": 0, "iy": 0, "count": 2, "mean_z": 1.0},
+            ]
+        }
+
+        result = elevation_surface_metrics(snapshot, reference, tolerance_m=0.10)
+
+        self.assertEqual(result["status"], "partial")
+        self.assertEqual(result["reference_bins"], 3)
+        self.assertEqual(result["matched_bins"], 2)
+        self.assertAlmostEqual(result["completion_fraction"], 2 / 3)
+        self.assertEqual(result["height_accuracy_fraction_within_10cm"], 0.0)
+        self.assertAlmostEqual(result["symmetric_chamfer_m"], 1.0)
+        self.assertEqual(result["chamfer_sample_count"], 2)
+        self.assertFalse(result["reference_is_ground_truth"])
+
+    def test_range_bins_include_chamfer_from_the_same_common_support_queries(self):
+        from benchmarks.run_benchmark import elevation_surface_metrics
+
+        keys = ((0, 0), (100, 0), (200, 0))
+        reference = {
+            "mean_z_by_cell": {key: 0.0 for key in keys},
+            "mean_range_by_cell": dict(zip(keys, (5.0, 20.0, 70.0), strict=True)),
+        }
+        snapshot = {
+            "leaves": [
+                {"level": 0, "ix": ix, "iy": iy, "count": 1, "mean_z": z}
+                for (ix, iy), z in zip(keys, (0.0, 0.0, 0.2), strict=True)
+            ]
+        }
+
+        result = elevation_surface_metrics(snapshot, reference)
+        ranges = result["by_range"]
+
+        self.assertEqual(ranges[0]["symmetric_chamfer_m"], 0.0)
+        self.assertEqual(ranges[1]["symmetric_chamfer_m"], 0.0)
+        self.assertGreater(ranges[3]["symmetric_chamfer_m"], 0.0)
+
+    def test_range_chamfer_does_not_match_points_from_another_distance_band(self):
+        from benchmarks.run_benchmark import elevation_surface_metrics
+
+        keys = ((199, 0), (200, 0))
+        result = elevation_surface_metrics(
+            {
+                "leaves": [
+                    {"level": 0, "ix": ix, "iy": iy, "count": 1, "mean_z": z}
+                    for (ix, iy), z in zip(keys, (0.0, 0.2), strict=True)
+                ]
+            },
+            {
+                "mean_z_by_cell": dict.fromkeys(keys, 0.0),
+                "mean_range_by_cell": dict(zip(keys, (9.99, 10.01), strict=True)),
+            },
+        )
+
+        # The far-band reconstruction contains only its own point, so its
+        # symmetric Chamfer is the 20 cm vertical discrepancy. A global tree
+        # can incorrectly match the adjacent near-band sample instead.
+        self.assertAlmostEqual(result["by_range"][1]["symmetric_chamfer_m"], 0.2)
+
+    def test_quality_metrics_keep_missing_reference_support_out_of_accuracy_denominator(
+        self,
+    ):
+        from benchmarks.run_benchmark import elevation_surface_metrics
+
+        result = elevation_surface_metrics(
+            {"leaves": [{"level": 0, "ix": 0, "iy": 0, "count": 1, "mean_z": 3.0}]},
+            {"mean_z_by_cell": {(0, 0): 3.0, (10, 10): -1.0}},
+        )
+
+        self.assertEqual(result["height_accuracy_fraction_within_10cm"], 1.0)
+        self.assertEqual(result["completion_fraction"], 0.5)
+        self.assertEqual(result["symmetric_chamfer_m"], 0.0)
+
+    def test_quality_metrics_mark_empty_reference_unavailable_not_zero(self):
+        from benchmarks.run_benchmark import elevation_surface_metrics
+
+        result = elevation_surface_metrics({"leaves": []}, {"mean_z_by_cell": {}})
+
+        self.assertEqual(result["status"], "unavailable")
+        self.assertIsNone(result["height_accuracy_fraction_within_10cm"])
+        self.assertIsNone(result["completion_fraction"])
+        self.assertIsNone(result["symmetric_chamfer_m"])
+
+    def test_quality_metrics_reject_duplicate_active_owners(self):
+        from benchmarks.run_benchmark import elevation_surface_metrics
+
+        result = elevation_surface_metrics(
+            {
+                "leaves": [
+                    {"level": 1, "ix": 0, "iy": 0, "count": 4, "mean_z": 0.0},
+                    {"level": 0, "ix": 1, "iy": 0, "count": 1, "mean_z": 0.0},
+                ]
+            },
+            {"mean_z_by_cell": {(1, 0): 0.0}},
+        )
+
+        self.assertEqual(result["status"], "invalid")
+        self.assertEqual(result["duplicate_owner_bins"], 1)
+        self.assertIsNone(result["height_accuracy_10cm"])
+        self.assertIsNone(result["symmetric_chamfer_m"])
+
+    def test_quality_metrics_report_explicit_height_tolerances_and_rmse(self):
+        from benchmarks.run_benchmark import elevation_surface_metrics
+
+        reference = {"mean_z_by_cell": {(index, 0): 0.0 for index in range(4)}}
+        snapshot = {
+            "leaves": [
+                {"level": 0, "ix": index, "iy": 0, "count": 1, "mean_z": error}
+                for index, error in enumerate((0.0, 0.06, 0.12, 0.25))
+            ]
+        }
+
+        result = elevation_surface_metrics(snapshot, reference)
+
+        self.assertEqual(result["height_accuracy_05cm"], 0.25)
+        self.assertEqual(result["height_accuracy_10cm"], 0.5)
+        self.assertEqual(result["height_accuracy_20cm"], 0.75)
+        self.assertAlmostEqual(
+            result["elevation_rmse_m"], np.sqrt((0.06**2 + 0.12**2 + 0.25**2) / 4)
+        )
+
+    def test_quality_metrics_fail_closed_on_nonfinite_leaf_elevation(self):
+        from benchmarks.run_benchmark import elevation_surface_metrics
+
+        with self.assertRaisesRegex(ValueError, "leaf elevation must be finite"):
+            elevation_surface_metrics(
+                {
+                    "leaves": [
+                        {"level": 0, "ix": 0, "iy": 0, "count": 1, "mean_z": np.inf}
+                    ]
+                },
+                {"mean_z_by_cell": {(0, 0): 0.0}},
+            )
+
+    def test_fine_reference_uses_the_final_active_uniform5_support(self):
+        from benchmarks.run_benchmark import _fine_reference_for_snapshot
+        from benchmarks.test_runtime import frame
+
+        reference = _fine_reference_for_snapshot(
+            [frame()],
+            {"leaves": [{"level": 0, "ix": 0, "iy": 0, "count": 1, "mean_z": 8.0}]},
+        )
+
+        self.assertEqual(reference["mean_z_by_cell"], {(0, 0): 8.0})
+        self.assertEqual(set(reference["mean_range_by_cell"]), {(0, 0)})
 
     def test_generic_selected_root_uses_existing_manifest_adapter(self):
         with tempfile.TemporaryDirectory() as directory:

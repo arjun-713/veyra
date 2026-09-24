@@ -52,6 +52,70 @@ the map snapshot emits the corresponding leaf fields; otherwise the artifact
 records `unavailable` with a reason. Consumers show coverage beside RMSE and
 do not treat finer detail alone as quality improvement.
 
+### Quality/resource and planner evaluation
+
+`quality_resource.schema_version = 1` is embedded in the schema-v2 benchmark
+JSON when all four public policies are requested. It is `measured` only when
+all four have finite required quality/resource values and matching non-empty
+native input-stream digests; otherwise it is `partial`. Its compact table
+reports logical and allocated map bytes, benchmark-process peak RSS, active
+cells, map-update p50/p95/p99, median C++ `frame_pipeline` runtime per frame,
+throughput,
+height accuracy at 5/10/20 cm, completion, symmetric Chamfer, elevation RMSE,
+and available semantic/object retention. Unavailable values remain null.
+`quality_resource_table.csv` has one row per policy; the standalone JSON also
+contains dataset/sequence/frame selection, digest, definitions, and Pareto
+frontiers. The parent benchmark JSON remains authoritative for full host,
+config, build, git, and dataset provenance. It also records whether the Git
+worktree was dirty and a SHA-256 of the tracked diff plus untracked source-like
+files (`source_state_sha256`); generated reports are excluded from that source
+fingerprint. This lets an artifact identify the exact local code state even
+before it has been committed.
+
+The reference is observed Uniform5 map support produced from the identical
+selection/stream. It is **not surveyed ground truth**. `height_accuracy_10cm`
+is the fraction of uniquely matched reference bins whose vertical error is at
+most 0.10 m; its denominator is matched bins only. `completion_fraction` is
+matched unique bins divided by all valid reference bins. `chamfer_distance_m`
+is half the sum of the two directed means of unsquared 3D nearest-neighbour
+distances over reconstructed matched common support. Range-binned Chamfer
+rebuilds nearest-neighbour sets inside each half-open range band, preventing
+cross-band matches. Range-binned accuracy/RMSE are conditional on matched bins;
+completion carries missing support separately.
+
+Nine SVGs are generated without extra plotting dependencies: three
+logical-map-memory versus quality plots, three measured peak-RSS versus quality
+plots, and three map-update-latency versus quality plots. The latency plot and
+frontier use p95 only when every policy has at least 20 map-update samples;
+otherwise they use p50. p95/p99 remain in the table with sample counts and
+reliability flags. Pareto outlines use
+separate two-objective frontiers; the joint frontier minimizes logical bytes,
+the selected reliable map-update percentile (p95 when adequate, otherwise
+p50), and Chamfer while maximizing height accuracy and completion.
+No weighted aggregate score is computed. RSS includes process overhead and is
+not a map-only allocation measurement.
+
+`benchmarks.costmap_eval` is an offline/evaluation-only conversion from a
+physical leaf snapshot to a bounded, world-aligned 5 cm raster; it is not part
+of mapper policy or runtime. Unknown cells block by default. A deterministic
+8-connected A* is run for occupancy, semantic, slope, geometry,
+semantics+slope, and full-evidence ablations. Per-profile common endpoints are
+selected from the largest 4-connected Uniform5 geometry-supported ground
+component, not from semantic drivable labels. This allows semantic-unknown
+datasets to produce geometry-only measurements; semantics-only and full
+costmaps still keep unknown cells blocked and can return explicit no-path
+results. Endpoint selection is evaluation support, not a drivable claim. One deterministic centered,
+aspect-preserving ROI is derived from Uniform5 active bounds to fit the dense
+temporary-grid cell cap, then reused unchanged by all policies, profiles, and
+ablations. The exact 5 cm lattice bounds are recorded in the artifact. Each
+profile reuses its selected endpoint pair across all map policies and
+ablations. Wheeled-UGV and quadruped thresholds are explicitly
+illustrative assumptions, not tuned or certified vehicle properties. Reported
+hazard/unknown crossings compare the selected path with the corresponding
+Uniform5-derived reference and are not absolute safety accuracy. Large maps
+grids are bounded by the recorded ROI cell cap and searches by an expansion
+cap; invalid or partial runs remain explicit in `planner_ablation.json/.csv`.
+
 ## CSV and compatibility
 
 CSV contains one row per requested policy with common latency, memory,
