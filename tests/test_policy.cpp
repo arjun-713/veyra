@@ -239,6 +239,43 @@ void noisy_motion_cannot_predict_refinement_and_near_field_restores_baseline() {
   assert(near.requested_level == 0);
 }
 
+void promotion_telemetry_aggregates_gates_signals_and_level_transitions() {
+  auto config = PolicyConfig::defaults().with_mode(LodMode::UtilityLod);
+  config.utility.semantic_weight = 1.0;
+  LodPolicy policy{config};
+  policy.enable_promotion_telemetry(true);
+  DecisionInput input{.range_m = 70.0,
+                      .active_level = 3,
+                      .state_cell = {3, 90, 0},
+                      .semantic_importance = 1.0};
+  static_cast<void>(policy.decide(input));
+  input.observation_quality = input.point_density = 1.0;
+  const auto decision = policy.decide(input);
+  assert(decision.requested_level == 2);
+  const auto& telemetry = policy.promotion_telemetry();
+  assert(telemetry.decisions == 2);
+  assert(telemetry.gate_passed == 1);
+  assert(telemetry.gate_failed == 1);
+  assert(telemetry.signal_raw_sum[1] == 2.0);
+  assert(telemetry.signal_weighted_sum[1] == 2.0);
+  assert(telemetry.signal_histogram[1][19] == 2);
+  assert(telemetry.signal_exact_zero_count[0] == 2);
+  assert(telemetry.signal_near_one_count[1] == 2);
+  assert(telemetry.signal_min[1] == 1.0);
+  assert(telemetry.signal_max[1] == 1.0);
+  assert(telemetry.utility_histogram[0] == 1);
+  assert(telemetry.utility_histogram[19] == 1);
+  assert(telemetry.utility_exact_zero_count == 1);
+  assert(telemetry.utility_near_one_count == 1);
+  assert(telemetry.utility_min == 0.0);
+  assert(telemetry.utility_max == 1.0);
+  assert(telemetry.utility_above_split_count == 1);
+  assert(telemetry.transition_reason_masks[1U << 1] == 1);
+  assert(telemetry.promotion_transitions[3][2][3] == 1);
+  assert(telemetry.safety_decisions == 0);
+  assert(telemetry.predictive_decisions == 0);
+}
+
 void utility_requires_quality_and_accumulates_late_frame_hazards() {
   auto config = PolicyConfig::defaults().with_mode(LodMode::UtilityLod);
   config.utility.semantic_weight = 1.0;
@@ -507,6 +544,7 @@ int main() {
   governor_waits_for_sustained_overload_and_recovers_with_hysteresis();
   governor_degrades_low_value_before_more_distant_hazards();
   noisy_motion_cannot_predict_refinement_and_near_field_restores_baseline();
+  promotion_telemetry_aggregates_gates_signals_and_level_transitions();
   radial_range_rate_from_velocity_is_signed_along_the_robot_offset();
   uniform_and_distance_modes_have_one_consistent_level_contract();
   invalid_policy_configuration_is_rejected();

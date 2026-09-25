@@ -39,6 +39,38 @@ struct PolicyDecision {
   ResolutionAction action = ResolutionAction::Keep;
 };
 
+// Fixed-size, opt-in aggregates for benchmark diagnostics. Transition bins are
+// indexed by active, requested, and baseline level respectively.
+struct PromotionTelemetry {
+  std::uint64_t decisions = 0;
+  std::uint64_t gate_passed = 0;
+  std::uint64_t gate_failed = 0;
+  std::uint64_t safety_decisions = 0;
+  std::uint64_t predictive_decisions = 0;
+  std::uint64_t budget_suppressed = 0;
+  std::uint64_t governor_actions_requested = 0;
+  std::uint64_t governor_actions_applied = 0;
+  std::array<std::array<std::array<std::uint64_t, 4>, 4>, 4> promotion_transitions{};
+  std::array<double, 5> signal_raw_sum{};
+  std::array<double, 5> signal_weighted_sum{};
+  std::array<double, 5> signal_min{};
+  std::array<double, 5> signal_max{};
+  // Twenty equal-width bins on [0,1], with 1.0 in the final bin.
+  std::array<std::array<std::uint64_t, 20>, 5> signal_histogram{};
+  std::array<std::uint64_t, 5> signal_exact_zero_count{};
+  std::array<std::uint64_t, 5> signal_near_one_count{};
+  std::array<std::uint64_t, 20> utility_histogram{};
+  std::uint64_t utility_exact_zero_count = 0;
+  std::uint64_t utility_near_one_count = 0;
+  double utility_min = 0.0;
+  double utility_max = 0.0;
+  std::uint64_t utility_above_split_count = 0;
+  std::uint64_t utility_below_merge_count = 0;
+  // Bits 0-4: geometry, semantic, motion, terrain, uncertainty;
+  // bit 5: safety override; bit 6: predictive refinement.
+  std::array<std::uint64_t, 128> transition_reason_masks{};
+};
+
 struct UtilityConfig {
   double geometry_weight = 0.20;
   double semantic_weight = 0.30;
@@ -78,6 +110,13 @@ class LodPolicy {
   // Explicit frame IDs make hysteresis independent of point count. IDs must increase.
   void begin_frame(std::uint64_t frame_id);
   void reset() noexcept;
+  void enable_promotion_telemetry(bool enabled) noexcept;
+  void record_promotion_budget_effects(std::uint64_t suppressed,
+                                      std::uint64_t actions_requested,
+                                      std::uint64_t actions_applied) noexcept;
+  [[nodiscard]] const PromotionTelemetry& promotion_telemetry() const noexcept {
+    return promotion_telemetry_;
+  }
   [[nodiscard]] std::size_t retained_state_count() const noexcept { return states_.size(); }
 
  private:
@@ -100,12 +139,15 @@ class LodPolicy {
     bool frame_predictive = false;
     bool frame_safety = false;
     int frame_goal = 3;
+    bool frame_promotion_counted = false;
   };
 
   PolicyConfig config_;
   std::optional<std::uint64_t> frame_id_;
   std::uint64_t implicit_frame_id_ = 0;
   std::unordered_map<core::CellId, AdaptationState, core::CellIdHash> states_;
+  bool promotion_telemetry_enabled_ = false;
+  PromotionTelemetry promotion_telemetry_{};
 };
 
 struct ResourceGovernorConfig {

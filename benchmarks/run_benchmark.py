@@ -53,6 +53,7 @@ class PolicyAdapter:
     utility_config: str = "utility_lod.yaml"
     suite: str = "public"
     signals: tuple[str, ...] = ()
+    governor_config: str | None = None
 
 
 POLICY_ADAPTERS = {
@@ -1240,6 +1241,7 @@ def _finalize_policy_runs(
     selection: dict[str, Any],
     *,
     frames: list[Any] | None = None,
+    compact: bool = True,
 ) -> dict[str, Any]:
     """Attach quality reports, then release long-run leaf-detail payloads.
 
@@ -1274,7 +1276,8 @@ def _finalize_policy_runs(
                 )
                 if frame_conservation is not None:
                     result["quality"]["point_conservation"] = frame_conservation
-            result["snapshot"] = _compact_snapshot(result["snapshot"])
+            if compact:
+                result["snapshot"] = _compact_snapshot(result["snapshot"])
     return fine_reference
 
 
@@ -1674,6 +1677,8 @@ def _command(
     warmup_frames: int,
     repo: Path,
     governor_config: str | Path | None = None,
+    *,
+    promotion_telemetry: bool = False,
 ) -> list[str]:
     ranges = distance_config["ranges_m"]
     governor_path = (
@@ -1681,7 +1686,7 @@ def _command(
         if governor_config is not None and Path(governor_config).is_absolute()
         else repo / str(governor_config or "configs/resource_governor.yaml")
     )
-    return [
+    command = [
         binary,
         "--policy",
         str(adapter.cpp_policy),
@@ -1700,6 +1705,9 @@ def _command(
         str(governor_path),
         "--include-leaf-details",
     ]
+    if promotion_telemetry:
+        command.append("--promotion-telemetry")
+    return command
 
 
 def _execute_policy_runs(
@@ -1745,10 +1753,14 @@ def _execute_policy_runs(
                             window_radius_m,
                             args.warmup_frames,
                             repo,
-                            getattr(
+                            adapter.governor_config
+                            or getattr(
                                 args,
                                 "governor_config",
                                 "configs/resource_governor.yaml",
+                            ),
+                            promotion_telemetry=getattr(
+                                args, "promotion_telemetry", False
                             ),
                         ),
                         stdin=stream_input,
@@ -2101,7 +2113,10 @@ def run(args: argparse.Namespace) -> dict[str, Any]:
         selection["min_xyz"], selection["max_xyz"]
     )
     fine_reference = _finalize_policy_runs(
-        runs_by_policy, selection, frames=retained_frames
+        runs_by_policy,
+        selection,
+        frames=retained_frames,
+        compact=not getattr(args, "keep_leaf_details", False),
     )
     results: dict[str, Any] = {}
     for policy in requested:
@@ -2114,6 +2129,8 @@ def run(args: argparse.Namespace) -> dict[str, Any]:
                 "utility_config": adapter.utility_config,
                 "suite": adapter.suite,
                 "signals": list(adapter.signals),
+                "governor_config": adapter.governor_config
+                or getattr(args, "governor_config", "configs/resource_governor.yaml"),
             },
             "runs": runs,
             "aggregate": _aggregate_policy_runs(runs),
@@ -2135,6 +2152,11 @@ def run(args: argparse.Namespace) -> dict[str, Any]:
         *{
             repo / "configs" / POLICY_ADAPTERS[policy].utility_config
             for policy in requested
+        },
+        *{
+            Path(POLICY_ADAPTERS[policy].governor_config)
+            for policy in requested
+            if POLICY_ADAPTERS[policy].governor_config is not None
         },
         governor_config_path,
         repo / "configs/benchmark.yaml",
@@ -2487,6 +2509,16 @@ def main() -> int:
         "task-class retention on the identical stream every policy consumes; "
         "default streams frames with bounded memory and reports retention "
         "as unavailable",
+    )
+    parser.add_argument(
+        "--keep-leaf-details",
+        action="store_true",
+        help="Keep final leaf rows for bounded, region-specific benchmark analysis; can produce large JSON",
+    )
+    parser.add_argument(
+        "--promotion-telemetry",
+        action="store_true",
+        help="Collect bounded UtilityLOD decision and signal aggregates in the C++ benchmark",
     )
     parser.add_argument("--dataset-sha256")
     parser.add_argument("--build-type", default="Release")

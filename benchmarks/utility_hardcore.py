@@ -303,6 +303,8 @@ def regional_comparison(
         if eligible
         else None,
         "promotion_recall_denominator": len(eligible),
+        "promoted_eligible_bins": len(promoted & eligible),
+        "missed_critical_bins": len(eligible - promoted),
         "wasted_promotion_ratio": len(wasted) / len(promoted) if promoted else None,
         "wasted_definition": "promoted background observed bins with no reduction in absolute elevation error",
     }

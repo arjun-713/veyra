@@ -46,6 +46,7 @@ struct Options {
   bool clearing_enabled = false;
   double sensor_height_m = 1.8;
   bool include_leaf_details = false;
+  bool promotion_telemetry = false;
   std::string utility_config = VEYRA_SOURCE_DIR "/configs/utility_lod.yaml";
   std::string governor_config = VEYRA_SOURCE_DIR "/configs/resource_governor.yaml";
 };
@@ -122,6 +123,7 @@ struct Result {
   // Last frame's visibility-clearing outcome. Absent when clearing is off.
   std::optional<veyra::map::ClearingStats> clearing;
   std::optional<veyra::policy::ResourceGovernorConfig> governor_config;
+  std::optional<veyra::policy::PromotionTelemetry> promotion_telemetry;
 };
 
 enum class PolicyKind { kUniform5, kUniform40, kDistanceLod, kUtilityLod };
@@ -134,14 +136,17 @@ class MapPolicyAdapter {
         map_(make_storage(kind, config)),
         utility_(kind == PolicyKind::kUtilityLod
                      ? std::optional<veyra::policy::LodPolicy>{veyra::policy::load_policy_config(
-                           options.utility_config)}
+                      options.utility_config)}
                      : std::nullopt),
         governor_(
             kind == PolicyKind::kUtilityLod
                 ? std::optional<
                       veyra::policy::ResourceGovernor>{veyra::policy::load_resource_governor_config(
                       options.governor_config)}
-                : std::nullopt) {}
+                : std::nullopt) {
+    options_promotion_telemetry_ = options.promotion_telemetry;
+    if (utility_) utility_->enable_promotion_telemetry(options.promotion_telemetry);
+  }
 
   [[nodiscard]] bool accepts(double x, double y) const {
     return std::visit([x, y](const auto& map) { return map.accepts(x, y); }, map_);
@@ -158,9 +163,10 @@ class MapPolicyAdapter {
     const double range = std::hypot(offset_x, offset_y);
     auto baseline_cell = map.cell_for(observation.x, observation.y);
     while (baseline_cell.level < 3) baseline_cell = baseline_cell.parent();
+    const auto active_level = map.level_for(observation.x, observation.y);
     const auto decision = utility_->decide({
         .range_m = range,
-        .active_level = map.level_for(observation.x, observation.y),
+        .active_level = active_level,
         .state_cell = baseline_cell,
         .safety_critical = observation.drivable == 2,
         .geometry_complexity = static_cast<double>(observation.geometry_complexity),
@@ -183,6 +189,8 @@ class MapPolicyAdapter {
           std::max(requested_level,
                    std::min(decision.baseline_level, map.level_for(observation.x, observation.y)));
     }
+    if (utility_ && options_promotion_telemetry_ && requested_level > decision.requested_level)
+      utility_->record_promotion_budget_effects(1, 0, 0);
     map.update_at_level(observation, requested_level);
   }
 
@@ -269,6 +277,7 @@ class MapPolicyAdapter {
     // Candidates are disjoint, complete sibling groups from this exact
     // snapshot; no concurrent mutations can invalidate them.
     governor_->record_applied_actions(actions.size());
+    if (utility_) utility_->record_promotion_budget_effects(0, actions.size(), actions.size());
   }
 
   [[nodiscard]] std::optional<veyra::policy::GovernorStatus> governor_status() const {
@@ -277,6 +286,12 @@ class MapPolicyAdapter {
 
   [[nodiscard]] std::optional<veyra::policy::ResourceGovernorConfig> governor_config() const {
     return governor_ ? std::optional{governor_->config()} : std::nullopt;
+  }
+
+  [[nodiscard]] std::optional<veyra::policy::PromotionTelemetry> promotion_telemetry() const {
+    return utility_ && options_promotion_telemetry_
+               ? std::optional{utility_->promotion_telemetry()}
+               : std::nullopt;
   }
 
   void set_governor_override(veyra::policy::GovernorOverride mode) {
@@ -307,6 +322,7 @@ class MapPolicyAdapter {
   std::uint64_t frame_id_ = 0;
   double center_x_ = 0.0;
   double center_y_ = 0.0;
+  bool options_promotion_telemetry_ = false;
 };
 
 // Stream ingestion shared by batch execution and the persistent engine.
@@ -407,6 +423,8 @@ Options parse_options(int argc, char** argv) {
       options.clearing_enabled = true;
     } else if (arg == "--include-leaf-details") {
       options.include_leaf_details = true;
+    } else if (arg == "--promotion-telemetry") {
+      options.promotion_telemetry = true;
     } else if (arg == "--utility-config") {
       options.utility_config = argv[++index];
     } else if (arg == "--governor-config") {
@@ -912,6 +930,7 @@ Result run(const Options& options) {
   } else if (!result.dropped_frames.has_value()) {
     result.dropped_frames = 0;
   }
+  result.promotion_telemetry = map.promotion_telemetry();
   metrics.set_logical_map_bytes(result.snapshot.logical_bytes);
   metrics.set_allocated_map_bytes(result.snapshot.memory.allocated_bytes);
   result.metrics = metrics.report(Clock::time_point{} + measured_elapsed);
@@ -1180,6 +1199,66 @@ std::string render(const Result& result) {
     out << '}';
   }
   out << ']';
+  if (result.promotion_telemetry) {
+    const auto& telemetry = *result.promotion_telemetry;
+    constexpr std::array<std::string_view, 5> signal_names{
+        "geometry", "semantic", "motion", "traversability_risk", "semantic_uncertainty"};
+    out << ",\"promotion_telemetry\":{\"decisions\":" << telemetry.decisions
+        << ",\"gate_passed\":" << telemetry.gate_passed
+        << ",\"gate_failed\":" << telemetry.gate_failed
+        << ",\"safety_decisions\":" << telemetry.safety_decisions
+        << ",\"predictive_decisions\":" << telemetry.predictive_decisions
+        << ",\"budget_suppressed\":" << telemetry.budget_suppressed
+        << ",\"governor_actions_requested\":" << telemetry.governor_actions_requested
+        << ",\"governor_actions_applied\":" << telemetry.governor_actions_applied
+        << ",\"signals\":{";
+    for (std::size_t i = 0; i < signal_names.size(); ++i) {
+      if (i) out << ',';
+      out << '\"' << signal_names[i] << "\":{\"raw_sum\":" << telemetry.signal_raw_sum[i]
+          << ",\"weighted_sum\":" << telemetry.signal_weighted_sum[i]
+          << ",\"min\":" << telemetry.signal_min[i]
+          << ",\"max\":" << telemetry.signal_max[i]
+          << ",\"exact_zero_count\":" << telemetry.signal_exact_zero_count[i]
+          << ",\"near_one_count\":" << telemetry.signal_near_one_count[i]
+          << ",\"histogram\":[";
+      for (std::size_t bin = 0; bin < 20; ++bin) {
+        if (bin) out << ',';
+        out << telemetry.signal_histogram[i][bin];
+      }
+      out << "]}";
+    }
+    out << "},\"utility_exact_zero_count\":" << telemetry.utility_exact_zero_count
+        << ",\"utility_near_one_count\":" << telemetry.utility_near_one_count
+        << ",\"utility_min\":" << telemetry.utility_min
+        << ",\"utility_max\":" << telemetry.utility_max
+        << ",\"utility_above_split_count\":" << telemetry.utility_above_split_count
+        << ",\"utility_below_merge_count\":" << telemetry.utility_below_merge_count
+        << ",\"utility_histogram\":[";
+    for (std::size_t bin = 0; bin < 20; ++bin) {
+      if (bin) out << ',';
+      out << telemetry.utility_histogram[bin];
+    }
+    out << "],\"transition_reason_masks\":[";
+    bool first_reason = true;
+    for (std::size_t mask = 0; mask < telemetry.transition_reason_masks.size(); ++mask) {
+      if (!telemetry.transition_reason_masks[mask]) continue;
+      if (!std::exchange(first_reason, false)) out << ',';
+      out << "{\"mask\":" << mask << ",\"count\":" << telemetry.transition_reason_masks[mask]
+          << '}';
+    }
+    out << "],\"promotion_transitions\":[";
+    bool first_transition = true;
+    for (std::size_t active = 0; active < 4; ++active)
+      for (std::size_t requested = 0; requested < 4; ++requested)
+        for (std::size_t baseline = 0; baseline < 4; ++baseline) {
+          const auto count = telemetry.promotion_transitions[active][requested][baseline];
+          if (!count) continue;
+          if (!std::exchange(first_transition, false)) out << ',';
+          out << "{\"active\":" << active << ",\"requested\":" << requested
+              << ",\"baseline\":" << baseline << ",\"count\":" << count << '}';
+        }
+    out << "]}";
+  }
   if (result.governor) {
     const auto& governor = *result.governor;
     const char* state = "normal";
@@ -1422,6 +1501,7 @@ class PersistentEngineSession {
             1'000'000.0);
     snapshot = map_->snapshot();
     result_.governor = map_->governor_status();
+    result_.promotion_telemetry = map_->promotion_telemetry();
     const auto governor_interventions =
         result_.governor ? result_.governor->interventions - previous_governor_interventions_ : 0;
     const auto governor_actions =
