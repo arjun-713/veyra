@@ -626,27 +626,37 @@ def mixed_resolution_topology_report(
     }
 
 
-def field_retention_report(
-    frames: list[Any], snapshot: dict[str, Any]
-) -> dict[str, Any]:
-    """Compare retained leaf evidence with fine-bin source evidence.
-
-    The current public C++ benchmark snapshot may omit semantic/drivable leaf
-    fields.  In that case each field is explicitly unavailable rather than
-    inferred from topology or elevation.
-    """
+def _field_reference(frames: list[Any]) -> dict[tuple[int, int], dict[str, Any]]:
+    """Build source evidence once for every policy/repetition of one stream."""
     fine: dict[tuple[int, int], dict[str, Any]] = {}
     for frame in frames:
-        for index, point in enumerate(frame.points):
+        classes = np.asarray(frame.semantic_class)
+        drivable = np.asarray(frame.drivable)
+        for point, semantic_value, terrain_value in zip(
+            frame.points, classes, drivable, strict=True
+        ):
             key = (math.floor(float(point[0]) * 20), math.floor(float(point[1]) * 20))
             item = fine.setdefault(key, {"classes": {}, "hazard": False})
-            semantic = int(np.asarray(frame.semantic_class)[index])
+            semantic = int(semantic_value)
             if semantic != 0:
                 item["classes"][semantic] = item["classes"].get(semantic, 0) + 1
-            item["hazard"] = (
-                item["hazard"]
-                or str(np.asarray(frame.drivable)[index]) == "non_drivable"
-            )
+            item["hazard"] = item["hazard"] or str(terrain_value) == "non_drivable"
+    return fine
+
+
+def field_retention_report(
+    frames: list[Any],
+    snapshot: dict[str, Any],
+    *,
+    fine_reference: dict[tuple[int, int], dict[str, Any]] | None = None,
+) -> dict[str, Any]:
+    """Compare retained leaf evidence with the common fine-bin source evidence.
+
+    The public snapshot may omit semantic/drivable fields; unavailable fields
+    are never inferred. A shared precomputed reference avoids rebuilding the
+    same full-frame dictionary for every policy and repetition.
+    """
+    fine = fine_reference if fine_reference is not None else _field_reference(frames)
     owners = _fine_cell_owners(snapshot, set(fine))
 
     semantic = {
@@ -755,6 +765,7 @@ def mapping_quality_report(
     fine_reference: dict[str, Any],
     *,
     frames: list[Any] | None = None,
+    field_reference: dict[tuple[int, int], dict[str, Any]] | None = None,
 ) -> dict[str, Any]:
     """Measure only conservation/topology/elevation evidence exposed by the map."""
     point_count = int(snapshot["point_count"])
@@ -845,7 +856,7 @@ def mapping_quality_report(
         )
     topology = mixed_resolution_topology_report(snapshot, set(reference))
     retention = (
-        field_retention_report(frames, snapshot)
+        field_retention_report(frames, snapshot, fine_reference=field_reference)
         if frames is not None
         else {
             "status": "unavailable",
@@ -1261,6 +1272,7 @@ def _finalize_policy_runs(
         fine_reference = _fine_reference(frames)
     else:
         fine_reference = {"mean_z_by_cell": {}}
+    field_reference = _field_reference(frames) if frames is not None else None
     for runs in runs_by_policy.values():
         for result in runs:
             result["quality"] = mapping_quality_report(
@@ -1269,6 +1281,7 @@ def _finalize_policy_runs(
                 result["snapshot"],
                 fine_reference,
                 frames=frames,
+                field_reference=field_reference,
             )
             if result.get("frame_metrics"):
                 frame_conservation = result["frame_metrics"][-1].get(

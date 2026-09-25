@@ -14,6 +14,7 @@ from benchmarks.run_benchmark import (
     UTILITY_ABLATION_POLICY_NAMES,
     SemanticQualityAccumulator,
     _compact_snapshot,
+    _field_reference,
     analytical_3d_reference,
     field_retention_report,
     load_selection,
@@ -148,6 +149,10 @@ class ProductBenchmarkTests(unittest.TestCase):
         self.assertEqual(report["semantic"]["retained_bins"], 2)
         self.assertEqual(report["terrain_hazard"]["reference_bins"], 1)
         self.assertEqual(report["terrain_hazard"]["retained_bins"], 1)
+        cached = field_retention_report(
+            [source], snapshot, fine_reference=_field_reference([source])
+        )
+        self.assertEqual(report, cached)
 
     def test_sih_validation_entrypoint_has_explicit_real_data_gate(self):
         repo = Path(__file__).resolve().parents[1]
