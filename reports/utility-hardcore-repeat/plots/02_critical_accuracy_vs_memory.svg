@@ -1,0 +1,21 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="900" height="520" viewBox="0 0 900 520">
+<rect width="100%" height="100%" fill="#101820"/>
+<text x="55" y="45" fill="#f0f4f8" font-size="22">Critical 10 cm height accuracy vs logical memory</text>
+<text x="55" y="75" fill="#aab9c7" font-size="13">Measured challenge rows; colors identify policies, hover for values</text>
+<path d="M80 95 V445 H855" fill="none" stroke="#667787"/>
+<text x="460" y="490" text-anchor="middle" fill="#c7d4df" font-size="15">logical map bytes</text>
+<text x="20" y="275" transform="rotate(-90 20 275)" text-anchor="middle" fill="#c7d4df" font-size="15">critical accuracy 10cm</text>
+<text x="80" y="465" fill="#91a5b5" font-size="11">3.43</text>
+<text x="855" y="465" text-anchor="end" fill="#91a5b5" font-size="11">24.7</text>
+<text x="70" y="440" text-anchor="end" fill="#91a5b5" font-size="11">0.134</text>
+<text x="70" y="100" text-anchor="end" fill="#91a5b5" font-size="11">1</text>
+<circle cx="855.0" cy="95.0" r="5" fill="#16a6aa" opacity="0.8"><title>uniform5: 24.7, 1</title></circle>
+<circle cx="80.0" cy="337.5" r="5" fill="#737d8c" opacity="0.8"><title>uniform40: 3.43, 0.4</title></circle>
+<circle cx="663.4" cy="337.5" r="5" fill="#3576dc" opacity="0.8"><title>distance_lod: 19.44, 0.4</title></circle>
+<circle cx="671.5" cy="337.5" r="5" fill="#da6a32" opacity="0.8"><title>utility_lod: 19.66, 0.4</title></circle>
+<circle cx="855.0" cy="95.0" r="5" fill="#16a6aa" opacity="0.8"><title>uniform5: 24.7, 1</title></circle>
+<circle cx="80.0" cy="445.0" r="5" fill="#737d8c" opacity="0.8"><title>uniform40: 3.43, 0.1341</title></circle>
+<circle cx="663.4" cy="410.5" r="5" fill="#3576dc" opacity="0.8"><title>distance_lod: 19.44, 0.2195</title></circle>
+<circle cx="671.5" cy="405.6" r="5" fill="#da6a32" opacity="0.8"><title>utility_lod: 19.66, 0.2317</title></circle>
+<text x="855" y="45" text-anchor="end" fill="#9db2c1" font-size="11">distance_lod | uniform40 | uniform5 | utility_lod</text>
+</svg>

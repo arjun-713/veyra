@@ -1,0 +1,577 @@
+{
+  "manifest_sha256": "66d316ba83ba634ee10de99ed174605884e8623deb9b836b4fbdc2f70e518e07",
+  "runs": [
+    {
+      "benchmark_wall_s": 187.78164995800034,
+      "group": [
+        "semanticposs-00-000152-semantic_object-pole-60"
+      ],
+      "perception": {
+        "bridge_scope": "C++ protocol_parse_and_validate across measured policy streams",
+        "dataset": "semanticposs",
+        "failures": 0,
+        "frames": 10,
+        "ground_ratio": 0.28060530936516875,
+        "known_motion_fraction": 0.0,
+        "known_terrain_fraction": 0.27546743449091526,
+        "points_processed": 659447,
+        "sequence": "00",
+        "status": {
+          "ground": "pypatchworkpp.patchworkpp",
+          "semantic": "ground_truth",
+          "temporal": "disabled",
+          "terrain": "available"
+        },
+        "timings": {
+          "bridge": {
+            "max_ms": 295.353385,
+            "mean_ms": 171.349286125,
+            "p50_ms": 151.359455,
+            "p95_ms": 289.804182,
+            "p99_ms": 295.353385,
+            "samples": 32
+          },
+          "dataset_load": {
+            "max_ms": 127.16519,
+            "mean_ms": 74.1757638,
+            "p50_ms": 64.641443,
+            "p95_ms": 127.16519,
+            "p99_ms": 127.16519,
+            "samples": 10
+          },
+          "ground": {
+            "max_ms": 125.07260599886649,
+            "mean_ms": 74.09545650025393,
+            "p50_ms": 66.8665270004567,
+            "p95_ms": 125.07260599886649,
+            "p99_ms": 125.07260599886649,
+            "samples": 10
+          },
+          "semantic": {
+            "max_ms": 1.0018770008173306,
+            "mean_ms": 0.643448299888405,
+            "p50_ms": 0.6202859985933173,
+            "p95_ms": 1.0018770008173306,
+            "p99_ms": 1.0018770008173306,
+            "samples": 10
+          },
+          "sensor_transform": {
+            "max_ms": 7.7306379989749985,
+            "mean_ms": 3.7134539998078253,
+            "p50_ms": 2.695419998417492,
+            "p95_ms": 7.7306379989749985,
+            "p99_ms": 7.7306379989749985,
+            "samples": 10
+          },
+          "temporal": {
+            "max_ms": 0.005058998794993386,
+            "mean_ms": 0.0014372995792655274,
+            "p50_ms": 0.0009109990060096607,
+            "p95_ms": 0.005058998794993386,
+            "p99_ms": 0.005058998794993386,
+            "samples": 10
+          },
+          "terrain": {
+            "max_ms": 121.54744399958872,
+            "mean_ms": 78.31513639994228,
+            "p50_ms": 73.57181500083243,
+            "p95_ms": 121.54744399958872,
+            "p99_ms": 121.54744399958872,
+            "samples": 10
+          },
+          "total": {
+            "max_ms": 273.7018080006237,
+            "mean_ms": 173.01602510015073,
+            "p50_ms": 166.53565799970238,
+            "p95_ms": 273.7018080006237,
+            "p99_ms": 273.7018080006237,
+            "samples": 10
+          }
+        }
+      },
+      "provenance": {
+        "build_type": "Release",
+        "compiler": "c++ (GCC) 16.2.1 20260819 (Red Hat 16.2.1-2)",
+        "config_digest": "fea60ebeea07480781e9713f0b08cfefa86a62ffe74d9a563f52e9df454a110e",
+        "config_sha256": {
+          "benchmark.yaml": "f2d60b90a3de53fbfc6347c5e527fd01291c1f2e2ea5e77ccafb1c8c21d3cf07",
+          "datasets.yaml": "2925075c5e70d169070e61c9ecb8fd6226c716e7602f4a552cc9c56f245f48b7",
+          "distance_lod.yaml": "50cfb183cf26ff738c5bc4aed4f7dde58d6ee1a0e20831b62d740d21a18e2414",
+          "hardware_profiles.yaml": "16cccff4b2958c05f2bc9e9936cb6278cf3120b0eb8c744fc4552209a38c5d45",
+          "perception.yaml": "7fb3085bb8a47d0a7024b0a435d7a586a782f258d37ccf220e31365e9382832d",
+          "resource_governor.yaml": "c0b54b59500eedb1972c3493794dbccf751bad9ca96bf264b8787bf95d4959a5",
+          "utility_lod.yaml": "7c98ee39e870aa97912ce00436e2f9416d2bce50f8a178965abc82eeb87faa77"
+        },
+        "dataset_sha256": null,
+        "frame_range": {
+          "count": 10,
+          "end_exclusive": 157,
+          "sequence": "00",
+          "start": 147
+        },
+        "git_sha": "33aa858aade6cb6cccbf787eb91e4f3de9257234",
+        "hardware": {
+          "capture": "runtime",
+          "logical_cpu_count": 8,
+          "machine": "x86_64",
+          "os": "Linux-7.2.5-200.fc44.x86_64-x86_64-with-glibc2.43",
+          "physical_memory_bytes": 16489123840,
+          "processor": "Intel(R) Core(TM) i5-8350U CPU @ 1.70GHz",
+          "profile": "auto",
+          "python": "3.13.15"
+        },
+        "map_window_radius_m": 100.19105410590272,
+        "measurement_scope": {
+          "map_update": "C++ map update calls only; excludes protocol parsing, snapshotting, and JSON/CSV serialization",
+          "map_window_follow": "C++ public map window-center update from the transmitted world-frame pose; excludes serialization",
+          "perception": "Python PerceptionPipeline processing, shared once before all policy runs",
+          "protocol_parse_and_validate": "C++ token parsing and Observation construction; excludes stdin I/O",
+          "snapshot_and_topology": "C++ map snapshot plus topology extraction; excludes JSON/CSV serialization"
+        },
+        "model_checkpoint_sha256": "067086f808985de376e19c174e249190b7c97996cd54be1dbb9d8b298804b548",
+        "perception_executed": true,
+        "policy_execution_order": [
+          [
+            "uniform5",
+            "uniform40",
+            "distance_lod",
+            "utility_lod"
+          ]
+        ],
+        "protocol_version": 4,
+        "pull_request_number": null,
+        "repetitions": 1,
+        "sample_adequacy": {
+          "fps_samples_per_policy": {
+            "p95_reliable": false,
+            "p99_reliable": false,
+            "samples": 1
+          },
+          "measured_frames_per_run": 8,
+          "note": "nearest-rank p95 needs >=20 samples and p99 >=100; short-run tails equal the max and are descriptive only, not SLO evidence",
+          "repetitions": 1,
+          "stage_latency_samples_per_policy": {
+            "p95_reliable": false,
+            "p99_reliable": false,
+            "samples": 8
+          }
+        },
+        "selection_digest": "92e471b284e14c9d536071a3da92f0f77b64bfc576145d854b784937184a45c2",
+        "source_state_sha256": "1e381dbc64b5a746b95a861b44c1673aeec3fadb86172dd10578da5c0deed82c",
+        "timestamp_utc": "2026-09-25T10:05:03.722190+00:00",
+        "untracked_source_files": [
+          "benchmarks/utility_cenet_sensitivity.py",
+          "docs/superpowers/plans/2026-09-24-map-quality-and-cost-evaluation.md",
+          "scripts/audit_semantic_salsanext.py",
+          "scripts/fetch_kitti_subset.py",
+          "scripts/run_final_benchmark.sh"
+        ],
+        "warmup_frames": 2,
+        "workflow_event": null,
+        "workflow_run_id": null,
+        "working_tree_dirty": true
+      },
+      "stage": "baseline"
+    },
+    {
+      "benchmark_wall_s": 371.82976694699937,
+      "generated_configs": {
+        "a1_geometry": "# UtilityLOD: distance baseline + promotion gated by observation quality.\n# See docs/resolution-policies.md\nmode: utility_lod\ndistance_boundaries_m: [10.0, 30.0, 60.0]\nmax_range_m: 100.0\nutility:\n  geometry_weight: 0.20\n  semantic_weight: 0.0\n  motion_weight: 0.0\n  traversability_risk_weight: 0.0\n  uncertainty_weight: 0.0\n  min_observation_quality: 0.50\n  min_point_density: 0.50\n  ema_alpha: 0.35\n  split_threshold: 0.55\n  merge_threshold: 0.30\n  split_consecutive_frames: 2\n  merge_consecutive_frames: 3\n  cooldown_frames: 4\n  max_level_changes_per_decision: 1\n  prediction_horizon_s: 1.0\n  max_promotion_depth: 1\n  max_state_cells: 65536\n  state_ttl_frames: 120\n",
+        "a2_semantics": "# UtilityLOD: distance baseline + promotion gated by observation quality.\n# See docs/resolution-policies.md\nmode: utility_lod\ndistance_boundaries_m: [10.0, 30.0, 60.0]\nmax_range_m: 100.0\nutility:\n  geometry_weight: 0.0\n  semantic_weight: 0.30\n  motion_weight: 0.0\n  traversability_risk_weight: 0.0\n  uncertainty_weight: 0.0\n  min_observation_quality: 0.50\n  min_point_density: 0.50\n  ema_alpha: 0.35\n  split_threshold: 0.55\n  merge_threshold: 0.30\n  split_consecutive_frames: 2\n  merge_consecutive_frames: 3\n  cooldown_frames: 4\n  max_level_changes_per_decision: 1\n  prediction_horizon_s: 1.0\n  max_promotion_depth: 1\n  max_state_cells: 65536\n  state_ttl_frames: 120\n",
+        "a3_geometry_semantics": "# UtilityLOD: distance baseline + promotion gated by observation quality.\n# See docs/resolution-policies.md\nmode: utility_lod\ndistance_boundaries_m: [10.0, 30.0, 60.0]\nmax_range_m: 100.0\nutility:\n  geometry_weight: 0.20\n  semantic_weight: 0.30\n  motion_weight: 0.0\n  traversability_risk_weight: 0.0\n  uncertainty_weight: 0.0\n  min_observation_quality: 0.50\n  min_point_density: 0.50\n  ema_alpha: 0.35\n  split_threshold: 0.55\n  merge_threshold: 0.30\n  split_consecutive_frames: 2\n  merge_consecutive_frames: 3\n  cooldown_frames: 4\n  max_level_changes_per_decision: 1\n  prediction_horizon_s: 1.0\n  max_promotion_depth: 1\n  max_state_cells: 65536\n  state_ttl_frames: 120\n",
+        "a4_geometry_semantics_motion": "# UtilityLOD: distance baseline + promotion gated by observation quality.\n# See docs/resolution-policies.md\nmode: utility_lod\ndistance_boundaries_m: [10.0, 30.0, 60.0]\nmax_range_m: 100.0\nutility:\n  geometry_weight: 0.20\n  semantic_weight: 0.30\n  motion_weight: 0.15\n  traversability_risk_weight: 0.0\n  uncertainty_weight: 0.0\n  min_observation_quality: 0.50\n  min_point_density: 0.50\n  ema_alpha: 0.35\n  split_threshold: 0.55\n  merge_threshold: 0.30\n  split_consecutive_frames: 2\n  merge_consecutive_frames: 3\n  cooldown_frames: 4\n  max_level_changes_per_decision: 1\n  prediction_horizon_s: 1.0\n  max_promotion_depth: 1\n  max_state_cells: 65536\n  state_ttl_frames: 120\n",
+        "utility_budget_plus_0": "max_actions_per_frame: 64\nmax_active_cells: 1000000000\nmax_logical_bytes: 29109547\nmax_rss_bytes: 0\nnear_field_radius_m: 10.0\noverload_consecutive_frames: 1\npressure_ratio: 0.9\nrecovery_consecutive_frames: 5\nrecovery_ratio: 0.75\ntarget_frame_time_ms: 1000000.0\n",
+        "utility_budget_plus_10": "max_actions_per_frame: 64\nmax_active_cells: 1000000000\nmax_logical_bytes: 32020502\nmax_rss_bytes: 0\nnear_field_radius_m: 10.0\noverload_consecutive_frames: 1\npressure_ratio: 0.9\nrecovery_consecutive_frames: 5\nrecovery_ratio: 0.75\ntarget_frame_time_ms: 1000000.0\n",
+        "utility_budget_plus_20": "max_actions_per_frame: 64\nmax_active_cells: 1000000000\nmax_logical_bytes: 34931456\nmax_rss_bytes: 0\nnear_field_radius_m: 10.0\noverload_consecutive_frames: 1\npressure_ratio: 0.9\nrecovery_consecutive_frames: 5\nrecovery_ratio: 0.75\ntarget_frame_time_ms: 1000000.0\n",
+        "utility_budget_plus_30": "max_actions_per_frame: 64\nmax_active_cells: 1000000000\nmax_logical_bytes: 37842412\nmax_rss_bytes: 0\nnear_field_radius_m: 10.0\noverload_consecutive_frames: 1\npressure_ratio: 0.9\nrecovery_consecutive_frames: 5\nrecovery_ratio: 0.75\ntarget_frame_time_ms: 1000000.0\n",
+        "utility_budget_plus_5": "max_actions_per_frame: 64\nmax_active_cells: 1000000000\nmax_logical_bytes: 30565025\nmax_rss_bytes: 0\nnear_field_radius_m: 10.0\noverload_consecutive_frames: 1\npressure_ratio: 0.9\nrecovery_consecutive_frames: 5\nrecovery_ratio: 0.75\ntarget_frame_time_ms: 1000000.0\n"
+      },
+      "group": [
+        "semanticposs-00-000152-semantic_object-pole-60"
+      ],
+      "provenance": {
+        "build_type": "Release",
+        "compiler": "c++ (GCC) 16.2.1 20260819 (Red Hat 16.2.1-2)",
+        "config_digest": "49fc6e3b9c3c08e99df5982ca41488bedc0bfe789738f879aa590e7a625807a3",
+        "config_sha256": {
+          "a1_geometry.yaml": "da3a918256a14aaa70fcafcc86a4baaf1f3f228505a034470d053d94f59d22fa",
+          "a2_semantics.yaml": "6c5360243199b1175b2a35f446fd28f8212d180aa360884cc4a719129a2b0a1e",
+          "a3_geometry_semantics.yaml": "3b05a11c65188f0ed94a6ab4378fc0e7d68d459bb47667e5100dae69cf15e8a7",
+          "a4_geometry_semantics_motion.yaml": "ecaad4b6be1d994a910df56a4a1de56b28de65587df00f72763a28210b934562",
+          "benchmark.yaml": "f2d60b90a3de53fbfc6347c5e527fd01291c1f2e2ea5e77ccafb1c8c21d3cf07",
+          "datasets.yaml": "2925075c5e70d169070e61c9ecb8fd6226c716e7602f4a552cc9c56f245f48b7",
+          "distance_lod.yaml": "50cfb183cf26ff738c5bc4aed4f7dde58d6ee1a0e20831b62d740d21a18e2414",
+          "hardware_profiles.yaml": "16cccff4b2958c05f2bc9e9936cb6278cf3120b0eb8c744fc4552209a38c5d45",
+          "logical_budget_plus_0.yaml": "207362950feb8b90bd5f450045d9bbaa14d8b62b7e0067f7c71980aaac0f832c",
+          "logical_budget_plus_10.yaml": "2b67c6402179e2ca9c3ce7ec36bc8930d176cff463cc9a44dcef0624f4071406",
+          "logical_budget_plus_20.yaml": "a3912bbb7de188cd81c2285620caddcd23b18f5e05b3e15e33a6d8f3843c5e4b",
+          "logical_budget_plus_30.yaml": "b9221c5e2acf63a579c733aa32672efecca5ffe8ff8c626243f988ee9a88d0b9",
+          "logical_budget_plus_5.yaml": "677b39ed3d60965f619ebbe4105b0f903a0184ac1ba32aa4cb45427030630be7",
+          "perception.yaml": "7fb3085bb8a47d0a7024b0a435d7a586a782f258d37ccf220e31365e9382832d",
+          "resource_governor.yaml": "c0b54b59500eedb1972c3493794dbccf751bad9ca96bf264b8787bf95d4959a5",
+          "utility_lod.yaml": "7c98ee39e870aa97912ce00436e2f9416d2bce50f8a178965abc82eeb87faa77"
+        },
+        "dataset_sha256": null,
+        "frame_range": {
+          "count": 10,
+          "end_exclusive": 157,
+          "sequence": "00",
+          "start": 147
+        },
+        "git_sha": "33aa858aade6cb6cccbf787eb91e4f3de9257234",
+        "hardware": {
+          "capture": "runtime",
+          "logical_cpu_count": 8,
+          "machine": "x86_64",
+          "os": "Linux-7.2.5-200.fc44.x86_64-x86_64-with-glibc2.43",
+          "physical_memory_bytes": 16489123840,
+          "processor": "Intel(R) Core(TM) i5-8350U CPU @ 1.70GHz",
+          "profile": "auto",
+          "python": "3.13.15"
+        },
+        "map_window_radius_m": 100.19105410590272,
+        "measurement_scope": {
+          "map_update": "C++ map update calls only; excludes protocol parsing, snapshotting, and JSON/CSV serialization",
+          "map_window_follow": "C++ public map window-center update from the transmitted world-frame pose; excludes serialization",
+          "perception": "Python PerceptionPipeline processing, shared once before all policy runs",
+          "protocol_parse_and_validate": "C++ token parsing and Observation construction; excludes stdin I/O",
+          "snapshot_and_topology": "C++ map snapshot plus topology extraction; excludes JSON/CSV serialization"
+        },
+        "model_checkpoint_sha256": "067086f808985de376e19c174e249190b7c97996cd54be1dbb9d8b298804b548",
+        "perception_executed": true,
+        "policy_execution_order": [
+          [
+            "a1_geometry",
+            "a2_semantics",
+            "a3_geometry_semantics",
+            "a4_geometry_semantics_motion",
+            "utility_budget_plus_0",
+            "utility_budget_plus_5",
+            "utility_budget_plus_10",
+            "utility_budget_plus_20",
+            "utility_budget_plus_30"
+          ]
+        ],
+        "protocol_version": 4,
+        "pull_request_number": null,
+        "repetitions": 1,
+        "sample_adequacy": {
+          "fps_samples_per_policy": {
+            "p95_reliable": false,
+            "p99_reliable": false,
+            "samples": 1
+          },
+          "measured_frames_per_run": 8,
+          "note": "nearest-rank p95 needs >=20 samples and p99 >=100; short-run tails equal the max and are descriptive only, not SLO evidence",
+          "repetitions": 1,
+          "stage_latency_samples_per_policy": {
+            "p95_reliable": false,
+            "p99_reliable": false,
+            "samples": 8
+          }
+        },
+        "selection_digest": "92e471b284e14c9d536071a3da92f0f77b64bfc576145d854b784937184a45c2",
+        "source_state_sha256": "1e381dbc64b5a746b95a861b44c1673aeec3fadb86172dd10578da5c0deed82c",
+        "timestamp_utc": "2026-09-25T10:10:10.983894+00:00",
+        "untracked_source_files": [
+          "benchmarks/utility_cenet_sensitivity.py",
+          "docs/superpowers/plans/2026-09-24-map-quality-and-cost-evaluation.md",
+          "scripts/audit_semantic_salsanext.py",
+          "scripts/fetch_kitti_subset.py",
+          "scripts/run_final_benchmark.sh"
+        ],
+        "warmup_frames": 2,
+        "workflow_event": null,
+        "workflow_run_id": null,
+        "working_tree_dirty": true
+      },
+      "stage": "ablation_and_budget_matrix"
+    },
+    {
+      "benchmark_wall_s": 160.5591127330008,
+      "group": [
+        "semanticposs-01-000421-semantic_object-pedestrian-60"
+      ],
+      "perception": {
+        "bridge_scope": "C++ protocol_parse_and_validate across measured policy streams",
+        "dataset": "semanticposs",
+        "failures": 0,
+        "frames": 10,
+        "ground_ratio": 0.3214491509900344,
+        "known_motion_fraction": 0.0,
+        "known_terrain_fraction": 0.3157942068021371,
+        "points_processed": 661537,
+        "sequence": "01",
+        "status": {
+          "ground": "pypatchworkpp.patchworkpp",
+          "semantic": "ground_truth",
+          "temporal": "disabled",
+          "terrain": "available"
+        },
+        "timings": {
+          "bridge": {
+            "max_ms": 141.286997,
+            "mean_ms": 109.14825565625,
+            "p50_ms": 105.850681,
+            "p95_ms": 136.977032,
+            "p99_ms": 141.286997,
+            "samples": 32
+          },
+          "dataset_load": {
+            "max_ms": 52.079124,
+            "mean_ms": 36.764696099999995,
+            "p50_ms": 34.929729,
+            "p95_ms": 52.079124,
+            "p99_ms": 52.079124,
+            "samples": 10
+          },
+          "ground": {
+            "max_ms": 99.1042629993899,
+            "mean_ms": 77.56956679986615,
+            "p50_ms": 72.74072099971818,
+            "p95_ms": 99.1042629993899,
+            "p99_ms": 99.1042629993899,
+            "samples": 10
+          },
+          "semantic": {
+            "max_ms": 0.5818089994136244,
+            "mean_ms": 0.517721799951687,
+            "p50_ms": 0.4996780007786583,
+            "p95_ms": 0.5818089994136244,
+            "p99_ms": 0.5818089994136244,
+            "samples": 10
+          },
+          "sensor_transform": {
+            "max_ms": 3.381526001248858,
+            "mean_ms": 2.4570428000515676,
+            "p50_ms": 2.1960240010230336,
+            "p95_ms": 3.381526001248858,
+            "p99_ms": 3.381526001248858,
+            "samples": 10
+          },
+          "temporal": {
+            "max_ms": 0.0009569994290359318,
+            "mean_ms": 0.0006916001439094543,
+            "p50_ms": 0.0005820002115797251,
+            "p95_ms": 0.0009569994290359318,
+            "p99_ms": 0.0009569994290359318,
+            "samples": 10
+          },
+          "terrain": {
+            "max_ms": 64.25344799936283,
+            "mean_ms": 50.204619399846706,
+            "p50_ms": 46.72187799951644,
+            "p95_ms": 64.25344799936283,
+            "p99_ms": 64.25344799936283,
+            "samples": 10
+          },
+          "total": {
+            "max_ms": 171.2133740002173,
+            "mean_ms": 141.33197929986636,
+            "p50_ms": 132.56355799967423,
+            "p95_ms": 171.2133740002173,
+            "p99_ms": 171.2133740002173,
+            "samples": 10
+          }
+        }
+      },
+      "provenance": {
+        "build_type": "Release",
+        "compiler": "c++ (GCC) 16.2.1 20260819 (Red Hat 16.2.1-2)",
+        "config_digest": "fea60ebeea07480781e9713f0b08cfefa86a62ffe74d9a563f52e9df454a110e",
+        "config_sha256": {
+          "benchmark.yaml": "f2d60b90a3de53fbfc6347c5e527fd01291c1f2e2ea5e77ccafb1c8c21d3cf07",
+          "datasets.yaml": "2925075c5e70d169070e61c9ecb8fd6226c716e7602f4a552cc9c56f245f48b7",
+          "distance_lod.yaml": "50cfb183cf26ff738c5bc4aed4f7dde58d6ee1a0e20831b62d740d21a18e2414",
+          "hardware_profiles.yaml": "16cccff4b2958c05f2bc9e9936cb6278cf3120b0eb8c744fc4552209a38c5d45",
+          "perception.yaml": "7fb3085bb8a47d0a7024b0a435d7a586a782f258d37ccf220e31365e9382832d",
+          "resource_governor.yaml": "c0b54b59500eedb1972c3493794dbccf751bad9ca96bf264b8787bf95d4959a5",
+          "utility_lod.yaml": "7c98ee39e870aa97912ce00436e2f9416d2bce50f8a178965abc82eeb87faa77"
+        },
+        "dataset_sha256": null,
+        "frame_range": {
+          "count": 10,
+          "end_exclusive": 425,
+          "sequence": "01",
+          "start": 415
+        },
+        "git_sha": "33aa858aade6cb6cccbf787eb91e4f3de9257234",
+        "hardware": {
+          "capture": "runtime",
+          "logical_cpu_count": 8,
+          "machine": "x86_64",
+          "os": "Linux-7.2.5-200.fc44.x86_64-x86_64-with-glibc2.43",
+          "physical_memory_bytes": 16489123840,
+          "processor": "Intel(R) Core(TM) i5-8350U CPU @ 1.70GHz",
+          "profile": "auto",
+          "python": "3.13.15"
+        },
+        "map_window_radius_m": 100.4153845443747,
+        "measurement_scope": {
+          "map_update": "C++ map update calls only; excludes protocol parsing, snapshotting, and JSON/CSV serialization",
+          "map_window_follow": "C++ public map window-center update from the transmitted world-frame pose; excludes serialization",
+          "perception": "Python PerceptionPipeline processing, shared once before all policy runs",
+          "protocol_parse_and_validate": "C++ token parsing and Observation construction; excludes stdin I/O",
+          "snapshot_and_topology": "C++ map snapshot plus topology extraction; excludes JSON/CSV serialization"
+        },
+        "model_checkpoint_sha256": "067086f808985de376e19c174e249190b7c97996cd54be1dbb9d8b298804b548",
+        "perception_executed": true,
+        "policy_execution_order": [
+          [
+            "uniform5",
+            "uniform40",
+            "distance_lod",
+            "utility_lod"
+          ]
+        ],
+        "protocol_version": 4,
+        "pull_request_number": null,
+        "repetitions": 1,
+        "sample_adequacy": {
+          "fps_samples_per_policy": {
+            "p95_reliable": false,
+            "p99_reliable": false,
+            "samples": 1
+          },
+          "measured_frames_per_run": 8,
+          "note": "nearest-rank p95 needs >=20 samples and p99 >=100; short-run tails equal the max and are descriptive only, not SLO evidence",
+          "repetitions": 1,
+          "stage_latency_samples_per_policy": {
+            "p95_reliable": false,
+            "p99_reliable": false,
+            "samples": 8
+          }
+        },
+        "selection_digest": "537317673c848b0629146500fd21e251fe79d4b417d72b64cf054ad768f57d74",
+        "source_state_sha256": "1e381dbc64b5a746b95a861b44c1673aeec3fadb86172dd10578da5c0deed82c",
+        "timestamp_utc": "2026-09-25T10:13:49.628793+00:00",
+        "untracked_source_files": [
+          "benchmarks/utility_cenet_sensitivity.py",
+          "docs/superpowers/plans/2026-09-24-map-quality-and-cost-evaluation.md",
+          "scripts/audit_semantic_salsanext.py",
+          "scripts/fetch_kitti_subset.py",
+          "scripts/run_final_benchmark.sh"
+        ],
+        "warmup_frames": 2,
+        "workflow_event": null,
+        "workflow_run_id": null,
+        "working_tree_dirty": true
+      },
+      "stage": "baseline"
+    },
+    {
+      "benchmark_wall_s": 285.5847544869994,
+      "generated_configs": {
+        "a1_geometry": "# UtilityLOD: distance baseline + promotion gated by observation quality.\n# See docs/resolution-policies.md\nmode: utility_lod\ndistance_boundaries_m: [10.0, 30.0, 60.0]\nmax_range_m: 100.0\nutility:\n  geometry_weight: 0.20\n  semantic_weight: 0.0\n  motion_weight: 0.0\n  traversability_risk_weight: 0.0\n  uncertainty_weight: 0.0\n  min_observation_quality: 0.50\n  min_point_density: 0.50\n  ema_alpha: 0.35\n  split_threshold: 0.55\n  merge_threshold: 0.30\n  split_consecutive_frames: 2\n  merge_consecutive_frames: 3\n  cooldown_frames: 4\n  max_level_changes_per_decision: 1\n  prediction_horizon_s: 1.0\n  max_promotion_depth: 1\n  max_state_cells: 65536\n  state_ttl_frames: 120\n",
+        "a2_semantics": "# UtilityLOD: distance baseline + promotion gated by observation quality.\n# See docs/resolution-policies.md\nmode: utility_lod\ndistance_boundaries_m: [10.0, 30.0, 60.0]\nmax_range_m: 100.0\nutility:\n  geometry_weight: 0.0\n  semantic_weight: 0.30\n  motion_weight: 0.0\n  traversability_risk_weight: 0.0\n  uncertainty_weight: 0.0\n  min_observation_quality: 0.50\n  min_point_density: 0.50\n  ema_alpha: 0.35\n  split_threshold: 0.55\n  merge_threshold: 0.30\n  split_consecutive_frames: 2\n  merge_consecutive_frames: 3\n  cooldown_frames: 4\n  max_level_changes_per_decision: 1\n  prediction_horizon_s: 1.0\n  max_promotion_depth: 1\n  max_state_cells: 65536\n  state_ttl_frames: 120\n",
+        "a3_geometry_semantics": "# UtilityLOD: distance baseline + promotion gated by observation quality.\n# See docs/resolution-policies.md\nmode: utility_lod\ndistance_boundaries_m: [10.0, 30.0, 60.0]\nmax_range_m: 100.0\nutility:\n  geometry_weight: 0.20\n  semantic_weight: 0.30\n  motion_weight: 0.0\n  traversability_risk_weight: 0.0\n  uncertainty_weight: 0.0\n  min_observation_quality: 0.50\n  min_point_density: 0.50\n  ema_alpha: 0.35\n  split_threshold: 0.55\n  merge_threshold: 0.30\n  split_consecutive_frames: 2\n  merge_consecutive_frames: 3\n  cooldown_frames: 4\n  max_level_changes_per_decision: 1\n  prediction_horizon_s: 1.0\n  max_promotion_depth: 1\n  max_state_cells: 65536\n  state_ttl_frames: 120\n",
+        "a4_geometry_semantics_motion": "# UtilityLOD: distance baseline + promotion gated by observation quality.\n# See docs/resolution-policies.md\nmode: utility_lod\ndistance_boundaries_m: [10.0, 30.0, 60.0]\nmax_range_m: 100.0\nutility:\n  geometry_weight: 0.20\n  semantic_weight: 0.30\n  motion_weight: 0.15\n  traversability_risk_weight: 0.0\n  uncertainty_weight: 0.0\n  min_observation_quality: 0.50\n  min_point_density: 0.50\n  ema_alpha: 0.35\n  split_threshold: 0.55\n  merge_threshold: 0.30\n  split_consecutive_frames: 2\n  merge_consecutive_frames: 3\n  cooldown_frames: 4\n  max_level_changes_per_decision: 1\n  prediction_horizon_s: 1.0\n  max_promotion_depth: 1\n  max_state_cells: 65536\n  state_ttl_frames: 120\n",
+        "utility_budget_plus_0": "max_actions_per_frame: 64\nmax_active_cells: 1000000000\nmax_logical_bytes: 31650774\nmax_rss_bytes: 0\nnear_field_radius_m: 10.0\noverload_consecutive_frames: 1\npressure_ratio: 0.9\nrecovery_consecutive_frames: 5\nrecovery_ratio: 0.75\ntarget_frame_time_ms: 1000000.0\n",
+        "utility_budget_plus_10": "max_actions_per_frame: 64\nmax_active_cells: 1000000000\nmax_logical_bytes: 34815852\nmax_rss_bytes: 0\nnear_field_radius_m: 10.0\noverload_consecutive_frames: 1\npressure_ratio: 0.9\nrecovery_consecutive_frames: 5\nrecovery_ratio: 0.75\ntarget_frame_time_ms: 1000000.0\n",
+        "utility_budget_plus_20": "max_actions_per_frame: 64\nmax_active_cells: 1000000000\nmax_logical_bytes: 37980928\nmax_rss_bytes: 0\nnear_field_radius_m: 10.0\noverload_consecutive_frames: 1\npressure_ratio: 0.9\nrecovery_consecutive_frames: 5\nrecovery_ratio: 0.75\ntarget_frame_time_ms: 1000000.0\n",
+        "utility_budget_plus_30": "max_actions_per_frame: 64\nmax_active_cells: 1000000000\nmax_logical_bytes: 41146006\nmax_rss_bytes: 0\nnear_field_radius_m: 10.0\noverload_consecutive_frames: 1\npressure_ratio: 0.9\nrecovery_consecutive_frames: 5\nrecovery_ratio: 0.75\ntarget_frame_time_ms: 1000000.0\n",
+        "utility_budget_plus_5": "max_actions_per_frame: 64\nmax_active_cells: 1000000000\nmax_logical_bytes: 33233313\nmax_rss_bytes: 0\nnear_field_radius_m: 10.0\noverload_consecutive_frames: 1\npressure_ratio: 0.9\nrecovery_consecutive_frames: 5\nrecovery_ratio: 0.75\ntarget_frame_time_ms: 1000000.0\n"
+      },
+      "group": [
+        "semanticposs-01-000421-semantic_object-pedestrian-60"
+      ],
+      "provenance": {
+        "build_type": "Release",
+        "compiler": "c++ (GCC) 16.2.1 20260819 (Red Hat 16.2.1-2)",
+        "config_digest": "4e55a38b57de05d573ad9cc31e5cbb6c3466975bd8033db3af4ece3f702ed0b5",
+        "config_sha256": {
+          "a1_geometry.yaml": "da3a918256a14aaa70fcafcc86a4baaf1f3f228505a034470d053d94f59d22fa",
+          "a2_semantics.yaml": "6c5360243199b1175b2a35f446fd28f8212d180aa360884cc4a719129a2b0a1e",
+          "a3_geometry_semantics.yaml": "3b05a11c65188f0ed94a6ab4378fc0e7d68d459bb47667e5100dae69cf15e8a7",
+          "a4_geometry_semantics_motion.yaml": "ecaad4b6be1d994a910df56a4a1de56b28de65587df00f72763a28210b934562",
+          "benchmark.yaml": "f2d60b90a3de53fbfc6347c5e527fd01291c1f2e2ea5e77ccafb1c8c21d3cf07",
+          "datasets.yaml": "2925075c5e70d169070e61c9ecb8fd6226c716e7602f4a552cc9c56f245f48b7",
+          "distance_lod.yaml": "50cfb183cf26ff738c5bc4aed4f7dde58d6ee1a0e20831b62d740d21a18e2414",
+          "hardware_profiles.yaml": "16cccff4b2958c05f2bc9e9936cb6278cf3120b0eb8c744fc4552209a38c5d45",
+          "logical_budget_plus_0.yaml": "b082e6601f1fdca65370395d29ba66d5913aa7ba6c69ab1d2302068982b70d24",
+          "logical_budget_plus_10.yaml": "57fd98c461aff1f7e04daac2e38e730a2d27b204501e643060fa77ccf1a3063b",
+          "logical_budget_plus_20.yaml": "87b14d43c8ce3316250205ca9cae6ae01fbe56f657419a38500f0f4f945fd88c",
+          "logical_budget_plus_30.yaml": "bb8a73a4e7a9851e66fd5a0d06528d0a2338a2118f18e6744382547e28ab7d05",
+          "logical_budget_plus_5.yaml": "357db549d2b0414a2a5e53a8efc41c1ee253a9573dbf46c4b7b41f1fd09a1e63",
+          "perception.yaml": "7fb3085bb8a47d0a7024b0a435d7a586a782f258d37ccf220e31365e9382832d",
+          "resource_governor.yaml": "c0b54b59500eedb1972c3493794dbccf751bad9ca96bf264b8787bf95d4959a5",
+          "utility_lod.yaml": "7c98ee39e870aa97912ce00436e2f9416d2bce50f8a178965abc82eeb87faa77"
+        },
+        "dataset_sha256": null,
+        "frame_range": {
+          "count": 10,
+          "end_exclusive": 425,
+          "sequence": "01",
+          "start": 415
+        },
+        "git_sha": "33aa858aade6cb6cccbf787eb91e4f3de9257234",
+        "hardware": {
+          "capture": "runtime",
+          "logical_cpu_count": 8,
+          "machine": "x86_64",
+          "os": "Linux-7.2.5-200.fc44.x86_64-x86_64-with-glibc2.43",
+          "physical_memory_bytes": 16489123840,
+          "processor": "Intel(R) Core(TM) i5-8350U CPU @ 1.70GHz",
+          "profile": "auto",
+          "python": "3.13.15"
+        },
+        "map_window_radius_m": 100.4153845443747,
+        "measurement_scope": {
+          "map_update": "C++ map update calls only; excludes protocol parsing, snapshotting, and JSON/CSV serialization",
+          "map_window_follow": "C++ public map window-center update from the transmitted world-frame pose; excludes serialization",
+          "perception": "Python PerceptionPipeline processing, shared once before all policy runs",
+          "protocol_parse_and_validate": "C++ token parsing and Observation construction; excludes stdin I/O",
+          "snapshot_and_topology": "C++ map snapshot plus topology extraction; excludes JSON/CSV serialization"
+        },
+        "model_checkpoint_sha256": "067086f808985de376e19c174e249190b7c97996cd54be1dbb9d8b298804b548",
+        "perception_executed": true,
+        "policy_execution_order": [
+          [
+            "a1_geometry",
+            "a2_semantics",
+            "a3_geometry_semantics",
+            "a4_geometry_semantics_motion",
+            "utility_budget_plus_0",
+            "utility_budget_plus_5",
+            "utility_budget_plus_10",
+            "utility_budget_plus_20",
+            "utility_budget_plus_30"
+          ]
+        ],
+        "protocol_version": 4,
+        "pull_request_number": null,
+        "repetitions": 1,
+        "sample_adequacy": {
+          "fps_samples_per_policy": {
+            "p95_reliable": false,
+            "p99_reliable": false,
+            "samples": 1
+          },
+          "measured_frames_per_run": 8,
+          "note": "nearest-rank p95 needs >=20 samples and p99 >=100; short-run tails equal the max and are descriptive only, not SLO evidence",
+          "repetitions": 1,
+          "stage_latency_samples_per_policy": {
+            "p95_reliable": false,
+            "p99_reliable": false,
+            "samples": 8
+          }
+        },
+        "selection_digest": "537317673c848b0629146500fd21e251fe79d4b417d72b64cf054ad768f57d74",
+        "source_state_sha256": "1e381dbc64b5a746b95a861b44c1673aeec3fadb86172dd10578da5c0deed82c",
+        "timestamp_utc": "2026-09-25T10:17:51.550284+00:00",
+        "untracked_source_files": [
+          "benchmarks/utility_cenet_sensitivity.py",
+          "docs/superpowers/plans/2026-09-24-map-quality-and-cost-evaluation.md",
+          "scripts/audit_semantic_salsanext.py",
+          "scripts/fetch_kitti_subset.py",
+          "scripts/run_final_benchmark.sh"
+        ],
+        "warmup_frames": 2,
+        "workflow_event": null,
+        "workflow_run_id": null,
+        "working_tree_dirty": true
+      },
+      "stage": "ablation_and_budget_matrix"
+    }
+  ]
+}

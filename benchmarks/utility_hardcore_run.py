@@ -89,8 +89,14 @@ def _groups(challenges: list[dict[str, Any]]) -> list[list[dict[str, Any]]]:
     return [groups[key] for key in sorted(groups)]
 
 
-def _world_xy(points: np.ndarray, pose: np.ndarray) -> np.ndarray:
+def _world_xy(
+    points: np.ndarray, pose: np.ndarray, *, coordinate_frame: str = "sensor"
+) -> np.ndarray:
     xyz = np.asarray(points[:, :3], dtype=np.float64)
+    if coordinate_frame == "world":
+        return xyz[:, :2]
+    if coordinate_frame not in {"sensor", "lidar"}:
+        raise ValueError(f"unsupported challenge coordinate frame: {coordinate_frame}")
     matrix = np.asarray(pose, dtype=np.float64)
     if matrix.shape != (4, 4) or not np.all(np.isfinite(matrix)):
         raise ValueError("invalid source-frame pose in challenge")
@@ -148,7 +154,11 @@ def _critical_bins(
         challenge["sequence"], challenge["source_frame_id"], max_range_m=100.0
     )
     x0, y0, x1, y1 = challenge["bbox_xy_m"]
-    world_xy = _world_xy(np.asarray(frame.points), np.asarray(frame.pose.matrix))
+    world_xy = _world_xy(
+        np.asarray(frame.points),
+        np.asarray(frame.pose.matrix),
+        coordinate_frame=frame.provenance.coordinate_frame,
+    )
     mask = (
         (world_xy[:, 0] >= x0)
         & (world_xy[:, 0] < x1)
@@ -302,6 +312,13 @@ def _score_group(
     scored = []
     for challenge in challenges:
         mask = _critical_bins(repo, challenge)
+        if (
+            challenge["challenge_type"] in {"semantic_object", "motion_candidate"}
+            and not mask
+        ):
+            raise ValueError(
+                f"frozen challenge has no aligned labelled support: {challenge['id']}"
+            )
         task_classes = (
             {int(challenge["support"]["class_id"])}
             if challenge["challenge_type"] == "semantic_object"
@@ -316,6 +333,10 @@ def _score_group(
                 bbox_xy_m=challenge["bbox_xy_m"],
                 critical_bins=mask,
             )
+            if mask and region["critical_reference_bins"] == 0:
+                raise ValueError(
+                    f"frozen challenge has no retained fine reference support: {challenge['id']}"
+                )
             scored.append(
                 _row(
                     challenge,

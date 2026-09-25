@@ -1,0 +1,3 @@
+challenge_id,policy,eligible_critical_bins,missed_critical_bins,root_cause
+rellis3d-00000-000500-geometry_hazard,utility_lod,10,10,not attributable from final topology and aggregate signals alone
+rellis3d-00000-000500-flat_control,utility_lod,82,82,not attributable from final topology and aggregate signals alone

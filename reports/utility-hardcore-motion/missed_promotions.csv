@@ -1,0 +1,2 @@
+challenge_id,policy,eligible_critical_bins,missed_critical_bins,root_cause
+semantickitti-08-000000-motion_candidate,utility_lod,318,318,not attributable from final topology and aggregate signals alone

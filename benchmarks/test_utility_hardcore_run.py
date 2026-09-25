@@ -13,6 +13,7 @@ from benchmarks.utility_hardcore import manifest_digest
 from benchmarks.utility_hardcore_report import signal_distributions, write_plots
 from benchmarks.utility_hardcore_run import (
     _annotate_efficiency,
+    _critical_bins,
     _variants,
     _world_xy,
     load_manifest,
@@ -21,6 +22,19 @@ from benchmarks.utility_hardcore_run import (
 
 
 class HardcoreRunnerTests(unittest.TestCase):
+    def test_frozen_real_semantic_region_has_world_aligned_support(self):
+        repo = Path(__file__).resolve().parents[1]
+        manifest = load_manifest(repo / "benchmarks/utility_challenge_manifest.json")
+        challenge = next(
+            item
+            for item in manifest["challenges"]
+            if item["dataset"] == "semanticposs"
+            and item["challenge_type"] == "semantic_object"
+        )
+        if not (repo / challenge["source_scan_path"]).is_file():
+            self.skipTest("frozen SemanticPOSS source scan not staged")
+        self.assertGreater(len(_critical_bins(repo, challenge)), 0)
+
     def test_efficiency_ratio_is_undefined_without_extra_memory(self):
         rows = [
             {
@@ -99,6 +113,14 @@ class HardcoreRunnerTests(unittest.TestCase):
         pose = np.eye(4)
         pose[:3, 3] = [10.0, -2.0, 0.0]
         transformed = _world_xy(np.array([[1.0, 2.0, 0.0, 0.5]]), pose)
+        np.testing.assert_allclose(transformed, [[11.0, 0.0]])
+
+    def test_world_aligned_adapter_points_are_not_transformed_twice(self):
+        pose = np.eye(4)
+        pose[:3, 3] = [10.0, -2.0, 0.0]
+        transformed = _world_xy(
+            np.array([[11.0, 0.0, 0.0, 0.5]]), pose, coordinate_frame="world"
+        )
         np.testing.assert_allclose(transformed, [[11.0, 0.0]])
 
     def test_modified_frozen_region_is_rejected(self):

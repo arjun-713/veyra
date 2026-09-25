@@ -1,0 +1,21 @@
+challenge_id,policy,eligible_critical_bins,missed_critical_bins,root_cause
+semanticposs-00-000152-semantic_object-pole-60,utility_lod,23,23,not attributable from final topology and aggregate signals alone
+semanticposs-00-000152-semantic_object-pole-60,a1_geometry,23,23,not attributable from final topology and aggregate signals alone
+semanticposs-00-000152-semantic_object-pole-60,a2_semantics,23,23,not attributable from final topology and aggregate signals alone
+semanticposs-00-000152-semantic_object-pole-60,a3_geometry_semantics,23,23,not attributable from final topology and aggregate signals alone
+semanticposs-00-000152-semantic_object-pole-60,a4_geometry_semantics_motion,23,23,not attributable from final topology and aggregate signals alone
+semanticposs-00-000152-semantic_object-pole-60,utility_budget_plus_0,23,23,not attributable from final topology and aggregate signals alone
+semanticposs-00-000152-semantic_object-pole-60,utility_budget_plus_5,23,23,not attributable from final topology and aggregate signals alone
+semanticposs-00-000152-semantic_object-pole-60,utility_budget_plus_10,23,23,not attributable from final topology and aggregate signals alone
+semanticposs-00-000152-semantic_object-pole-60,utility_budget_plus_20,23,23,not attributable from final topology and aggregate signals alone
+semanticposs-00-000152-semantic_object-pole-60,utility_budget_plus_30,23,23,not attributable from final topology and aggregate signals alone
+semanticposs-01-000421-semantic_object-pedestrian-60,utility_lod,21,21,not attributable from final topology and aggregate signals alone
+semanticposs-01-000421-semantic_object-pedestrian-60,a1_geometry,21,21,not attributable from final topology and aggregate signals alone
+semanticposs-01-000421-semantic_object-pedestrian-60,a2_semantics,21,21,not attributable from final topology and aggregate signals alone
+semanticposs-01-000421-semantic_object-pedestrian-60,a3_geometry_semantics,21,21,not attributable from final topology and aggregate signals alone
+semanticposs-01-000421-semantic_object-pedestrian-60,a4_geometry_semantics_motion,21,21,not attributable from final topology and aggregate signals alone
+semanticposs-01-000421-semantic_object-pedestrian-60,utility_budget_plus_0,21,21,not attributable from final topology and aggregate signals alone
+semanticposs-01-000421-semantic_object-pedestrian-60,utility_budget_plus_5,21,21,not attributable from final topology and aggregate signals alone
+semanticposs-01-000421-semantic_object-pedestrian-60,utility_budget_plus_10,21,21,not attributable from final topology and aggregate signals alone
+semanticposs-01-000421-semantic_object-pedestrian-60,utility_budget_plus_20,21,21,not attributable from final topology and aggregate signals alone
+semanticposs-01-000421-semantic_object-pedestrian-60,utility_budget_plus_30,21,21,not attributable from final topology and aggregate signals alone
