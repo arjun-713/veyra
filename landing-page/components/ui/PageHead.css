@@ -1,0 +1,31 @@
+.page-head {
+  padding-top: calc(var(--nav-h) + 72px);
+  padding-bottom: 8px;
+}
+
+.page-crumb {
+  font-size: 12px;
+  letter-spacing: 0.08em;
+  color: var(--muted);
+  margin-bottom: 28px;
+}
+
+.page-crumb a {
+  color: var(--teal-ink);
+  text-decoration: none;
+  font-weight: 600;
+}
+
+.page-crumb a:hover {
+  text-decoration: underline;
+  text-underline-offset: 4px;
+}
+
+.page-head h1 {
+  max-width: 16ch;
+  margin-bottom: 24px;
+}
+
+.page-head .body-lead {
+  max-width: 62ch;
+}

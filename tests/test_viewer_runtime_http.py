@@ -3,6 +3,7 @@ import json
 import tempfile
 import threading
 import unittest
+from unittest import mock
 from pathlib import Path
 
 import numpy as np
@@ -112,6 +113,46 @@ class ViewerRuntimeHttpTests(unittest.TestCase):
             self.assertEqual(cells["status"], "unavailable")
             self.assertIn("reason", cells)
             self.assertEqual(bad_response.status, 400)
+
+
+class ViewerBindAddressTests(unittest.TestCase):
+    def test_host_defaults_to_loopback(self):
+        args = server.build_arg_parser().parse_args([])
+        self.assertEqual(args.host, "127.0.0.1")
+        self.assertEqual(args.port, 8765)
+
+    def test_host_option_allows_all_interfaces_for_containers(self):
+        args = server.build_arg_parser().parse_args(
+            ["--host", "0.0.0.0", "--port", "9000"]
+        )
+        self.assertEqual(args.host, "0.0.0.0")
+        self.assertEqual(args.port, 9000)
+
+    def test_main_binds_parsed_host_and_port(self):
+        captured = {}
+
+        class FakeServer:
+            def __init__(self, address, handler):
+                captured["address"] = address
+                captured["handler"] = handler
+
+            def serve_forever(self):
+                raise KeyboardInterrupt
+
+        with mock.patch.object(server.http.server, "ThreadingHTTPServer", FakeServer):
+            with mock.patch("builtins.print"):
+                server.main([])
+                self.assertEqual(captured["address"], ("127.0.0.1", 8765))
+                server.main(["--host", "0.0.0.0", "--port", "8765"])
+                self.assertEqual(captured["address"], ("0.0.0.0", 8765))
+        self.assertIs(captured["handler"], server.Handler)
+
+    def test_repo_root_resolves_from_outside_the_checkout(self):
+        with tempfile.TemporaryDirectory() as raw:
+            self.assertEqual(
+                server.find_repo_root(Path(raw).resolve()),
+                Path(server.__file__).resolve().parent.parent,
+            )
 
 
 if __name__ == "__main__":

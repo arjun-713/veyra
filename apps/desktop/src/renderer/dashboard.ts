@@ -127,3 +127,84 @@ export function clampRenderCounts(pointCount:unknown,cellCount:unknown,capacity=
  const points=clamp(pointCount),cells=clamp(cellCount);
  return {points, cells, truncated:points.truncated||cells.truncated};
 }
+// ---- Judge-demo proof helpers (display only; never fabricate evidence) ----
+export const GLOSSARY:Record<string,string>={
+ '2.5D':'One adaptive XY grid cell storing height + scene statistics — not a dense XYZ voxel volume.',
+ 'LOD':'Level of detail: L0 5 cm near the robot, L3 40 cm far away. Utility evidence can promote important cells finer.',
+ 'RSS':'Resident set size: OS-measured process memory. Different from map logical/allocated bytes.',
+ 'RMSE':'Root-mean-square elevation error vs the executed Uniform 5 cm reference on the same frames.',
+ 'p95':'95th percentile latency: 95% of frames were faster. Nearest-rank; needs ≥20 samples to be meaningful.',
+ 'UtilityLOD':'Distance baseline plus promotion on geometry, semantics, motion and traversability risk — quality-gated. Currently inconclusive vs DistanceLOD on the tested selection.',
+ 'DistanceLOD':'Range-only baseline: 0–10 m → 5 cm, 10–30 m → 10 cm, 30–60 m → 20 cm, 60–100 m → 40 cm.',
+ 'Governor':'Resource guard: blocks optional splits near budget, merges low-value distant cells first, never coarsens the 10 m safety disk.',
+};
+export function fmtCell(value:unknown,decimals=3):string{
+ if(typeof value!=='number'||!Number.isFinite(value))return 'Unavailable';
+ return value.toLocaleString(undefined,{maximumFractionDigits:decimals});
+}
+export function lodLabel(level:unknown,resolution:unknown):string{
+ if(typeof level==='number'&&Number.isFinite(level))return `L${level}`;
+ if(typeof resolution==='number'&&Number.isFinite(resolution)&&resolution>0){
+  const level=Math.round(Math.log2(resolution/0.05));
+  if(level>=0&&level<=3)return `L${level}`;
+ }
+ return 'Unavailable';
+}
+export function resolutionLabel(resolution:unknown):string{
+ if(typeof resolution!=='number'||!Number.isFinite(resolution)||resolution<=0)return 'Unavailable';
+ const cm=resolution*100;
+ return `${Number.isInteger(cm)?cm:cm.toFixed(1)} cm`;
+}
+export function semanticName(id:unknown):string{
+ if(typeof id!=='number'||!Number.isFinite(id))return 'Unavailable';
+ return classNames[id]??`Class ${id}`;
+}
+export function traversabilityLabel(evidence:unknown):string{
+ if(typeof evidence!=='number'||!Number.isFinite(evidence))return 'Unavailable';
+ if(evidence>0)return 'Drivable';
+ if(evidence<0)return 'Non-drivable';
+ return 'Unknown';
+}
+export function motionLabel(probability:unknown):string{
+ if(typeof probability!=='number'||!Number.isFinite(probability))return 'Unavailable';
+ if(probability>=0.5)return 'MOVING';
+ if(probability>0)return 'POSSIBLY MOVING';
+ return 'STATIC';
+}
+export interface InspectorRow{key:string;label:string;value:string;hint:string}
+export function inspectorRows(cell:Json):InspectorRow[]{
+ const f=(v:unknown,d=3)=>fmtCell(v,d);
+ return [
+  {key:'xy',label:'XY (m)',value:typeof cell.x==='number'&&typeof cell.y==='number'&&Number.isFinite(cell.x)&&Number.isFinite(cell.y)?`${f(cell.x)} , ${f(cell.y)}`:'Unavailable',hint:'World-aligned cell center in odom'},
+  {key:'resolution',label:'Resolution',value:resolutionLabel(cell.resolution),hint:'Cell edge length'},
+  {key:'lod',label:'LOD level',value:lodLabel(cell.lod_level,cell.resolution),hint:'L0 5 cm · L1 10 cm · L2 20 cm · L3 40 cm'},
+  {key:'z',label:'Height mean (m)',value:f(cell.elevation),hint:'Fused elevation of this cell'},
+  {key:'zmin',label:'Height min (m)',value:f(cell.height_min),hint:'Lowest observed height'},
+  {key:'zmax',label:'Height max (m)',value:f(cell.height_max),hint:'Highest observed height'},
+  {key:'zvar',label:'Height variance',value:f(cell.height_variance,5),hint:'Surface roughness signal'},
+  {key:'count',label:'Point count',value:f(cell.point_count,0),hint:'Returns fused into this cell'},
+  {key:'class',label:'Semantic class',value:semanticName(cell.semantic_class),hint:'Mapped taxonomy ID'},
+  {key:'semconf',label:'Semantic confidence',value:f(cell.semantic_confidence),hint:'0–1, unknown class is 0'},
+  {key:'ground',label:'Ground evidence',value:f(cell.ground_evidence),hint:'Positive = ground support'},
+  {key:'trav',label:'Traversability',value:traversabilityLabel(cell.drivable_evidence),hint:'Unknown is never drivable'},
+  {key:'motion',label:'Motion',value:motionLabel(cell.motion),hint:'From temporal tracking'},
+  {key:'quality',label:'Observation quality',value:f(cell.quality),hint:'Gates UtilityLOD promotion'},
+  {key:'utility',label:'Utility score',value:f(cell.utility),hint:'Promotion signal 0–1'},
+ ];
+}
+export function datasetCapabilities(catalog:Json|null,sequenceId:string){
+ const seq=(catalog?.sequences??[]).find((s:Json)=>s.id===sequenceId)??{};
+ const labels=typeof seq.labels==='number'?seq.labels:seq.paired;
+ return {
+  frames:seq.frames??null,labels:typeof labels==='number'?labels:null,
+  poses:seq.poses??null,timestamps:seq.timestamps??null,
+  semantic:typeof labels==='number'&&labels>0?'available':'unavailable',
+  motion:seq.timestamps===true||(typeof seq.timestamps==='number'&&seq.timestamps>0)?'available':'unavailable — no dataset timestamps',
+ };
+}
+export function sessionPhase(catalog:Json|null,status:Json,awaiting:boolean):string{
+ if(awaiting||status.state==='unconfigured'&&catalog==null)return awaiting?'VALIDATING':'EMPTY';
+ if(catalog!=null&&!status.frames)return 'LOADED';
+ if(status.frames>0)return 'READY';
+ return 'EMPTY';
+}

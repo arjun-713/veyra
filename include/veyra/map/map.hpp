@@ -228,6 +228,10 @@ struct MapSnapshot {
   std::uint64_t topology_change_count = 0;
   std::uint64_t split_count = 0;
   std::uint64_t merge_count = 0;
+  // Set by Map::snapshot(), which emits leaves ordered by (level, ix, iy).
+  // Queries then use that order; a hand-built snapshot keeps the default and
+  // is scanned instead, so the answer never depends on the flag.
+  bool leaves_ordered_by_id = false;
 
   [[nodiscard]] std::size_t count_at_level(int level) const;
   [[nodiscard]] bool has_no_parent_descendant_overlap() const;

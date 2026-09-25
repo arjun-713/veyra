@@ -35,6 +35,11 @@ from benchmarks.quality_resource import (
     comparison_rows,
     write_quality_resource_artifacts,
 )
+from benchmarks.reconstruction import (
+    reconstruct_from_leaves,
+    reconstruction_report,
+    reference_cloud,
+)
 from datasets.generic import ManifestDataset
 from datasets.rellis import Rellis3DDataset
 from datasets.semantickitti import SemanticKITTIDataset
@@ -295,16 +300,36 @@ def _host_memory_bytes() -> int | None:
         return None
 
 
-def hardware_metadata(profile: str) -> dict[str, Any]:
-    """Capture runtime provenance; config profiles never invent hardware values."""
-    cpu_model = None
+def host_cpu_model() -> str | None:
+    """CPU model string as the OS reports it, or None; never guessed.
+
+    Linux exposes it in /proc/cpuinfo; macOS has no /proc and reports it
+    through sysctl (for example "Apple M4 Pro").
+    """
     try:
         for line in Path("/proc/cpuinfo").read_text().splitlines():
             if line.startswith("model name"):
-                cpu_model = line.split(":", 1)[1].strip()
-                break
+                return line.split(":", 1)[1].strip() or None
     except OSError:
         pass
+    if sys.platform == "darwin":
+        try:
+            brand = subprocess.run(
+                ["sysctl", "-n", "machdep.cpu.brand_string"],
+                capture_output=True,
+                text=True,
+                timeout=5,
+                check=False,
+            ).stdout.strip()
+        except (OSError, subprocess.SubprocessError):
+            return None
+        return brand or None
+    return None
+
+
+def hardware_metadata(profile: str) -> dict[str, Any]:
+    """Capture runtime provenance; config profiles never invent hardware values."""
+    cpu_model = host_cpu_model()
     return {
         "profile": profile,
         "capture": "runtime",
@@ -1273,6 +1298,18 @@ def _finalize_policy_runs(
     else:
         fine_reference = {"mean_z_by_cell": {}}
     field_reference = _field_reference(frames) if frames is not None else None
+    # Reconstruction metrics need the source points, so they exist only on
+    # the retained-frames path. One shared reference keeps policies comparable.
+    reconstruction_reference = None
+    final_center = (0.0, 0.0)
+    if frames:
+        final_pose = np.asarray(frames[-1].pose.matrix, dtype=np.float64)
+        final_center = (float(final_pose[0, 3]), float(final_pose[1, 3]))
+        reconstruction_reference = reference_cloud(
+            frames,
+            center_xy=final_center,
+            radius_m=float(selection.get("window_radius_m", 100.0)),
+        )
     for runs in runs_by_policy.values():
         for result in runs:
             result["quality"] = mapping_quality_report(
@@ -1282,6 +1319,18 @@ def _finalize_policy_runs(
                 fine_reference,
                 frames=frames,
                 field_reference=field_reference,
+            )
+            result["quality"]["reconstruction"] = (
+                reconstruction_report(
+                    reconstruct_from_leaves(result["snapshot"].get("leaves", [])),
+                    reconstruction_reference,
+                    center_xy=final_center,
+                )
+                if reconstruction_reference is not None
+                else {
+                    "status": "unavailable",
+                    "reason": "source frames were not retained (--retain-frames)",
+                }
             )
             if result.get("frame_metrics"):
                 frame_conservation = result["frame_metrics"][-1].get(
@@ -2309,6 +2358,26 @@ def run(args: argparse.Namespace) -> dict[str, Any]:
     return result_report
 
 
+def _reconstruction_csv(quality: dict[str, Any]) -> dict[str, Any]:
+    rec = quality.get("reconstruction", {})
+    if rec.get("status") != "available":
+        return {
+            "reconstruction_accuracy_m": None,
+            "reconstruction_completion_m": None,
+            "reconstruction_chamfer_l1_m": None,
+            "reconstruction_fscore_10cm": None,
+        }
+    tenth = next(
+        (row["fscore"] for row in rec["thresholds"] if row["threshold_m"] == 0.10), None
+    )
+    return {
+        "reconstruction_accuracy_m": rec["accuracy"]["mean_m"],
+        "reconstruction_completion_m": rec["completion"]["mean_m"],
+        "reconstruction_chamfer_l1_m": rec["chamfer_l1_m"],
+        "reconstruction_fscore_10cm": tenth,
+    }
+
+
 def _write_csv(path: Path, result: dict[str, Any]) -> None:
     quality_rows = {
         row["policy"]: row
@@ -2343,6 +2412,10 @@ def _write_csv(path: Path, result: dict[str, Any]) -> None:
         "peak_rss_bytes",
         "elevation_vs_fine_rmse_m",
         "elevation_reference_coverage",
+        "reconstruction_accuracy_m",
+        "reconstruction_completion_m",
+        "reconstruction_chamfer_l1_m",
+        "reconstruction_fscore_10cm",
         "governor_interventions",
         "governor_actions_applied",
         "point_conservation",
@@ -2413,6 +2486,7 @@ def _write_csv(path: Path, result: dict[str, Any]) -> None:
                     "elevation_reference_coverage": report["runs"][-1]["quality"][
                         "elevation_vs_fine_reference"
                     ]["coverage"],
+                    **_reconstruction_csv(report["runs"][-1]["quality"]),
                     "governor_interventions": aggregate["governor"]["interventions"],
                     "governor_actions_applied": aggregate["governor"][
                         "actions_applied"

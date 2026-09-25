@@ -9,6 +9,10 @@
  const memory=(n:any)=>typeof n==='number'?n>=1073741824?f(n/1073741824,2)+' GB':f(n/1048576,1)+' MB':'—';
  let comparison=$derived(comparisonMetrics(report)),summary=$derived(summarizeVisual(frame));
  let rss=$derived(processRss(telemetry.processes??[]));
+ let storyLayers=$derived(frame?.metadata.layers??{});
+ const storyDot=(v:string)=>v==='available'||v==='model'||v==='ground_truth'?'ok':v==='unavailable'||v==='disabled'||!v?'off':'warn';
+ let storySteps=$derived([['Raw LiDAR',frame?'live':'empty',frame?(typeof frame.metadata.n_points==='number'?`${frame.metadata.n_points.toLocaleString()} pts`:'frame live'):status.frames?'waiting':'no dataset'],['Perception',storyDot(storyLayers.semantic),storyLayers.semantic??'—'],['Terrain',storyDot(storyLayers.terrain),storyLayers.terrain??'—'],['Motion',storyDot(storyLayers.motion),storyLayers.motion??'—'],['Adaptive 2.5D',(frame?.metadata.cells?.count??0)>0?'live':'empty',telemetry.map?.active_cells!=null?`${telemetry.map.active_cells.toLocaleString()} cells`:'—'],['Evidence',report?'ready':'none',report?'benchmark loaded':'run or open a report']]);
+
  let proc=$derived(processingDisplay(status,telemetry));
  let e2eCount=$derived(telemetry.latency_ms?.end_to_end?.count);
  let e2eP95=$derived(gateStatistic(telemetry.latency_ms?.end_to_end?.p95,e2eCount,MIN_SAMPLES.p95));
@@ -16,11 +20,16 @@
  function width(value:any,reference:any){return typeof value==='number'&&typeof reference==='number'&&reference>0?Math.max(1,Math.min(100,value/reference*100)):0;}
 </script>
 <div class="dashboard">
+ <div class="demo-story" aria-label="Demo story">
+  {#each storySteps as [label,state,detail]}
+   <span class="story-step"><i class={state}></i><b>{label}</b><small>{detail}</small></span>{#if label!=='Evidence'}<span class="story-arrow">→</span>{/if}
+  {/each}
+ </div>
  <div class="dashboard-metrics">{#each cards as card}<button class="dashboard-metric" onclick={card.icon==='database'||card.icon==='chart'?openBenchmarks:openPerformance}><span class="metric-symbol"><Icon name={card.icon} size={25}/></span><div><h2>{card.label}</h2><div class="metric-number">{card.value}<small>{card.unit}</small></div><p>{card.detail}</p></div></button>{/each}</div>
  <div class="dashboard-map-grid">
   {#each [{title:'Raw LiDAR Point Cloud',icon:'cube',mode:'raw',cells:false},{title:'Semantic LiDAR',icon:'semantic',mode:'semantic',cells:false},{title:'Adaptive 2.5D Map',icon:'map',mode:'lod',cells:true}] as panel,i}
    <section class="dashboard-panel visualization-panel"><div class="dashboard-panel-title"><Icon name={panel.icon}/><h2>{panel.title}</h2><select aria-label={`${panel.title} camera`} value={i===0?rawView:i===1?semanticView:mapView} onchange={e=>{if(i===0)rawView=e.currentTarget.value;else if(i===1)semanticView=e.currentTarget.value;else mapView=e.currentTarget.value;}}><option value="orbit">3D View</option><option value="top">Top-Down</option><option value="driver">Driver</option></select></div>
-    <div class="dashboard-map"><MapCanvas {frame} mode={panel.mode} showPoints={!panel.cells} showCells={panel.cells} boundaries={false} view={i===0?rawView:i===1?semanticView:mapView} follow={true}/>{#if !frame}<div class="dashboard-map-empty"><Icon name={panel.icon} size={34}/><strong>{awaitingFrame?'Processing first frame…':status.frames?'Waiting for visualization':'No dataset preview'}</strong><span>{status.frames?'Open Live Mapping to inspect session status.':'Choose a directory and open a preview.'}</span><button disabled={busy} onclick={status.frames?openMap:openDataset}>{status.frames?'Open Live Mapping':'Choose dataset'}</button></div>{/if}{#if panel.cells}<div class="map-mini-legend">{#each [['#33d9f2','5 cm'],['#4dd980','10 cm'],['#ffb340','20 cm'],['#d966d9','40 cm']] as [color,label]}<span><i style:background={color}></i>{label}</span>{/each}</div>{/if}<div class="axis-marker"><span>Z</span><b>↑</b><small>Y ↗　→ X</small></div></div>
+    <div class="dashboard-map"><MapCanvas {frame} mode={panel.mode} showPoints={!panel.cells} showCells={panel.cells} accumulate={panel.cells?1:20} boundaries={false} view={i===0?rawView:i===1?semanticView:mapView} follow={true}/>{#if !frame}<div class="dashboard-map-empty"><Icon name={panel.icon} size={34}/><strong>{awaitingFrame?'Processing first frame…':status.frames?'Waiting for visualization':'No dataset preview'}</strong><span>{status.frames?'Open Live Mapping to inspect session status.':'Choose a directory and open a preview.'}</span><button disabled={busy} onclick={status.frames?openMap:openDataset}>{status.frames?'Open Live Mapping':'Choose dataset'}</button></div>{/if}{#if panel.cells}<div class="map-mini-legend">{#each [['#33d9f2','5 cm'],['#4dd980','10 cm'],['#ffb340','20 cm'],['#d966d9','40 cm']] as [color,label]}<span><i style:background={color}></i>{label}</span>{/each}</div>{/if}<div class="axis-marker"><span>Z</span><b>↑</b><small>Y ↗　→ X</small></div></div>
     {#if i===1}<div class="semantic-legend"><span><i style:background=" #388cfa"></i>Road</span><span><i style:background=" #f14d62"></i>Vehicle</span><span><i style:background=" #a457ec"></i>Person</span><span><i style:background=" #38b34c"></i>Terrain</span></div>{/if}
     <div class="visualization-caption">{#if panel.cells}<span>Cells shown: <b>{f(frame?.metadata.cells?.count,0)}</b> / {f(frame?.metadata.total_leaves,0)}</span><span>{status.policy?.replaceAll('_',' ')??'No policy'}</span>{:else}<span>Points shown: <b>{f(frame?.metadata.points?.count,0)}</b> / {f(frame?.metadata.n_points,0)}</span><span>{i===0?'World coordinates':`Semantic classes: ${summary.length||'—'}`}</span>{/if}</div>
    </section>

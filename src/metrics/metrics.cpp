@@ -9,6 +9,8 @@
 
 #if defined(__linux__)
 #include <unistd.h>
+#elif defined(__APPLE__)
+#include <mach/mach.h>
 #endif
 
 namespace veyra::metrics {
@@ -80,6 +82,16 @@ std::optional<std::uint64_t> read_process_rss_bytes() noexcept {
     return std::nullopt;
   }
   return resident_pages * page_size_u;
+#elif defined(__APPLE__)
+  // Darwin has no /proc; the kernel reports the task's resident set directly.
+  mach_task_basic_info_data_t info{};
+  mach_msg_type_number_t count = MACH_TASK_BASIC_INFO_COUNT;
+  if (task_info(mach_task_self(), MACH_TASK_BASIC_INFO, reinterpret_cast<task_info_t>(&info),
+                &count) != KERN_SUCCESS ||
+      info.resident_size == 0) {
+    return std::nullopt;
+  }
+  return static_cast<std::uint64_t>(info.resident_size);
 #else
   return std::nullopt;
 #endif

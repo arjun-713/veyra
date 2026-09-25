@@ -15,6 +15,7 @@ import numpy as np
 
 from datasets.common.adapter import DatasetFrameRef
 from datasets.common.observation import FrameProvenance, ObservationFrame, PoseSE3
+from datasets.common.taxonomy import map_dataset_labels
 
 
 class ManifestDataset:
@@ -235,9 +236,8 @@ class ManifestDataset:
             keep &= np.linalg.norm(points[:, :3], axis=1) <= max_range_m
         points, labels = points[keep], labels[keep]
         raw_labels = labels.astype(np.int32, copy=False)
-        classes = np.asarray(
-            [self._mapping.get(int(label), 0) for label in labels], dtype=np.int32
-        )
+        # Vectorized lookup; identical to a per-label dict.get(..., 0).
+        classes = map_dataset_labels(labels, self._mapping)
         confidence = (classes != 0).astype(np.float32)
         timestamp = item.get("timestamp_s")
         if "pose_sensor_to_world" in item:

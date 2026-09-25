@@ -90,4 +90,5 @@ Standards, DoD, checklists: `docs/development.md`.
 `prior-art.md`,
 `resolution-policies.md`,
 `perception-terrain-temporal.md`, `datasets-benchmarks.md`,
-`development.md`, `desktop-electron-audit.md` (Tauri migration reference).
+`development.md`, `desktop-electron-audit.md` (Tauri migration reference),
+`docker.md` (containerised tests, runtime, viewer).
