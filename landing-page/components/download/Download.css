@@ -1,0 +1,386 @@
+/* Download — OS-aware installer cards in the light instrument world. */
+
+.dl {
+  padding-bottom: 132px;
+}
+
+/* OS switcher row */
+.dl-switch-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 20px;
+  flex-wrap: wrap;
+  margin-bottom: 40px;
+  padding-bottom: 24px;
+  border-bottom: 2px solid var(--ink);
+}
+
+.dl-tabs {
+  display: inline-flex;
+  gap: 6px;
+  padding: 6px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: var(--card);
+}
+
+.dl-tab {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  border: 0;
+  border-radius: 999px;
+  background: transparent;
+  color: var(--ink-soft);
+  font-family: var(--font-ui);
+  font-size: 14.5px;
+  font-weight: 600;
+  padding: 10px 22px;
+  cursor: pointer;
+  transition: background 0.2s ease, color 0.2s ease;
+}
+
+.dl-tab:hover {
+  background: var(--paper-soft);
+  color: var(--ink);
+}
+
+.dl-tab.is-active {
+  background: var(--ink);
+  color: #fff;
+}
+
+.dl-tab-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--teal-bright);
+}
+
+.dl-detected {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 10px;
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.dl-detected-label {
+  font-size: 11px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+}
+
+.dl-detected-value {
+  color: var(--teal-ink);
+  font-weight: 600;
+  border: 1px solid rgba(11, 110, 108, 0.4);
+  border-radius: 20px;
+  padding: 5px 12px;
+  background: var(--teal-wash);
+  white-space: nowrap;
+}
+
+/* Section head */
+.dl-head {
+  max-width: 880px;
+  margin-bottom: 44px;
+}
+
+.dl-head h2 {
+  margin-bottom: 14px;
+}
+
+/* Cards */
+.dl-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+  gap: 28px;
+  margin-bottom: 28px;
+}
+
+.dl-card {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  padding: 30px 28px 26px;
+  box-shadow: var(--shadow-frame);
+}
+
+.dl-card.is-rec {
+  border: 1.5px solid var(--teal-ink);
+  box-shadow: var(--shadow-frame), 0 0 0 4px rgba(20, 184, 176, 0.12);
+}
+
+.dl-card-top {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 14px;
+}
+
+.dl-card-top h3 {
+  font-family: var(--font-display);
+  font-size: 21px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  margin-bottom: 6px;
+}
+
+.dl-card-top p {
+  font-size: 13.5px;
+  color: var(--muted);
+}
+
+.dl-rec {
+  flex-shrink: 0;
+  font-size: 10px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--ink-on-teal);
+  background: var(--teal-bright);
+  border-radius: 20px;
+  padding: 6px 12px;
+  white-space: nowrap;
+}
+
+.dl-meta {
+  display: grid;
+  gap: 8px;
+  padding: 16px 0;
+  border-top: 1px solid var(--line-soft);
+  border-bottom: 1px solid var(--line-soft);
+  font-size: 12.5px;
+}
+
+.dl-meta div {
+  display: grid;
+  grid-template-columns: 52px 1fr;
+  gap: 10px;
+}
+
+.dl-meta dt {
+  color: var(--muted);
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+}
+
+.dl-meta dd {
+  color: var(--ink);
+  word-break: break-all;
+}
+
+.dl-steps-label {
+  margin-bottom: -12px;
+}
+
+.dl-steps {
+  margin: 0;
+  padding-left: 22px;
+  display: grid;
+  gap: 10px;
+  font-size: 14.5px;
+  color: var(--ink-soft);
+}
+
+.dl-steps li::marker {
+  color: var(--teal-ink);
+  font-family: var(--font-mono);
+  font-size: 12.5px;
+  font-weight: 600;
+}
+
+.dl-steps code {
+  display: inline-block;
+  font-size: 12.5px;
+  background: var(--paper-soft);
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  padding: 2px 8px;
+  color: var(--ink);
+  word-break: break-all;
+}
+
+.dl-note {
+  font-size: 13px;
+  color: var(--muted);
+  border-left: 2px solid var(--teal);
+  padding-left: 12px;
+  line-height: 1.6;
+}
+
+.dl-cta {
+  margin-top: auto;
+  padding-top: 6px;
+  display: grid;
+  gap: 12px;
+}
+
+.dl-btn {
+  display: inline-block;
+  text-align: center;
+  text-decoration: none;
+  border: 0;
+  border-radius: 14px;
+  background: var(--teal-bright);
+  color: var(--ink-on-teal);
+  font-family: var(--font-ui);
+  font-size: 15.5px;
+  font-weight: 600;
+  padding: 17px 30px;
+  cursor: pointer;
+  box-shadow: 0 18px 36px -20px rgba(20, 184, 176, 0.65);
+  transition: background 0.2s ease, transform 0.2s ease, border-color 0.2s ease;
+}
+
+a.dl-btn:hover {
+  background: var(--teal-hover);
+  transform: translateY(-1px);
+}
+
+a.dl-btn:active {
+  transform: translateY(0);
+}
+
+/* Pre-release: muted, but still a real link to the releases page.
+   `help` cursor pairs with the title tooltip explaining the status;
+   tooltips are suppressed on disabled <button>s, which is why this is
+   an anchor with aria-disabled instead. */
+.dl-btn.is-disabled {
+  background: var(--paper-soft);
+  color: var(--muted);
+  border: 1px solid var(--line);
+  box-shadow: none;
+  cursor: help;
+}
+
+a.dl-btn.is-disabled:hover {
+  background: var(--paper-soft);
+  border-color: var(--muted);
+  transform: none;
+}
+
+.dl-avail {
+  font-size: 12px;
+  color: var(--muted);
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  flex-wrap: wrap;
+}
+
+.dl-avail a {
+  color: var(--teal-ink);
+  font-weight: 600;
+  text-decoration: none;
+}
+
+.dl-avail a:hover {
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+.dl-live-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--teal);
+  box-shadow: 0 0 0 3px rgba(20, 184, 176, 0.2);
+}
+
+.dl-chooser {
+  font-size: 12.5px;
+  color: var(--muted);
+  border: 1px dashed var(--line);
+  border-radius: var(--radius-sm);
+  padding: 14px 18px;
+  margin-bottom: 64px;
+  background: var(--card);
+}
+
+/* Source build */
+.dl-source {
+  display: grid;
+  grid-template-columns: 1fr 1.2fr;
+  gap: 44px;
+  align-items: start;
+  padding-top: 56px;
+  border-top: 1px solid var(--line);
+}
+
+.dl-source .meta-label {
+  display: block;
+  margin-bottom: 16px;
+}
+
+.dl-source h3 {
+  margin-bottom: 16px;
+}
+
+.dl-code {
+  display: grid;
+  gap: 20px;
+}
+
+.dl-code figure {
+  display: grid;
+  gap: 8px;
+}
+
+.dl-code figcaption {
+  font-size: 11px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+.dl-code pre {
+  margin: 0;
+  background: var(--ink);
+  color: #d7f5f0;
+  border-radius: var(--radius-sm);
+  padding: 18px 20px;
+  font-size: 12.5px;
+  line-height: 1.7;
+  overflow-x: auto;
+  white-space: pre-wrap;
+  word-break: break-all;
+}
+
+@media (max-width: 900px) {
+  .dl-source {
+    grid-template-columns: 1fr;
+    gap: 28px;
+  }
+}
+
+@media (max-width: 640px) {
+  .dl {
+    padding-bottom: 88px;
+  }
+
+  .dl-switch-row {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .dl-tabs {
+    width: 100%;
+  }
+
+  .dl-tab {
+    flex: 1;
+    justify-content: center;
+    padding: 10px 8px;
+  }
+
+  .dl-card {
+    padding: 24px 20px 22px;
+  }
+}

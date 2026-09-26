@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import Nav from "../../components/Nav";
 import Footer from "../../components/Footer";
 import PageHead from "../../components/ui/PageHead";
-import Download from "../../components/downloads/Download";
+import Download from "../../components/download/Download";
 
 export const metadata: Metadata = {
   title: "Download — Veyra for Windows, macOS and Linux",
@@ -18,7 +18,7 @@ export default function DownloadPage() {
         <PageHead
           trail="Download"
           title="Run it on your machine."
-          lede="Packaged installers for every supported platform, or a two-command source build."
+          lede="Installers for Linux, Windows, and macOS — or a two-command source build. Packaged binaries ship with the first tagged release."
         />
         <Download />
       </main>
