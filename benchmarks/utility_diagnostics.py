@@ -3,7 +3,10 @@
 import argparse
 import hashlib
 import json
+import os
 import subprocess
+import sys
+from contextlib import contextmanager
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -18,6 +21,24 @@ from benchmarks.run_benchmark import (
 def validate_selection(start, count):
     if start < 0 or not 1 <= count <= 8:
         raise ValueError("diagnostic selection requires start >= 0 and 1–8 frames")
+
+
+@contextmanager
+def pipeline_logs_to_stderr():
+    """Keep native backend writes to descriptor 1 out of the JSON stream.
+
+    Used only by this single-threaded diagnostic CLI, never the runtime server.
+    Python redirect_stdout alone cannot capture Patchwork++'s native output.
+    """
+    sys.stdout.flush()
+    saved_stdout = os.dup(1)
+    try:
+        os.dup2(2, 1)
+        yield
+    finally:
+        sys.stdout.flush()
+        os.dup2(saved_stdout, 1)
+        os.close(saved_stdout)
 
 
 def main():
@@ -60,14 +81,15 @@ def main():
         },
     }
     records = []
-    frames, _distance, _entry, _timings, radius = load_selection(
-        repo,
-        args.dataset,
-        args.sequence,
-        args.start,
-        args.count,
-        perception_records=records,
-    )
+    with pipeline_logs_to_stderr():
+        frames, _distance, _entry, _timings, radius = load_selection(
+            repo,
+            args.dataset,
+            args.sequence,
+            args.start,
+            args.count,
+            perception_records=records,
+        )
     payload, digest = stream_bytes(frames)
     command = [
         str(executable),
