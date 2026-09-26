@@ -283,11 +283,23 @@ PolicyDecision LodPolicy::decide(const DecisionInput& input) {
           important_mover ? distance_level(config_, predicted_range) : baseline;
       const bool predictive_refinement = predicted_baseline < baseline;
       const int promotion_goal = std::max(0, baseline - u.max_promotion_depth);
-      auto record_evidence = [&](const int requested, const bool transition) {
+      auto record_evidence = [&](const int requested, const bool transition,
+                                 const UtilityDecisionReason reason) {
         if (!promotion_telemetry_enabled_) return;
         auto& telemetry = promotion_telemetry_;
         ++telemetry.decisions;
         uncertainty_gate ? ++telemetry.gate_passed : ++telemetry.gate_failed;
+        if (input.observation_quality < u.min_observation_quality) ++telemetry.quality_failed;
+        if (input.point_density < u.min_point_density) ++telemetry.density_failed;
+        const std::array<double, 2> support{input.observation_quality, input.point_density};
+        for (std::size_t i = 0; i < support.size(); ++i) {
+          const auto bin = static_cast<std::size_t>(std::min(19.0, std::floor(support[i] * 20.0)));
+          ++telemetry.support_histogram[i][bin];
+        }
+        const auto class_index = std::min<std::size_t>(input.semantic_class, 20);
+        ++telemetry.class_decisions[class_index];
+        if (!uncertainty_gate) ++telemetry.class_gate_failed[class_index];
+        ++telemetry.decision_reasons[static_cast<std::size_t>(reason)];
         if (input.safety_critical) ++telemetry.safety_decisions;
         if (predictive_refinement) ++telemetry.predictive_decisions;
         const std::array<double, 5> raw{input.geometry_complexity, input.semantic_importance,
@@ -304,6 +316,7 @@ PolicyDecision LodPolicy::decide(const DecisionInput& input) {
                                         : std::max(telemetry.signal_max[i], raw[i]);
           telemetry.signal_raw_sum[i] += raw[i];
           telemetry.signal_weighted_sum[i] += raw[i] * weights[i];
+          telemetry.signal_effective_weighted_sum[i] += uncertainty_gate ? raw[i] * weights[i] : 0.0;
           if (raw[i] == 0.0) ++telemetry.signal_exact_zero_count[i];
           if (raw[i] >= 0.99) ++telemetry.signal_near_one_count[i];
           const auto bin = static_cast<std::size_t>(
@@ -339,7 +352,7 @@ PolicyDecision LodPolicy::decide(const DecisionInput& input) {
       auto found = states_.find(input.state_cell);
       if (found == states_.end() && states_.size() >= u.max_state_cells) {
         const int target = input.safety_critical ? promotion_goal : baseline;
-        record_evidence(target, false);
+        record_evidence(target, false, UtilityDecisionReason::StateCapacity);
         return {.baseline_level = baseline,
                 .requested_level = target,
                 .uncertainty_gate_passed = uncertainty_gate,
@@ -418,7 +431,29 @@ PolicyDecision LodPolicy::decide(const DecisionInput& input) {
       const bool promotion_transition = state.promoted && !tracked.frame_start.promoted &&
                                         !tracked.frame_promotion_counted && requested < baseline;
       if (promotion_transition) tracked.frame_promotion_counted = true;
-      record_evidence(requested, promotion_transition);
+      // These describe policy requests, not completed map splits. Governor
+      // suppression and topology outcomes remain separate downstream evidence.
+      if (promotion_telemetry_enabled_) {
+        const auto reason = [&] {
+          if (baseline == 0 || promotion_goal == baseline)
+            return UtilityDecisionReason::ProtectedBaseline;
+          if (requested < baseline) {
+            if (!promotion_transition) return UtilityDecisionReason::RetainedPromotion;
+            if (tracked.frame_safety) return UtilityDecisionReason::SafetyPromotion;
+            if (tracked.frame_predictive) return UtilityDecisionReason::PredictivePromotion;
+            return UtilityDecisionReason::Promoted;
+          }
+          if (state.promoted) return UtilityDecisionReason::LevelChangeLimit;
+          if (input.observation_quality < u.min_observation_quality)
+            return UtilityDecisionReason::QualityGate;
+          if (input.point_density < u.min_point_density) return UtilityDecisionReason::DensityGate;
+          if (!transitions_allowed) return UtilityDecisionReason::Cooldown;
+          if (state.ema < u.split_threshold && !tracked.frame_predictive && !tracked.frame_safety)
+            return UtilityDecisionReason::ScoreBelowSplit;
+          return UtilityDecisionReason::InsufficientDwell;
+        }();
+        record_evidence(requested, promotion_transition, reason);
+      }
       return {.baseline_level = baseline,
               .requested_level = requested,
               .uncertainty_gate_passed = uncertainty_gate,

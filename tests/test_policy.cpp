@@ -535,9 +535,70 @@ void radial_range_rate_from_velocity_is_signed_along_the_robot_offset() {
   assert(veyra::policy::radial_range_rate_mps(1.0, 0.0, nan, 0.0) == 0.0);
 }
 
+void utility_diagnostics_separate_quality_density_and_effective_contributions() {
+  const auto config = PolicyConfig::defaults().with_mode(LodMode::UtilityLod);
+  LodPolicy observed{config};
+  LodPolicy plain{config};
+  observed.enable_promotion_telemetry(true);
+  for (std::uint64_t frame = 1; frame <= 4; ++frame) {
+    observed.begin_frame(frame);
+    plain.begin_frame(frame);
+    DecisionInput input{.range_m = 45.0, .active_level = 2,
+                        .state_cell = {3, 100, 0}, .semantic_importance = 1.0,
+                        .observation_quality = frame == 1 ? 0.0 : 1.0,
+                        .point_density = frame == 2 ? 0.0 : 1.0,
+                        .semantic_class = 6};
+    const auto expected = plain.decide(input);
+    const auto actual = observed.decide(input);
+    assert(actual.requested_level == expected.requested_level);
+    assert(actual.utility_score == expected.utility_score);
+    assert(actual.action == expected.action);
+  }
+  const auto& telemetry = observed.promotion_telemetry();
+  assert(telemetry.quality_failed == 1);
+  assert(telemetry.density_failed == 1);
+  assert(telemetry.support_histogram[0][0] == 1);
+  assert(telemetry.support_histogram[1][0] == 1);
+  assert(telemetry.class_decisions[6] == 4);
+  assert(telemetry.class_gate_failed[6] == 2);
+  assert(telemetry.signal_effective_weighted_sum[1] == 2 * config.utility.semantic_weight);
+  assert(telemetry.decision_reasons[static_cast<std::size_t>(veyra::policy::UtilityDecisionReason::QualityGate)] == 1);
+  assert(telemetry.decision_reasons[static_cast<std::size_t>(veyra::policy::UtilityDecisionReason::DensityGate)] == 1);
+  assert(telemetry.decision_reasons[static_cast<std::size_t>(veyra::policy::UtilityDecisionReason::ScoreBelowSplit)] == 2);
+  assert(plain.promotion_telemetry().decisions == 0);
+  observed.enable_promotion_telemetry(false);
+  assert(observed.promotion_telemetry().decisions == 0);
+}
+
+void utility_diagnostics_identify_dwell_admission_and_protected_baseline() {
+  auto config = veyra::policy::load_policy_config(
+      std::filesystem::path{VEYRA_SOURCE_DIR} / "configs" / "utility_lod.yaml");
+  LodPolicy observed{config};
+  observed.enable_promotion_telemetry(true);
+  DecisionInput input{.range_m = 45.0, .active_level = 2,
+                      .state_cell = {3, 100, 0}, .geometry_complexity = 1.0,
+                      .semantic_importance = 1.0, .traversability_risk = 1.0,
+                      .observation_quality = 1.0, .point_density = 1.0,
+                      .semantic_class = 18};
+  observed.begin_frame(1);
+  assert(observed.decide(input).requested_level == 2);
+  observed.begin_frame(2);
+  assert(observed.decide(input).requested_level == 1);
+  input.range_m = 5.0;
+  input.active_level = 0;
+  input.state_cell = {3, 0, 0};
+  assert(observed.decide(input).requested_level == 0);
+  const auto& reasons = observed.promotion_telemetry().decision_reasons;
+  assert(reasons[static_cast<std::size_t>(veyra::policy::UtilityDecisionReason::InsufficientDwell)] == 1);
+  assert(reasons[static_cast<std::size_t>(veyra::policy::UtilityDecisionReason::Promoted)] == 1);
+  assert(reasons[static_cast<std::size_t>(veyra::policy::UtilityDecisionReason::ProtectedBaseline)] == 1);
+}
+
 }  // namespace
 
 int main() {
+  utility_diagnostics_separate_quality_density_and_effective_contributions();
+  utility_diagnostics_identify_dwell_admission_and_protected_baseline();
   utility_requires_quality_and_accumulates_late_frame_hazards();
   demotion_waits_for_complete_frame_evidence();
   explicit_frames_bound_hysteresis_state_and_promotion_depth();

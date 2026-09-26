@@ -5,6 +5,7 @@
 #include <cstdint>
 #include <filesystem>
 #include <optional>
+#include <string_view>
 #include <unordered_map>
 #include <vector>
 
@@ -28,6 +29,8 @@ struct DecisionInput {
   double observation_quality = 0.0;
   double point_density = 0.0;
   double range_rate_mps = 0.0;
+  // Diagnostic taxonomy identity only; not another policy input/weight.
+  std::uint32_t semantic_class = 0;
 };
 
 struct PolicyDecision {
@@ -39,12 +42,30 @@ struct PolicyDecision {
   ResolutionAction action = ResolutionAction::Keep;
 };
 
+enum class UtilityDecisionReason : std::size_t {
+  ProtectedBaseline, QualityGate, DensityGate, StateCapacity, Cooldown,
+  ScoreBelowSplit, InsufficientDwell, LevelChangeLimit, Promoted,
+  SafetyPromotion, PredictivePromotion, RetainedPromotion, Count
+};
+inline constexpr std::array<std::string_view, static_cast<std::size_t>(UtilityDecisionReason::Count)>
+    kUtilityDecisionReasons{"protected_baseline", "quality_gate", "density_gate", "state_capacity",
+                            "cooldown", "score_below_split", "insufficient_dwell", "level_change_limit",
+                            "promoted", "safety_promotion", "predictive_promotion", "retained_promotion"};
+
 // Fixed-size, opt-in aggregates for benchmark diagnostics. Transition bins are
 // indexed by active, requested, and baseline level respectively.
 struct PromotionTelemetry {
   std::uint64_t decisions = 0;
   std::uint64_t gate_passed = 0;
   std::uint64_t gate_failed = 0;
+  std::uint64_t quality_failed = 0;
+  std::uint64_t density_failed = 0;
+  // Quality and density on [0,1]; no per-observation trace retention.
+  std::array<std::array<std::uint64_t, 20>, 2> support_histogram{};
+  // Unified learning IDs 0..19; index 20 is an unrecognized ID, not a class.
+  std::array<std::uint64_t, 21> class_decisions{};
+  std::array<std::uint64_t, 21> class_gate_failed{};
+  std::array<std::uint64_t, static_cast<std::size_t>(UtilityDecisionReason::Count)> decision_reasons{};
   std::uint64_t safety_decisions = 0;
   std::uint64_t predictive_decisions = 0;
   std::uint64_t budget_suppressed = 0;
@@ -53,6 +74,7 @@ struct PromotionTelemetry {
   std::array<std::array<std::array<std::uint64_t, 4>, 4>, 4> promotion_transitions{};
   std::array<double, 5> signal_raw_sum{};
   std::array<double, 5> signal_weighted_sum{};
+  std::array<double, 5> signal_effective_weighted_sum{};
   std::array<double, 5> signal_min{};
   std::array<double, 5> signal_max{};
   // Twenty equal-width bins on [0,1], with 1.0 in the final bin.

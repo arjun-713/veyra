@@ -191,6 +191,7 @@ class MapPolicyAdapter {
         .range_rate_mps = veyra::policy::radial_range_rate_mps(
             static_cast<double>(observation.velocity_x),
             static_cast<double>(observation.velocity_y), offset_x, offset_y),
+        .semantic_class = observation.semantic_class,
     });
     int requested_level = decision.requested_level;
     if (governor_ && !governor_->status().allow_optional_splits && observation.drivable != 2) {
@@ -1295,6 +1296,8 @@ std::string render(const Result& result) {
     out << ",\"promotion_telemetry\":{\"decisions\":" << telemetry.decisions
         << ",\"gate_passed\":" << telemetry.gate_passed
         << ",\"gate_failed\":" << telemetry.gate_failed
+        << ",\"diagnostics_version\":1,\"quality_failed\":" << telemetry.quality_failed
+        << ",\"density_failed\":" << telemetry.density_failed
         << ",\"safety_decisions\":" << telemetry.safety_decisions
         << ",\"predictive_decisions\":" << telemetry.predictive_decisions
         << ",\"budget_suppressed\":" << telemetry.budget_suppressed
@@ -1305,6 +1308,7 @@ std::string render(const Result& result) {
       if (i) out << ',';
       out << '\"' << signal_names[i] << "\":{\"raw_sum\":" << telemetry.signal_raw_sum[i]
           << ",\"weighted_sum\":" << telemetry.signal_weighted_sum[i]
+          << ",\"effective_weighted_sum\":" << telemetry.signal_effective_weighted_sum[i]
           << ",\"min\":" << telemetry.signal_min[i]
           << ",\"max\":" << telemetry.signal_max[i]
           << ",\"exact_zero_count\":" << telemetry.signal_exact_zero_count[i]
@@ -1346,6 +1350,28 @@ std::string render(const Result& result) {
           out << "{\"active\":" << active << ",\"requested\":" << requested
               << ",\"baseline\":" << baseline << ",\"count\":" << count << '}';
         }
+    out << "],\"decision_reasons\":{";
+    for (std::size_t i = 0; i < veyra::policy::kUtilityDecisionReasons.size(); ++i) {
+      if (i) out << ',';
+      out << '\"' << veyra::policy::kUtilityDecisionReasons[i] << "\":" << telemetry.decision_reasons[i];
+    }
+    out << "},\"support_histograms\":{";
+    constexpr std::array<std::string_view, 2> support_names{"observation_quality", "point_density"};
+    for (std::size_t i = 0; i < support_names.size(); ++i) {
+      if (i) out << ',';
+      out << '\"' << support_names[i] << "\":[";
+      for (std::size_t bin = 0; bin < 20; ++bin) {
+        if (bin) out << ',';
+        out << telemetry.support_histogram[i][bin];
+      }
+      out << ']';
+    }
+    out << "},\"classes\":[";
+    for (std::size_t i = 0; i < telemetry.class_decisions.size(); ++i) {
+      if (i) out << ',';
+      out << "{\"id\":" << i << ",\"decisions\":" << telemetry.class_decisions[i]
+          << ",\"gate_failed\":" << telemetry.class_gate_failed[i] << '}';
+    }
     out << "]}";
   }
   if (result.governor) {

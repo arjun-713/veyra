@@ -1,0 +1,107 @@
+# Production UtilityLOD diagnostics and perception handoff
+
+Scope: #57, on production `utility_lod`. This is observability, not a V2 import,
+policy retune, new default, or claim that UtilityLOD beats DistanceLOD.
+
+## What the mapper now reports
+
+Enable the existing `--promotion-telemetry` switch on the benchmark executable.
+The existing report remains intact; additive diagnostic version 1 supplies:
+
+- Independent quality/density failure counts and 20-bin support histograms.
+- Per-taxonomy-ID decision and failed-quality-gate counts (IDs 0–19; bucket 20
+  means an unrecognized ID, not a new class).
+- Effective weighted signal sums after the quality gate, alongside the existing
+  potential weighted sums. A rejected observation contributes zero effective
+  score. Safety/predictive overrides must be interpreted separately.
+- One recorded reason per policy request: protected baseline, quality gate,
+  density gate, state capacity, cooldown, score below split, insufficient dwell,
+  level-change limit, new promotion, safety/predictive promotion, or retained
+  promotion. Reason counts sum to decisions; quality/density failures can overlap.
+
+These are **policy requests**, not proof that a map split succeeded. Existing
+governor suppression, applied actions, topology statistics, and leaf footprints
+must still be checked. Reasons are recorded at the decision site; they are not
+reconstructed from a heatmap. Hysteresis aggregates the maximum evidence in a
+frame; a later weak point can inherit an earlier strong region decision.
+
+Instrumentation is opt-in, fixed-size, and stores no observation history.
+`CellStats` and `Leaf` are unchanged. Enabled/disabled runs must have identical
+snapshots and leaf statistics on deterministic inputs.
+
+For a bounded diagnostic replay using the configured real pipeline:
+
+```sh
+cmake -S . -B build-utility-diagnostics -DCMAKE_BUILD_TYPE=Release
+cmake --build build-utility-diagnostics --parallel 2
+.venv/bin/python -m benchmarks.utility_diagnostics \
+  --executable build-utility-diagnostics/apps/benchmark/veyra_benchmark \
+  --dataset semanticposs --sequence 00 --start 0 --count 2
+```
+
+The CLI is limited to 1–8 frames. It records input/config/binary digests,
+commit/dirty-source provenance, hardware, actual pipeline stages, and diagnostics.
+It does not call a missing model real inference, and it intentionally does not
+publish latency/FPS/quality claims from this short run.
+
+## Current defects to measure, not silently fix here
+
+`MapPolicyAdapter::update` currently uses confidence for every known class,
+without class-specific importance, and supplies constant `point_density = 1`.
+Production config has semantic weight `0.30` and split threshold `0.55`; semantics
+alone cannot pass this fused-score threshold. This is a reachability limitation,
+not proof that changing one weight would establish useful refinement.
+
+`PerceptionPipeline._quality` currently takes the minimum of semantic and terrain
+confidence for all points. Terrain confidence may legitimately be zero for a
+non-ground object; that must not automatically erase valid object confidence.
+
+## Handoff to Samay: quality boundary
+
+Owner confirmed by Arjun: **Samay**. This branch does not edit
+`perception/pipeline.py` or `tests/test_perception_pipeline.py`.
+
+Please make the smallest correction in `_quality` and its call in `process`:
+
+1. Keep point ordering and all existing ObservationFrame fields/protocols.
+2. Supply the actual aligned ground mask (from the ground stage when available,
+   otherwise the canonical frame's mask) to the quality decision.
+3. For a supported ground point, retain conservative terrain-dependent quality:
+   `min(semantic_confidence, terrain_confidence)` when terrain evidence exists.
+4. For a non-ground point, use valid semantic confidence as semantic observation
+   quality; absent ground-fit/terrain confidence must not alone veto that object.
+   Measured local support/density is the mapper's independent gate, not a value
+   the provider should fabricate as 1.
+5. With no terrain stage, preserve the existing semantic-confidence behavior.
+6. Keep terrain confidence, ground mask, unknown traversability, semantic unknown,
+   and unavailable motion honest. Increasing object quality must NOT turn unknown
+   ground into drivable terrain or assign motion from a semantic class.
+7. Reject malformed/misaligned/nonfinite evidence using existing validation.
+
+Required regression fixtures:
+
+- The existing composed pipeline fixture has ground `[true,true,false]`, semantic
+  confidence `[0.9,0.8,0.8]`, and terrain confidence `[0.9,0.7,0]`. The corrected
+  quality should be `[0.9,0.7,0.8]`, while the third traversability stays unknown.
+- High-confidence non-ground person/pole/vehicle with terrain confidence zero
+  remains eligible for the mapper's separate support gate.
+- Low-confidence non-ground evidence stays low; unsupported ground stays low.
+- Terrain unavailable, unknown semantics, absent motion, and malformed shapes
+  retain truthful behavior, with no unconditional skips/fallback success.
+
+Run perception-pipeline tests plus relevant protocol/runtime tests. Provide the
+commit SHA and agreed quality semantics before the map-side signal correction
+is based on this change. No provider/default/temporal behavior needs rewriting.
+
+## Remaining merge gates
+
+1. Merge/review diagnostics independently of signal corrections.
+2. Integrate Samay's approved quality-boundary and relevant temporal work before
+   overlapping `engine.cpp` edits for measured support/class importance.
+3. Correct only defects demonstrated by diagnostics; preserve DistanceLOD,
+   safety detail, hysteresis, and frozen challenge selections.
+4. Independently measure task benefit (#60). An equal-range resolution change is
+   not automatically useful information retention; record NO-GO if it is weak.
+5. Generate final benchmark evidence (#62) only on the approved integrated clean
+   main SHA, after report/comparison consumer work. Branch-local GT smoke is not
+   neural end-to-end validation or final current-main evidence.
