@@ -1,0 +1,27 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="900" height="520" viewBox="0 0 900 520">
+<rect width="100%" height="100%" fill="#101820"/>
+<text x="55" y="45" fill="#f0f4f8" font-size="22">Critical vs background height-accuracy gain</text>
+<text x="55" y="75" fill="#aab9c7" font-size="13"></text>
+<path d="M80 95 V445 H855" fill="none" stroke="#667787"/>
+<text x="460" y="490" text-anchor="middle" fill="#c7d4df" font-size="15">background gain</text>
+<text x="20" y="275" transform="rotate(-90 20 275)" text-anchor="middle" fill="#c7d4df" font-size="15">critical gain</text>
+<text x="80" y="465" fill="#91a5b5" font-size="11">-0.000641</text>
+<text x="855" y="465" text-anchor="end" fill="#91a5b5" font-size="11">0.00315</text>
+<text x="70" y="440" text-anchor="end" fill="#91a5b5" font-size="11">0</text>
+<text x="70" y="100" text-anchor="end" fill="#91a5b5" font-size="11">0.0226</text>
+<circle cx="704.1" cy="445.0" r="5" fill="#e8c35a" opacity="0.8"><title>semantic_object: 0.002412, 0</title></circle>
+<circle cx="470.6" cy="445.0" r="5" fill="#e8c35a" opacity="0.8"><title>motion_candidate: 0.00127, 0</title></circle>
+<circle cx="853.8" cy="445.0" r="5" fill="#e8c35a" opacity="0.8"><title>semantic_object: 0.003144, 0</title></circle>
+<circle cx="853.7" cy="445.0" r="5" fill="#e8c35a" opacity="0.8"><title>semantic_object: 0.003144, 0</title></circle>
+<circle cx="337.6" cy="95.0" r="5" fill="#e8c35a" opacity="0.8"><title>semantic_object: 0.0006191, 0.02256</title></circle>
+<circle cx="470.3" cy="445.0" r="5" fill="#e8c35a" opacity="0.8"><title>semantic_object: 0.001269, 0</title></circle>
+<circle cx="80.0" cy="255.8" r="5" fill="#e8c35a" opacity="0.8"><title>flat_control: -0.000641, 0.0122</title></circle>
+<circle cx="81.1" cy="445.0" r="5" fill="#e8c35a" opacity="0.8"><title>geometry_hazard: -0.0006357, 0</title></circle>
+<circle cx="470.3" cy="445.0" r="5" fill="#e8c35a" opacity="0.8"><title>semantic_object: 0.001269, 0</title></circle>
+<circle cx="470.3" cy="445.0" r="5" fill="#e8c35a" opacity="0.8"><title>semantic_object: 0.001269, 0</title></circle>
+<circle cx="645.5" cy="445.0" r="5" fill="#e8c35a" opacity="0.8"><title>semantic_object: 0.002126, 0</title></circle>
+<circle cx="855.0" cy="445.0" r="5" fill="#e8c35a" opacity="0.8"><title>semantic_object: 0.00315, 0</title></circle>
+<circle cx="854.5" cy="445.0" r="5" fill="#e8c35a" opacity="0.8"><title>sparse_far_control: 0.003148, 0</title></circle>
+<circle cx="853.8" cy="445.0" r="5" fill="#e8c35a" opacity="0.8"><title>semantic_object: 0.003145, 0</title></circle>
+<text x="855" y="45" text-anchor="end" fill="#9db2c1" font-size="11">flat_control | geometry_hazard | motion_candidate | semantic_object | sparse_far_control</text>
+</svg>

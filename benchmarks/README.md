@@ -14,7 +14,7 @@ benchmarks/run_local.sh --dataset rellis3d --sequence 00000 --count 10 --warmup-
 
 The wrapper builds the local `veyra_benchmark` target and then runs the same
 selected frames through all four public policy adapters (`Uniform5`,
-`Uniform40`, `DistanceLOD`, and stateful `UtilityLOD`). It uses identical V2
+`Uniform40`, `DistanceLOD`, and stateful `UtilityLOD`). It uses identical V4
 digest-protected inputs, map setup, warmup, and repetitions for every policy.
 `UtilityLOD` loads the checked-in hysteresis/prediction configuration and
 resource-governor configuration in the C++ runtime. It performs no network
@@ -38,6 +38,37 @@ SemanticPOSS archive and runs the adapter, real perception stages, map policies,
 and correctness/performance reporting together. Older four-policy schema-v2
 artifacts remain valid regression baselines; comparisons use policy keys
 present in both artifacts.
+
+## Map-quality and planner-evaluation artifacts
+
+Run the bounded selected SemanticPOSS workload with the four public policies,
+quality/resource artifacts, and evaluation-only planner ablations:
+
+```bash
+.venv/bin/python benchmarks/run_benchmark.py \
+  --repo "$PWD" --binary "$PWD/build/apps/benchmark/veyra_benchmark" \
+  --dataset semanticposs --sequence 00 --start 0 --count 10 \
+  --warmup-frames 2 --repetitions 2 \
+  --policies uniform5,uniform40,distance_lod,utility_lod --retain-frames \
+  --planner-evaluation --quality-artifact-dir reports/external-review \
+  --output /tmp/veyra-quality.json --csv-output /tmp/veyra-quality.csv
+```
+
+The artifact directory contains `quality_resource_table.json/.csv`,
+`pareto_summary.json`, nine dependency-free SVGs (logical map memory, measured
+process peak RSS, and map-update p50 or p95 versus height
+accuracy/completion/Chamfer; p95 is used only when every policy has at least
+20 map-update samples),
+and `planner_ablation.json/.csv`. Uniform5 is a same-stream high-resolution
+representation reference, not surveyed ground truth. Height accuracy is the
+fraction of matched common 5 cm XY bins within 10 cm vertical error;
+completion is matched/valid Uniform5 bins; Chamfer is the symmetric mean
+unsquared 3D nearest-neighbour distance on matched support. Range-binned
+Chamfer uses within-band point sets, so another range cannot mask the reported
+band's error. Planner comparisons rasterize all policies onto the same
+bounded, world-aligned 5 cm ROI selected from Uniform5 bounds; crops are
+reported in the artifact provenance. The complete metric and planner definitions are in
+[`docs/benchmark-contract.md`](../docs/benchmark-contract.md).
 
 ## SemanticPOSS CI benchmark
 

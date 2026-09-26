@@ -1,0 +1,2 @@
+challenge_id,policy,promoted_bins,wasted_promotion_ratio,definition
+semantickitti-08-000000-motion_candidate,utility_lod,4529,0.6570986972841687,outside frozen region and no absolute elevation-error reduction

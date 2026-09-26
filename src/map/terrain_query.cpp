@@ -2,6 +2,7 @@
 
 #include <cmath>
 #include <limits>
+#include <numbers>
 #include <stdexcept>
 
 #include "veyra/map/map.hpp"
@@ -11,7 +12,8 @@ namespace veyra::map {
 
 void VehicleProfile::validate() const {
   const bool finite = std::isfinite(clearance_envelope_m) && std::isfinite(vehicle_height_m) &&
-                      std::isfinite(roughness_limit_m) && std::isfinite(step_limit_m);
+                      std::isfinite(roughness_limit_m) && std::isfinite(step_limit_m) &&
+                      std::isfinite(max_slope_rad);
   if (!finite) {
     throw std::invalid_argument("vehicle profile limits must be finite");
   }
@@ -20,6 +22,9 @@ void VehicleProfile::validate() const {
   }
   if (roughness_limit_m < 0.0 || step_limit_m < 0.0) {
     throw std::invalid_argument("roughness and step limits must not be negative");
+  }
+  if (max_slope_rad < 0.0 || max_slope_rad > std::numbers::pi / 2.0) {
+    throw std::invalid_argument("max_slope_rad must be within [0, pi/2]");
   }
   if (vehicle_height_m > clearance_envelope_m) {
     // Returns between vehicle_height_m and clearance_envelope_m were filed as
@@ -81,6 +86,20 @@ TerrainVerdict classify_validated(const CellStats& stats, const VehicleProfile& 
   verdict.ground_state = GroundState::Observed;
   verdict.ground_height_m = stats.ground.mean_z;
   verdict.ground_roughness_m = stats.ground.stddev_z();
+  verdict.slope_available = stats.ground_gradient_count > 0;
+  if (verdict.slope_available) {
+    const double gx = stats.ground_gradient_x();
+    const double gy = stats.ground_gradient_y();
+    verdict.slope_rad = std::atan(std::hypot(gx, gy));
+    const double normal_length = std::sqrt(gx * gx + gy * gy + 1.0);
+    verdict.normal_x = -gx / normal_length;
+    verdict.normal_y = -gy / normal_length;
+    verdict.normal_z = 1.0 / normal_length;
+  } else if (profile.require_slope_evidence) {
+    verdict.traversability = Traversability::Unknown;
+    verdict.reason = TerrainReason::InsufficientSlope;
+    return verdict;
+  }
   // No overhead return means open sky, which is infinite clearance, not zero.
   verdict.clearance_m = verdict.has_overhead
                             ? static_cast<double>(stats.overhead.min_z) - verdict.ground_height_m
@@ -126,6 +145,11 @@ TerrainVerdict classify_validated(const CellStats& stats, const VehicleProfile& 
   if (verdict.ground_roughness_m > profile.roughness_limit_m) {
     verdict.traversability = Traversability::NonDrivable;
     verdict.reason = TerrainReason::GroundTooRough;
+    return verdict;
+  }
+  if (verdict.slope_available && verdict.slope_rad > profile.max_slope_rad) {
+    verdict.traversability = Traversability::NonDrivable;
+    verdict.reason = TerrainReason::GroundTooSteep;
     return verdict;
   }
   if (verdict.clearance_m < profile.vehicle_height_m) {

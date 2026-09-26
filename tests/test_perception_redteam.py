@@ -111,8 +111,9 @@ class PerceptionRedTeamTests(unittest.TestCase):
 
         self.assertEqual([float(row[1]) for row in point_records], [10.0, 20.0])
         self.assertEqual([int(row[5]) for row in point_records], [3, 4])
-        self.assertEqual([int(row[-2]) for row in point_records], [30, 40])
-        self.assertEqual([row[-1] for row in point_records], ["NA", "NA"])
+        self.assertEqual([int(row[19]) for row in point_records], [30, 40])
+        self.assertEqual([row[20] for row in point_records], ["NA", "NA"])
+        self.assertEqual([row[21:] for row in point_records], [["NA", "NA"], ["NA", "NA"]])
         self.assertEqual([int(row[3]) for row in point_records], [1, 2])
         self.assertEqual([int(row[8]) for row in point_records], [1, 0])
         self.assertEqual(records[-1], "E\n")
@@ -123,7 +124,7 @@ class PerceptionRedTeamTests(unittest.TestCase):
         self.assertTrue(payload.startswith(b"B 2\n"))
         header_size = struct.calcsize("<QQQ16d")
         point_bytes = payload[4 + header_size :]
-        self.assertEqual(len(point_bytes), 2 * 71)
+        self.assertEqual(len(point_bytes), 2 * 79)
         row_dtype = np.dtype(
             [
                 ("xyzi", "<f4", (4,)),
@@ -142,6 +143,8 @@ class PerceptionRedTeamTests(unittest.TestCase):
                 ("quality", "<f4"),
                 ("raw", "<i4"),
                 ("height_above_ground", "<f4"),
+                ("ground_gradient_x", "<f4"),
+                ("ground_gradient_y", "<f4"),
             ]
         )
         rows = np.frombuffer(point_bytes, dtype=row_dtype)
@@ -150,6 +153,8 @@ class PerceptionRedTeamTests(unittest.TestCase):
         np.testing.assert_allclose(rows["confidence"], [0.25, 0.75])
         np.testing.assert_array_equal(rows["raw"], [30, 40])
         np.testing.assert_allclose(rows["quality"], [0.9, 0.1])
+        self.assertTrue(np.isnan(rows["ground_gradient_x"]).all())
+        self.assertTrue(np.isnan(rows["ground_gradient_y"]).all())
 
     def test_synthetic_serialized_file_retains_digest_and_nan_sentinels(self):
         with tempfile.TemporaryDirectory() as directory:

@@ -1,0 +1,3 @@
+challenge_id,policy,promoted_bins,wasted_promotion_ratio,definition
+rellis3d-00000-000500-geometry_hazard,utility_lod,1203,0.6317539484621779,outside frozen region and no absolute elevation-error reduction
+rellis3d-00000-000500-flat_control,utility_lod,1203,0.6317539484621779,outside frozen region and no absolute elevation-error reduction

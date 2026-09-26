@@ -697,7 +697,8 @@ void CellStats::add(const Observation& observation, double envelope_m) {
       observation.geometry_complexity > 1.0F || observation.motion_probability < 0.0F ||
       observation.motion_probability > 1.0F || observation.observation_quality < 0.0F ||
       observation.observation_quality > 1.0F || observation.ground > 1 ||
-      observation.drivable > 2) {
+      observation.drivable > 2 || std::isinf(observation.ground_gradient_x) ||
+      std::isinf(observation.ground_gradient_y)) {
     throw std::invalid_argument("observation evidence is out of range");
   }
   const double previous_count = static_cast<double>(count);
@@ -740,6 +741,25 @@ void CellStats::add(const Observation& observation, double envelope_m) {
     geometry_complexity_v = blend(geometry_complexity(), observation.geometry_complexity);
     motion_evidence_v = blend(motion_evidence(), observation.motion_probability);
     observation_quality_v = blend(observation_quality(), observation.observation_quality);
+  }
+  if (observation.ground == 1 && std::isfinite(observation.ground_gradient_x) &&
+      std::isfinite(observation.ground_gradient_y) && observation.terrain_confidence > 0.0F) {
+    if (ground_gradient_count == 0) {
+      ground_gradient_x_v = observation.ground_gradient_x;
+      ground_gradient_y_v = observation.ground_gradient_y;
+    } else {
+      const double previous = static_cast<double>(ground_gradient_count);
+      const double next = previous + 1.0;
+      ground_gradient_x_v = static_cast<float>(
+          (static_cast<double>(ground_gradient_x_v) * previous + observation.ground_gradient_x) /
+          next);
+      ground_gradient_y_v = static_cast<float>(
+          (static_cast<double>(ground_gradient_y_v) * previous + observation.ground_gradient_y) /
+          next);
+    }
+    if (ground_gradient_count < std::numeric_limits<std::uint32_t>::max()) {
+      ++ground_gradient_count;
+    }
   }
   assign_to_layer(observation, envelope_m);
   // An accepted return is positive evidence that a surface is here. This
@@ -793,6 +813,29 @@ void CellStats::merge(const CellStats& other) {
   motion_evidence_v = weighted(motion_evidence(), other.motion_evidence());
   observation_quality_v =
       weighted(observation_quality(), other.observation_quality());
+  if (other.ground_gradient_count != 0) {
+    if (ground_gradient_count == 0) {
+      ground_gradient_x_v = other.ground_gradient_x_v;
+      ground_gradient_y_v = other.ground_gradient_y_v;
+      ground_gradient_count = other.ground_gradient_count;
+    } else {
+      const double left_gradient_count = static_cast<double>(ground_gradient_count);
+      const double right_gradient_count = static_cast<double>(other.ground_gradient_count);
+      const double gradient_total = left_gradient_count + right_gradient_count;
+      ground_gradient_x_v = static_cast<float>(
+          (ground_gradient_x_v * left_gradient_count +
+           other.ground_gradient_x_v * right_gradient_count) /
+          gradient_total);
+      ground_gradient_y_v = static_cast<float>(
+          (ground_gradient_y_v * left_gradient_count +
+           other.ground_gradient_y_v * right_gradient_count) /
+          gradient_total);
+      const std::uint64_t combined = static_cast<std::uint64_t>(ground_gradient_count) +
+                                     other.ground_gradient_count;
+      ground_gradient_count = static_cast<std::uint32_t>(std::min<std::uint64_t>(
+          combined, std::numeric_limits<std::uint32_t>::max()));
+    }
+  }
 
   // Layer-wise, never pooled. Merging the three layers separately is what
   // makes a coarsened cell still able to answer "how high is the ground here"

@@ -25,6 +25,10 @@ class TerrainEvidence:
     step: np.ndarray
     drivable: np.ndarray
     confidence: np.ndarray
+    # Local ground plane dz/dx and dz/dy. NaN means no supported fit.
+    # Defaults keep third-party/test analyzers source-compatible.
+    gradient_x: np.ndarray | None = None
+    gradient_y: np.ndarray | None = None
 
 
 class TerrainAnalyzer:
@@ -92,6 +96,8 @@ class TerrainAnalyzer:
         roughness = np.full(count, np.nan, dtype=np.float32)
         complexity = np.full(count, np.nan, dtype=np.float32)
         step = np.full(count, np.nan, dtype=np.float32)
+        gradient_x_per_point = np.full(count, np.nan, dtype=np.float32)
+        gradient_y_per_point = np.full(count, np.nan, dtype=np.float32)
         result = np.full(count, "unknown", dtype="U12")
         output_confidence = np.zeros(count, dtype=np.float32)
         if count == 0:
@@ -102,6 +108,8 @@ class TerrainAnalyzer:
                 step=step,
                 drivable=result,
                 confidence=output_confidence,
+                gradient_x=gradient_x_per_point,
+                gradient_y=gradient_y_per_point,
             )
 
         # Aggregate into a compact world-aligned raster first.  All local
@@ -273,6 +281,12 @@ class TerrainAnalyzer:
                 point_cell[ground_points]
             ]
             step[ground_points] = step_grid.ravel()[point_cell[ground_points]]
+            gradient_x_per_point[ground_points] = gradient_x.ravel()[
+                point_cell[ground_points]
+            ]
+            gradient_y_per_point[ground_points] = gradient_y.ravel()[
+                point_cell[ground_points]
+            ]
             output_confidence[ground_points] = confidence_grid.ravel()[
                 point_cell[ground_points]
             ]
@@ -295,4 +309,6 @@ class TerrainAnalyzer:
             step=step,
             drivable=result,
             confidence=output_confidence,
+            gradient_x=gradient_x_per_point,
+            gradient_y=gradient_y_per_point,
         )

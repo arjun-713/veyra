@@ -54,6 +54,7 @@ struct Options {
   bool clearing_enabled = false;
   double sensor_height_m = 1.8;
   bool include_leaf_details = false;
+  bool promotion_telemetry = false;
   std::string utility_config = VEYRA_SOURCE_DIR "/configs/utility_lod.yaml";
   std::string governor_config = VEYRA_SOURCE_DIR "/configs/resource_governor.yaml";
 };
@@ -131,6 +132,7 @@ struct Result {
   // Last frame's visibility-clearing outcome. Absent when clearing is off.
   std::optional<veyra::map::ClearingStats> clearing;
   std::optional<veyra::policy::ResourceGovernorConfig> governor_config;
+  std::optional<veyra::policy::PromotionTelemetry> promotion_telemetry;
 };
 
 enum class PolicyKind { kUniform5, kUniform40, kDistanceLod, kUtilityLod };
@@ -143,14 +145,17 @@ class MapPolicyAdapter {
         map_(make_storage(kind, config)),
         utility_(kind == PolicyKind::kUtilityLod
                      ? std::optional<veyra::policy::LodPolicy>{veyra::policy::load_policy_config(
-                           options.utility_config)}
+                      options.utility_config)}
                      : std::nullopt),
         governor_(
             kind == PolicyKind::kUtilityLod
                 ? std::optional<
                       veyra::policy::ResourceGovernor>{veyra::policy::load_resource_governor_config(
                       options.governor_config)}
-                : std::nullopt) {}
+                : std::nullopt) {
+    options_promotion_telemetry_ = options.promotion_telemetry;
+    if (utility_) utility_->enable_promotion_telemetry(options.promotion_telemetry);
+  }
 
   [[nodiscard]] bool accepts(double x, double y) const {
     return std::visit([x, y](const auto& map) { return map.accepts(x, y); }, map_);
@@ -167,9 +172,10 @@ class MapPolicyAdapter {
     const double range = std::hypot(offset_x, offset_y);
     auto baseline_cell = map.cell_for(observation.x, observation.y);
     while (baseline_cell.level < 3) baseline_cell = baseline_cell.parent();
+    const auto active_level = map.level_for(observation.x, observation.y);
     const auto decision = utility_->decide({
         .range_m = range,
-        .active_level = map.level_for(observation.x, observation.y),
+        .active_level = active_level,
         .state_cell = baseline_cell,
         .safety_critical = observation.drivable == 2,
         .geometry_complexity = static_cast<double>(observation.geometry_complexity),
@@ -192,6 +198,8 @@ class MapPolicyAdapter {
           std::max(requested_level,
                    std::min(decision.baseline_level, map.level_for(observation.x, observation.y)));
     }
+    if (utility_ && options_promotion_telemetry_ && requested_level > decision.requested_level)
+      utility_->record_promotion_budget_effects(1, 0, 0);
     map.update_at_level(observation, requested_level);
   }
 
@@ -279,6 +287,7 @@ class MapPolicyAdapter {
     // Candidates are disjoint, complete sibling groups from this exact
     // snapshot; no concurrent mutations can invalidate them.
     governor_->record_applied_actions(actions.size());
+    if (utility_) utility_->record_promotion_budget_effects(0, actions.size(), actions.size());
     return !actions.empty();
   }
 
@@ -288,6 +297,12 @@ class MapPolicyAdapter {
 
   [[nodiscard]] std::optional<veyra::policy::ResourceGovernorConfig> governor_config() const {
     return governor_ ? std::optional{governor_->config()} : std::nullopt;
+  }
+
+  [[nodiscard]] std::optional<veyra::policy::PromotionTelemetry> promotion_telemetry() const {
+    return utility_ && options_promotion_telemetry_
+               ? std::optional{utility_->promotion_telemetry()}
+               : std::nullopt;
   }
 
   void set_governor_override(veyra::policy::GovernorOverride mode) {
@@ -318,6 +333,7 @@ class MapPolicyAdapter {
   std::uint64_t frame_id_ = 0;
   double center_x_ = 0.0;
   double center_y_ = 0.0;
+  bool options_promotion_telemetry_ = false;
 };
 
 // Stream ingestion shared by batch execution and the persistent engine.
@@ -418,6 +434,8 @@ Options parse_options(int argc, char** argv) {
       options.clearing_enabled = true;
     } else if (arg == "--include-leaf-details") {
       options.include_leaf_details = true;
+    } else if (arg == "--promotion-telemetry") {
+      options.promotion_telemetry = true;
     } else if (arg == "--utility-config") {
       options.utility_config = argv[++index];
     } else if (arg == "--governor-config") {
@@ -470,7 +488,7 @@ void observe_quality(InputSummary& summary, std::string_view name, std::optional
   entry->second.add(value);
 }
 
-constexpr std::array<const char*, 20> kFieldNames{
+constexpr std::array<const char*, 22> kFieldNames{
     "x",           "y",
     "z",           "intensity",
     "semantic_class", "semantic_confidence",
@@ -480,9 +498,9 @@ constexpr std::array<const char*, 20> kFieldNames{
     "step",        "motion_probability",
     "motion_state", "velocity_x",
     "velocity_y",  "observation_quality",
-    "raw_semantic_class", "height_above_ground"};
-constexpr std::array<std::size_t, 14> kQualityFields{3U,  4U,  5U,  8U,  9U,  10U, 11U,
-                                                     12U, 13U, 15U, 16U, 17U, 18U, 19U};
+    "raw_semantic_class", "height_above_ground", "ground_gradient_x", "ground_gradient_y"};
+constexpr std::array<std::size_t, 16> kQualityFields{3U,  4U,  5U,  8U,  9U,  10U, 11U,
+                                                     12U, 13U, 15U, 16U, 17U, 18U, 19U, 20U, 21U};
 // The quality accumulators a frame updates, resolved once instead of looked up
 // by name for every field of every point. std::map nodes are stable, and
 // entries are only ever added, so the pointers stay valid for the frame.
@@ -503,7 +521,7 @@ QualitySlots resolve_quality(InputSummary& summary) {
 // This is the sole protocol-to-map observation mapping. Both batch execution
 // and the long-lived engine consume it, preventing a viewer-specific lossy
 // interpretation of V2 semantic, terrain, motion, and quality evidence.
-veyra::map::Observation observation_values(const std::array<double, 20>& v, InputSummary& summary,
+veyra::map::Observation observation_values(const std::array<double, 22>& v, InputSummary& summary,
                                            const QualitySlots* quality = nullptr) {
   for (std::size_t i : {0U, 1U, 2U, 3U, 4U, 5U, 6U, 7U, 14U, 18U}) {
     if (!std::isfinite(v[i])) throw std::invalid_argument("nonfinite required point value");
@@ -554,7 +572,9 @@ veyra::map::Observation observation_values(const std::array<double, 20>& v, Inpu
           .motion_state = static_cast<std::uint8_t>(v[14]),
           .observation_quality = value(17),
           .velocity_x = value(15),
-          .velocity_y = value(16)};
+          .velocity_y = value(16),
+          .ground_gradient_x = static_cast<float>(v[20]),
+          .ground_gradient_y = static_cast<float>(v[21])};
 }
 
 // Decode one packed little-endian scalar from memory and advance the cursor.
@@ -630,14 +650,16 @@ veyra::map::Observation parse_observation_record(std::istringstream& input, int 
                                                  InputSummary& summary) {
   std::vector<std::string> fields;
   for (std::string field; input >> field;) fields.push_back(std::move(field));
-  const std::size_t expected_fields = stream_version == 1 ? 6U : (stream_version == 3 ? 20U : 19U);
+  const std::size_t expected_fields = stream_version == 1 ? 6U : (stream_version == 4 ? 22U : (stream_version == 3 ? 20U : 19U));
   if (fields.size() != expected_fields) throw std::invalid_argument("malformed point record");
   if (stream_version >= 2) {
     // V2 records carry no height above ground. It defaults to NaN rather than
     // 0 so a V2 producer is counted as "ground model unavailable" instead of
     // being mistaken for one reporting ground level.
-    std::array<double, 20> values{};
+    std::array<double, 22> values{};
     values[19] = std::numeric_limits<double>::quiet_NaN();
+    values[20] = std::numeric_limits<double>::quiet_NaN();
+    values[21] = std::numeric_limits<double>::quiet_NaN();
     for (std::size_t i = 0; i < fields.size(); ++i)
       values[i] = fields[i] == "NA" ? std::numeric_limits<double>::quiet_NaN()
                                     : real_value(fields[i], "point value");
@@ -720,7 +742,9 @@ veyra::map::Observation parse_observation_record(std::istringstream& input, int 
           .motion_state = static_cast<std::uint8_t>(motion_state),
           .observation_quality = static_cast<float>(observation_quality.value_or(0.0)),
           .velocity_x = static_cast<float>(velocity_x.value_or(0.0)),
-          .velocity_y = static_cast<float>(velocity_y.value_or(0.0))};
+          .velocity_y = static_cast<float>(velocity_y.value_or(0.0)),
+          .ground_gradient_x = std::numeric_limits<float>::quiet_NaN(),
+          .ground_gradient_y = std::numeric_limits<float>::quiet_NaN()};
 }
 
 Result run(const Options& options) {
@@ -777,10 +801,10 @@ Result run(const Options& options) {
       std::string version;
       input >> version;
       require_end(input, "stream header");
-      if (header || (version != "1" && version != "2" && version != "3")) {
+      if (header || (version != "1" && version != "2" && version != "3" && version != "4")) {
         throw std::invalid_argument("invalid stream header");
       }
-      stream_version = version == "1" ? 1 : (version == "3" ? 3 : 2);
+      stream_version = version == "1" ? 1 : (version == "4" ? 4 : (version == "3" ? 3 : 2));
       result.protocol_version = stream_version;
       header = true;
     } else if (kind == "H") {
@@ -993,6 +1017,7 @@ Result run(const Options& options) {
   } else if (!result.dropped_frames.has_value()) {
     result.dropped_frames = 0;
   }
+  result.promotion_telemetry = map.promotion_telemetry();
   metrics.set_logical_map_bytes(result.snapshot.logical_bytes);
   metrics.set_allocated_map_bytes(result.snapshot.memory.allocated_bytes);
   result.metrics = metrics.report(Clock::time_point{} + measured_elapsed);
@@ -1147,15 +1172,27 @@ std::string render(const Result& result) {
       out << "{\"level\":" << leaf.id.level << ",\"ix\":" << leaf.id.ix << ",\"iy\":" << leaf.id.iy
           << ",\"count\":" << leaf.stats.count << ",\"mean_z\":" << leaf.stats.mean_z()
           << ",\"semantic_class\":" << leaf.stats.semantic_class
+          << ",\"semantic_confidence\":" << leaf.stats.semantic_confidence()
+          << ",\"ground_evidence\":" << leaf.stats.ground_evidence()
           << ",\"drivable_evidence\":" << leaf.stats.drivable_evidence()
           << ",\"ground_count\":" << leaf.stats.ground.count
           << ",\"ground_mean_z\":" << leaf.stats.ground.mean_z
+          << ",\"ground_stddev_m\":" << leaf.stats.ground.stddev_z()
+          << ",\"ground_last_seen\":" << leaf.stats.ground.last_seen
+          << ",\"ground_gradient_x\":" << leaf.stats.ground_gradient_x()
+          << ",\"ground_gradient_y\":" << leaf.stats.ground_gradient_y()
+          << ",\"ground_gradient_count\":" << leaf.stats.ground_gradient_count
           << ",\"obstacle_count\":" << leaf.stats.obstacle.count
           << ",\"obstacle_min_z\":" << leaf.stats.obstacle.min_z
           << ",\"obstacle_max_z\":" << leaf.stats.obstacle.max_z
           << ",\"overhead_count\":" << leaf.stats.overhead.count
           << ",\"overhead_min_z\":" << leaf.stats.overhead.min_z
           << ",\"overhead_max_z\":" << leaf.stats.overhead.max_z
+          << ",\"terrain_confidence\":" << leaf.stats.terrain_confidence()
+          << ",\"geometry_complexity\":" << leaf.stats.geometry_complexity()
+          << ",\"motion_evidence\":" << leaf.stats.motion_evidence()
+          << ",\"observation_quality\":" << leaf.stats.observation_quality()
+          << ",\"sorted_envelope_m\":" << leaf.stats.sorted_envelope_m
           << ",\"occupancy_logodds\":" << leaf.stats.occupancy_logodds << '}';
     }
     out << ']';
@@ -1251,6 +1288,66 @@ std::string render(const Result& result) {
     out << '}';
   }
   out << ']';
+  if (result.promotion_telemetry) {
+    const auto& telemetry = *result.promotion_telemetry;
+    constexpr std::array<std::string_view, 5> signal_names{
+        "geometry", "semantic", "motion", "traversability_risk", "semantic_uncertainty"};
+    out << ",\"promotion_telemetry\":{\"decisions\":" << telemetry.decisions
+        << ",\"gate_passed\":" << telemetry.gate_passed
+        << ",\"gate_failed\":" << telemetry.gate_failed
+        << ",\"safety_decisions\":" << telemetry.safety_decisions
+        << ",\"predictive_decisions\":" << telemetry.predictive_decisions
+        << ",\"budget_suppressed\":" << telemetry.budget_suppressed
+        << ",\"governor_actions_requested\":" << telemetry.governor_actions_requested
+        << ",\"governor_actions_applied\":" << telemetry.governor_actions_applied
+        << ",\"signals\":{";
+    for (std::size_t i = 0; i < signal_names.size(); ++i) {
+      if (i) out << ',';
+      out << '\"' << signal_names[i] << "\":{\"raw_sum\":" << telemetry.signal_raw_sum[i]
+          << ",\"weighted_sum\":" << telemetry.signal_weighted_sum[i]
+          << ",\"min\":" << telemetry.signal_min[i]
+          << ",\"max\":" << telemetry.signal_max[i]
+          << ",\"exact_zero_count\":" << telemetry.signal_exact_zero_count[i]
+          << ",\"near_one_count\":" << telemetry.signal_near_one_count[i]
+          << ",\"histogram\":[";
+      for (std::size_t bin = 0; bin < 20; ++bin) {
+        if (bin) out << ',';
+        out << telemetry.signal_histogram[i][bin];
+      }
+      out << "]}";
+    }
+    out << "},\"utility_exact_zero_count\":" << telemetry.utility_exact_zero_count
+        << ",\"utility_near_one_count\":" << telemetry.utility_near_one_count
+        << ",\"utility_min\":" << telemetry.utility_min
+        << ",\"utility_max\":" << telemetry.utility_max
+        << ",\"utility_above_split_count\":" << telemetry.utility_above_split_count
+        << ",\"utility_below_merge_count\":" << telemetry.utility_below_merge_count
+        << ",\"utility_histogram\":[";
+    for (std::size_t bin = 0; bin < 20; ++bin) {
+      if (bin) out << ',';
+      out << telemetry.utility_histogram[bin];
+    }
+    out << "],\"transition_reason_masks\":[";
+    bool first_reason = true;
+    for (std::size_t mask = 0; mask < telemetry.transition_reason_masks.size(); ++mask) {
+      if (!telemetry.transition_reason_masks[mask]) continue;
+      if (!std::exchange(first_reason, false)) out << ',';
+      out << "{\"mask\":" << mask << ",\"count\":" << telemetry.transition_reason_masks[mask]
+          << '}';
+    }
+    out << "],\"promotion_transitions\":[";
+    bool first_transition = true;
+    for (std::size_t active = 0; active < 4; ++active)
+      for (std::size_t requested = 0; requested < 4; ++requested)
+        for (std::size_t baseline = 0; baseline < 4; ++baseline) {
+          const auto count = telemetry.promotion_transitions[active][requested][baseline];
+          if (!count) continue;
+          if (!std::exchange(first_transition, false)) out << ',';
+          out << "{\"active\":" << active << ",\"requested\":" << requested
+              << ",\"baseline\":" << baseline << ",\"count\":" << count << '}';
+        }
+    out << "]}";
+  }
   if (result.governor) {
     const auto& governor = *result.governor;
     const char* state = "normal";
@@ -1378,11 +1475,13 @@ class PersistentEngineSession {
     marker << count;
     std::istringstream frame(marker.str());
     begin_frame(frame);
-    // V3 rows carry one trailing float. V2 rows do not, and their NaN
-    // default below is what marks them as lacking a ground model.
+    // V3 adds height-above-ground; V4 adds the two ground-plane gradients.
+    // Older rows keep optional values NaN, preserving unavailable state.
     constexpr std::size_t kRowBytesV2 = 67;
-    const std::size_t row_bytes = binary_version >= 3 ? kRowBytesV2 + 4 : kRowBytesV2;
-    std::array<unsigned char, kRowBytesV2 + 4> row{};
+    const std::size_t row_bytes = binary_version >= 4
+                                      ? kRowBytesV2 + 12
+                                      : (binary_version >= 3 ? kRowBytesV2 + 4 : kRowBytesV2);
+    std::array<unsigned char, kRowBytesV2 + 12> row{};
     // Two phases, each timed once: decode every row, then fold them into the
     // map in the same order. Timing each point separately cost four clock
     // reads per point, a visible share of the frame.
@@ -1392,11 +1491,13 @@ class PersistentEngineSession {
     // Resolved only when a row exists, so an empty frame adds no entries.
     std::optional<QualitySlots> quality;
     for (std::size_t point = 0; point < count; ++point) {
+      std::array<double, 22> values{};
+      values[19] = std::numeric_limits<double>::quiet_NaN();
+      values[20] = std::numeric_limits<double>::quiet_NaN();
+      values[21] = std::numeric_limits<double>::quiet_NaN();
       if (!input.read(reinterpret_cast<char*>(row.data()), static_cast<std::streamsize>(row_bytes)))
         throw std::invalid_argument("truncated binary frame");
       const unsigned char* cursor = row.data();
-      std::array<double, 20> values{};
-      values[19] = std::numeric_limits<double>::quiet_NaN();
       for (std::size_t i = 0; i < 4; ++i) values[i] = take_scalar<float>(cursor);
       values[4] = take_scalar<std::uint32_t>(cursor);
       values[5] = take_scalar<float>(cursor);
@@ -1406,7 +1507,12 @@ class PersistentEngineSession {
       values[14] = take_scalar<std::uint8_t>(cursor);
       for (std::size_t i = 15; i < 18; ++i) values[i] = take_scalar<float>(cursor);
       values[18] = take_scalar<std::int32_t>(cursor);
+      // V3 adds height-above-ground; V4 adds ground-plane direction.
       if (binary_version >= 3) values[19] = take_scalar<float>(cursor);
+      if (binary_version >= 4) {
+        values[20] = take_scalar<float>(cursor);
+        values[21] = take_scalar<float>(cursor);
+      }
       if (!quality) quality = resolve_quality(input_summary_);
       auto observation = observation_values(values, input_summary_, &*quality);
       observation.timestamp = input_summary_.timestamp_us.value_or(result_.input_frames);
@@ -1504,6 +1610,7 @@ class PersistentEngineSession {
             1'000'000.0))
       snapshot = map_->snapshot();
     result_.governor = map_->governor_status();
+    result_.promotion_telemetry = map_->promotion_telemetry();
     const auto governor_interventions =
         result_.governor ? result_.governor->interventions - previous_governor_interventions_ : 0;
     const auto governor_actions =
@@ -1636,9 +1743,9 @@ int run_binary(const Options& options) {
       std::string version;
       input >> version;
       require_end(input, "stream header");
-      if (header || (version != "2" && version != "3"))
-        throw std::invalid_argument("binary stream requires V2 or V3");
-      binary_version = version == "3" ? 3 : 2;
+      if (header || (version != "2" && version != "3" && version != "4"))
+        throw std::invalid_argument("binary stream requires V2, V3, or V4");
+      binary_version = version == "4" ? 4 : (version == "3" ? 3 : 2);
       header = true;
     } else if (kind == "H") {
       if (!header || metadata || trailer || !(input >> digest) || digest.empty()) {
@@ -1870,10 +1977,10 @@ int run_engine(const Options& options) {
   std::string line;
   while (std::getline(std::cin, line)) {
     try {
-      if (line == "VEYRA_ENGINE 2" || line == "VEYRA_ENGINE 3") {
+      if (line == "VEYRA_ENGINE 2" || line == "VEYRA_ENGINE 3" || line == "VEYRA_ENGINE 4") {
         if (started) throw std::invalid_argument("duplicate engine header");
         started = true;
-        session_version = line.back() == '3' ? 3 : 2;
+        session_version = line.back() == '4' ? 4 : (line.back() == '3' ? 3 : 2);
         session.set_protocol_version(session_version);
         std::cout << "{\"status\":\"ready\",\"protocol_version\":" << session_version << "}\n"
                   << std::flush;

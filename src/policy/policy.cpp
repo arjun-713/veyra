@@ -214,6 +214,21 @@ void LodPolicy::reset() noexcept {
   states_.clear();
   frame_id_.reset();
   implicit_frame_id_ = 0;
+  promotion_telemetry_ = {};
+}
+
+void LodPolicy::enable_promotion_telemetry(const bool enabled) noexcept {
+  promotion_telemetry_enabled_ = enabled;
+  if (!enabled) promotion_telemetry_ = {};
+}
+
+void LodPolicy::record_promotion_budget_effects(const std::uint64_t suppressed,
+                                                const std::uint64_t actions_requested,
+                                                const std::uint64_t actions_applied) noexcept {
+  if (!promotion_telemetry_enabled_) return;
+  promotion_telemetry_.budget_suppressed += suppressed;
+  promotion_telemetry_.governor_actions_requested += actions_requested;
+  promotion_telemetry_.governor_actions_applied += actions_applied;
 }
 
 PolicyDecision LodPolicy::decide(const DecisionInput& input) {
@@ -268,10 +283,63 @@ PolicyDecision LodPolicy::decide(const DecisionInput& input) {
           important_mover ? distance_level(config_, predicted_range) : baseline;
       const bool predictive_refinement = predicted_baseline < baseline;
       const int promotion_goal = std::max(0, baseline - u.max_promotion_depth);
+      auto record_evidence = [&](const int requested, const bool transition) {
+        if (!promotion_telemetry_enabled_) return;
+        auto& telemetry = promotion_telemetry_;
+        ++telemetry.decisions;
+        uncertainty_gate ? ++telemetry.gate_passed : ++telemetry.gate_failed;
+        if (input.safety_critical) ++telemetry.safety_decisions;
+        if (predictive_refinement) ++telemetry.predictive_decisions;
+        const std::array<double, 5> raw{input.geometry_complexity, input.semantic_importance,
+                                        input.motion, input.traversability_risk,
+                                        input.semantic_uncertainty};
+        const std::array<double, 5> weights{u.geometry_weight, u.semantic_weight, u.motion_weight,
+                                            u.traversability_risk_weight, u.uncertainty_weight};
+        for (std::size_t i = 0; i < raw.size(); ++i) {
+          telemetry.signal_min[i] = telemetry.decisions == 1
+                                        ? raw[i]
+                                        : std::min(telemetry.signal_min[i], raw[i]);
+          telemetry.signal_max[i] = telemetry.decisions == 1
+                                        ? raw[i]
+                                        : std::max(telemetry.signal_max[i], raw[i]);
+          telemetry.signal_raw_sum[i] += raw[i];
+          telemetry.signal_weighted_sum[i] += raw[i] * weights[i];
+          if (raw[i] == 0.0) ++telemetry.signal_exact_zero_count[i];
+          if (raw[i] >= 0.99) ++telemetry.signal_near_one_count[i];
+          const auto bin = static_cast<std::size_t>(
+              std::min(19.0, std::floor(std::clamp(raw[i], 0.0, 1.0) * 20.0)));
+          ++telemetry.signal_histogram[i][bin];
+        }
+        const auto score_bin = static_cast<std::size_t>(
+            std::min(19.0, std::floor(std::clamp(score, 0.0, 1.0) * 20.0)));
+        ++telemetry.utility_histogram[score_bin];
+        telemetry.utility_min = telemetry.decisions == 1
+                                    ? score
+                                    : std::min(telemetry.utility_min, score);
+        telemetry.utility_max = telemetry.decisions == 1
+                                    ? score
+                                    : std::max(telemetry.utility_max, score);
+        if (score >= u.split_threshold) ++telemetry.utility_above_split_count;
+        if (score <= u.merge_threshold) ++telemetry.utility_below_merge_count;
+        if (score == 0.0) ++telemetry.utility_exact_zero_count;
+        if (score >= 0.99) ++telemetry.utility_near_one_count;
+        if (transition && requested < baseline) {
+          ++telemetry.promotion_transitions[static_cast<std::size_t>(input.active_level)]
+                                           [static_cast<std::size_t>(requested)]
+                                           [static_cast<std::size_t>(baseline)];
+          std::size_t reason_mask = 0;
+          for (std::size_t i = 0; i < raw.size(); ++i)
+            if (raw[i] * weights[i] > 1e-9) reason_mask |= std::size_t{1} << i;
+          if (input.safety_critical) reason_mask |= std::size_t{1} << 5;
+          if (predictive_refinement) reason_mask |= std::size_t{1} << 6;
+          ++telemetry.transition_reason_masks[reason_mask];
+        }
+      };
       const auto frame = frame_id_ ? *frame_id_ : ++implicit_frame_id_;
       auto found = states_.find(input.state_cell);
       if (found == states_.end() && states_.size() >= u.max_state_cells) {
         const int target = input.safety_critical ? promotion_goal : baseline;
+        record_evidence(target, false);
         return {.baseline_level = baseline,
                 .requested_level = target,
                 .uncertainty_gate_passed = uncertainty_gate,
@@ -292,6 +360,7 @@ PolicyDecision LodPolicy::decide(const DecisionInput& input) {
         tracked.frame_predictive = false;
         tracked.frame_safety = false;
         tracked.frame_goal = 3;
+        tracked.frame_promotion_counted = false;
       }
       tracked.frame_score = std::max(tracked.frame_score, score);
       tracked.frame_predictive = tracked.frame_predictive || predictive_refinement;
@@ -346,6 +415,10 @@ PolicyDecision LodPolicy::decide(const DecisionInput& input) {
                              : baseline;
       const int requested = std::min(
           baseline, bounded_level(input.active_level, target, u.max_level_changes_per_decision));
+      const bool promotion_transition = state.promoted && !tracked.frame_start.promoted &&
+                                        !tracked.frame_promotion_counted && requested < baseline;
+      if (promotion_transition) tracked.frame_promotion_counted = true;
+      record_evidence(requested, promotion_transition);
       return {.baseline_level = baseline,
               .requested_level = requested,
               .uncertainty_gate_passed = uncertainty_gate,

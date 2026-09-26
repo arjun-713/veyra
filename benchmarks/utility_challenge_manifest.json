@@ -1,0 +1,657 @@
+{
+  "challenges": [
+    {
+      "bbox_xy_m": [
+        0.5507033279027045,
+        -40.74643693844831,
+        2.4189569050184248,
+        -39.59390977730394
+      ],
+      "challenge_type": "semantic_object",
+      "dataset": "semanticposs",
+      "frame_end_exclusive": 10,
+      "frame_start": 0,
+      "id": "semanticposs-00-000000-semantic_object-pedestrian-30",
+      "metadata": {
+        "calibration_source": "dataset",
+        "coordinate_frame": "world",
+        "pose_source": "dataset",
+        "timestamp": null,
+        "timestamp_source": "absent"
+      },
+      "relevant_class": "pedestrian",
+      "selection_reason": "first >=20-point GT class/instance in distance stratum",
+      "sensor_region_bbox_xy_m": [
+        -1.7794005870819092,
+        40.82012939453125,
+        0.15745574235916138,
+        42.31568908691406
+      ],
+      "sequence": "00",
+      "source_frame_id": "000000",
+      "source_label_path": "data/raw/semanticposs/dataset/sequences/00/labels/000000.label",
+      "source_label_sha256": "1f7a32faa7c234cb5020a8a9cd4d6b052b542c7a539cf0b89835d011d5e4924b",
+      "source_scan_path": "data/raw/semanticposs/dataset/sequences/00/velodyne/000000.bin",
+      "source_scan_sha256": "d87d504c4b32505ddda250c691b9af243cbe0c5f43ce7c56a4ca51619e13a4dd",
+      "support": {
+        "class_id": 6,
+        "instance_id": null,
+        "points": 22,
+        "range_band_m": [
+          30,
+          60
+        ],
+        "region_kind": "derived_2m_class_patch"
+      },
+      "taxonomy_version": "SemanticPOSS-v1.0-LABEL_DICT"
+    },
+    {
+      "bbox_xy_m": [
+        21.025905373772332,
+        -28.871099475258436,
+        21.354907174190522,
+        -28.328631925021085
+      ],
+      "challenge_type": "semantic_object",
+      "dataset": "semanticposs",
+      "frame_end_exclusive": 10,
+      "frame_start": 0,
+      "id": "semanticposs-00-000000-semantic_object-pole-30",
+      "metadata": {
+        "calibration_source": "dataset",
+        "coordinate_frame": "world",
+        "pose_source": "dataset",
+        "timestamp": null,
+        "timestamp_source": "absent"
+      },
+      "relevant_class": "pole",
+      "selection_reason": "first >=20-point GT class/instance in distance stratum",
+      "sensor_region_bbox_xy_m": [
+        -21.17679786682129,
+        29.647550582885742,
+        -20.00547981262207,
+        31.12049674987793
+      ],
+      "sequence": "00",
+      "source_frame_id": "000000",
+      "source_label_path": "data/raw/semanticposs/dataset/sequences/00/labels/000000.label",
+      "source_label_sha256": "1f7a32faa7c234cb5020a8a9cd4d6b052b542c7a539cf0b89835d011d5e4924b",
+      "source_scan_path": "data/raw/semanticposs/dataset/sequences/00/velodyne/000000.bin",
+      "source_scan_sha256": "d87d504c4b32505ddda250c691b9af243cbe0c5f43ce7c56a4ca51619e13a4dd",
+      "support": {
+        "class_id": 18,
+        "instance_id": null,
+        "points": 23,
+        "range_band_m": [
+          30,
+          60
+        ],
+        "region_kind": "derived_2m_class_patch"
+      },
+      "taxonomy_version": "SemanticPOSS-v1.0-LABEL_DICT"
+    },
+    {
+      "bbox_xy_m": [
+        5.5336157961175925,
+        -44.7784772797627,
+        12.13740139372368,
+        -41.262547646497374
+      ],
+      "challenge_type": "semantic_object",
+      "dataset": "semanticposs",
+      "frame_end_exclusive": 10,
+      "frame_start": 0,
+      "id": "semanticposs-00-000000-semantic_object-vehicle-30",
+      "metadata": {
+        "calibration_source": "dataset",
+        "coordinate_frame": "world",
+        "pose_source": "dataset",
+        "timestamp": null,
+        "timestamp_source": "absent"
+      },
+      "relevant_class": "vehicle",
+      "selection_reason": "first >=20-point GT class/instance in distance stratum",
+      "sensor_region_bbox_xy_m": [
+        -11.952008247375488,
+        42.453697204589844,
+        -4.436397552490234,
+        46.339054107666016
+      ],
+      "sequence": "00",
+      "source_frame_id": "000000",
+      "source_label_path": "data/raw/semanticposs/dataset/sequences/00/labels/000000.label",
+      "source_label_sha256": "1f7a32faa7c234cb5020a8a9cd4d6b052b542c7a539cf0b89835d011d5e4924b",
+      "source_scan_path": "data/raw/semanticposs/dataset/sequences/00/velodyne/000000.bin",
+      "source_scan_sha256": "d87d504c4b32505ddda250c691b9af243cbe0c5f43ce7c56a4ca51619e13a4dd",
+      "support": {
+        "class_id": 1,
+        "instance_id": 13581,
+        "points": 323,
+        "range_band_m": [
+          30,
+          60
+        ],
+        "region_kind": "dataset_instance"
+      },
+      "taxonomy_version": "SemanticPOSS-v1.0-LABEL_DICT"
+    },
+    {
+      "bbox_xy_m": [
+        -6.246577119795227,
+        68.44617600601016,
+        -3.4242422447166447,
+        68.71664377063443
+      ],
+      "challenge_type": "semantic_object",
+      "dataset": "semanticposs",
+      "frame_end_exclusive": 10,
+      "frame_start": 0,
+      "id": "semanticposs-00-000000-semantic_object-vehicle-60",
+      "metadata": {
+        "calibration_source": "dataset",
+        "coordinate_frame": "world",
+        "pose_source": "dataset",
+        "timestamp": null,
+        "timestamp_source": "absent"
+      },
+      "relevant_class": "vehicle",
+      "selection_reason": "first >=20-point GT class/instance in distance stratum",
+      "sensor_region_bbox_xy_m": [
+        3.6316447257995605,
+        -67.4593505859375,
+        6.4383769035339355,
+        -66.28658294677734
+      ],
+      "sequence": "00",
+      "source_frame_id": "000000",
+      "source_label_path": "data/raw/semanticposs/dataset/sequences/00/labels/000000.label",
+      "source_label_sha256": "1f7a32faa7c234cb5020a8a9cd4d6b052b542c7a539cf0b89835d011d5e4924b",
+      "source_scan_path": "data/raw/semanticposs/dataset/sequences/00/velodyne/000000.bin",
+      "source_scan_sha256": "d87d504c4b32505ddda250c691b9af243cbe0c5f43ce7c56a4ca51619e13a4dd",
+      "support": {
+        "class_id": 1,
+        "instance_id": null,
+        "points": 24,
+        "range_band_m": [
+          60,
+          100
+        ],
+        "region_kind": "derived_2m_class_patch"
+      },
+      "taxonomy_version": "SemanticPOSS-v1.0-LABEL_DICT"
+    },
+    {
+      "bbox_xy_m": [
+        20.741080920223045,
+        66.79966699443042,
+        24.581703242006306,
+        71.6195819856617
+      ],
+      "challenge_type": "sparse_far_control",
+      "dataset": "semanticposs",
+      "frame_end_exclusive": 10,
+      "frame_start": 0,
+      "id": "semanticposs-00-000000-sparse_far_control",
+      "metadata": {
+        "calibration_source": "dataset",
+        "coordinate_frame": "world",
+        "pose_source": "dataset",
+        "timestamp": null,
+        "timestamp_source": "absent"
+      },
+      "relevant_class": null,
+      "selection_reason": "first 5m far patch >=20 returns with >=80% returns in <=3-point 1m cells",
+      "sensor_region_bbox_xy_m": [
+        -25,
+        -70,
+        -20,
+        -65
+      ],
+      "sequence": "00",
+      "source_frame_id": "000000",
+      "source_label_path": "data/raw/semanticposs/dataset/sequences/00/labels/000000.label",
+      "source_label_sha256": "1f7a32faa7c234cb5020a8a9cd4d6b052b542c7a539cf0b89835d011d5e4924b",
+      "source_scan_path": "data/raw/semanticposs/dataset/sequences/00/velodyne/000000.bin",
+      "source_scan_sha256": "d87d504c4b32505ddda250c691b9af243cbe0c5f43ce7c56a4ca51619e13a4dd",
+      "support": {
+        "points": 21,
+        "range_band_m": [
+          60,
+          100
+        ],
+        "selection_patch_size_m": 5,
+        "sparse_return_fraction": 0.8095238095238095
+      },
+      "taxonomy_version": "SemanticPOSS-v1.0-LABEL_DICT"
+    },
+    {
+      "bbox_xy_m": [
+        -51.32703795951953,
+        15.025664820563122,
+        -49.808662457409625,
+        16.50507647594757
+      ],
+      "challenge_type": "semantic_object",
+      "dataset": "semanticposs",
+      "frame_end_exclusive": 157,
+      "frame_start": 147,
+      "id": "semanticposs-00-000152-semantic_object-pole-60",
+      "metadata": {
+        "calibration_source": "dataset",
+        "coordinate_frame": "world",
+        "pose_source": "dataset",
+        "timestamp": null,
+        "timestamp_source": "absent"
+      },
+      "relevant_class": "pole",
+      "selection_reason": "first >=20-point GT class/instance in distance stratum",
+      "sensor_region_bbox_xy_m": [
+        55.502532958984375,
+        23.659408569335938,
+        57.60432815551758,
+        25.76358985900879
+      ],
+      "sequence": "00",
+      "source_frame_id": "000152",
+      "source_label_path": "data/raw/semanticposs/dataset/sequences/00/labels/000152.label",
+      "source_label_sha256": "38d8edf26f1d6a03e3955162150d96eab1b61afc74d2abb5af6edc4b312ce449",
+      "source_scan_path": "data/raw/semanticposs/dataset/sequences/00/velodyne/000152.bin",
+      "source_scan_sha256": "82ac183f9e611868d2829c8001d901265e2bbfa37533037a2512e777ffef2b7c",
+      "support": {
+        "class_id": 18,
+        "instance_id": null,
+        "points": 21,
+        "range_band_m": [
+          60,
+          100
+        ],
+        "region_kind": "derived_2m_class_patch"
+      },
+      "taxonomy_version": "SemanticPOSS-v1.0-LABEL_DICT"
+    },
+    {
+      "bbox_xy_m": [
+        -270.89016798184105,
+        1.412775410511015,
+        -270.4313659773597,
+        2.6031769287441877
+      ],
+      "challenge_type": "semantic_object",
+      "dataset": "semanticposs",
+      "frame_end_exclusive": 425,
+      "frame_start": 415,
+      "id": "semanticposs-01-000421-semantic_object-pedestrian-60",
+      "metadata": {
+        "calibration_source": "dataset",
+        "coordinate_frame": "world",
+        "pose_source": "dataset",
+        "timestamp": null,
+        "timestamp_source": "absent"
+      },
+      "relevant_class": "pedestrian",
+      "selection_reason": "first >=20-point GT class/instance in distance stratum",
+      "sensor_region_bbox_xy_m": [
+        -2.0402092933654785,
+        -62.14851379394531,
+        0.04963046312332153,
+        -60.71660232543945
+      ],
+      "sequence": "01",
+      "source_frame_id": "000421",
+      "source_label_path": "data/raw/semanticposs/dataset/sequences/01/labels/000421.label",
+      "source_label_sha256": "27fbbef2b547c8288b1c1f8b847c9b3c5e34e72c439bb8d61d5c0dc61c9b0b6d",
+      "source_scan_path": "data/raw/semanticposs/dataset/sequences/01/velodyne/000421.bin",
+      "source_scan_sha256": "43f02bea47c83136ab870098ce1a3e5ef491d79b340846f66487506d7988425d",
+      "support": {
+        "class_id": 6,
+        "instance_id": null,
+        "points": 23,
+        "range_band_m": [
+          60,
+          100
+        ],
+        "region_kind": "derived_2m_class_patch"
+      },
+      "taxonomy_version": "SemanticPOSS-v1.0-LABEL_DICT"
+    },
+    {
+      "bbox_xy_m": [
+        -6.65785436630249,
+        36.52942581176758,
+        -6.259506893157959,
+        36.81871490478515
+      ],
+      "challenge_type": "geometry_hazard",
+      "dataset": "rellis3d",
+      "frame_end_exclusive": 505,
+      "frame_start": 495,
+      "id": "rellis3d-00000-000500-geometry_hazard",
+      "metadata": {
+        "calibration_source": "identity_absent",
+        "coordinate_frame": "lidar",
+        "pose_source": "identity_absent",
+        "timestamp": null,
+        "timestamp_source": "absent"
+      },
+      "relevant_class": null,
+      "selection_reason": "first >=12-return 1m cell with height IQR >=0.25m and paired flat cell",
+      "sensor_region_bbox_xy_m": [
+        -7,
+        36,
+        -6,
+        37
+      ],
+      "sequence": "00000",
+      "source_frame_id": "000500",
+      "source_label_path": "data/raw/rellis3d/Rellis-3D/00000/vel_cloud_node_semantickitti_label_id/000500.label",
+      "source_label_sha256": "92766767351f2ccced7452f72990dd9be3ed77db25ab3dc9acdfb9a6aa2809bb",
+      "source_scan_path": "data/raw/rellis3d/Rellis-3D/00000/vel_cloud_node_kitti_bin/000500.bin",
+      "source_scan_sha256": "7181c10e832455492d6f330345ba8ff27fa84d1051777324621fe696a3ca821f",
+      "support": {
+        "height_iqr_m": 0.5940028131008148,
+        "mean_range_m": 37.21835708618164,
+        "points": 14,
+        "range_band_m": [
+          30.0,
+          60.0
+        ],
+        "selection_cell_size_m": 1.0
+      },
+      "taxonomy_version": "RELLIS-3D-v1.1-learning_map"
+    },
+    {
+      "bbox_xy_m": [
+        38.10927124023438,
+        -13.983977127075196,
+        39.02628784179687,
+        -12.950412940979003
+      ],
+      "challenge_type": "flat_control",
+      "dataset": "rellis3d",
+      "frame_end_exclusive": 505,
+      "frame_start": 495,
+      "id": "rellis3d-00000-000500-flat_control",
+      "metadata": {
+        "calibration_source": "identity_absent",
+        "coordinate_frame": "lidar",
+        "pose_source": "identity_absent",
+        "timestamp": null,
+        "timestamp_source": "absent"
+      },
+      "relevant_class": null,
+      "selection_reason": "same-frame nearby 1m cell with height IQR <=0.04m",
+      "sensor_region_bbox_xy_m": [
+        38,
+        -14,
+        39,
+        -13
+      ],
+      "sequence": "00000",
+      "source_frame_id": "000500",
+      "source_label_path": "data/raw/rellis3d/Rellis-3D/00000/vel_cloud_node_semantickitti_label_id/000500.label",
+      "source_label_sha256": "92766767351f2ccced7452f72990dd9be3ed77db25ab3dc9acdfb9a6aa2809bb",
+      "source_scan_path": "data/raw/rellis3d/Rellis-3D/00000/vel_cloud_node_kitti_bin/000500.bin",
+      "source_scan_sha256": "7181c10e832455492d6f330345ba8ff27fa84d1051777324621fe696a3ca821f",
+      "support": {
+        "height_iqr_m": 0.01058894395828247,
+        "mean_range_m": 40.84135437011719,
+        "points": 12,
+        "range_band_m": [
+          30.0,
+          60.0
+        ],
+        "selection_cell_size_m": 1.0
+      },
+      "taxonomy_version": "RELLIS-3D-v1.1-learning_map"
+    },
+    {
+      "bbox_xy_m": [
+        -32.0558479309082,
+        -7.775409984588623,
+        -29.57388038635254,
+        -6.602761459350586
+      ],
+      "challenge_type": "semantic_object",
+      "dataset": "rellis3d",
+      "frame_end_exclusive": 1409,
+      "frame_start": 1399,
+      "id": "rellis3d-00000-001404-semantic_object-pedestrian-30",
+      "metadata": {
+        "calibration_source": "identity_absent",
+        "coordinate_frame": "lidar",
+        "pose_source": "identity_absent",
+        "timestamp": null,
+        "timestamp_source": "absent"
+      },
+      "relevant_class": "pedestrian",
+      "selection_reason": "first >=20-point GT class/instance in distance stratum",
+      "sensor_region_bbox_xy_m": [
+        -32.43780517578125,
+        -8.225410461425781,
+        -29.61630630493164,
+        -6.641321659088135
+      ],
+      "sequence": "00000",
+      "source_frame_id": "001404",
+      "source_label_path": "data/raw/rellis3d/Rellis-3D/00000/vel_cloud_node_semantickitti_label_id/001404.label",
+      "source_label_sha256": "803bc113895dd67c05ed5400f3f8a59362893bb09ca1c4ca8d6581036a438d90",
+      "source_scan_path": "data/raw/rellis3d/Rellis-3D/00000/vel_cloud_node_kitti_bin/001404.bin",
+      "source_scan_sha256": "a52f96c61c5cea72f8db4e15e00f21f233676b446244af6629eba81feb58d7da",
+      "support": {
+        "class_id": 6,
+        "instance_id": null,
+        "points": 20,
+        "range_band_m": [
+          30,
+          60
+        ],
+        "region_kind": "derived_2m_class_patch"
+      },
+      "taxonomy_version": "RELLIS-3D-v1.1-learning_map"
+    },
+    {
+      "bbox_xy_m": [
+        39.03030319188861,
+        5.952980721054327,
+        41.035759734810114,
+        10.435586750732307
+      ],
+      "challenge_type": "semantic_object",
+      "dataset": "semantickitti",
+      "frame_end_exclusive": 10,
+      "frame_start": 0,
+      "id": "semantickitti-08-000000-semantic_object-vehicle-30",
+      "metadata": {
+        "calibration_source": "dataset",
+        "coordinate_frame": "world",
+        "pose_source": "dataset",
+        "timestamp": 0.0,
+        "timestamp_source": "dataset"
+      },
+      "relevant_class": "vehicle",
+      "selection_reason": "first >=20-point GT class/instance in distance stratum",
+      "sensor_region_bbox_xy_m": [
+        38.87125778198242,
+        5.973018169403076,
+        41.146873474121094,
+        10.885586738586426
+      ],
+      "sequence": "08",
+      "source_frame_id": "000000",
+      "source_label_path": "data/raw/semantickitti/dataset/sequences/08/labels/000000.label",
+      "source_label_sha256": "cd33562bda69c88e09a4d8f600cb5c254186bf20d695897a61d56b129ff1c7d3",
+      "source_scan_path": "data/raw/semantickitti/dataset/sequences/08/velodyne/000000.bin",
+      "source_scan_sha256": "92e945f37a6cd4a58acc8aa15b275af2e271ecf69c0a44a311d888524473c451",
+      "support": {
+        "class_id": 1,
+        "instance_id": 198,
+        "points": 20,
+        "range_band_m": [
+          30,
+          60
+        ],
+        "region_kind": "dataset_instance"
+      },
+      "taxonomy_version": "SemanticKITTI-v1.1-learning_map"
+    },
+    {
+      "bbox_xy_m": [
+        20.34772415183454,
+        -7.59233168903856,
+        22.85959701568663,
+        -2.922535603104036
+      ],
+      "challenge_type": "motion_candidate",
+      "dataset": "semantickitti",
+      "frame_end_exclusive": 10,
+      "frame_start": 0,
+      "id": "semantickitti-08-000000-motion_candidate",
+      "metadata": {
+        "calibration_source": "dataset",
+        "coordinate_frame": "world",
+        "pose_source": "dataset",
+        "timestamp": 0.0,
+        "timestamp_source": "dataset"
+      },
+      "relevant_class": null,
+      "selection_reason": "first >=20-point SemanticKITTI moving raw label with trusted pose/time",
+      "sensor_region_bbox_xy_m": [
+        20.39516830444336,
+        -7.610135078430176,
+        23.2059268951416,
+        -2.93057918548584
+      ],
+      "sequence": "08",
+      "source_frame_id": "000000",
+      "source_label_path": "data/raw/semantickitti/dataset/sequences/08/labels/000000.label",
+      "source_label_sha256": "cd33562bda69c88e09a4d8f600cb5c254186bf20d695897a61d56b129ff1c7d3",
+      "source_scan_path": "data/raw/semantickitti/dataset/sequences/08/velodyne/000000.bin",
+      "source_scan_sha256": "92e945f37a6cd4a58acc8aa15b275af2e271ecf69c0a44a311d888524473c451",
+      "support": {
+        "instance_id": 1,
+        "points": 433,
+        "range_band_m": [
+          0,
+          100
+        ],
+        "raw_moving_ids": [
+          252
+        ]
+      },
+      "taxonomy_version": "SemanticKITTI-v1.1-learning_map"
+    },
+    {
+      "bbox_xy_m": [
+        34.86256445981989,
+        -6.4223084761394755,
+        35.89578048241374,
+        -5.530633525202619
+      ],
+      "challenge_type": "semantic_object",
+      "dataset": "semantickitti",
+      "frame_end_exclusive": 10,
+      "frame_start": 0,
+      "id": "semantickitti-08-000004-semantic_object-pedestrian-30",
+      "metadata": {
+        "calibration_source": "dataset",
+        "coordinate_frame": "world",
+        "pose_source": "dataset",
+        "timestamp": 0.4157279,
+        "timestamp_source": "dataset"
+      },
+      "relevant_class": "pedestrian",
+      "selection_reason": "first >=20-point GT class/instance in distance stratum",
+      "sensor_region_bbox_xy_m": [
+        31.550182342529297,
+        -6.4027276039123535,
+        32.865814208984375,
+        -5.084681034088135
+      ],
+      "sequence": "08",
+      "source_frame_id": "000004",
+      "source_label_path": "data/raw/semantickitti/dataset/sequences/08/labels/000004.label",
+      "source_label_sha256": "24de5c7043386aa3b6b0fa025fc54f4337580e1afeb23369e2449f3ebf6f76b0",
+      "source_scan_path": "data/raw/semantickitti/dataset/sequences/08/velodyne/000004.bin",
+      "source_scan_sha256": "82c30cd90867ef77af0184935e8c652305cb98d8d7dc3a5805bae07d080f5971",
+      "support": {
+        "class_id": 6,
+        "instance_id": 15,
+        "points": 25,
+        "range_band_m": [
+          30,
+          60
+        ],
+        "region_kind": "dataset_instance"
+      },
+      "taxonomy_version": "SemanticKITTI-v1.1-learning_map"
+    },
+    {
+      "bbox_xy_m": [
+        29.294252784031347,
+        15.946930367790523,
+        30.1414709917011,
+        16.74465223211378
+      ],
+      "challenge_type": "semantic_object",
+      "dataset": "semantickitti",
+      "frame_end_exclusive": 10,
+      "frame_start": 0,
+      "id": "semantickitti-08-000004-semantic_object-pole-30",
+      "metadata": {
+        "calibration_source": "dataset",
+        "coordinate_frame": "world",
+        "pose_source": "dataset",
+        "timestamp": 0.4157279,
+        "timestamp_source": "dataset"
+      },
+      "relevant_class": "pole",
+      "selection_reason": "first >=20-point GT class/instance in distance stratum",
+      "sensor_region_bbox_xy_m": [
+        26.175636291503906,
+        15.730831146240234,
+        27.574254989624023,
+        17.11092185974121
+      ],
+      "sequence": "08",
+      "source_frame_id": "000004",
+      "source_label_path": "data/raw/semantickitti/dataset/sequences/08/labels/000004.label",
+      "source_label_sha256": "24de5c7043386aa3b6b0fa025fc54f4337580e1afeb23369e2449f3ebf6f76b0",
+      "source_scan_path": "data/raw/semantickitti/dataset/sequences/08/velodyne/000004.bin",
+      "source_scan_sha256": "82c30cd90867ef77af0184935e8c652305cb98d8d7dc3a5805bae07d080f5971",
+      "support": {
+        "class_id": 18,
+        "instance_id": null,
+        "points": 24,
+        "range_band_m": [
+          30,
+          60
+        ],
+        "region_kind": "derived_2m_class_patch"
+      },
+      "taxonomy_version": "SemanticKITTI-v1.1-learning_map"
+    }
+  ],
+  "scanned_frames": {
+    "rellis3d": 1200,
+    "semantickitti": 56,
+    "semanticposs": 747
+  },
+  "schema_version": 1,
+  "selection_parameters": {
+    "flat_max_iqr_m": 0.04,
+    "geometry_cell_m": 1.0,
+    "geometry_hazard_iqr_m": 0.25,
+    "geometry_min_points": 12,
+    "matched_flat_max_range_difference_m": 5.0,
+    "max_scanned_per_dataset": 1200,
+    "semantic_min_points": 20,
+    "stride": 4,
+    "window_frames": 10
+  },
+  "selection_policy": "first qualifying original frame in numeric order, fixed stride; no map output inspected",
+  "sha256": "66d316ba83ba634ee10de99ed174605884e8623deb9b836b4fbdc2f70e518e07",
+  "unavailable": {
+    "great_outdoors": "dataset absent locally",
+    "motion_ground_truth": "moving raw labels identify candidates, not tracked-object ground truth"
+  }
+}

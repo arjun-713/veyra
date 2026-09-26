@@ -1,0 +1,27 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="900" height="520" viewBox="0 0 900 520">
+<rect width="100%" height="100%" fill="#101820"/>
+<text x="55" y="45" fill="#f0f4f8" font-size="22">Wasted promotion ratio by challenge type</text>
+<text x="55" y="75" fill="#aab9c7" font-size="13">Type index: 0=flat_control, 1=geometry_hazard, 2=motion_candidate, 3=semantic_object, 4=sparse_far_control</text>
+<path d="M80 95 V445 H855" fill="none" stroke="#667787"/>
+<text x="460" y="490" text-anchor="middle" fill="#c7d4df" font-size="15">challenge type index</text>
+<text x="20" y="275" transform="rotate(-90 20 275)" text-anchor="middle" fill="#c7d4df" font-size="15">wasted ratio</text>
+<text x="80" y="465" fill="#91a5b5" font-size="11">0</text>
+<text x="855" y="465" text-anchor="end" fill="#91a5b5" font-size="11">4</text>
+<text x="70" y="440" text-anchor="end" fill="#91a5b5" font-size="11">0.606</text>
+<text x="70" y="100" text-anchor="end" fill="#91a5b5" font-size="11">0.658</text>
+<circle cx="273.8" cy="272.4" r="5" fill="#da6a32" opacity="0.8"><title>utility_lod: 1, 0.6318</title></circle>
+<circle cx="80.0" cy="272.4" r="5" fill="#da6a32" opacity="0.8"><title>utility_lod: 0, 0.6318</title></circle>
+<circle cx="661.2" cy="298.5" r="5" fill="#da6a32" opacity="0.8"><title>utility_lod: 3, 0.6278</title></circle>
+<circle cx="661.2" cy="103.8" r="5" fill="#da6a32" opacity="0.8"><title>utility_lod: 3, 0.6571</title></circle>
+<circle cx="467.5" cy="103.8" r="5" fill="#da6a32" opacity="0.8"><title>utility_lod: 2, 0.6571</title></circle>
+<circle cx="661.2" cy="103.8" r="5" fill="#da6a32" opacity="0.8"><title>utility_lod: 3, 0.6571</title></circle>
+<circle cx="661.2" cy="103.8" r="5" fill="#da6a32" opacity="0.8"><title>utility_lod: 3, 0.6571</title></circle>
+<circle cx="661.2" cy="445.0" r="5" fill="#da6a32" opacity="0.8"><title>utility_lod: 3, 0.6058</title></circle>
+<circle cx="661.2" cy="445.0" r="5" fill="#da6a32" opacity="0.8"><title>utility_lod: 3, 0.6058</title></circle>
+<circle cx="661.2" cy="445.0" r="5" fill="#da6a32" opacity="0.8"><title>utility_lod: 3, 0.6058</title></circle>
+<circle cx="661.2" cy="445.0" r="5" fill="#da6a32" opacity="0.8"><title>utility_lod: 3, 0.6058</title></circle>
+<circle cx="855.0" cy="445.0" r="5" fill="#da6a32" opacity="0.8"><title>utility_lod: 4, 0.6058</title></circle>
+<circle cx="661.2" cy="95.0" r="5" fill="#da6a32" opacity="0.8"><title>utility_lod: 3, 0.6584</title></circle>
+<circle cx="661.2" cy="193.9" r="5" fill="#da6a32" opacity="0.8"><title>utility_lod: 3, 0.6435</title></circle>
+<text x="855" y="45" text-anchor="end" fill="#9db2c1" font-size="11">utility_lod</text>
+</svg>

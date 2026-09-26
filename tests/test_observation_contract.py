@@ -52,6 +52,16 @@ class ObservationContractTests(unittest.TestCase):
         self.assertEqual(frame.velocity_xy.shape, (2, 2))
         np.testing.assert_array_equal(frame.semantic_class, [3, 4])
 
+    def test_ground_gradients_are_aligned_and_missing_gradient_is_nan(self):
+        value = _frame(ground_gradient_x=[0.25, -0.5], ground_gradient_y=[0.1, 0.2])
+        np.testing.assert_array_equal(value.ground_gradient_x, [0.25, -0.5])
+        np.testing.assert_allclose(value.ground_gradient_y, [0.1, 0.2], rtol=0.0, atol=1e-7)
+        self.assertTrue(np.isnan(_frame().ground_gradient_x).all())
+        with self.assertRaisesRegex(ValueError, "optional ObservationFrame fields"):
+            _frame(ground_gradient_x=[0.1])
+        with self.assertRaisesRegex(ValueError, "ground_gradient_x must be finite or NaN"):
+            _frame(ground_gradient_x=[np.inf, 0.0])
+
     def test_pose_rejects_non_homogeneous_matrix(self):
         with self.assertRaises(ValueError):
             PoseSE3(np.eye(3))

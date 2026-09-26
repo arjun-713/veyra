@@ -109,6 +109,7 @@ def _run(frames: list[ObservationFrame], engine: Path) -> dict:
         [str(engine), "--policy", "uniform5"],
         input=payload,
         capture_output=True,
+        check=False,
         timeout=120,
     )
     if completed.returncode != 0:
@@ -126,10 +127,10 @@ class LayeredEndToEnd(unittest.TestCase):
                 "veyra_benchmark not built; run cmake --build build before this test"
             )
 
-    def test_protocol_version_is_three(self) -> None:
-        self.assertEqual(PROTOCOL_VERSION, 3)
+    def test_protocol_version_is_four(self) -> None:
+        self.assertEqual(PROTOCOL_VERSION, 4)
         payload, _ = stream_bytes(_road_under_a_branch(with_hag=True))
-        self.assertTrue(payload.startswith(b"VEYRA_STREAM 3\n"))
+        self.assertTrue(payload.startswith(b"VEYRA_STREAM 4\n"))
 
     def test_height_above_ground_survives_the_wire(self) -> None:
         """The whole point: layers are populated from a real stream."""
@@ -178,6 +179,7 @@ class LayeredEndToEnd(unittest.TestCase):
             [str(self.engine), "--policy", "uniform5", "--include-leaf-details"],
             input=payload,
             capture_output=True,
+            check=False,
             timeout=120,
         )
         if completed.returncode != 0:
@@ -368,11 +370,9 @@ class VisibilityClearingEndToEnd(unittest.TestCase):
         if clearing:
             command.append("--clear-free-space")
         completed = subprocess.run(
-            command, input=payload, capture_output=True, timeout=180
+            command, input=payload, capture_output=True, check=False, timeout=180
         )
-        self.assertEqual(
-            completed.returncode, 0, completed.stderr.decode()[:1500]
-        )
+        self.assertEqual(completed.returncode, 0, completed.stderr.decode()[:1500])
         return json.loads(completed.stdout.decode())
 
     def test_clearing_is_off_unless_requested(self) -> None:
@@ -468,6 +468,7 @@ class ProtocolVersionCoupling(unittest.TestCase):
             [str(engine), "--policy", "uniform5"],
             input=payload,
             capture_output=True,
+            check=False,
             timeout=120,
         )
         self.assertEqual(

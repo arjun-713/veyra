@@ -1,0 +1,133 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="900" height="520" viewBox="0 0 900 520">
+<rect width="100%" height="100%" fill="#101820"/>
+<text x="55" y="45" fill="#f0f4f8" font-size="22">Utility signal distributions</text>
+<text x="55" y="75" fill="#aab9c7" font-size="13">20 equal bins; points reflect measured policy decisions</text>
+<path d="M80 95 V445 H855" fill="none" stroke="#667787"/>
+<text x="460" y="490" text-anchor="middle" fill="#c7d4df" font-size="15">score bin lower bound</text>
+<text x="20" y="275" transform="rotate(-90 20 275)" text-anchor="middle" fill="#c7d4df" font-size="15">fraction</text>
+<text x="80" y="465" fill="#91a5b5" font-size="11">0</text>
+<text x="855" y="465" text-anchor="end" fill="#91a5b5" font-size="11">0.95</text>
+<text x="70" y="440" text-anchor="end" fill="#91a5b5" font-size="11">0</text>
+<text x="70" y="100" text-anchor="end" fill="#91a5b5" font-size="11">0.949</text>
+<circle cx="80.0" cy="151.2" r="5" fill="#e8c35a" opacity="0.8"><title>geometry: 0, 0.7966</title></circle>
+<circle cx="120.8" cy="392.1" r="5" fill="#e8c35a" opacity="0.8"><title>geometry: 0.05, 0.1434</title></circle>
+<circle cx="161.6" cy="433.9" r="5" fill="#e8c35a" opacity="0.8"><title>geometry: 0.1, 0.03005</title></circle>
+<circle cx="202.4" cy="440.1" r="5" fill="#e8c35a" opacity="0.8"><title>geometry: 0.15, 0.01324</title></circle>
+<circle cx="243.2" cy="442.7" r="5" fill="#e8c35a" opacity="0.8"><title>geometry: 0.2, 0.006155</title></circle>
+<circle cx="283.9" cy="443.6" r="5" fill="#e8c35a" opacity="0.8"><title>geometry: 0.25, 0.003929</title></circle>
+<circle cx="324.7" cy="444.0" r="5" fill="#e8c35a" opacity="0.8"><title>geometry: 0.3, 0.00273</title></circle>
+<circle cx="365.5" cy="444.5" r="5" fill="#e8c35a" opacity="0.8"><title>geometry: 0.35, 0.001451</title></circle>
+<circle cx="406.3" cy="444.7" r="5" fill="#e8c35a" opacity="0.8"><title>geometry: 0.4, 0.0008455</title></circle>
+<circle cx="447.1" cy="444.8" r="5" fill="#e8c35a" opacity="0.8"><title>geometry: 0.45, 0.0004514</title></circle>
+<circle cx="487.9" cy="444.9" r="5" fill="#e8c35a" opacity="0.8"><title>geometry: 0.5, 0.0003116</title></circle>
+<circle cx="528.7" cy="444.9" r="5" fill="#e8c35a" opacity="0.8"><title>geometry: 0.55, 0.0002619</title></circle>
+<circle cx="569.5" cy="444.9" r="5" fill="#e8c35a" opacity="0.8"><title>geometry: 0.6, 0.0002018</title></circle>
+<circle cx="610.3" cy="445.0" r="5" fill="#e8c35a" opacity="0.8"><title>geometry: 0.65, 0.0001282</title></circle>
+<circle cx="651.1" cy="445.0" r="5" fill="#e8c35a" opacity="0.8"><title>geometry: 0.7, 7.721e-05</title></circle>
+<circle cx="691.8" cy="445.0" r="5" fill="#e8c35a" opacity="0.8"><title>geometry: 0.75, 5.904e-05</title></circle>
+<circle cx="732.6" cy="445.0" r="5" fill="#e8c35a" opacity="0.8"><title>geometry: 0.8, 4.92e-05</title></circle>
+<circle cx="773.4" cy="445.0" r="5" fill="#e8c35a" opacity="0.8"><title>geometry: 0.85, 4.264e-05</title></circle>
+<circle cx="814.2" cy="445.0" r="5" fill="#e8c35a" opacity="0.8"><title>geometry: 0.9, 3.381e-05</title></circle>
+<circle cx="855.0" cy="445.0" r="5" fill="#e8c35a" opacity="0.8"><title>geometry: 0.95, 1.539e-05</title></circle>
+<circle cx="80.0" cy="415.4" r="5" fill="#e8c35a" opacity="0.8"><title>semantic: 0, 0.08026</title></circle>
+<circle cx="120.8" cy="445.0" r="5" fill="#e8c35a" opacity="0.8"><title>semantic: 0.05, 0</title></circle>
+<circle cx="161.6" cy="445.0" r="5" fill="#e8c35a" opacity="0.8"><title>semantic: 0.1, 0</title></circle>
+<circle cx="202.4" cy="445.0" r="5" fill="#e8c35a" opacity="0.8"><title>semantic: 0.15, 0</title></circle>
+<circle cx="243.2" cy="445.0" r="5" fill="#e8c35a" opacity="0.8"><title>semantic: 0.2, 0</title></circle>
+<circle cx="283.9" cy="445.0" r="5" fill="#e8c35a" opacity="0.8"><title>semantic: 0.25, 0</title></circle>
+<circle cx="324.7" cy="445.0" r="5" fill="#e8c35a" opacity="0.8"><title>semantic: 0.3, 0</title></circle>
+<circle cx="365.5" cy="445.0" r="5" fill="#e8c35a" opacity="0.8"><title>semantic: 0.35, 0</title></circle>
+<circle cx="406.3" cy="445.0" r="5" fill="#e8c35a" opacity="0.8"><title>semantic: 0.4, 0</title></circle>
+<circle cx="447.1" cy="445.0" r="5" fill="#e8c35a" opacity="0.8"><title>semantic: 0.45, 0</title></circle>
+<circle cx="487.9" cy="445.0" r="5" fill="#e8c35a" opacity="0.8"><title>semantic: 0.5, 0</title></circle>
+<circle cx="528.7" cy="445.0" r="5" fill="#e8c35a" opacity="0.8"><title>semantic: 0.55, 0</title></circle>
+<circle cx="569.5" cy="445.0" r="5" fill="#e8c35a" opacity="0.8"><title>semantic: 0.6, 0</title></circle>
+<circle cx="610.3" cy="445.0" r="5" fill="#e8c35a" opacity="0.8"><title>semantic: 0.65, 0</title></circle>
+<circle cx="651.1" cy="445.0" r="5" fill="#e8c35a" opacity="0.8"><title>semantic: 0.7, 0</title></circle>
+<circle cx="691.8" cy="445.0" r="5" fill="#e8c35a" opacity="0.8"><title>semantic: 0.75, 0</title></circle>
+<circle cx="732.6" cy="445.0" r="5" fill="#e8c35a" opacity="0.8"><title>semantic: 0.8, 0</title></circle>
+<circle cx="773.4" cy="445.0" r="5" fill="#e8c35a" opacity="0.8"><title>semantic: 0.85, 0</title></circle>
+<circle cx="814.2" cy="445.0" r="5" fill="#e8c35a" opacity="0.8"><title>semantic: 0.9, 0</title></circle>
+<circle cx="855.0" cy="105.7" r="5" fill="#e8c35a" opacity="0.8"><title>semantic: 0.95, 0.9197</title></circle>
+<circle cx="80.0" cy="170.4" r="5" fill="#e8c35a" opacity="0.8"><title>motion: 0, 0.7445</title></circle>
+<circle cx="120.8" cy="444.4" r="5" fill="#e8c35a" opacity="0.8"><title>motion: 0.05, 0.001536</title></circle>
+<circle cx="161.6" cy="443.9" r="5" fill="#e8c35a" opacity="0.8"><title>motion: 0.1, 0.002947</title></circle>
+<circle cx="202.4" cy="444.5" r="5" fill="#e8c35a" opacity="0.8"><title>motion: 0.15, 0.001273</title></circle>
+<circle cx="243.2" cy="444.4" r="5" fill="#e8c35a" opacity="0.8"><title>motion: 0.2, 0.001509</title></circle>
+<circle cx="283.9" cy="444.3" r="5" fill="#e8c35a" opacity="0.8"><title>motion: 0.25, 0.00189</title></circle>
+<circle cx="324.7" cy="444.7" r="5" fill="#e8c35a" opacity="0.8"><title>motion: 0.3, 0.000875</title></circle>
+<circle cx="365.5" cy="444.6" r="5" fill="#e8c35a" opacity="0.8"><title>motion: 0.35, 0.001191</title></circle>
+<circle cx="406.3" cy="444.4" r="5" fill="#e8c35a" opacity="0.8"><title>motion: 0.4, 0.001719</title></circle>
+<circle cx="447.1" cy="444.8" r="5" fill="#e8c35a" opacity="0.8"><title>motion: 0.45, 0.0006202</title></circle>
+<circle cx="487.9" cy="444.7" r="5" fill="#e8c35a" opacity="0.8"><title>motion: 0.5, 0.0008891</title></circle>
+<circle cx="528.7" cy="444.5" r="5" fill="#e8c35a" opacity="0.8"><title>motion: 0.55, 0.001269</title></circle>
+<circle cx="569.5" cy="444.7" r="5" fill="#e8c35a" opacity="0.8"><title>motion: 0.6, 0.000738</title></circle>
+<circle cx="610.3" cy="444.8" r="5" fill="#e8c35a" opacity="0.8"><title>motion: 0.65, 0.0005296</title></circle>
+<circle cx="651.1" cy="444.7" r="5" fill="#e8c35a" opacity="0.8"><title>motion: 0.7, 0.0008207</title></circle>
+<circle cx="691.8" cy="444.8" r="5" fill="#e8c35a" opacity="0.8"><title>motion: 0.75, 0.0005672</title></circle>
+<circle cx="732.6" cy="444.7" r="5" fill="#e8c35a" opacity="0.8"><title>motion: 0.8, 0.0007859</title></circle>
+<circle cx="773.4" cy="444.1" r="5" fill="#e8c35a" opacity="0.8"><title>motion: 0.85, 0.002345</title></circle>
+<circle cx="814.2" cy="444.7" r="5" fill="#e8c35a" opacity="0.8"><title>motion: 0.9, 0.0008412</title></circle>
+<circle cx="855.0" cy="359.0" r="5" fill="#e8c35a" opacity="0.8"><title>motion: 0.95, 0.2332</title></circle>
+<circle cx="80.0" cy="95.0" r="5" fill="#e8c35a" opacity="0.8"><title>traversability_risk: 0, 0.9489</title></circle>
+<circle cx="120.8" cy="445.0" r="5" fill="#e8c35a" opacity="0.8"><title>traversability_risk: 0.05, 0</title></circle>
+<circle cx="161.6" cy="445.0" r="5" fill="#e8c35a" opacity="0.8"><title>traversability_risk: 0.1, 0</title></circle>
+<circle cx="202.4" cy="445.0" r="5" fill="#e8c35a" opacity="0.8"><title>traversability_risk: 0.15, 0</title></circle>
+<circle cx="243.2" cy="445.0" r="5" fill="#e8c35a" opacity="0.8"><title>traversability_risk: 0.2, 0</title></circle>
+<circle cx="283.9" cy="445.0" r="5" fill="#e8c35a" opacity="0.8"><title>traversability_risk: 0.25, 0</title></circle>
+<circle cx="324.7" cy="445.0" r="5" fill="#e8c35a" opacity="0.8"><title>traversability_risk: 0.3, 0</title></circle>
+<circle cx="365.5" cy="445.0" r="5" fill="#e8c35a" opacity="0.8"><title>traversability_risk: 0.35, 0</title></circle>
+<circle cx="406.3" cy="445.0" r="5" fill="#e8c35a" opacity="0.8"><title>traversability_risk: 0.4, 0</title></circle>
+<circle cx="447.1" cy="445.0" r="5" fill="#e8c35a" opacity="0.8"><title>traversability_risk: 0.45, 0</title></circle>
+<circle cx="487.9" cy="444.9" r="5" fill="#e8c35a" opacity="0.8"><title>traversability_risk: 0.5, 0.0002442</title></circle>
+<circle cx="528.7" cy="444.9" r="5" fill="#e8c35a" opacity="0.8"><title>traversability_risk: 0.55, 0.0002758</title></circle>
+<circle cx="569.5" cy="445.0" r="5" fill="#e8c35a" opacity="0.8"><title>traversability_risk: 0.6, 0</title></circle>
+<circle cx="610.3" cy="444.9" r="5" fill="#e8c35a" opacity="0.8"><title>traversability_risk: 0.65, 0.0003247</title></circle>
+<circle cx="651.1" cy="445.0" r="5" fill="#e8c35a" opacity="0.8"><title>traversability_risk: 0.7, 0</title></circle>
+<circle cx="691.8" cy="444.9" r="5" fill="#e8c35a" opacity="0.8"><title>traversability_risk: 0.75, 0.0003028</title></circle>
+<circle cx="732.6" cy="444.9" r="5" fill="#e8c35a" opacity="0.8"><title>traversability_risk: 0.8, 0.0003247</title></circle>
+<circle cx="773.4" cy="445.0" r="5" fill="#e8c35a" opacity="0.8"><title>traversability_risk: 0.85, 0</title></circle>
+<circle cx="814.2" cy="444.9" r="5" fill="#e8c35a" opacity="0.8"><title>traversability_risk: 0.9, 0.000361</title></circle>
+<circle cx="855.0" cy="426.8" r="5" fill="#e8c35a" opacity="0.8"><title>traversability_risk: 0.95, 0.04931</title></circle>
+<circle cx="80.0" cy="105.7" r="5" fill="#e8c35a" opacity="0.8"><title>semantic_uncertainty: 0, 0.9197</title></circle>
+<circle cx="120.8" cy="445.0" r="5" fill="#e8c35a" opacity="0.8"><title>semantic_uncertainty: 0.05, 0</title></circle>
+<circle cx="161.6" cy="445.0" r="5" fill="#e8c35a" opacity="0.8"><title>semantic_uncertainty: 0.1, 0</title></circle>
+<circle cx="202.4" cy="445.0" r="5" fill="#e8c35a" opacity="0.8"><title>semantic_uncertainty: 0.15, 0</title></circle>
+<circle cx="243.2" cy="445.0" r="5" fill="#e8c35a" opacity="0.8"><title>semantic_uncertainty: 0.2, 0</title></circle>
+<circle cx="283.9" cy="445.0" r="5" fill="#e8c35a" opacity="0.8"><title>semantic_uncertainty: 0.25, 0</title></circle>
+<circle cx="324.7" cy="445.0" r="5" fill="#e8c35a" opacity="0.8"><title>semantic_uncertainty: 0.3, 0</title></circle>
+<circle cx="365.5" cy="445.0" r="5" fill="#e8c35a" opacity="0.8"><title>semantic_uncertainty: 0.35, 0</title></circle>
+<circle cx="406.3" cy="445.0" r="5" fill="#e8c35a" opacity="0.8"><title>semantic_uncertainty: 0.4, 0</title></circle>
+<circle cx="447.1" cy="445.0" r="5" fill="#e8c35a" opacity="0.8"><title>semantic_uncertainty: 0.45, 0</title></circle>
+<circle cx="487.9" cy="445.0" r="5" fill="#e8c35a" opacity="0.8"><title>semantic_uncertainty: 0.5, 0</title></circle>
+<circle cx="528.7" cy="445.0" r="5" fill="#e8c35a" opacity="0.8"><title>semantic_uncertainty: 0.55, 0</title></circle>
+<circle cx="569.5" cy="445.0" r="5" fill="#e8c35a" opacity="0.8"><title>semantic_uncertainty: 0.6, 0</title></circle>
+<circle cx="610.3" cy="445.0" r="5" fill="#e8c35a" opacity="0.8"><title>semantic_uncertainty: 0.65, 0</title></circle>
+<circle cx="651.1" cy="445.0" r="5" fill="#e8c35a" opacity="0.8"><title>semantic_uncertainty: 0.7, 0</title></circle>
+<circle cx="691.8" cy="445.0" r="5" fill="#e8c35a" opacity="0.8"><title>semantic_uncertainty: 0.75, 0</title></circle>
+<circle cx="732.6" cy="445.0" r="5" fill="#e8c35a" opacity="0.8"><title>semantic_uncertainty: 0.8, 0</title></circle>
+<circle cx="773.4" cy="445.0" r="5" fill="#e8c35a" opacity="0.8"><title>semantic_uncertainty: 0.85, 0</title></circle>
+<circle cx="814.2" cy="445.0" r="5" fill="#e8c35a" opacity="0.8"><title>semantic_uncertainty: 0.9, 0</title></circle>
+<circle cx="855.0" cy="415.4" r="5" fill="#e8c35a" opacity="0.8"><title>semantic_uncertainty: 0.95, 0.08026</title></circle>
+<circle cx="80.0" cy="223.9" r="5" fill="#e8c35a" opacity="0.8"><title>utility_score: 0, 0.5995</title></circle>
+<circle cx="120.8" cy="445.0" r="5" fill="#e8c35a" opacity="0.8"><title>utility_score: 0.05, 0</title></circle>
+<circle cx="161.6" cy="445.0" r="5" fill="#e8c35a" opacity="0.8"><title>utility_score: 0.1, 0</title></circle>
+<circle cx="202.4" cy="445.0" r="5" fill="#e8c35a" opacity="0.8"><title>utility_score: 0.15, 0</title></circle>
+<circle cx="243.2" cy="445.0" r="5" fill="#e8c35a" opacity="0.8"><title>utility_score: 0.2, 0</title></circle>
+<circle cx="283.9" cy="445.0" r="5" fill="#e8c35a" opacity="0.8"><title>utility_score: 0.25, 0</title></circle>
+<circle cx="324.7" cy="379.2" r="5" fill="#e8c35a" opacity="0.8"><title>utility_score: 0.3, 0.1784</title></circle>
+<circle cx="365.5" cy="444.8" r="5" fill="#e8c35a" opacity="0.8"><title>utility_score: 0.35, 0.0006267</title></circle>
+<circle cx="406.3" cy="444.8" r="5" fill="#e8c35a" opacity="0.8"><title>utility_score: 0.4, 0.0006449</title></circle>
+<circle cx="447.1" cy="380.2" r="5" fill="#e8c35a" opacity="0.8"><title>utility_score: 0.45, 0.1755</title></circle>
+<circle cx="487.9" cy="444.8" r="5" fill="#e8c35a" opacity="0.8"><title>utility_score: 0.5, 0.0006053</title></circle>
+<circle cx="528.7" cy="433.3" r="5" fill="#e8c35a" opacity="0.8"><title>utility_score: 0.55, 0.03177</title></circle>
+<circle cx="569.5" cy="442.3" r="5" fill="#e8c35a" opacity="0.8"><title>utility_score: 0.6, 0.007284</title></circle>
+<circle cx="610.3" cy="444.7" r="5" fill="#e8c35a" opacity="0.8"><title>utility_score: 0.65, 0.0008863</title></circle>
+<circle cx="651.1" cy="443.4" r="5" fill="#e8c35a" opacity="0.8"><title>utility_score: 0.7, 0.004321</title></circle>
+<circle cx="691.8" cy="444.9" r="5" fill="#e8c35a" opacity="0.8"><title>utility_score: 0.75, 0.0002775</title></circle>
+<circle cx="732.6" cy="445.0" r="5" fill="#e8c35a" opacity="0.8"><title>utility_score: 0.8, 0.0001292</title></circle>
+<circle cx="773.4" cy="445.0" r="5" fill="#e8c35a" opacity="0.8"><title>utility_score: 0.85, 3.179e-05</title></circle>
+<circle cx="814.2" cy="445.0" r="5" fill="#e8c35a" opacity="0.8"><title>utility_score: 0.9, 0</title></circle>
+<circle cx="855.0" cy="445.0" r="5" fill="#e8c35a" opacity="0.8"><title>utility_score: 0.95, 0</title></circle>
+<text x="855" y="45" text-anchor="end" fill="#9db2c1" font-size="11">geometry | motion | semantic | semantic_uncertainty | traversability_risk | utility_score</text>
+</svg>

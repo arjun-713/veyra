@@ -62,6 +62,17 @@ class TerrainAnalyzerTests(unittest.TestCase):
         self.assertLess(float(np.nanmax(evidence.slope)), 1e-5)
         self.assertLess(float(np.nanmax(evidence.roughness)), 1e-5)
         self.assertTrue(np.all(evidence.confidence > 0.9))
+        self.assertTrue(np.allclose(evidence.gradient_x, 0.0, atol=1e-5))
+        self.assertTrue(np.allclose(evidence.gradient_y, 0.0, atol=1e-5))
+
+    def test_ground_plane_direction_is_retained_not_only_slope_magnitude(self):
+        points = grid(size=11, spacing=0.5, height=lambda x, y: 0.4 * x - 0.2 * y)
+        evidence = TerrainAnalyzer(min_ground_neighbors=3).analyze(
+            points, GroundEvidence(np.ones(len(points)), np.ones(len(points)))
+        )
+
+        self.assertAlmostEqual(float(np.nanmedian(evidence.gradient_x)), 0.4, delta=0.02)
+        self.assertAlmostEqual(float(np.nanmedian(evidence.gradient_y)), -0.2, delta=0.02)
 
     def test_steep_rough_ground_is_non_drivable(self):
         points = grid(height=lambda x, y: 0.9 * x + 0.12 * np.sin(9.0 * x + 3.0 * y))

@@ -49,6 +49,12 @@ struct CellStats {
   float geometry_complexity_v = 0.0F;
   float motion_evidence_v = 0.0F;
   float observation_quality_v = 0.0F;
+  // Count-weighted local plane derivatives from trusted ground returns.
+  // A separate count is required because some ground observations have no
+  // supported terrain fit and must not dilute valid directional evidence.
+  float ground_gradient_x_v = 0.0F;
+  float ground_gradient_y_v = 0.0F;
+  std::uint32_t ground_gradient_count = 0;
 
   [[nodiscard]] float semantic_evidence() const { return semantic_evidence_v; }
   [[nodiscard]] float semantic_confidence() const { return semantic_confidence_v; }
@@ -58,6 +64,8 @@ struct CellStats {
   [[nodiscard]] float geometry_complexity() const { return geometry_complexity_v; }
   [[nodiscard]] float motion_evidence() const { return motion_evidence_v; }
   [[nodiscard]] float observation_quality() const { return observation_quality_v; }
+  [[nodiscard]] float ground_gradient_x() const { return ground_gradient_x_v; }
+  [[nodiscard]] float ground_gradient_y() const { return ground_gradient_y_v; }
 
   // Physically separated elevation evidence. The pooled fields above remain
   // the map's accounting record -- point conservation and the existing

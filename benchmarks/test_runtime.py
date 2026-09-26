@@ -69,6 +69,8 @@ def frame(
         motion_state=np.array(["static", "moving"]),
         observation_quality=np.array([0.4, 0.6]),
         raw_semantic_class=np.array([101, 202]),
+        ground_gradient_x=np.array([0.1, -0.3], dtype=np.float32),
+        ground_gradient_y=np.array([0.2, 0.4], dtype=np.float32),
     )
 
 
@@ -221,7 +223,7 @@ class RuntimeTests(unittest.TestCase):
         self.assertIn(
             "P 0.0099999997764825821 0.0099999997764825821 1 0.5 1 0.75 1 1 "
             "0.10000000149011612 0.20000000298023224 0.5 0.60000002384185791 "
-            "0.89999997615814209 0.20000000298023224 0 1 2 0.40000000596046448 101 NA",
+            "0.89999997615814209 0.20000000298023224 0 1 2 0.40000000596046448 101 NA 0.10000000149011612 0.20000000298023224",
             text,
         )
         self.assertEqual(text.count("F "), 1)
@@ -254,7 +256,14 @@ class RuntimeTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory:
             output = Path(directory) / "result.json"
             completed = subprocess.run(
-                [binary, "--policy", "uniform5", "--output", str(output)],
+                [
+                    binary,
+                    "--policy",
+                    "uniform5",
+                    "--include-leaf-details",
+                    "--output",
+                    str(output),
+                ],
                 input=stream,
                 check=False,
             )
@@ -271,6 +280,9 @@ class RuntimeTests(unittest.TestCase):
         self.assertEqual(frame_input["quality"]["raw_semantic_class"]["mean"], 151.5)
         self.assertEqual(frame_input["quality"]["velocity_x"]["mean"], -1.0)
         self.assertEqual(frame_input["ground"]["true_count"], 1)
+        ground_leaf = next(leaf for leaf in result["snapshot"]["leaves"] if leaf["ground_count"])
+        self.assertAlmostEqual(ground_leaf["ground_gradient_x"], 0.1, places=6)
+        self.assertAlmostEqual(ground_leaf["ground_gradient_y"], 0.2, places=6)
 
     def test_actual_binary_follows_transmitted_pose_window_center(self):
         binary = os.environ.get("VEYRA_BENCHMARK_BINARY")
@@ -399,8 +411,23 @@ class RuntimeTests(unittest.TestCase):
                     "overhead_count",
                     "overhead_min_z",
                     "occupancy_logodds",
+                    "semantic_confidence",
+                    "ground_evidence",
+                    "terrain_confidence",
+                    "geometry_complexity",
+                    "motion_evidence",
+                    "observation_quality",
                 ):
                     self.assertIn(key, leaf)
+                for key in (
+                    "semantic_confidence",
+                    "ground_evidence",
+                    "terrain_confidence",
+                    "geometry_complexity",
+                    "motion_evidence",
+                    "observation_quality",
+                ):
+                    self.assertTrue(np.isfinite(leaf[key]), key)
                 self.assertEqual(
                     leaf["ground_count"]
                     + leaf["obstacle_count"]

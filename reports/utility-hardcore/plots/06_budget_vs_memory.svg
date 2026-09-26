@@ -1,0 +1,83 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="900" height="520" viewBox="0 0 900 520">
+<rect width="100%" height="100%" fill="#101820"/>
+<text x="55" y="45" fill="#f0f4f8" font-size="22">Utility budget vs logical bytes</text>
+<text x="55" y="75" fill="#aab9c7" font-size="13">Measured challenge rows; colors identify policies, hover for values</text>
+<path d="M80 95 V445 H855" fill="none" stroke="#667787"/>
+<text x="460" y="490" text-anchor="middle" fill="#c7d4df" font-size="15">budget fraction</text>
+<text x="20" y="275" transform="rotate(-90 20 275)" text-anchor="middle" fill="#c7d4df" font-size="15">logical map bytes</text>
+<text x="80" y="465" fill="#91a5b5" font-size="11">0</text>
+<text x="855" y="465" text-anchor="end" fill="#91a5b5" font-size="11">0.3</text>
+<text x="70" y="440" text-anchor="end" fill="#91a5b5" font-size="11">2.05e+07</text>
+<text x="70" y="100" text-anchor="end" fill="#91a5b5" font-size="11">6.13e+07</text>
+<circle cx="80.0" cy="445.0" r="5" fill="#e8c35a" opacity="0.8"><title>utility_budget_plus_0: 0, 2.047e+07</title></circle>
+<circle cx="80.0" cy="445.0" r="5" fill="#e8c35a" opacity="0.8"><title>utility_budget_plus_0: 0, 2.047e+07</title></circle>
+<circle cx="209.2" cy="441.2" r="5" fill="#e8c35a" opacity="0.8"><title>utility_budget_plus_5: 0.05, 2.092e+07</title></circle>
+<circle cx="209.2" cy="441.2" r="5" fill="#e8c35a" opacity="0.8"><title>utility_budget_plus_5: 0.05, 2.092e+07</title></circle>
+<circle cx="338.3" cy="441.2" r="5" fill="#e8c35a" opacity="0.8"><title>utility_budget_plus_10: 0.1, 2.092e+07</title></circle>
+<circle cx="338.3" cy="441.2" r="5" fill="#e8c35a" opacity="0.8"><title>utility_budget_plus_10: 0.1, 2.092e+07</title></circle>
+<circle cx="596.7" cy="441.2" r="5" fill="#e8c35a" opacity="0.8"><title>utility_budget_plus_20: 0.2, 2.092e+07</title></circle>
+<circle cx="596.7" cy="441.2" r="5" fill="#e8c35a" opacity="0.8"><title>utility_budget_plus_20: 0.2, 2.092e+07</title></circle>
+<circle cx="855.0" cy="441.2" r="5" fill="#e8c35a" opacity="0.8"><title>utility_budget_plus_30: 0.3, 2.092e+07</title></circle>
+<circle cx="855.0" cy="441.2" r="5" fill="#e8c35a" opacity="0.8"><title>utility_budget_plus_30: 0.3, 2.092e+07</title></circle>
+<circle cx="80.0" cy="419.5" r="5" fill="#e8c35a" opacity="0.8"><title>utility_budget_plus_0: 0, 2.345e+07</title></circle>
+<circle cx="209.2" cy="414.9" r="5" fill="#e8c35a" opacity="0.8"><title>utility_budget_plus_5: 0.05, 2.399e+07</title></circle>
+<circle cx="338.3" cy="414.9" r="5" fill="#e8c35a" opacity="0.8"><title>utility_budget_plus_10: 0.1, 2.399e+07</title></circle>
+<circle cx="596.7" cy="414.9" r="5" fill="#e8c35a" opacity="0.8"><title>utility_budget_plus_20: 0.2, 2.399e+07</title></circle>
+<circle cx="855.0" cy="414.9" r="5" fill="#e8c35a" opacity="0.8"><title>utility_budget_plus_30: 0.3, 2.399e+07</title></circle>
+<circle cx="80.0" cy="140.5" r="5" fill="#e8c35a" opacity="0.8"><title>utility_budget_plus_0: 0, 5.596e+07</title></circle>
+<circle cx="80.0" cy="140.5" r="5" fill="#e8c35a" opacity="0.8"><title>utility_budget_plus_0: 0, 5.596e+07</title></circle>
+<circle cx="80.0" cy="140.5" r="5" fill="#e8c35a" opacity="0.8"><title>utility_budget_plus_0: 0, 5.596e+07</title></circle>
+<circle cx="80.0" cy="140.5" r="5" fill="#e8c35a" opacity="0.8"><title>utility_budget_plus_0: 0, 5.596e+07</title></circle>
+<circle cx="209.2" cy="125.6" r="5" fill="#e8c35a" opacity="0.8"><title>utility_budget_plus_5: 0.05, 5.77e+07</title></circle>
+<circle cx="209.2" cy="125.6" r="5" fill="#e8c35a" opacity="0.8"><title>utility_budget_plus_5: 0.05, 5.77e+07</title></circle>
+<circle cx="209.2" cy="125.6" r="5" fill="#e8c35a" opacity="0.8"><title>utility_budget_plus_5: 0.05, 5.77e+07</title></circle>
+<circle cx="209.2" cy="125.6" r="5" fill="#e8c35a" opacity="0.8"><title>utility_budget_plus_5: 0.05, 5.77e+07</title></circle>
+<circle cx="338.3" cy="95.0" r="5" fill="#e8c35a" opacity="0.8"><title>utility_budget_plus_10: 0.1, 6.127e+07</title></circle>
+<circle cx="338.3" cy="95.0" r="5" fill="#e8c35a" opacity="0.8"><title>utility_budget_plus_10: 0.1, 6.127e+07</title></circle>
+<circle cx="338.3" cy="95.0" r="5" fill="#e8c35a" opacity="0.8"><title>utility_budget_plus_10: 0.1, 6.127e+07</title></circle>
+<circle cx="338.3" cy="95.0" r="5" fill="#e8c35a" opacity="0.8"><title>utility_budget_plus_10: 0.1, 6.127e+07</title></circle>
+<circle cx="596.7" cy="95.0" r="5" fill="#e8c35a" opacity="0.8"><title>utility_budget_plus_20: 0.2, 6.127e+07</title></circle>
+<circle cx="596.7" cy="95.0" r="5" fill="#e8c35a" opacity="0.8"><title>utility_budget_plus_20: 0.2, 6.127e+07</title></circle>
+<circle cx="596.7" cy="95.0" r="5" fill="#e8c35a" opacity="0.8"><title>utility_budget_plus_20: 0.2, 6.127e+07</title></circle>
+<circle cx="596.7" cy="95.0" r="5" fill="#e8c35a" opacity="0.8"><title>utility_budget_plus_20: 0.2, 6.127e+07</title></circle>
+<circle cx="855.0" cy="95.0" r="5" fill="#e8c35a" opacity="0.8"><title>utility_budget_plus_30: 0.3, 6.127e+07</title></circle>
+<circle cx="855.0" cy="95.0" r="5" fill="#e8c35a" opacity="0.8"><title>utility_budget_plus_30: 0.3, 6.127e+07</title></circle>
+<circle cx="855.0" cy="95.0" r="5" fill="#e8c35a" opacity="0.8"><title>utility_budget_plus_30: 0.3, 6.127e+07</title></circle>
+<circle cx="855.0" cy="95.0" r="5" fill="#e8c35a" opacity="0.8"><title>utility_budget_plus_30: 0.3, 6.127e+07</title></circle>
+<circle cx="80.0" cy="356.4" r="5" fill="#e8c35a" opacity="0.8"><title>utility_budget_plus_0: 0, 3.08e+07</title></circle>
+<circle cx="80.0" cy="356.4" r="5" fill="#e8c35a" opacity="0.8"><title>utility_budget_plus_0: 0, 3.08e+07</title></circle>
+<circle cx="80.0" cy="356.4" r="5" fill="#e8c35a" opacity="0.8"><title>utility_budget_plus_0: 0, 3.08e+07</title></circle>
+<circle cx="80.0" cy="356.4" r="5" fill="#e8c35a" opacity="0.8"><title>utility_budget_plus_0: 0, 3.08e+07</title></circle>
+<circle cx="80.0" cy="356.4" r="5" fill="#e8c35a" opacity="0.8"><title>utility_budget_plus_0: 0, 3.08e+07</title></circle>
+<circle cx="209.2" cy="351.6" r="5" fill="#e8c35a" opacity="0.8"><title>utility_budget_plus_5: 0.05, 3.136e+07</title></circle>
+<circle cx="209.2" cy="351.6" r="5" fill="#e8c35a" opacity="0.8"><title>utility_budget_plus_5: 0.05, 3.136e+07</title></circle>
+<circle cx="209.2" cy="351.6" r="5" fill="#e8c35a" opacity="0.8"><title>utility_budget_plus_5: 0.05, 3.136e+07</title></circle>
+<circle cx="209.2" cy="351.6" r="5" fill="#e8c35a" opacity="0.8"><title>utility_budget_plus_5: 0.05, 3.136e+07</title></circle>
+<circle cx="209.2" cy="351.6" r="5" fill="#e8c35a" opacity="0.8"><title>utility_budget_plus_5: 0.05, 3.136e+07</title></circle>
+<circle cx="338.3" cy="351.6" r="5" fill="#e8c35a" opacity="0.8"><title>utility_budget_plus_10: 0.1, 3.136e+07</title></circle>
+<circle cx="338.3" cy="351.6" r="5" fill="#e8c35a" opacity="0.8"><title>utility_budget_plus_10: 0.1, 3.136e+07</title></circle>
+<circle cx="338.3" cy="351.6" r="5" fill="#e8c35a" opacity="0.8"><title>utility_budget_plus_10: 0.1, 3.136e+07</title></circle>
+<circle cx="338.3" cy="351.6" r="5" fill="#e8c35a" opacity="0.8"><title>utility_budget_plus_10: 0.1, 3.136e+07</title></circle>
+<circle cx="338.3" cy="351.6" r="5" fill="#e8c35a" opacity="0.8"><title>utility_budget_plus_10: 0.1, 3.136e+07</title></circle>
+<circle cx="596.7" cy="330.5" r="5" fill="#e8c35a" opacity="0.8"><title>utility_budget_plus_20: 0.2, 3.382e+07</title></circle>
+<circle cx="596.7" cy="330.5" r="5" fill="#e8c35a" opacity="0.8"><title>utility_budget_plus_20: 0.2, 3.382e+07</title></circle>
+<circle cx="596.7" cy="330.5" r="5" fill="#e8c35a" opacity="0.8"><title>utility_budget_plus_20: 0.2, 3.382e+07</title></circle>
+<circle cx="596.7" cy="330.5" r="5" fill="#e8c35a" opacity="0.8"><title>utility_budget_plus_20: 0.2, 3.382e+07</title></circle>
+<circle cx="596.7" cy="330.5" r="5" fill="#e8c35a" opacity="0.8"><title>utility_budget_plus_20: 0.2, 3.382e+07</title></circle>
+<circle cx="855.0" cy="330.5" r="5" fill="#e8c35a" opacity="0.8"><title>utility_budget_plus_30: 0.3, 3.382e+07</title></circle>
+<circle cx="855.0" cy="330.5" r="5" fill="#e8c35a" opacity="0.8"><title>utility_budget_plus_30: 0.3, 3.382e+07</title></circle>
+<circle cx="855.0" cy="330.5" r="5" fill="#e8c35a" opacity="0.8"><title>utility_budget_plus_30: 0.3, 3.382e+07</title></circle>
+<circle cx="855.0" cy="330.5" r="5" fill="#e8c35a" opacity="0.8"><title>utility_budget_plus_30: 0.3, 3.382e+07</title></circle>
+<circle cx="855.0" cy="330.5" r="5" fill="#e8c35a" opacity="0.8"><title>utility_budget_plus_30: 0.3, 3.382e+07</title></circle>
+<circle cx="80.0" cy="375.8" r="5" fill="#e8c35a" opacity="0.8"><title>utility_budget_plus_0: 0, 2.853e+07</title></circle>
+<circle cx="209.2" cy="370.4" r="5" fill="#e8c35a" opacity="0.8"><title>utility_budget_plus_5: 0.05, 2.917e+07</title></circle>
+<circle cx="338.3" cy="370.4" r="5" fill="#e8c35a" opacity="0.8"><title>utility_budget_plus_10: 0.1, 2.917e+07</title></circle>
+<circle cx="596.7" cy="349.2" r="5" fill="#e8c35a" opacity="0.8"><title>utility_budget_plus_20: 0.2, 3.164e+07</title></circle>
+<circle cx="855.0" cy="349.2" r="5" fill="#e8c35a" opacity="0.8"><title>utility_budget_plus_30: 0.3, 3.164e+07</title></circle>
+<circle cx="80.0" cy="363.0" r="5" fill="#e8c35a" opacity="0.8"><title>utility_budget_plus_0: 0, 3.004e+07</title></circle>
+<circle cx="209.2" cy="351.4" r="5" fill="#e8c35a" opacity="0.8"><title>utility_budget_plus_5: 0.05, 3.138e+07</title></circle>
+<circle cx="338.3" cy="351.4" r="5" fill="#e8c35a" opacity="0.8"><title>utility_budget_plus_10: 0.1, 3.138e+07</title></circle>
+<circle cx="596.7" cy="351.4" r="5" fill="#e8c35a" opacity="0.8"><title>utility_budget_plus_20: 0.2, 3.138e+07</title></circle>
+<circle cx="855.0" cy="351.4" r="5" fill="#e8c35a" opacity="0.8"><title>utility_budget_plus_30: 0.3, 3.138e+07</title></circle>
+<text x="855" y="45" text-anchor="end" fill="#9db2c1" font-size="11">utility_budget_plus_0 | utility_budget_plus_10 | utility_budget_plus_20 | utility_budget_plus_30 | utility_budget_plus_5</text>
+</svg>

@@ -163,6 +163,23 @@ unknown       <- GROUND_OCCLUDED or stale (see §3)
 non-drivable  <- otherwise
 ```
 
+The map also retains the perception-stage `drivable_evidence` as signed,
+confidence-weighted source evidence for inspection and LOD. It is the result of
+the configured generic terrain thresholds (`TerrainAnalyzer` slope, roughness,
+and step limits), not a universal robot-cost value. The downstream
+`TerrainClassifier` takes an explicit `VehicleProfile` and evaluates the
+retained physical observations against that platform's limits. The benchmark
+costmap adapter follows the same separation: it uses semantic evidence and
+physical ground slope/roughness/obstacle/overhead measurements with the chosen
+profile, and does not interpret the generic `drivable_evidence` sign as a
+vehicle-independent veto.
+
+Directional terrain evidence is retained as world-frame plane gradients
+`dz/dx` and `dz/dy` plus a support count. Where supported, consumers derive
+the upward unit normal as `normalize((-dz/dx, -dz/dy, 1))`, slope magnitude as
+`atan(hypot(dz/dx, dz/dy))`, and aspect from the gradient direction. Missing
+gradient support remains unavailable; it is not encoded as a flat surface.
+
 ### 2.5 Memory: the honest number
 
 `HeightLayer` is 32 B (the double forces 8-byte alignment, so the five
@@ -175,16 +192,16 @@ it was wrong. **Measured, on the implemented code:**
 | Struct | Original | Peak | Now |
 | --- | --- | --- | --- |
 | `HeightLayer` | — | 32 B | 32 B |
-| `CellStats` | 88 B | 200 B | **168 B** |
-| `Leaf` | 104 B | 216 B | **184 B** |
+| `CellStats` | 88 B | 200 B | **168 B before retained ground direction; 176 B currently** |
+| `Leaf` | 104 B | 216 B | **184 B before retained ground direction; 192 B currently** |
+| `Observation` | 80 B | 80 B | **88 B currently** — V4 carries two ground-plane derivatives |
 
 A byte-wide encoding of the evidence fields would reach 144 B / 160 B.
 It was built, measured, and reverted; see consequence 1 below.
-| `Observation` | 80 B | 80 B | 80 B — the new field fit in tail padding |
 
 `sizeof(Leaf)` is what `MapMemoryAccounting::logical_payload_bytes`
-multiplies by, so **the map's logical payload is 1.77x its original
-size** — down from the 2.08x it peaked at.
+multiplies by, so the current map leaf payload is **1.85x its original
+size** (192 / 104), up from 1.77x before ground direction was retained.
 `tests/test_layered_terrain.cpp` pins these numbers so they cannot drift
 silently, and that guard has already caught one drift.
 
@@ -202,7 +219,7 @@ Three consequences that must be stated plainly and not buried:
    resolution controller is what earns it back, by coarsening flat
    regions that now provably have nothing to lose. The layers are what
    make that provable — which is the argument for the implementation
-   order in § 5. At 1.77x, the controller must free roughly 43 % of
+   order in § 5. At 1.85x, the controller must free roughly 46 % of
    cells at equal quality to break even, and **until it is measured
    doing so this remains a net memory regression.** It should not be
    presented otherwise.
@@ -230,7 +247,7 @@ Three consequences that must be stated plainly and not buried:
    hardware and cite the analytical figure only as the source's
    illustration.
 
-### 2.6 Integration: closed, via protocol V3
+### 2.6 Integration: closed, via protocol V4
 
 The gap this section previously described — layers fully functional
 in-process and completely dormant on the live path, because the 19-field

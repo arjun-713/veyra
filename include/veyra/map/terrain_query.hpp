@@ -46,6 +46,8 @@ enum class TerrainReason : std::uint8_t {
   InsufficientClearance = 5, // overhead min_z leaves less than vehicle height
   StaleEvidence = 6,         // not re-confirmed inside the persistence horizon
   ClearedByVisibility = 7,   // obstacle evidence positively contradicted
+  InsufficientSlope = 8,     // directional ground fit missing when required
+  GroundTooSteep = 9,        // fitted ground slope over platform limit
 };
 
 // Platform limits. These belong to the vehicle, not to perception, which is
@@ -62,6 +64,10 @@ struct VehicleProfile {
   double roughness_limit_m = 0.08;
   // An obstacle layer this far above ground or less is surmountable.
   double step_limit_m = 0.12;
+  // Maximum fitted ground-plane slope in radians. Slope is applied only when
+  // valid directional evidence exists unless require_slope_evidence is true.
+  double max_slope_rad = 0.7853981633974483;
+  bool require_slope_evidence = false;
   // Ground returns needed before the surface height is trusted.
   std::uint32_t min_ground_returns = 3;
   // Age, in the map's own timestamp units, after which obstacle evidence is
@@ -99,6 +105,11 @@ struct TerrainVerdict {
   bool has_overhead = false;
   OccupancyState occupancy = OccupancyState::Unknown;
   double occupancy_probability = 0.5;
+  bool slope_available = false;
+  double slope_rad = 0.0;
+  double normal_x = 0.0;
+  double normal_y = 0.0;
+  double normal_z = 1.0;
 };
 
 // Classifies one cell against one platform at one frame.

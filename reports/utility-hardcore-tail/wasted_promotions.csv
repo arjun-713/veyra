@@ -1,0 +1,21 @@
+challenge_id,policy,promoted_bins,wasted_promotion_ratio,definition
+semanticposs-00-000152-semantic_object-pole-60,utility_lod,8247,0.6584212440887596,outside frozen region and no absolute elevation-error reduction
+semanticposs-00-000152-semantic_object-pole-60,a1_geometry,8208,0.6581384015594542,outside frozen region and no absolute elevation-error reduction
+semanticposs-00-000152-semantic_object-pole-60,a2_semantics,8208,0.6581384015594542,outside frozen region and no absolute elevation-error reduction
+semanticposs-00-000152-semantic_object-pole-60,a3_geometry_semantics,8222,0.6584772561420579,outside frozen region and no absolute elevation-error reduction
+semanticposs-00-000152-semantic_object-pole-60,a4_geometry_semantics_motion,8222,0.6584772561420579,outside frozen region and no absolute elevation-error reduction
+semanticposs-00-000152-semantic_object-pole-60,utility_budget_plus_0,12376,0.5308661926308985,outside frozen region and no absolute elevation-error reduction
+semanticposs-00-000152-semantic_object-pole-60,utility_budget_plus_5,15729,0.48134019963125435,outside frozen region and no absolute elevation-error reduction
+semanticposs-00-000152-semantic_object-pole-60,utility_budget_plus_10,15729,0.48134019963125435,outside frozen region and no absolute elevation-error reduction
+semanticposs-00-000152-semantic_object-pole-60,utility_budget_plus_20,31251,0.42101052766311475,outside frozen region and no absolute elevation-error reduction
+semanticposs-00-000152-semantic_object-pole-60,utility_budget_plus_30,31251,0.42101052766311475,outside frozen region and no absolute elevation-error reduction
+semanticposs-01-000421-semantic_object-pedestrian-60,utility_lod,4051,0.6435448037521599,outside frozen region and no absolute elevation-error reduction
+semanticposs-01-000421-semantic_object-pedestrian-60,a1_geometry,4004,0.6418581418581418,outside frozen region and no absolute elevation-error reduction
+semanticposs-01-000421-semantic_object-pedestrian-60,a2_semantics,4004,0.6418581418581418,outside frozen region and no absolute elevation-error reduction
+semanticposs-01-000421-semantic_object-pedestrian-60,a3_geometry_semantics,4051,0.6440385090101209,outside frozen region and no absolute elevation-error reduction
+semanticposs-01-000421-semantic_object-pedestrian-60,a4_geometry_semantics_motion,4051,0.6440385090101209,outside frozen region and no absolute elevation-error reduction
+semanticposs-01-000421-semantic_object-pedestrian-60,utility_budget_plus_0,8084,0.510019792182088,outside frozen region and no absolute elevation-error reduction
+semanticposs-01-000421-semantic_object-pedestrian-60,utility_budget_plus_5,16178,0.48176536036592904,outside frozen region and no absolute elevation-error reduction
+semanticposs-01-000421-semantic_object-pedestrian-60,utility_budget_plus_10,16178,0.48176536036592904,outside frozen region and no absolute elevation-error reduction
+semanticposs-01-000421-semantic_object-pedestrian-60,utility_budget_plus_20,16178,0.48176536036592904,outside frozen region and no absolute elevation-error reduction
+semanticposs-01-000421-semantic_object-pedestrian-60,utility_budget_plus_30,16178,0.48176536036592904,outside frozen region and no absolute elevation-error reduction
