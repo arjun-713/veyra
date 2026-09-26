@@ -49,7 +49,8 @@ class RuntimeConfig:
 # Seventeen float32 per display cell (visualization schema v3); 100,000
 # cells is the engine's budget ceiling.
 _CELL_ROW_BYTES = 17 * 4
-_MAX_BINARY_CELL_BYTES = 100000 * _CELL_ROW_BYTES
+_PHYSICAL_LAYER_ROW_BYTES = 15 * 4
+_MAX_BINARY_CELL_BYTES = 100000 * (_CELL_ROW_BYTES + _PHYSICAL_LAYER_ROW_BYTES)
 
 
 def load_runtime_config(path: str | Path) -> RuntimeConfig:
@@ -130,6 +131,7 @@ class PersistentMapEngine:
         self._responses = queue.Queue(maxsize=2)
         self._stderr_tail = deque(maxlen=16)
         self._lock = threading.RLock()
+        self._physical_layers_version = None
 
     def _start(self) -> dict[str, Any] | None:
         if not self.executable.is_file():
@@ -180,6 +182,7 @@ class PersistentMapEngine:
         if ready.get("status") != "ready":
             self.close()
             return ready
+        self._physical_layers_version = ready.get("physical_layers_version")
         return None
 
     @property
@@ -369,25 +372,46 @@ class PersistentMapEngine:
         ``cells_binary`` holds ``cell_count`` rows of seventeen little-endian
         float32 in the visualization schema-v3 cell layout (see
         runtime/visualization.py): the frame's cell section, unparsed.
+        Negotiated layer support adds a separate ``physical_layers_binary``
+        buffer in exactly the same sampled order, without changing those rows.
         """
 
         with self._lock:
             clipped = max(1, min(int(budget), 100000))
-            response = self._command(f"MB {clipped}\n")
+            unavailable = self._start() if self._process is None else None
+            if unavailable is not None:
+                return unavailable
+            command = "ML" if self._physical_layers_version == 1 else "MB"
+            response = self._exchange(f"{command} {clipped}\n")
         payload = response.get("binary")
         if response.get("status") != "available" or not isinstance(payload, bytes):
             return {
                 "status": "unavailable",
                 "reason": response.get("reason", "map cells unavailable"),
             }
-        if len(payload) != response.get("cell_count", -1) * _CELL_ROW_BYTES:
+        count = response.get("cell_count")
+        if (
+            isinstance(count, bool)
+            or not isinstance(count, int)
+            or not 0 <= count <= clipped
+        ):
+            return {"status": "unavailable", "reason": "map cell count is invalid"}
+        cell_bytes = count * _CELL_ROW_BYTES
+        has_layers = response.get("physical_layers_version") == 1
+        expected_bytes = cell_bytes + (
+            count * _PHYSICAL_LAYER_ROW_BYTES if has_layers else 0
+        )
+        if len(payload) != expected_bytes:
             return {"status": "unavailable", "reason": "map cells size mismatch"}
-        return {
+        result = {
             "status": "available",
             "cell_count": response["cell_count"],
             "total_leaves": response.get("total_leaves", 0),
-            "cells_binary": payload,
+            "cells_binary": payload[:cell_bytes],
         }
+        if has_layers:
+            result["physical_layers_binary"] = payload[cell_bytes:]
+        return result
 
     def set_governor_override(self, mode: str) -> dict[str, Any]:
         if mode not in {"automatic", "disabled", "conserve"}:

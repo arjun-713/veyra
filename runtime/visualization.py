@@ -5,6 +5,7 @@ import numpy as np
 # v3 display cell: 17 little-endian float32 per row (see pack_visualization).
 CELL_FLOATS = 17
 CELL_STRIDE = CELL_FLOATS * 4
+PHYSICAL_LAYER_STRIDE = 15 * 4
 
 
 def pack_visualization(frame, cells, generation):
@@ -70,7 +71,23 @@ def pack_visualization(frame, cells, generation):
         )
     # The engine's binary rows already use this section's layout; forward them.
     cell_bytes = binary if binary is not None else mapped.tobytes()
+    if len(cell_bytes) % CELL_STRIDE:
+        raise ValueError("map cell binary size is invalid")
     cell_count = len(cell_bytes) // CELL_STRIDE
+    layer_bytes = cells.get("physical_layers_binary") if available else None
+    if layer_bytes is None and rows and any("physical_layers" in row for row in rows):
+        layer_rows = np.asarray(
+            [row.get("physical_layers", [float("nan")] * 15) for row in rows],
+            dtype="<f4",
+        )
+        if layer_rows.shape != (cell_count, 15):
+            raise ValueError("physical layer rows must contain fifteen values")
+        layer_bytes = layer_rows.tobytes()
+    if (
+        layer_bytes is not None
+        and len(layer_bytes) != cell_count * PHYSICAL_LAYER_STRIDE
+    ):
+        raise ValueError("physical layer binary size does not match cells")
     status = frame["pipeline_status"]
     metadata = {
         "type": "visualization",
@@ -101,4 +118,11 @@ def pack_visualization(frame, cells, generation):
         "n_points": frame["n_points"],
         "total_leaves": cells.get("total_leaves", 0),
     }
-    return metadata, points.tobytes() + cell_bytes
+    if layer_bytes is not None:
+        metadata["physical_layers"] = {
+            "version": 1,
+            "count": cell_count,
+            "offset": points.nbytes + len(cell_bytes),
+            "stride": PHYSICAL_LAYER_STRIDE,
+        }
+    return metadata, points.tobytes() + cell_bytes + (layer_bytes or b"")

@@ -524,8 +524,18 @@ class ProductServiceTests(unittest.TestCase):
             self.assertEqual(metadata["points"]["stride"], 68)
             self.assertEqual(metadata["cells"]["stride"], 68)
             self.assertEqual(
-                len(payload),
+                metadata["physical_layers"]["offset"],
                 metadata["points"]["count"] * 68 + metadata["cells"]["count"] * 68,
+            )
+            self.assertEqual(metadata["physical_layers"]["version"], 1)
+            self.assertEqual(
+                metadata["physical_layers"]["count"], metadata["cells"]["count"]
+            )
+            self.assertEqual(metadata["physical_layers"]["stride"], 60)
+            self.assertEqual(
+                len(payload),
+                metadata["physical_layers"]["offset"]
+                + metadata["physical_layers"]["count"] * 60,
             )
         finally:
             service.close()
@@ -541,7 +551,9 @@ class ProductServiceTests(unittest.TestCase):
             staged = root / "staged" / "bin" / "veyra_benchmark"
             staged.parent.mkdir(parents=True)
             staged.write_bytes(b"staged")
-            fallback = root / "repo" / "build" / "apps" / "benchmark" / "veyra_benchmark"
+            fallback = (
+                root / "repo" / "build" / "apps" / "benchmark" / "veyra_benchmark"
+            )
             fallback.parent.mkdir(parents=True)
             fallback.write_bytes(b"dev")
             service.repo = root / "staged"

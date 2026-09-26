@@ -4,7 +4,6 @@ use serde_json::{Map, Value};
 
 const MAX_EVENT_BYTES: usize = 1_048_576;
 const TELEMETRY_SCHEMA_VERSION: u64 = 1;
-const VISUALIZATION_SCHEMA_VERSION: u64 = 2;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) enum EventChannel {
@@ -53,10 +52,14 @@ pub(crate) fn normalize_event(mut payload: Value) -> Result<NormalizedEvent, Str
             return Err("telemetry event must declare schema_version 1".to_owned());
         }
         Some("visualization")
-            if object.get("schema_version").and_then(Value::as_u64)
-                != Some(VISUALIZATION_SCHEMA_VERSION) =>
+            if !matches!(
+                object.get("schema_version").and_then(Value::as_u64),
+                Some(2 | 3)
+            ) =>
         {
-            return Err("visualization event must declare schema_version 2".to_owned());
+            return Err(
+                "visualization event must declare supported schema_version 2 or 3".to_owned(),
+            );
         }
         _ => {}
     }
@@ -137,6 +140,17 @@ mod tests {
         let (channel, payload) = event_payload(normalized.payload, vec![1, 2, 3]).unwrap();
         assert_eq!(channel, EventChannel::Visualization);
         assert_eq!(payload["payload"][2], 3);
+    }
+
+    #[test]
+    fn current_visualization_schema_keeps_optional_physical_layer_metadata() {
+        let event = json!({
+            "type": "visualization", "schema_version": 3,
+            "physical_layers": {"version": 1, "count": 1, "offset": 68, "stride": 60}
+        });
+        let normalized = normalize_event(event).unwrap();
+        assert_eq!(normalized.payload["physical_layers"]["stride"], 60);
+        assert_eq!(normalized.channel, EventChannel::Visualization);
     }
 
     #[test]
