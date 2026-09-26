@@ -1,0 +1,326 @@
+[
+  {
+    "file": "overview-empty.png",
+    "capture": "WebKitWebDriver",
+    "state": "No session",
+    "screen": "Overview"
+  },
+  {
+    "file": "evaluation-unavailable.png",
+    "capture": "WebKitWebDriver",
+    "state": "No session",
+    "screen": "Evaluation"
+  },
+  {
+    "file": "performance-waiting.png",
+    "capture": "WebKitWebDriver",
+    "state": "No session",
+    "screen": "Performance"
+  },
+  {
+    "file": "viewer-empty.png",
+    "capture": "WebKitWebDriver",
+    "state": "No session",
+    "screen": "Viewer"
+  },
+  {
+    "file": "setup-empty.png",
+    "capture": "WebKitWebDriver",
+    "state": "No session",
+    "screen": "Session setup"
+  },
+  {
+    "file": "setup-selected.png",
+    "capture": "WebKitWebDriver",
+    "state": "No session",
+    "screen": "Session setup"
+  },
+  {
+    "file": "setup-advanced.png",
+    "capture": "WebKitWebDriver",
+    "state": "No session",
+    "screen": "Session setup"
+  },
+  {
+    "file": "configuration-error.png",
+    "capture": "WebKitWebDriver",
+    "state": "No session",
+    "screen": "Session setup"
+  },
+  {
+    "file": "dataset-error.png",
+    "capture": "WebKitWebDriver",
+    "state": "No session",
+    "screen": "Session setup"
+  },
+  {
+    "file": "preview-requested.png",
+    "capture": "WebKitWebDriver",
+    "state": "No session",
+    "screen": "Session setup"
+  },
+  {
+    "file": "viewer-preview.png",
+    "capture": "WebKitWebDriver",
+    "state": "Paused",
+    "screen": "Viewer"
+  },
+  {
+    "file": "viewer-playing.png",
+    "capture": "WebKitWebDriver",
+    "state": "Playing",
+    "screen": "Viewer"
+  },
+  {
+    "file": "viewer-paused.png",
+    "capture": "WebKitWebDriver",
+    "state": "Paused",
+    "screen": "Viewer"
+  },
+  {
+    "file": "viewer-speed.png",
+    "capture": "WebKitWebDriver",
+    "state": "Paused",
+    "screen": "Viewer"
+  },
+  {
+    "file": "viewer-elevation.png",
+    "capture": "WebKitWebDriver",
+    "state": "Paused",
+    "screen": "Viewer"
+  },
+  {
+    "file": "viewer-camera-top.png",
+    "capture": "WebKitWebDriver",
+    "state": "Paused",
+    "screen": "Viewer"
+  },
+  {
+    "file": "viewer-camera-driver.png",
+    "capture": "WebKitWebDriver",
+    "state": "Paused",
+    "screen": "Viewer"
+  },
+  {
+    "file": "viewer-camera-orbit.png",
+    "capture": "WebKitWebDriver",
+    "state": "Paused",
+    "screen": "Viewer"
+  },
+  {
+    "file": "viewer-inspection-map.png",
+    "capture": "WebKitWebDriver",
+    "state": "Paused",
+    "screen": "Viewer"
+  },
+  {
+    "file": "viewer-cell-inspector.png",
+    "capture": "WebKitWebDriver",
+    "state": "Paused",
+    "screen": "Viewer"
+  },
+  {
+    "file": "viewer-visibility-raw.png",
+    "capture": "WebKitWebDriver",
+    "state": "Paused",
+    "screen": "Viewer"
+  },
+  {
+    "file": "viewer-visibility-map.png",
+    "capture": "WebKitWebDriver",
+    "state": "Paused",
+    "screen": "Viewer"
+  },
+  {
+    "file": "viewer-visibility-both.png",
+    "capture": "WebKitWebDriver",
+    "state": "Paused",
+    "screen": "Viewer"
+  },
+  {
+    "file": "viewer-seek.png",
+    "capture": "WebKitWebDriver",
+    "state": "Paused",
+    "screen": "Viewer"
+  },
+  {
+    "file": "viewer-ground.png",
+    "capture": "WebKitWebDriver",
+    "state": "Paused",
+    "screen": "Viewer"
+  },
+  {
+    "file": "viewer-traversability.png",
+    "capture": "WebKitWebDriver",
+    "state": "Paused",
+    "screen": "Viewer"
+  },
+  {
+    "file": "viewer-motion.png",
+    "capture": "WebKitWebDriver",
+    "state": "Paused",
+    "screen": "Viewer"
+  },
+  {
+    "file": "viewer-lod-resolution.png",
+    "capture": "WebKitWebDriver",
+    "state": "Paused",
+    "screen": "Viewer"
+  },
+  {
+    "file": "viewer-utility.png",
+    "capture": "WebKitWebDriver",
+    "state": "Paused",
+    "screen": "Viewer"
+  },
+  {
+    "file": "viewer-semantic.png",
+    "capture": "WebKitWebDriver",
+    "state": "Paused",
+    "screen": "Viewer"
+  },
+  {
+    "file": "viewer-uniform40.png",
+    "capture": "WebKitWebDriver",
+    "state": "Paused",
+    "screen": "Viewer"
+  },
+  {
+    "file": "viewer-distance_lod.png",
+    "capture": "WebKitWebDriver",
+    "state": "Paused",
+    "screen": "Viewer"
+  },
+  {
+    "file": "viewer-webgl-context-lost.png",
+    "capture": "WebKitWebDriver",
+    "state": "Paused",
+    "screen": "Viewer"
+  },
+  {
+    "file": "viewer-webgl-context-restored.png",
+    "capture": "WebKitWebDriver",
+    "state": "Paused",
+    "screen": "Viewer"
+  },
+  {
+    "file": "performance-measured.png",
+    "capture": "WebKitWebDriver",
+    "state": "Paused",
+    "screen": "Performance"
+  },
+  {
+    "file": "performance-memory-detail.png",
+    "capture": "WebKitWebDriver",
+    "state": "Paused",
+    "screen": "Performance"
+  },
+  {
+    "file": "performance-health-detail.png",
+    "capture": "WebKitWebDriver",
+    "state": "Paused",
+    "screen": "Performance"
+  },
+  {
+    "file": "performance-governor-detail.png",
+    "capture": "WebKitWebDriver",
+    "state": "Paused",
+    "screen": "Performance"
+  },
+  {
+    "file": "performance-governor-conserve.png",
+    "capture": "WebKitWebDriver",
+    "state": "Paused",
+    "screen": "Performance"
+  },
+  {
+    "file": "performance-governor-automatic.png",
+    "capture": "WebKitWebDriver",
+    "state": "Paused",
+    "screen": "Performance"
+  },
+  {
+    "file": "validation-requested.png",
+    "capture": "WebKitWebDriver",
+    "state": "Paused",
+    "screen": "Evaluation"
+  },
+  {
+    "file": "validation-result.png",
+    "capture": "WebKitWebDriver",
+    "state": "Paused",
+    "screen": "Evaluation"
+  },
+  {
+    "file": "benchmark-requested.png",
+    "capture": "WebKitWebDriver",
+    "state": "Paused",
+    "screen": "Evaluation"
+  },
+  {
+    "file": "benchmark-result.png",
+    "capture": "WebKitWebDriver",
+    "state": "Paused",
+    "screen": "Evaluation"
+  },
+  {
+    "file": "evaluation-policy-comparison.png",
+    "capture": "WebKitWebDriver",
+    "state": "Paused",
+    "screen": "Evaluation"
+  },
+  {
+    "file": "evaluation-reconstruction-details.png",
+    "capture": "WebKitWebDriver",
+    "state": "Paused",
+    "screen": "Evaluation"
+  },
+  {
+    "file": "evaluation-accuracy-tradeoff.png",
+    "capture": "WebKitWebDriver",
+    "state": "Paused",
+    "screen": "Evaluation"
+  },
+  {
+    "file": "evaluation-completion.png",
+    "capture": "WebKitWebDriver",
+    "state": "Paused",
+    "screen": "Evaluation"
+  },
+  {
+    "file": "evaluation-surfaceChamfer.png",
+    "capture": "WebKitWebDriver",
+    "state": "Paused",
+    "screen": "Evaluation"
+  },
+  {
+    "file": "dashboard.png",
+    "capture": "WebKitWebDriver",
+    "state": "Paused",
+    "screen": "Overview"
+  },
+  {
+    "file": "setup-session-active.png",
+    "capture": "WebKitWebDriver",
+    "state": "Paused",
+    "screen": "Session setup"
+  },
+  {
+    "file": "runtime-restarted.png",
+    "capture": "WebKitWebDriver",
+    "state": "Paused",
+    "screen": "Session setup"
+  },
+  {
+    "file": "runtime-stopped.png",
+    "capture": "WebKitWebDriver",
+    "state": "Ready",
+    "screen": "Session setup"
+  },
+  {
+    "file": "overview-stopped.png",
+    "capture": "WebKitWebDriver",
+    "state": "Ready",
+    "screen": "Overview"
+  }
+]
