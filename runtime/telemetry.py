@@ -213,17 +213,45 @@ class Telemetry:
         execution_provider = runtime_execution or semantic_config.get(
             "execution_provider"
         )
-        provider = (
-            semantic_config.get("provider")
-            or semantic_config.get("backend")
-            or semantic_config.get("mode")
+        # Verified status wins over static config: requested is what was asked,
+        # actual is what the running provider reported. Provider identity is
+        # derived from ACTUAL only -- Ground Truth iff actual==ground_truth --
+        # never from requested, so a silent fallback can never read as a model.
+        semantic_requested = pipeline_status.get(
+            "semantic_requested", pipeline_status.get("semantic_requested_mode")
         )
-        model = semantic_config.get("model") or semantic_config.get("checkpoint")
-        if provider == "ground_truth":
+        semantic_actual = pipeline_status.get("semantic", "unavailable")
+        semantic_fallback_reason = pipeline_status.get("semantic_fallback_reason")
+        # Fail-closed model identity (issue #53, review point 7): `model`
+        # is the VERIFIED checkpoint identity from pipeline status only.
+        # Static config (model/checkpoint) must never fill `model` -- on a
+        # CENet->allowed GT fallback the status model is None and the
+        # configured CENet checkpoint must not re-appear as if running.
+        # The requested checkpoint survives only under `requested_model`.
+        requested_model = semantic_config.get("model") or semantic_config.get(
+            "checkpoint"
+        )
+        model = pipeline_status.get("semantic_model")
+        if model in ("", "unavailable"):
+            model = None
+        if semantic_actual == "ground_truth":
+            model = None
+        if semantic_actual == "ground_truth":
             provider = "Ground Truth"
             if not execution_provider:
                 execution_provider = "bypassed"
-        semantic_status = pipeline_status.get("semantic", "unavailable")
+        else:
+            provider = (
+                semantic_config.get("provider")
+                or semantic_config.get("backend")
+                or semantic_config.get("mode")
+                or semantic_actual
+            )
+            if provider == "ground_truth":
+                # Config requested GT but verified actual is not GT; report
+                # the verified value rather than a stale config claim.
+                provider = semantic_actual
+        semantic_status = semantic_actual
 
         def cpu_percent(process_id):
             current = cpu_seconds(process_id)
@@ -324,7 +352,11 @@ class Telemetry:
                 "backend": semantic_status,
                 "provider": provider,
                 "model": model,
+                "requested_model": requested_model,
                 "execution_provider": execution_provider,
+                "semantic_requested": semantic_requested,
+                "semantic_actual": semantic_actual,
+                "semantic_fallback_reason": semantic_fallback_reason,
                 "points": point_count,
                 "sampled_points": len(semantic) if semantic is not None else None,
                 "ground_ratio": (
