@@ -4,7 +4,7 @@
  let host:HTMLDivElement,plot:uPlot|null=null;
  function data():uPlot.AlignedData{return [samples.map((s:Record<string,any>)=>s.timestamp),samples.map((s:Record<string,any>)=>typeof s[metric]==='number'?s[metric]:null)];}
  $effect(()=>{samples;metric;plot?.setData(data());});
- onMount(()=>{plot=new uPlot({width:host.clientWidth||500,height:180,legend:{show:false},cursor:{show:true},axes:[{stroke:'#6d8397',grid:{stroke:'#1d2b38'}},{stroke:'#6d8397',grid:{stroke:'#1d2b38'}}],series:[{}, {label,stroke:color,width:2,fill:color+'12'}]},data(),host);const resize=new ResizeObserver(()=>plot?.setSize({width:host.clientWidth,height:180}));resize.observe(host);return()=>{resize.disconnect();plot?.destroy();plot=null;};});
+ onMount(()=>{plot=new uPlot({width:host.clientWidth||500,height:180,legend:{show:false},cursor:{show:true},axes:[{stroke:'#626269',grid:{stroke:'#ededf0'}},{stroke:'#626269',grid:{stroke:'#ededf0'}}],series:[{}, {label,stroke:color,width:2,fill:color+'12'}]},data(),host);const resize=new ResizeObserver(()=>plot?.setSize({width:host.clientWidth,height:180}));resize.observe(host);return()=>{resize.disconnect();plot?.destroy();plot=null;};});
 </script>
 <div class="chart" bind:this={host}></div>
 <style>.chart{width:100%;min-width:0;height:180px}</style>

@@ -1,0 +1,1365 @@
+{
+  "frames": [
+    {
+      "index": 0,
+      "points": 13332,
+      "bytes": 1241844,
+      "schema": 2,
+      "cells": 9313
+    },
+    {
+      "index": 1,
+      "points": 13331,
+      "bytes": 1245124,
+      "schema": 2,
+      "cells": 9406
+    },
+    {
+      "index": 2,
+      "points": 13324,
+      "bytes": 1234388,
+      "schema": 2,
+      "cells": 9121
+    },
+    {
+      "index": 3,
+      "points": 13307,
+      "bytes": 1247776,
+      "schema": 2,
+      "cells": 9525
+    },
+    {
+      "index": 4,
+      "points": 13310,
+      "bytes": 1255432,
+      "schema": 2,
+      "cells": 9732
+    },
+    {
+      "index": 0,
+      "points": 13332,
+      "bytes": 1241844,
+      "schema": 2,
+      "cells": 9313
+    },
+    {
+      "index": 0,
+      "points": 13332,
+      "bytes": 1135392,
+      "schema": 2,
+      "cells": 6356
+    },
+    {
+      "index": 0,
+      "points": 13332,
+      "bytes": 1241844,
+      "schema": 2,
+      "cells": 9313
+    }
+  ],
+  "telemetry": [
+    {
+      "index": 0,
+      "perception_stages_ms": {
+        "temporal": 0.004407000233186409,
+        "total": 295.8037959997455,
+        "terrain": 204.34294599999703,
+        "ground": 76.81704800052103,
+        "semantic": 0.3856560006170184,
+        "sensor_transform": 3.551750000042375
+      },
+      "health": {
+        "runtime": "paused",
+        "telemetry": "fresh",
+        "mapper": "available",
+        "perception": "ground_truth"
+      },
+      "queue_depth": 0,
+      "frames": 30,
+      "schema_version": 1,
+      "governor": {
+        "budget": null,
+        "state": "unavailable"
+      },
+      "state": "paused",
+      "fps": null,
+      "dropped_frames": 0,
+      "visualization_dropped": 0,
+      "latency_ms": {
+        "mapping": 138.53671,
+        "end_to_end": {
+          "p95": 883.3978739994564,
+          "p99": 883.3978739994564,
+          "count": 1,
+          "p50": 883.3978739994564
+        },
+        "visualization": 167.22151700014365,
+        "ipc": null,
+        "perception": 295.8037959997455
+      },
+      "timestamp": 1790393156.5038583,
+      "map": {
+        "splits_per_frame": 42,
+        "logical_bytes": 6858600,
+        "merges_per_second": null,
+        "cells_by_level": [
+          6940,
+          19297,
+          8656,
+          2357
+        ],
+        "merges_per_frame": 40,
+        "topology_changes": null,
+        "splits_per_second": null,
+        "active_cells": 37250,
+        "allocated_bytes": 10192272
+      },
+      "type": "telemetry",
+      "stale": false,
+      "processes": [
+        {
+          "cpu_percent": null,
+          "name": "runtime",
+          "rss_bytes": 134082560,
+          "pid": 203
+        },
+        {
+          "cpu_percent": null,
+          "name": "mapper",
+          "rss_bytes": 26275840,
+          "pid": 384
+        }
+      ],
+      "perception": {
+        "unknown_ratio": 0.033228322832283226,
+        "track_counts": null,
+        "ground_ratio": 0.3277077707770777,
+        "sampled_points": 13332,
+        "drivable_counts": {
+          "non_drivable": 663,
+          "drivable": 3627,
+          "unknown": 9042
+        },
+        "model": null,
+        "semantic_class_counts": {
+          "0": 443,
+          "12": 3607,
+          "15": 3301,
+          "13": 2423,
+          "2": 293,
+          "6": 72,
+          "18": 125,
+          "7": 16,
+          "19": 111,
+          "14": 578,
+          "1": 2363
+        },
+        "motion_point_counts": {
+          "unknown": 13332
+        },
+        "status": {
+          "temporal": "disabled",
+          "terrain": "available",
+          "ground": "pypatchworkpp.patchworkpp",
+          "semantic": "ground_truth"
+        },
+        "backend": "ground_truth",
+        "execution_provider": null,
+        "points": 66658,
+        "semantic_confidence_mean": 0.9667716771677168,
+        "provenance": {
+          "calibration_source": "dataset",
+          "timestamp_source": "absent",
+          "pose_source": "dataset",
+          "coordinate_frame": "world"
+        },
+        "provider": "Ground Truth"
+      }
+    },
+    {
+      "index": 1,
+      "perception_stages_ms": {
+        "temporal": 0.0009449995559407398,
+        "total": 193.3609690004232,
+        "terrain": 102.28450100021291,
+        "ground": 74.57014600004186,
+        "semantic": 0.5376969993449165,
+        "sensor_transform": 3.139131999887468
+      },
+      "health": {
+        "runtime": "running",
+        "telemetry": "fresh",
+        "mapper": "available",
+        "perception": "ground_truth"
+      },
+      "queue_depth": 0,
+      "frames": 30,
+      "schema_version": 1,
+      "governor": {
+        "budget": null,
+        "state": "unavailable"
+      },
+      "state": "running",
+      "fps": 0.33224719289498134,
+      "dropped_frames": 0,
+      "visualization_dropped": 0,
+      "latency_ms": {
+        "mapping": 138.53671,
+        "end_to_end": {
+          "p95": 883.3978739994564,
+          "p99": 883.3978739994564,
+          "count": 2,
+          "p50": 762.7588300001662
+        },
+        "visualization": 108.4538490003979,
+        "ipc": null,
+        "perception": 193.3609690004232
+      },
+      "timestamp": 1790393159.5145147,
+      "map": {
+        "splits_per_frame": 61,
+        "logical_bytes": 10396920,
+        "merges_per_second": 23.257303502648693,
+        "cells_by_level": [
+          11942,
+          29497,
+          12015,
+          2982
+        ],
+        "merges_per_frame": 70,
+        "topology_changes": null,
+        "splits_per_second": 20.267078766593865,
+        "active_cells": 56436,
+        "allocated_bytes": 14676720
+      },
+      "type": "telemetry",
+      "stale": false,
+      "processes": [
+        {
+          "cpu_percent": 24.62160887616733,
+          "name": "runtime",
+          "rss_bytes": 147734528,
+          "pid": 203
+        },
+        {
+          "cpu_percent": 12.957503556330622,
+          "name": "mapper",
+          "rss_bytes": 39182336,
+          "pid": 384
+        }
+      ],
+      "perception": {
+        "unknown_ratio": 0.033455854774585556,
+        "track_counts": null,
+        "ground_ratio": 0.33088290450828894,
+        "sampled_points": 13331,
+        "drivable_counts": {
+          "non_drivable": 671,
+          "drivable": 3654,
+          "unknown": 9006
+        },
+        "model": null,
+        "semantic_class_counts": {
+          "0": 446,
+          "12": 3660,
+          "15": 3267,
+          "13": 2393,
+          "2": 300,
+          "6": 72,
+          "18": 157,
+          "7": 15,
+          "19": 110,
+          "14": 581,
+          "1": 2330
+        },
+        "motion_point_counts": {
+          "unknown": 13331
+        },
+        "status": {
+          "temporal": "disabled",
+          "terrain": "available",
+          "ground": "pypatchworkpp.patchworkpp",
+          "semantic": "ground_truth"
+        },
+        "backend": "ground_truth",
+        "execution_provider": null,
+        "points": 66653,
+        "semantic_confidence_mean": 0.9665441452254144,
+        "provenance": {
+          "calibration_source": "dataset",
+          "timestamp_source": "absent",
+          "pose_source": "dataset",
+          "coordinate_frame": "world"
+        },
+        "provider": "Ground Truth"
+      }
+    },
+    {
+      "index": 2,
+      "perception_stages_ms": {
+        "temporal": 0.0005370002327254042,
+        "total": 198.6401550002483,
+        "terrain": 95.2280339997742,
+        "ground": 92.65532600056758,
+        "semantic": 0.6803290007155738,
+        "sensor_transform": 2.696395999919332
+      },
+      "health": {
+        "runtime": "running",
+        "telemetry": "fresh",
+        "mapper": "available",
+        "perception": "ground_truth"
+      },
+      "queue_depth": 0,
+      "frames": 30,
+      "schema_version": 1,
+      "governor": {
+        "budget": null,
+        "state": "unavailable"
+      },
+      "state": "running",
+      "fps": 0.5318287589989924,
+      "dropped_frames": 0,
+      "visualization_dropped": 0,
+      "latency_ms": {
+        "mapping": 138.53671,
+        "end_to_end": {
+          "p95": 883.3978739994564,
+          "p99": 883.3978739994564,
+          "count": 3,
+          "p50": 762.7588300001662
+        },
+        "visualization": 107.41789399980917,
+        "ipc": null,
+        "perception": 198.6401550002483
+      },
+      "timestamp": 1790393160.264435,
+      "map": {
+        "splits_per_frame": 82.33333333333333,
+        "logical_bytes": 13452056,
+        "merges_per_second": 45.55999702091368,
+        "cells_by_level": [
+          16431,
+          38559,
+          14568,
+          3409
+        ],
+        "merges_per_frame": 85.66666666666667,
+        "topology_changes": null,
+        "splits_per_second": 43.78723449091704,
+        "active_cells": 72967,
+        "allocated_bytes": 19849144
+      },
+      "type": "telemetry",
+      "stale": false,
+      "processes": [
+        {
+          "cpu_percent": 101.38252437147123,
+          "name": "runtime",
+          "rss_bytes": 148996096,
+          "pid": 203
+        },
+        {
+          "cpu_percent": 50.60913999948691,
+          "name": "mapper",
+          "rss_bytes": 59584512,
+          "pid": 384
+        }
+      ],
+      "perception": {
+        "unknown_ratio": 0.03377364154908436,
+        "track_counts": null,
+        "ground_ratio": 0.3324827379165416,
+        "sampled_points": 13324,
+        "drivable_counts": {
+          "non_drivable": 623,
+          "drivable": 3726,
+          "unknown": 8975
+        },
+        "model": null,
+        "semantic_class_counts": {
+          "0": 450,
+          "12": 3649,
+          "15": 3298,
+          "13": 2402,
+          "2": 294,
+          "6": 78,
+          "18": 126,
+          "7": 11,
+          "19": 117,
+          "14": 581,
+          "1": 2318
+        },
+        "motion_point_counts": {
+          "unknown": 13324
+        },
+        "status": {
+          "temporal": "disabled",
+          "terrain": "available",
+          "ground": "pypatchworkpp.patchworkpp",
+          "semantic": "ground_truth"
+        },
+        "backend": "ground_truth",
+        "execution_provider": null,
+        "points": 66616,
+        "semantic_confidence_mean": 0.9662263584509156,
+        "provenance": {
+          "calibration_source": "dataset",
+          "timestamp_source": "absent",
+          "pose_source": "dataset",
+          "coordinate_frame": "world"
+        },
+        "provider": "Ground Truth"
+      }
+    },
+    {
+      "index": 3,
+      "perception_stages_ms": {
+        "temporal": 0.0005900001269765198,
+        "total": 214.30537099968203,
+        "terrain": 113.77781300052447,
+        "ground": 89.26280999912706,
+        "semantic": 0.4577429999699234,
+        "sensor_transform": 3.6302549997344618
+      },
+      "health": {
+        "runtime": "running",
+        "telemetry": "fresh",
+        "mapper": "available",
+        "perception": "ground_truth"
+      },
+      "queue_depth": 0,
+      "frames": 30,
+      "schema_version": 1,
+      "governor": {
+        "budget": null,
+        "state": "unavailable"
+      },
+      "state": "running",
+      "fps": 0.6457637591630757,
+      "dropped_frames": 0,
+      "visualization_dropped": 0,
+      "latency_ms": {
+        "mapping": 138.53671,
+        "end_to_end": {
+          "p95": 883.3978739994564,
+          "p99": 883.3978739994564,
+          "count": 4,
+          "p50": 762.7588300001662
+        },
+        "visualization": 125.98715300009644,
+        "ipc": null,
+        "perception": 214.30537099968203
+      },
+      "timestamp": 1790393161.149509,
+      "map": {
+        "splits_per_frame": 95.5,
+        "logical_bytes": 15814984,
+        "merges_per_second": 60.54035242153835,
+        "cells_by_level": [
+          20141,
+          45403,
+          16287,
+          3892
+        ],
+        "merges_per_frame": 93.75,
+        "topology_changes": null,
+        "splits_per_second": 61.67043900007373,
+        "active_cells": 85723,
+        "allocated_bytes": 22786888
+      },
+      "type": "telemetry",
+      "stale": false,
+      "processes": [
+        {
+          "cpu_percent": 86.44442683079576,
+          "name": "runtime",
+          "rss_bytes": 149413888,
+          "pid": 203
+        },
+        {
+          "cpu_percent": 54.239939641264336,
+          "name": "mapper",
+          "rss_bytes": 64126976,
+          "pid": 384
+        }
+      ],
+      "perception": {
+        "unknown_ratio": 0.0340422334109867,
+        "track_counts": null,
+        "ground_ratio": 0.34079807620049596,
+        "sampled_points": 13307,
+        "drivable_counts": {
+          "non_drivable": 752,
+          "drivable": 3716,
+          "unknown": 8839
+        },
+        "model": null,
+        "semantic_class_counts": {
+          "0": 453,
+          "12": 3704,
+          "15": 3300,
+          "13": 2383,
+          "2": 300,
+          "6": 82,
+          "18": 113,
+          "7": 12,
+          "19": 117,
+          "14": 570,
+          "1": 2273
+        },
+        "motion_point_counts": {
+          "unknown": 13307
+        },
+        "status": {
+          "temporal": "disabled",
+          "terrain": "available",
+          "ground": "pypatchworkpp.patchworkpp",
+          "semantic": "ground_truth"
+        },
+        "backend": "ground_truth",
+        "execution_provider": null,
+        "points": 66532,
+        "semantic_confidence_mean": 0.9659577665890132,
+        "provenance": {
+          "calibration_source": "dataset",
+          "timestamp_source": "absent",
+          "pose_source": "dataset",
+          "coordinate_frame": "world"
+        },
+        "provider": "Ground Truth"
+      }
+    },
+    {
+      "index": 4,
+      "perception_stages_ms": {
+        "temporal": 0.000705000275047496,
+        "total": 255.25658599963208,
+        "terrain": 141.21090099979483,
+        "ground": 99.00203400047758,
+        "semantic": 0.8038760006456869,
+        "sensor_transform": 2.8978859991184436
+      },
+      "health": {
+        "runtime": "running",
+        "telemetry": "fresh",
+        "mapper": "available",
+        "perception": "ground_truth"
+      },
+      "queue_depth": 1,
+      "frames": 30,
+      "schema_version": 1,
+      "governor": {
+        "budget": null,
+        "state": "unavailable"
+      },
+      "state": "running",
+      "fps": 0.7313806499641349,
+      "dropped_frames": 0,
+      "visualization_dropped": 0,
+      "latency_ms": {
+        "mapping": 152.894192,
+        "end_to_end": {
+          "p95": 883.3978739994564,
+          "p99": 883.3978739994564,
+          "count": 5,
+          "p50": 793.8951420001104
+        },
+        "visualization": 83.73145400037174,
+        "ipc": null,
+        "perception": 255.25658599963208
+      },
+      "timestamp": 1790393161.9731717,
+      "map": {
+        "splits_per_frame": 104.2,
+        "logical_bytes": 17964104,
+        "merges_per_second": 72.26040821645653,
+        "cells_by_level": [
+          23449,
+          51602,
+          17934,
+          4326
+        ],
+        "merges_per_frame": 98.8,
+        "topology_changes": null,
+        "splits_per_second": 76.20986372626285,
+        "active_cells": 97311,
+        "allocated_bytes": 24448408
+      },
+      "type": "telemetry",
+      "stale": false,
+      "processes": [
+        {
+          "cpu_percent": 86.0650429345778,
+          "name": "runtime",
+          "rss_bytes": 215658496,
+          "pid": 203
+        },
+        {
+          "cpu_percent": 49.79420316943535,
+          "name": "mapper",
+          "rss_bytes": 111882240,
+          "pid": 384
+        }
+      ],
+      "perception": {
+        "unknown_ratio": 0.0318557475582269,
+        "track_counts": null,
+        "ground_ratio": 0.3419984973703982,
+        "sampled_points": 13310,
+        "drivable_counts": {
+          "non_drivable": 768,
+          "drivable": 3708,
+          "unknown": 8834
+        },
+        "model": null,
+        "semantic_class_counts": {
+          "0": 424,
+          "12": 3693,
+          "15": 3313,
+          "13": 2369,
+          "2": 290,
+          "6": 91,
+          "18": 126,
+          "7": 16,
+          "19": 120,
+          "14": 601,
+          "1": 2267
+        },
+        "motion_point_counts": {
+          "unknown": 13310
+        },
+        "status": {
+          "temporal": "disabled",
+          "terrain": "available",
+          "ground": "pypatchworkpp.patchworkpp",
+          "semantic": "ground_truth"
+        },
+        "backend": "ground_truth",
+        "execution_provider": null,
+        "points": 66546,
+        "semantic_confidence_mean": 0.9681442524417732,
+        "provenance": {
+          "calibration_source": "dataset",
+          "timestamp_source": "absent",
+          "pose_source": "dataset",
+          "coordinate_frame": "world"
+        },
+        "provider": "Ground Truth"
+      }
+    },
+    {
+      "index": 0,
+      "perception_stages_ms": {
+        "temporal": 0.0008960005288827233,
+        "total": 215.58781700059623,
+        "terrain": 121.52128299931064,
+        "ground": 82.37030500004039,
+        "semantic": 0.572482000279706,
+        "sensor_transform": 3.087144999881275
+      },
+      "health": {
+        "runtime": "paused",
+        "telemetry": "fresh",
+        "mapper": "available",
+        "perception": "ground_truth"
+      },
+      "queue_depth": 0,
+      "frames": 30,
+      "schema_version": 1,
+      "governor": {
+        "budget": null,
+        "state": "unavailable"
+      },
+      "state": "paused",
+      "fps": 0.15295458788335206,
+      "dropped_frames": 0,
+      "visualization_dropped": 0,
+      "latency_ms": {
+        "mapping": 125.177542,
+        "end_to_end": {
+          "p95": 883.3978739994564,
+          "p99": 883.3978739994564,
+          "count": 6,
+          "p50": 762.7588300001662
+        },
+        "visualization": 114.60454700045376,
+        "ipc": null,
+        "perception": 215.58781700059623
+      },
+      "timestamp": 1790393189.1939826,
+      "map": {
+        "splits_per_frame": 42,
+        "logical_bytes": 6858600,
+        "merges_per_second": 6.118183515334082,
+        "cells_by_level": [
+          6940,
+          19297,
+          8656,
+          2357
+        ],
+        "merges_per_frame": 40,
+        "topology_changes": null,
+        "splits_per_second": 6.424092691100786,
+        "active_cells": 37250,
+        "allocated_bytes": 10192272
+      },
+      "type": "telemetry",
+      "stale": false,
+      "processes": [
+        {
+          "cpu_percent": 3.3403088128479,
+          "name": "runtime",
+          "rss_bytes": 215494656,
+          "pid": 203
+        },
+        {
+          "cpu_percent": 1.2490610487106568,
+          "name": "mapper",
+          "rss_bytes": 41967616,
+          "pid": 384
+        }
+      ],
+      "perception": {
+        "unknown_ratio": 0.033228322832283226,
+        "track_counts": null,
+        "ground_ratio": 0.3277077707770777,
+        "sampled_points": 13332,
+        "drivable_counts": {
+          "non_drivable": 663,
+          "drivable": 3627,
+          "unknown": 9042
+        },
+        "model": null,
+        "semantic_class_counts": {
+          "0": 443,
+          "12": 3607,
+          "15": 3301,
+          "13": 2423,
+          "2": 293,
+          "6": 72,
+          "18": 125,
+          "7": 16,
+          "19": 111,
+          "14": 578,
+          "1": 2363
+        },
+        "motion_point_counts": {
+          "unknown": 13332
+        },
+        "status": {
+          "temporal": "disabled",
+          "terrain": "available",
+          "ground": "pypatchworkpp.patchworkpp",
+          "semantic": "ground_truth"
+        },
+        "backend": "ground_truth",
+        "execution_provider": null,
+        "points": 66658,
+        "semantic_confidence_mean": 0.9667716771677168,
+        "provenance": {
+          "calibration_source": "dataset",
+          "timestamp_source": "absent",
+          "pose_source": "dataset",
+          "coordinate_frame": "world"
+        },
+        "provider": "Ground Truth"
+      }
+    },
+    {
+      "index": 0,
+      "perception_stages_ms": {
+        "temporal": 0.0008360002539120615,
+        "total": 262.2977519995402,
+        "terrain": 156.24611900057062,
+        "ground": 91.52044399979786,
+        "semantic": 0.5190499996388098,
+        "sensor_transform": 3.292594999948051
+      },
+      "health": {
+        "runtime": "paused",
+        "telemetry": "fresh",
+        "mapper": "available",
+        "perception": "ground_truth"
+      },
+      "queue_depth": 0,
+      "frames": 30,
+      "schema_version": 1,
+      "governor": {
+        "budget": null,
+        "state": "unavailable"
+      },
+      "state": "paused",
+      "fps": null,
+      "dropped_frames": 0,
+      "visualization_dropped": 0,
+      "latency_ms": {
+        "mapping": 323.494185,
+        "end_to_end": {
+          "p95": 913.7201969997476,
+          "p99": 913.7201969997476,
+          "count": 1,
+          "p50": 913.7201969997476
+        },
+        "visualization": 86.18610499979695,
+        "ipc": null,
+        "perception": 262.2977519995402
+      },
+      "timestamp": 1790393190.8785586,
+      "map": {
+        "splits_per_frame": 0,
+        "logical_bytes": 2338824,
+        "merges_per_second": null,
+        "cells_by_level": [
+          0,
+          0,
+          0,
+          12711
+        ],
+        "merges_per_frame": 0,
+        "topology_changes": null,
+        "splits_per_second": null,
+        "active_cells": 12711,
+        "allocated_bytes": 3543616
+      },
+      "type": "telemetry",
+      "stale": false,
+      "processes": [
+        {
+          "cpu_percent": null,
+          "name": "runtime",
+          "rss_bytes": 219635712,
+          "pid": 203
+        },
+        {
+          "cpu_percent": null,
+          "name": "mapper",
+          "rss_bytes": 13811712,
+          "pid": 404
+        }
+      ],
+      "perception": {
+        "unknown_ratio": 0.033228322832283226,
+        "track_counts": null,
+        "ground_ratio": 0.3277077707770777,
+        "sampled_points": 13332,
+        "drivable_counts": {
+          "non_drivable": 663,
+          "drivable": 3627,
+          "unknown": 9042
+        },
+        "model": null,
+        "semantic_class_counts": {
+          "0": 443,
+          "12": 3607,
+          "15": 3301,
+          "13": 2423,
+          "2": 293,
+          "6": 72,
+          "18": 125,
+          "7": 16,
+          "19": 111,
+          "14": 578,
+          "1": 2363
+        },
+        "motion_point_counts": {
+          "unknown": 13332
+        },
+        "status": {
+          "temporal": "disabled",
+          "terrain": "available",
+          "ground": "pypatchworkpp.patchworkpp",
+          "semantic": "ground_truth"
+        },
+        "backend": "ground_truth",
+        "execution_provider": null,
+        "points": 66658,
+        "semantic_confidence_mean": 0.9667716771677168,
+        "provenance": {
+          "calibration_source": "dataset",
+          "timestamp_source": "absent",
+          "pose_source": "dataset",
+          "coordinate_frame": "world"
+        },
+        "provider": "Ground Truth"
+      }
+    },
+    {
+      "index": 0,
+      "perception_stages_ms": {
+        "temporal": 0.0005530000635189936,
+        "total": 232.5634329999957,
+        "terrain": 146.60627899957035,
+        "ground": 74.2608119999204,
+        "semantic": 0.6891840002936078,
+        "sensor_transform": 3.0215779997888603
+      },
+      "health": {
+        "runtime": "paused",
+        "telemetry": "fresh",
+        "mapper": "available",
+        "perception": "ground_truth"
+      },
+      "queue_depth": 0,
+      "frames": 30,
+      "schema_version": 1,
+      "governor": {
+        "budget": null,
+        "state": "unavailable"
+      },
+      "state": "paused",
+      "fps": null,
+      "dropped_frames": 0,
+      "visualization_dropped": 0,
+      "latency_ms": {
+        "mapping": 157.942009,
+        "end_to_end": {
+          "p95": 900.2991600000314,
+          "p99": 900.2991600000314,
+          "count": 1,
+          "p50": 900.2991600000314
+        },
+        "visualization": 149.26457599995047,
+        "ipc": null,
+        "perception": 232.5634329999957
+      },
+      "timestamp": 1790393193.8886747,
+      "map": {
+        "splits_per_frame": 42,
+        "logical_bytes": 6858600,
+        "merges_per_second": null,
+        "cells_by_level": [
+          6940,
+          19297,
+          8656,
+          2357
+        ],
+        "merges_per_frame": 40,
+        "topology_changes": null,
+        "splits_per_second": null,
+        "active_cells": 37250,
+        "allocated_bytes": 10192272
+      },
+      "type": "telemetry",
+      "stale": false,
+      "processes": [
+        {
+          "cpu_percent": null,
+          "name": "runtime",
+          "rss_bytes": 219680768,
+          "pid": 203
+        },
+        {
+          "cpu_percent": null,
+          "name": "mapper",
+          "rss_bytes": 26271744,
+          "pid": 412
+        }
+      ],
+      "perception": {
+        "unknown_ratio": 0.033228322832283226,
+        "track_counts": null,
+        "ground_ratio": 0.3277077707770777,
+        "sampled_points": 13332,
+        "drivable_counts": {
+          "non_drivable": 663,
+          "drivable": 3627,
+          "unknown": 9042
+        },
+        "model": null,
+        "semantic_class_counts": {
+          "0": 443,
+          "12": 3607,
+          "15": 3301,
+          "13": 2423,
+          "2": 293,
+          "6": 72,
+          "18": 125,
+          "7": 16,
+          "19": 111,
+          "14": 578,
+          "1": 2363
+        },
+        "motion_point_counts": {
+          "unknown": 13332
+        },
+        "status": {
+          "temporal": "disabled",
+          "terrain": "available",
+          "ground": "pypatchworkpp.patchworkpp",
+          "semantic": "ground_truth"
+        },
+        "backend": "ground_truth",
+        "execution_provider": null,
+        "points": 66658,
+        "semantic_confidence_mean": 0.9667716771677168,
+        "provenance": {
+          "calibration_source": "dataset",
+          "timestamp_source": "absent",
+          "pose_source": "dataset",
+          "coordinate_frame": "world"
+        },
+        "provider": "Ground Truth"
+      }
+    }
+  ],
+  "statuses": [
+    {
+      "speed": 1,
+      "config_digest": null,
+      "index": -1,
+      "generation": 0,
+      "queue_depth": 0,
+      "frames": 0,
+      "layer": "semantic",
+      "state": "unconfigured",
+      "dropped_frames": 0,
+      "visualization_dropped": 0,
+      "dataset": null,
+      "policy": "distance_lod",
+      "error": null,
+      "sequence": null,
+      "type": "status"
+    },
+    {
+      "speed": 1,
+      "config_digest": null,
+      "index": -1,
+      "generation": 0,
+      "queue_depth": 0,
+      "frames": 0,
+      "layer": "semantic",
+      "state": "unconfigured",
+      "dropped_frames": 0,
+      "visualization_dropped": 0,
+      "dataset": null,
+      "policy": "distance_lod",
+      "error": null,
+      "sequence": null,
+      "type": "status"
+    },
+    {
+      "speed": 1,
+      "config_digest": "779c1da70c7acce1c06dbd0c36adbb97d29907995152f7a5ede93ec06feaf58c",
+      "index": -1,
+      "generation": 1,
+      "queue_depth": 0,
+      "frames": 30,
+      "layer": "semantic",
+      "state": "ready",
+      "dropped_frames": 0,
+      "visualization_dropped": 0,
+      "dataset": "semanticposs",
+      "policy": "distance_lod",
+      "error": null,
+      "sequence": "00",
+      "type": "status"
+    },
+    {
+      "speed": 1,
+      "config_digest": "779c1da70c7acce1c06dbd0c36adbb97d29907995152f7a5ede93ec06feaf58c",
+      "index": 0,
+      "generation": 1,
+      "queue_depth": 0,
+      "frames": 30,
+      "layer": "semantic",
+      "state": "paused",
+      "dropped_frames": 0,
+      "visualization_dropped": 0,
+      "dataset": "semanticposs",
+      "policy": "distance_lod",
+      "error": null,
+      "sequence": "00",
+      "type": "status"
+    },
+    {
+      "speed": 1,
+      "config_digest": "779c1da70c7acce1c06dbd0c36adbb97d29907995152f7a5ede93ec06feaf58c",
+      "index": 0,
+      "generation": 1,
+      "queue_depth": 0,
+      "frames": 30,
+      "layer": "semantic",
+      "state": "running",
+      "dropped_frames": 0,
+      "visualization_dropped": 0,
+      "dataset": "semanticposs",
+      "policy": "distance_lod",
+      "error": null,
+      "sequence": "00",
+      "type": "status"
+    },
+    {
+      "speed": 1,
+      "config_digest": "779c1da70c7acce1c06dbd0c36adbb97d29907995152f7a5ede93ec06feaf58c",
+      "index": 1,
+      "generation": 1,
+      "queue_depth": 0,
+      "frames": 30,
+      "layer": "semantic",
+      "state": "running",
+      "dropped_frames": 0,
+      "visualization_dropped": 0,
+      "dataset": "semanticposs",
+      "policy": "distance_lod",
+      "error": null,
+      "sequence": "00",
+      "type": "status"
+    },
+    {
+      "speed": 1,
+      "config_digest": "779c1da70c7acce1c06dbd0c36adbb97d29907995152f7a5ede93ec06feaf58c",
+      "index": 2,
+      "generation": 1,
+      "queue_depth": 0,
+      "frames": 30,
+      "layer": "semantic",
+      "state": "running",
+      "dropped_frames": 0,
+      "visualization_dropped": 0,
+      "dataset": "semanticposs",
+      "policy": "distance_lod",
+      "error": null,
+      "sequence": "00",
+      "type": "status"
+    },
+    {
+      "speed": 1,
+      "config_digest": "779c1da70c7acce1c06dbd0c36adbb97d29907995152f7a5ede93ec06feaf58c",
+      "index": 3,
+      "generation": 1,
+      "queue_depth": 0,
+      "frames": 30,
+      "layer": "semantic",
+      "state": "running",
+      "dropped_frames": 0,
+      "visualization_dropped": 0,
+      "dataset": "semanticposs",
+      "policy": "distance_lod",
+      "error": null,
+      "sequence": "00",
+      "type": "status"
+    },
+    {
+      "speed": 1,
+      "config_digest": "779c1da70c7acce1c06dbd0c36adbb97d29907995152f7a5ede93ec06feaf58c",
+      "index": 4,
+      "generation": 1,
+      "queue_depth": 0,
+      "frames": 30,
+      "layer": "semantic",
+      "state": "paused",
+      "dropped_frames": 0,
+      "visualization_dropped": 0,
+      "dataset": "semanticposs",
+      "policy": "distance_lod",
+      "error": null,
+      "sequence": "00",
+      "type": "status"
+    },
+    {
+      "speed": 2,
+      "config_digest": "257878916fa92d3c00a3c4e916af3b3425a57409fb2183ddac96fba76d260754",
+      "index": 4,
+      "generation": 1,
+      "queue_depth": 0,
+      "frames": 30,
+      "layer": "semantic",
+      "state": "paused",
+      "dropped_frames": 0,
+      "visualization_dropped": 0,
+      "dataset": "semanticposs",
+      "policy": "distance_lod",
+      "error": null,
+      "sequence": "00",
+      "type": "status"
+    },
+    {
+      "speed": 2,
+      "config_digest": "257878916fa92d3c00a3c4e916af3b3425a57409fb2183ddac96fba76d260754",
+      "index": 0,
+      "generation": 2,
+      "queue_depth": 0,
+      "frames": 30,
+      "layer": "semantic",
+      "state": "paused",
+      "dropped_frames": 0,
+      "visualization_dropped": 0,
+      "dataset": "semanticposs",
+      "policy": "distance_lod",
+      "error": null,
+      "sequence": "00",
+      "type": "status"
+    },
+    {
+      "speed": 2,
+      "config_digest": "52d50f25f41c81a39dc79149a9acf8a34b6135a181a84bd32208c8400f00da8c",
+      "index": -1,
+      "generation": 3,
+      "queue_depth": 0,
+      "frames": 30,
+      "layer": "semantic",
+      "state": "ready",
+      "dropped_frames": 0,
+      "visualization_dropped": 0,
+      "dataset": "semanticposs",
+      "policy": "uniform40",
+      "error": null,
+      "sequence": "00",
+      "type": "status"
+    },
+    {
+      "speed": 2,
+      "config_digest": "52d50f25f41c81a39dc79149a9acf8a34b6135a181a84bd32208c8400f00da8c",
+      "index": 0,
+      "generation": 3,
+      "queue_depth": 0,
+      "frames": 30,
+      "layer": "semantic",
+      "state": "paused",
+      "dropped_frames": 0,
+      "visualization_dropped": 0,
+      "dataset": "semanticposs",
+      "policy": "uniform40",
+      "error": null,
+      "sequence": "00",
+      "type": "status"
+    },
+    {
+      "speed": 2,
+      "config_digest": "257878916fa92d3c00a3c4e916af3b3425a57409fb2183ddac96fba76d260754",
+      "index": -1,
+      "generation": 4,
+      "queue_depth": 0,
+      "frames": 30,
+      "layer": "semantic",
+      "state": "ready",
+      "dropped_frames": 0,
+      "visualization_dropped": 0,
+      "dataset": "semanticposs",
+      "policy": "distance_lod",
+      "error": null,
+      "sequence": "00",
+      "type": "status"
+    },
+    {
+      "speed": 2,
+      "config_digest": "257878916fa92d3c00a3c4e916af3b3425a57409fb2183ddac96fba76d260754",
+      "index": 0,
+      "generation": 4,
+      "queue_depth": 0,
+      "frames": 30,
+      "layer": "semantic",
+      "state": "paused",
+      "dropped_frames": 0,
+      "visualization_dropped": 0,
+      "dataset": "semanticposs",
+      "policy": "distance_lod",
+      "error": null,
+      "sequence": "00",
+      "type": "status"
+    },
+    {
+      "speed": 2,
+      "config_digest": "257878916fa92d3c00a3c4e916af3b3425a57409fb2183ddac96fba76d260754",
+      "index": 0,
+      "generation": 4,
+      "queue_depth": 0,
+      "frames": 30,
+      "layer": "semantic",
+      "state": "paused",
+      "dropped_frames": 0,
+      "visualization_dropped": 0,
+      "dataset": "semanticposs",
+      "policy": "distance_lod",
+      "error": null,
+      "sequence": "00",
+      "type": "status"
+    },
+    {
+      "speed": 2,
+      "config_digest": "257878916fa92d3c00a3c4e916af3b3425a57409fb2183ddac96fba76d260754",
+      "index": 0,
+      "generation": 4,
+      "queue_depth": 0,
+      "frames": 30,
+      "layer": "semantic",
+      "state": "paused",
+      "dropped_frames": 0,
+      "visualization_dropped": 0,
+      "dataset": "semanticposs",
+      "policy": "distance_lod",
+      "error": null,
+      "sequence": "00",
+      "type": "status"
+    },
+    {
+      "speed": 2,
+      "config_digest": "257878916fa92d3c00a3c4e916af3b3425a57409fb2183ddac96fba76d260754",
+      "index": 0,
+      "generation": 4,
+      "queue_depth": 0,
+      "frames": 30,
+      "layer": "semantic",
+      "state": "paused",
+      "dropped_frames": 0,
+      "visualization_dropped": 0,
+      "dataset": "semanticposs",
+      "policy": "distance_lod",
+      "error": null,
+      "sequence": "00",
+      "type": "status"
+    },
+    {
+      "speed": 2,
+      "config_digest": "257878916fa92d3c00a3c4e916af3b3425a57409fb2183ddac96fba76d260754",
+      "index": 0,
+      "generation": 4,
+      "queue_depth": 0,
+      "frames": 30,
+      "layer": "semantic",
+      "state": "paused",
+      "dropped_frames": 0,
+      "visualization_dropped": 0,
+      "dataset": "semanticposs",
+      "policy": "distance_lod",
+      "error": null,
+      "sequence": "00",
+      "type": "status"
+    }
+  ],
+  "diagnostics": [],
+  "controls": [
+    "dataset discovery",
+    "malformed configuration rejection",
+    "invalid dataset rejection",
+    "configure",
+    "preview",
+    "play",
+    "pause",
+    "speed",
+    "layer",
+    "dashboard render",
+    "stop",
+    "seek",
+    "policy",
+    "governor",
+    "validation",
+    "benchmark",
+    "camera",
+    "visibility",
+    "real WebGL context loss/restoration",
+    "real cell raycast inspection",
+    "restart"
+  ],
+  "dataset_root": "/home/arjun/Captain/SIH/Lidar/data/raw/semanticposs/dataset",
+  "provenance": {
+    "timestamp": "2026-09-26T03:26:52.463892+00:00",
+    "platform": "Linux-7.2.5-200.fc44.x86_64-x86_64-with-glibc2.43",
+    "commit": "f3a1cb6a16ec281aae5ee040c5db5c4fe408317c",
+    "dirty": true,
+    "capture": "WebKitWebDriver",
+    "quality_report": "reports/external-review/benchmark_run.json",
+    "semantic_mode": "dataset ground-truth labels, not neural inference"
+  }
+}
