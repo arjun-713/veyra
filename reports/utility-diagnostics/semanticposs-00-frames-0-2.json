@@ -1,0 +1,548 @@
+{
+  "evidence_scope": "signal_diagnostics_not_quality_or_performance_evidence",
+  "provenance": {
+    "commit": "7f54285144eade166c28f9bfde31fb5531acd16b",
+    "branch": "feat/utility-signal-diagnostics",
+    "working_tree_dirty": true,
+    "source_state_sha256": "d5c509383cdeaa18b45069f4b6aaeb084a8a7b0b7031d6f99039014183c33912",
+    "untracked_source_files": [],
+    "timestamp_utc": "2026-09-26T17:14:12.605793+00:00",
+    "hardware": {
+      "profile": "utility-diagnostics",
+      "capture": "runtime",
+      "os": "Linux-7.2.5-200.fc44.x86_64-x86_64-with-glibc2.43",
+      "python": "3.13.15",
+      "machine": "x86_64",
+      "processor": "Intel(R) Core(TM) i5-8350U CPU @ 1.70GHz",
+      "logical_cpu_count": 8,
+      "physical_memory_bytes": 16489119744
+    },
+    "executable": "/home/arjun/Captain/SIH/Lidar/build-utility-diagnostics/apps/benchmark/veyra_benchmark",
+    "executable_sha256": "d1d29c44825ca6cd1302a5fd64956dde0c554bdae23d303ad23692b5fd2c53cd",
+    "configs_sha256": {
+      "datasets.yaml": "2925075c5e70d169070e61c9ecb8fd6226c716e7602f4a552cc9c56f245f48b7",
+      "perception.yaml": "7fb3085bb8a47d0a7024b0a435d7a586a782f258d37ccf220e31365e9382832d",
+      "utility_lod.yaml": "7c98ee39e870aa97912ce00436e2f9416d2bce50f8a178965abc82eeb87faa77",
+      "resource_governor.yaml": "c0b54b59500eedb1972c3493794dbccf751bad9ca96bf264b8787bf95d4959a5"
+    }
+  },
+  "command": [
+    "/home/arjun/Captain/SIH/Lidar/build-utility-diagnostics/apps/benchmark/veyra_benchmark",
+    "--policy",
+    "utility_lod",
+    "--promotion-telemetry",
+    "--window-radius",
+    "100.20623126545361",
+    "--warmup-frames",
+    "0",
+    "--utility-config",
+    "/home/arjun/Captain/SIH/Lidar/configs/utility_lod.yaml",
+    "--governor-config",
+    "/home/arjun/Captain/SIH/Lidar/configs/resource_governor.yaml"
+  ],
+  "selection": {
+    "dataset": "semanticposs",
+    "sequence": "00",
+    "start": 0,
+    "requested_count": 2,
+    "frames": 2,
+    "points": 132070,
+    "observation_digest": "8e4f46bb210835b774a35f71088e1fecc5f1cdb63ee001e95585f536e7dac1cc"
+  },
+  "pipeline": [
+    {
+      "points": 66021,
+      "dataset_load_ms": 44.140514,
+      "timings_ms": {
+        "sensor_transform": 1.8231260000902694,
+        "semantic": 0.3350269980728626,
+        "ground": 43.62976600168622,
+        "terrain": 46.875370000634575,
+        "temporal": 0.0008569986675865948,
+        "total": 103.15035900202929
+      },
+      "status": {
+        "semantic": "ground_truth",
+        "ground": "pypatchworkpp.patchworkpp",
+        "terrain": "available",
+        "temporal": "disabled"
+      },
+      "ground_fraction": 0.3312279426243165,
+      "known_terrain_fraction": 0.32553278502294725,
+      "known_motion_fraction": 0.0
+    },
+    {
+      "points": 66049,
+      "dataset_load_ms": 24.416887,
+      "timings_ms": {
+        "sensor_transform": 1.4511709996440914,
+        "semantic": 0.3358750000188593,
+        "ground": 42.63606300082756,
+        "terrain": 38.543137001397554,
+        "temporal": 0.0006609989213757217,
+        "total": 91.75307899931795
+      },
+      "status": {
+        "semantic": "ground_truth",
+        "ground": "pypatchworkpp.patchworkpp",
+        "terrain": "available",
+        "temporal": "disabled"
+      },
+      "ground_fraction": 0.3330406213568714,
+      "known_terrain_fraction": 0.32650002271041195,
+      "known_motion_fraction": 0.0
+    }
+  ],
+  "diagnostics": {
+    "decisions": 132070,
+    "gate_passed": 42960,
+    "gate_failed": 89110,
+    "diagnostics_version": 1,
+    "quality_failed": 89110,
+    "density_failed": 0,
+    "safety_decisions": 6704,
+    "predictive_decisions": 0,
+    "budget_suppressed": 121,
+    "governor_actions_requested": 0,
+    "governor_actions_applied": 0,
+    "signals": {
+      "geometry": {
+        "raw_sum": 2457.1056564543396,
+        "weighted_sum": 491.42113129086914,
+        "effective_weighted_sum": 486.9295295669728,
+        "min": 0,
+        "max": 0.9226478934288025,
+        "exact_zero_count": 89013,
+        "near_one_count": 0,
+        "histogram": [
+          121504,
+          3287,
+          3401,
+          893,
+          506,
+          810,
+          586,
+          486,
+          172,
+          101,
+          67,
+          35,
+          42,
+          83,
+          48,
+          23,
+          6,
+          1,
+          19,
+          0
+        ]
+      },
+      "semantic": {
+        "raw_sum": 128862,
+        "weighted_sum": 38658.600000001046,
+        "effective_weighted_sum": 12887.999999992116,
+        "min": 0,
+        "max": 1,
+        "exact_zero_count": 3208,
+        "near_one_count": 128862,
+        "histogram": [
+          3208,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          128862
+        ]
+      },
+      "motion": {
+        "raw_sum": 0,
+        "weighted_sum": 0,
+        "effective_weighted_sum": 0,
+        "min": 0,
+        "max": 0,
+        "exact_zero_count": 132070,
+        "near_one_count": 0,
+        "histogram": [
+          132070,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0
+        ]
+      },
+      "traversability_risk": {
+        "raw_sum": 6585.6666677594185,
+        "weighted_sum": 1646.4166669398546,
+        "effective_weighted_sum": 1628.250000268221,
+        "min": 0,
+        "max": 1,
+        "exact_zero_count": 125366,
+        "near_one_count": 6256,
+        "histogram": [
+          125366,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          42,
+          68,
+          0,
+          83,
+          0,
+          89,
+          63,
+          0,
+          103,
+          6256
+        ]
+      },
+      "semantic_uncertainty": {
+        "raw_sum": 3208,
+        "weighted_sum": 320.80000000000445,
+        "effective_weighted_sum": 0,
+        "min": 0,
+        "max": 1,
+        "exact_zero_count": 128862,
+        "near_one_count": 3208,
+        "histogram": [
+          128862,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          3208
+        ]
+      }
+    },
+    "utility_exact_zero_count": 89110,
+    "utility_near_one_count": 0,
+    "utility_min": 0,
+    "utility_max": 0.7345295786857605,
+    "utility_above_split_count": 6342,
+    "utility_below_merge_count": 89110,
+    "utility_histogram": [
+      89110,
+      0,
+      0,
+      0,
+      0,
+      0,
+      36132,
+      203,
+      9,
+      90,
+      184,
+      4234,
+      1821,
+      242,
+      45,
+      0,
+      0,
+      0,
+      0,
+      0
+    ],
+    "transition_reason_masks": [
+      {
+        "mask": 3,
+        "count": 9
+      },
+      {
+        "mask": 43,
+        "count": 525
+      },
+      {
+        "mask": 57,
+        "count": 7
+      }
+    ],
+    "promotion_transitions": [
+      {
+        "active": 1,
+        "requested": 0,
+        "baseline": 1,
+        "count": 279
+      },
+      {
+        "active": 2,
+        "requested": 1,
+        "baseline": 2,
+        "count": 246
+      },
+      {
+        "active": 3,
+        "requested": 2,
+        "baseline": 3,
+        "count": 16
+      }
+    ],
+    "decision_reasons": {
+      "protected_baseline": 21227,
+      "quality_gate": 80671,
+      "density_gate": 0,
+      "state_capacity": 0,
+      "cooldown": 0,
+      "score_below_split": 25749,
+      "insufficient_dwell": 2994,
+      "level_change_limit": 0,
+      "promoted": 9,
+      "safety_promotion": 532,
+      "predictive_promotion": 0,
+      "retained_promotion": 888
+    },
+    "support_histograms": {
+      "observation_quality": [
+        89110,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        144,
+        184,
+        0,
+        177,
+        0,
+        182,
+        163,
+        0,
+        219,
+        41891
+      ],
+      "point_density": [
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        132070
+      ]
+    },
+    "classes": [
+      {
+        "id": 0,
+        "decisions": 3208,
+        "gate_failed": 3208
+      },
+      {
+        "id": 1,
+        "decisions": 23472,
+        "gate_failed": 19092
+      },
+      {
+        "id": 2,
+        "decisions": 2945,
+        "gate_failed": 2763
+      },
+      {
+        "id": 3,
+        "decisions": 0,
+        "gate_failed": 0
+      },
+      {
+        "id": 4,
+        "decisions": 0,
+        "gate_failed": 0
+      },
+      {
+        "id": 5,
+        "decisions": 0,
+        "gate_failed": 0
+      },
+      {
+        "id": 6,
+        "decisions": 729,
+        "gate_failed": 706
+      },
+      {
+        "id": 7,
+        "decisions": 158,
+        "gate_failed": 153
+      },
+      {
+        "id": 8,
+        "decisions": 0,
+        "gate_failed": 0
+      },
+      {
+        "id": 9,
+        "decisions": 0,
+        "gate_failed": 0
+      },
+      {
+        "id": 10,
+        "decisions": 0,
+        "gate_failed": 0
+      },
+      {
+        "id": 11,
+        "decisions": 0,
+        "gate_failed": 0
+      },
+      {
+        "id": 12,
+        "decisions": 36242,
+        "gate_failed": 1952
+      },
+      {
+        "id": 13,
+        "decisions": 24138,
+        "gate_failed": 22863
+      },
+      {
+        "id": 14,
+        "decisions": 5787,
+        "gate_failed": 4776
+      },
+      {
+        "id": 15,
+        "decisions": 32902,
+        "gate_failed": 31129
+      },
+      {
+        "id": 16,
+        "decisions": 0,
+        "gate_failed": 0
+      },
+      {
+        "id": 17,
+        "decisions": 0,
+        "gate_failed": 0
+      },
+      {
+        "id": 18,
+        "decisions": 1367,
+        "gate_failed": 1366
+      },
+      {
+        "id": 19,
+        "decisions": 1122,
+        "gate_failed": 1102
+      },
+      {
+        "id": 20,
+        "decisions": 0,
+        "gate_failed": 0
+      }
+    ]
+  },
+  "snapshot": {
+    "active_leaf_count": 58770,
+    "tile_count": 212,
+    "point_count": 132070,
+    "logical_bytes": 11448000,
+    "memory": {
+      "logical_payload_bytes": 11283840,
+      "retained_prior_payload_bytes": 164160,
+      "allocated_cell_array_bytes": 16135680,
+      "allocated_tile_bytes": 81408,
+      "allocated_index_bytes": 878144,
+      "allocated_overhead_bytes": 878144,
+      "allocated_bytes": 17013824
+    },
+    "levels": {
+      "0": 14205,
+      "1": 29923,
+      "2": 11727,
+      "3": 2915
+    },
+    "nonspatial_prior_point_count": 2956,
+    "split_count": 927,
+    "merge_count": 154,
+    "invariant_no_parent_descendant_overlap": true,
+    "layers": {
+      "ground_points": 44716,
+      "obstacle_points": 62886,
+      "overhead_points": 21512,
+      "unmodelled_returns": 10767,
+      "rejected_outliers": 0,
+      "cells_with_ground": 30901,
+      "occluded_ground_cells": 25479,
+      "occupied_cells": 56380,
+      "free_cells": 0
+    }
+  },
+  "governor": {
+    "state": "approaching_budget",
+    "allow_optional_splits": false,
+    "overload_frames": 2,
+    "recovery_frames": 0,
+    "interventions": 1,
+    "actions_requested": 0,
+    "actions_applied": 0,
+    "budget": {
+      "max_active_cells": 250000,
+      "max_logical_bytes": 134217728,
+      "max_rss_bytes": 0,
+      "target_frame_time_ms": 100,
+      "near_field_radius_m": 10,
+      "max_actions_per_frame": 64
+    }
+  }
+}

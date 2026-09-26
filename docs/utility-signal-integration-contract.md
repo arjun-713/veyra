@@ -27,7 +27,10 @@ frame; a later weak point can inherit an earlier strong region decision.
 
 Instrumentation is opt-in, fixed-size, and stores no observation history.
 `CellStats` and `Leaf` are unchanged. Enabled/disabled runs must have identical
-snapshots and leaf statistics on deterministic inputs.
+snapshots and leaf statistics on deterministic inputs with non-binding resource
+limits. Under deadline pressure, tracing overhead can affect the governor's
+timing-based decisions. Do not compare traced latency to an untraced baseline,
+or assume unchanged topology under every timing-dependent pressure condition.
 
 For a bounded diagnostic replay using the configured real pipeline:
 
@@ -43,6 +46,11 @@ The CLI is limited to 1–8 frames. It records input/config/binary digests,
 commit/dirty-source provenance, hardware, actual pipeline stages, and diagnostics.
 It does not call a missing model real inference, and it intentionally does not
 publish latency/FPS/quality claims from this short run.
+Native and Python pipeline logs go to stderr; stdout is a single JSON document.
+
+The bounded measured diagnosis and full aggregate artifact are recorded in
+`reports/utility-diagnostics/README.md`. This is branch-local GT-semantic
+diagnostic evidence, not the final-main benchmark required by #62.
 
 ## Current defects to measure, not silently fix here
 
