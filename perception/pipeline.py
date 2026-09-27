@@ -35,6 +35,9 @@ class PipelineStatus:
     # (e.g. "bypassed", "cpu", "CPUExecutionProvider", "cuda:0").
     # Never inferred from machine hardware. Defaults to unavailable.
     semantic_execution: str = "unavailable"
+    semantic_requested: str | None = None
+    semantic_fallback_reason: str | None = None
+    semantic_model: str | None = None
 
 
 @dataclass(frozen=True)
@@ -65,10 +68,18 @@ class PerceptionPipeline:
         required_stages: tuple[str, ...] = (),
         semantic_requested_mode: str | None = None,
         semantic_fallback_reason: str | None = None,
+        semantic_model_identity: str | None = None,
+        semantic_required_datasets: frozenset[str] | set[str] | None = None,
     ) -> None:
         self.semantic_provider = semantic_provider or GroundTruthSemanticProvider()
         self.semantic_requested_mode = semantic_requested_mode
         self.semantic_fallback_reason = semantic_fallback_reason
+        self.semantic_model_identity = semantic_model_identity
+        self.semantic_required_datasets = (
+            frozenset(semantic_required_datasets)
+            if semantic_required_datasets is not None
+            else None
+        )
         self.ground_segmenter = ground_segmenter
         self.terrain_analyzer = terrain_analyzer
         self.temporal_tracker = temporal_tracker
@@ -98,6 +109,8 @@ class PerceptionPipeline:
             )
         semantic_requested_mode = str(mode)
         semantic_fallback_reason: str | None = None
+        semantic_model_identity: str | None = None
+        semantic_required_datasets: frozenset[str] | None = None
         if mode == "ground_truth":
             semantic_provider = GroundTruthSemanticProvider()
         elif mode == "salsanext":
@@ -130,9 +143,21 @@ class PerceptionPipeline:
                 providers=providers,
             )
         elif mode == "cenet":
-            semantic_provider, semantic_fallback_reason = cls._cenet_provider(
-                semantic_config
+            allow_fallback_raw = semantic_config.get(
+                "allow_fallback_to_ground_truth", False
             )
+            if not isinstance(allow_fallback_raw, bool):
+                raise PerceptionConfigurationError(
+                    "semantic.allow_fallback_to_ground_truth must be boolean"
+                )
+            semantic_provider, semantic_fallback_reason = cls._cenet_provider(
+                semantic_config, allow_fallback_raw
+            )
+            semantic_required_datasets = frozenset({"semanticposs"})
+            if semantic_fallback_reason is None:
+                checkpoint_path = getattr(semantic_provider, "checkpoint_path", None)
+                if checkpoint_path is not None:
+                    semantic_model_identity = str(checkpoint_path)
         else:
             raise PerceptionConfigurationError(f"unsupported semantic mode: {mode}")
 
@@ -176,24 +201,29 @@ class PerceptionPipeline:
             required_stages=tuple(required),
             semantic_requested_mode=semantic_requested_mode,
             semantic_fallback_reason=semantic_fallback_reason,
+            semantic_model_identity=semantic_model_identity,
+            semantic_required_datasets=semantic_required_datasets,
         )
 
     #: Environment override for the CENet checkpoint; wins over config.
     CENET_CHECKPOINT_ENV_VAR = "VEYRA_CENET_CHECKPOINT"
 
     @classmethod
-    def _cenet_provider(cls, semantic_config: dict[str, Any]) -> tuple[Any, str | None]:
-        """Build the native CENet provider with failure-safe fallback.
+    def _cenet_provider(
+        cls, semantic_config: dict[str, Any], allow_fallback: bool = False
+    ) -> tuple[Any, str | None]:
+        """Build the native CENet provider, fail-closed unless fallback is allowed.
 
         torch stays an optional dependency: it is imported only inside the
         CENet provider constructor, never at pipeline import time, so the
         core mapper runs without it. When the weights file is absent or the
-        backend cannot be constructed, return an explicit
+        backend cannot be constructed, raise
+        ``PerceptionConfigurationError`` unless ``allow_fallback`` is True,
+        in which case return an explicit
         ``GroundTruthSemanticProvider`` plus a human-readable fallback
-        reason (surfaced per-frame in ``PipelineStatus.diagnostics``)
-        instead of raising, so a missing optional asset can never crash a
-        session. Status therefore stays honest: ``model`` only when CENet
-        actually runs, ``ground_truth`` on fallback.
+        reason (surfaced per-frame in ``PipelineStatus.diagnostics``).
+        Status therefore stays honest: ``model`` only when CENet
+        actually runs, ``ground_truth`` on approved fallback.
         """
 
         threads = semantic_config.get("threads", 4)
@@ -220,6 +250,8 @@ class PerceptionPipeline:
         )
 
         def _fallback(reason: str) -> tuple[Any, str]:
+            if not allow_fallback:
+                raise PerceptionConfigurationError(reason)
             return GroundTruthSemanticProvider(), reason
 
         if not checkpoint.strip():
@@ -440,9 +472,7 @@ class PerceptionPipeline:
             step=terrain.step if terrain is not None else frame.step,
             motion_state=motion.state if motion is not None else frame.motion_state,
             observation_quality=(self._quality(semantic.semantic_confidence, terrain)),
-            height_above_ground=(
-                hag if hag is not None else frame.height_above_ground
-            ),
+            height_above_ground=(hag if hag is not None else frame.height_above_ground),
             ground_gradient_x=(
                 terrain.gradient_x
                 if terrain is not None and terrain.gradient_x is not None
@@ -466,6 +496,9 @@ class PerceptionPipeline:
                 temporal=temporal_status,
                 diagnostics=tuple(diagnostics),
                 semantic_execution=self._provider_execution_device(),
+                semantic_requested=self.semantic_requested_mode,
+                semantic_fallback_reason=self.semantic_fallback_reason,
+                semantic_model=self.semantic_model_identity,
             ),
             timings_ms={**timings, "total": (perf_counter() - started) * 1000},
         )
@@ -480,6 +513,20 @@ class PerceptionPipeline:
     def _require_dataset_compatibility(self, frame: ObservationFrame) -> None:
         """Fail closed when a provider declares a dataset capability boundary."""
 
+        requested = self.semantic_required_datasets
+        if requested is not None:
+            try:
+                requested_datasets = frozenset(requested)
+            except TypeError as error:
+                raise PerceptionConfigurationError(
+                    "semantic provider supported_datasets must be an iterable of dataset names"
+                ) from error
+            if frame.dataset not in requested_datasets:
+                requested_names = ", ".join(sorted(requested_datasets)) or "none"
+                raise PerceptionConfigurationError(
+                    f"semantic mode {self.semantic_requested_mode} "
+                    f"supports only {requested_names}, not {frame.dataset}"
+                )
         supported = getattr(self.semantic_provider, "supported_datasets", None)
         if supported is None:
             return

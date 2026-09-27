@@ -4,10 +4,10 @@
 # resolution is `VEYRA_CENET_CHECKPOINT` env (when set, wins) else this
 # `checkpoint` (`model_path` also accepted as an alias); torch is imported
 # lazily by the provider constructor. When weights/torch are absent the
-# factory falls back to ground_truth with explicit provenance
-# (status.semantic == "ground_truth" plus a diagnostics entry) instead of
-# crashing the session — neural output is never relabelled: status reads
-# "model" only when CENet actually runs.
+# factory raises (fail closed) unless allow_fallback_to_ground_truth: true
+# is explicitly configured — opt-in fallback keeps explicit provenance
+# (status.semantic plus a diagnostics entry). Neural output is never
+# relabelled: status reads "model" only when CENet actually runs.
 #
 # The provider declares supported_datasets == {"semanticposs"}, so the
 # existing dataset gate accepts POSS frames and refuses anything else.
@@ -18,6 +18,9 @@ semantic:
   checkpoint: data/cache/models/cenet-poss/SENet_valid_best
   checkpoint_sha256: 9c07ceadcd005a11bddc6c92b61d6f7724339f9519ef177afdebc3c59ffbb0ce
   threads: 4
+  # Fail closed: never fall back to ground_truth unless explicitly allowed.
+  # Opt-in fallback requires allow_fallback_to_ground_truth: true.
+  allow_fallback_to_ground_truth: false
 ground:
   enabled: true
   parameter_overrides:

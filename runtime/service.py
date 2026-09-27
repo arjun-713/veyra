@@ -277,15 +277,32 @@ class ProductRuntime:
             semantic = pipeline.get("semantic", "unavailable")
             ground = pipeline.get("ground", "unavailable")
             terrain = pipeline.get("terrain", "unavailable")
+            semantic_requested = pipeline.get(
+                "semantic_requested", pipeline.get("semantic_requested_mode")
+            )
+            semantic_fallback_reason = pipeline.get("semantic_fallback_reason")
+            semantic_model = pipeline.get("semantic_model")
+            allow_fallback = (self.config or {}).get("pipeline", {}).get(
+                "semantic", {}
+            ).get("allow_fallback_to_ground_truth") is True
+            fallback_without_approval = bool(
+                semantic_fallback_reason and not allow_fallback
+            )
             result = {
                 "status": "pass"
-                if map_status == "available" and semantic != "unavailable"
+                if map_status == "available"
+                and semantic != "unavailable"
+                and not fallback_without_approval
                 else "fail",
                 "dataset": self.config["dataset"],
                 "sequence": self.config["sequence"],
                 "frame": target,
                 "points": frame.get("n_points"),
                 "semantic": semantic,
+                "semantic_requested": semantic_requested,
+                "semantic_actual": semantic,
+                "semantic_fallback_reason": semantic_fallback_reason,
+                "semantic_model": semantic_model,
                 "ground": ground,
                 "terrain": terrain,
                 "map": map_status,
@@ -379,6 +396,17 @@ class ProductRuntime:
                 raise RuntimeError(
                     "perception: semantic provider unavailable; "
                     + "; ".join(frame["pipeline_status"]["diagnostics"])
+                )
+            fallback_reason = frame["pipeline_status"].get("semantic_fallback_reason")
+            allow_fallback = (self.config or {}).get("pipeline", {}).get(
+                "semantic", {}
+            ).get("allow_fallback_to_ground_truth") is True
+            if fallback_reason and not allow_fallback:
+                raise RuntimeError(
+                    "perception: semantic fallback to ground_truth requires "
+                    "explicit approval "
+                    "(pipeline.semantic.allow_fallback_to_ground_truth must be "
+                    f"true); reason: {fallback_reason}"
                 )
             self.index = target
             dropped = (frame["map"].get("metrics", {}).get("stream") or {}).get(

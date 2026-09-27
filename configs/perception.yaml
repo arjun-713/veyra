@@ -5,9 +5,9 @@ semantic:
   # Neural CENet path (native Pandora/SemanticPOSS, CPU torch). Weights are
   # git-ignored and never committed: set checkpoint to a local file or export
   # VEYRA_CENET_CHECKPOINT (env wins over config). torch is imported lazily
-  # by the provider; when weights/torch are absent the factory falls back to
-  # ground_truth with explicit provenance (status + diagnostics) instead of
-  # crashing. Status reads "model" only when CENet actually runs.
+  # by the provider; when weights/torch are absent the factory raises
+  # (fail closed) unless allow_fallback_to_ground_truth: true is set.
+  # Status reads "model" only when CENet actually runs.
   # mode: cenet
   # checkpoint: data/cache/models/cenet-poss/SENet_valid_best
   # checkpoint_sha256: 9c07ceadcd005a11bddc6c92b61d6f7724339f9519ef177afdebc3c59ffbb0ce
