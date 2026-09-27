@@ -6,7 +6,7 @@ export interface DashboardEvent {time:number;message:string;kind:string}
 export function defaultSessionConfig():Json{return defaultRuntimeConfig();}
 export function evidenceAvailable(value:unknown){return typeof value==='string'&&value.length>0&&!['unavailable','disabled','skipped','invalid'].includes(value);}
 export function profileConfig(current:Json,name:string):Json{
- if(name==='LowResource'){const low=defaultRuntimeConfig();return {...current,preset:name,map:{...current.map,...low.map},playback:{...current.playback,...low.playback},visualization:low.visualization};}
+ if(name==='LowResource'){const low=defaultRuntimeConfig();return {...current,preset:name,map:{...current.map,...low.map,policy:current.map?.policy??low.map.policy},playback:{...current.playback,...low.playback},visualization:low.visualization};}
  const profiles:Record<string,Json>={Performance:{resource_profile:'performance',visualization:{point_budget:20000,cell_budget:10000,update_hz:10}},Balanced:{resource_profile:'balanced',visualization:{point_budget:50000,cell_budget:20000,update_hz:15}},Quality:{resource_profile:'quality',visualization:{point_budget:100000,cell_budget:50000,update_hz:30}}};
  const selected=profiles[name]??profiles.Balanced;
  return {...current,preset:name,map:{...(current.map??{}),resource_profile:selected.resource_profile,governor_override:'automatic'},visualization:selected.visualization};
