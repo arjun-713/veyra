@@ -48,10 +48,50 @@ export function inputTargetFps(config:Json,status:Json):number|null{
 }
 // Canonical semantic-source presentation. Ground Truth dataset labels must
 // never read as neural inference; neural modes show backend-verified device.
-export function semanticDisplay(provider:unknown,model:unknown,execution:unknown,backend:unknown):{source:string;sourceSub:string;neural:string;neuralSub:string;execution:string;executionSub:string}{
+// Ground-truth styling keys on the ACTUAL provider (telemetry provider is
+// derived from actual): Ground Truth iff actual normalizes to ground_truth.
+// A requested-neural / actual-GT mismatch is a debug/eval fallback, never
+// neural ACTIVE styling. Extra requested/actual/fallback keys are optional so
+// legacy callers (and their tests) keep their existing strings; new telemetry
+// passes {requested, actual, fallbackReason} to unlock fallback/neural labels.
+export function semanticDisplay(provider:unknown,model:unknown,execution:unknown,backend:unknown,extra?:{requested?:unknown;actual?:unknown;fallbackReason?:unknown}):{source:string;sourceSub:string;neural:string;neuralSub:string;execution:string;executionSub:string;isFallback:boolean;isExplicitGT:boolean;isNeural:boolean;banner:string|null;bannerSub:string|null;debugChip:string|null}{
  const text=(value:unknown)=>typeof value==='string'&&value&&value!=='unavailable'?String(value).replaceAll('_',' '):'Unavailable';
- if(provider==='Ground Truth')return {source:'DATASET GROUND TRUTH',sourceSub:'dataset labels used directly',neural:'BYPASSED',neuralSub:'model latency not measured',execution:'N/A',executionSub:'no accelerator involved'};
- return {source:text(provider),sourceSub:`neural inference · ${text(backend)}`,neural:model?'ACTIVE':'UNAVAILABLE',neuralSub:text(model),execution:text(execution),executionSub:'backend-verified device only'};
+ const norm=(value:unknown)=>typeof value==='string'&&value?value.toLowerCase().replaceAll(' ','_').replaceAll('-','_'):'';
+ const shortModel=(value:unknown)=>{if(typeof value!=='string'||!value||value==='unavailable')return 'Unavailable';const base=String(value).split(/[/\\]/).pop()??String(value);return base||'Unavailable';};
+ const prettyProvider=(value:unknown)=>{const n=norm(value);if(n==='cenet')return 'CENet';if(n==='salsanext')return 'SalsaNext';return text(value);};
+ const fallbackReason=typeof extra?.fallbackReason==='string'&&extra.fallbackReason?extra.fallbackReason:null;
+ const requestedRaw=extra?.requested??null;
+ const requestedNorm=norm(requestedRaw);
+ // Actual wins when supplied; otherwise the legacy provider field already
+ // carries the actual-derived display value ("Ground Truth" or neural name).
+ const actualRaw=extra?.actual??null;
+ const actualNorm=actualRaw!=null&&actualRaw!==''?norm(actualRaw):norm(provider)==='ground truth'?'ground_truth':norm(provider)||norm(backend);
+ const isGT=actualNorm==='ground_truth';
+ const isFallback=isGT&&!!requestedNorm&&requestedNorm!=='ground_truth'&&requestedNorm!=='unavailable';
+ const isExplicitGT=isGT&&!isFallback;
+ const base={isFallback,isExplicitGT,isNeural:!isGT,banner:null as string|null,bannerSub:null as string|null,debugChip:null as string|null};
+ if(isFallback){
+  const requestedLabel=typeof requestedRaw==='string'&&requestedRaw?requestedRaw:'unknown';
+  const parts:string[]=[];
+  if(fallbackReason)parts.push(fallbackReason);
+  parts.push(`requested ${text(requestedLabel)} / actual ground truth`);
+  parts.push(`model ${model?shortModel(model):'unavailable'}`);
+  parts.push(`exec ${typeof execution==='string'&&execution&&execution!=='unavailable'?text(execution):'bypassed'}`);
+  const sub=parts.join(' · ');
+  const banner='NEURAL UNAVAILABLE — SHOWING DEBUG/EVAL GROUND TRUTH';
+  return {...base,source:banner,sourceSub:sub,neural:'UNAVAILABLE',neuralSub:'model unavailable',execution:'BYPASSED',executionSub:'no accelerator involved',banner,bannerSub:sub,debugChip:'DEBUG/EVAL'};
+ }
+ if(isExplicitGT)return {...base,source:'DATASET GROUND TRUTH',sourceSub:'dataset labels used directly',neural:'BYPASSED',neuralSub:'model latency not measured',execution:'N/A',executionSub:'no accelerator involved',debugChip:'DEBUG/EVAL'};
+ // Pure neural success: backend-verified device plus model short path. Only
+ // the new telemetry path (extra.actual supplied) uses the NEURAL label so
+ // legacy callers keep their existing source string.
+ if(extra&&actualRaw!=null&&actualRaw!==''){
+  const execName=typeof execution==='string'&&execution&&execution!=='unavailable'?execution.toUpperCase()==='CPU'?'CPU':text(execution):'Unavailable';
+  const source=`NEURAL ${prettyProvider(provider)} · ${execName} (backend-verified)`;
+  return {...base,source,sourceSub:`neural inference · ${text(backend)}`,neural:model?'ACTIVE':'UNAVAILABLE',neuralSub:shortModel(model),execution:text(execution),executionSub:'backend-verified device only'};
+ }
+ if(provider==='Ground Truth')return {...base,source:'DATASET GROUND TRUTH',sourceSub:'dataset labels used directly',neural:'BYPASSED',neuralSub:'model latency not measured',execution:'N/A',executionSub:'no accelerator involved',debugChip:'DEBUG/EVAL'};
+ return {...base,source:text(provider),sourceSub:`neural inference · ${text(backend)}`,neural:model?'ACTIVE':'UNAVAILABLE',neuralSub:text(model),execution:text(execution),executionSub:'backend-verified device only'};
 }
 // Historical-data marker: stale telemetry values are last measured, never live.
 export function lastMeasuredPrefix(isStale:boolean):string{return isStale?'LAST MEASURED · ':'';}

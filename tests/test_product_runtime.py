@@ -163,14 +163,14 @@ class ProductTelemetryTests(unittest.TestCase):
     def test_sample_ratios_use_sample_count_not_full_scan_size(self):
         from runtime.telemetry import Telemetry
 
-        state = dict(
-            state="paused",
-            index=0,
-            frames=10,
-            queue_depth=0,
-            dropped_frames=0,
-            visualization_dropped=0,
-        )
+        state = {
+            "state": "paused",
+            "index": 0,
+            "frames": 10,
+            "queue_depth": 0,
+            "dropped_frames": 0,
+            "visualization_dropped": 0,
+        }
         report = Telemetry().report(
             state,
             {
@@ -193,14 +193,14 @@ class ProductTelemetryTests(unittest.TestCase):
     def test_unavailable_ground_is_not_a_measured_zero_ratio(self):
         from runtime.telemetry import Telemetry
 
-        state = dict(
-            state="paused",
-            index=0,
-            frames=10,
-            queue_depth=0,
-            dropped_frames=0,
-            visualization_dropped=0,
-        )
+        state = {
+            "state": "paused",
+            "index": 0,
+            "frames": 10,
+            "queue_depth": 0,
+            "dropped_frames": 0,
+            "visualization_dropped": 0,
+        }
         report = Telemetry().report(
             state,
             {
