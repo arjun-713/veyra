@@ -140,6 +140,11 @@ void checkSnapshotIntoMatchesFreshSnapshotAndReusesStorage() {
   CHECK(reused.point_count == fresh.point_count);
   CHECK(reused.logical_bytes == fresh.logical_bytes);
   CHECK(reused.memory.allocated_bytes == fresh.memory.allocated_bytes);
+  const std::size_t snapshot_scratch_bytes =
+      reused.memory.allocated_bytes - reused.memory.allocated_index_bytes -
+      reused.memory.allocated_cell_array_bytes;
+  CHECK(snapshot_scratch_bytes > 0);
+  CHECK(snapshot_scratch_bytes == reused.memory.allocated_scratch_bytes);
   CHECK(reused.layers.ground_points == fresh.layers.ground_points);
   CHECK(reused.leaves_ordered_by_id);
   checkTopology(reused);
@@ -158,6 +163,10 @@ void checkSnapshotIntoMatchesFreshSnapshotAndReusesStorage() {
   CHECK(reused.point_count == shrunk.point_count);
   CHECK(reused.logical_bytes == shrunk.logical_bytes);
   CHECK(reused.active_leaf_count == shrunk.active_leaf_count);
+  CHECK(reused.memory.allocated_bytes - reused.memory.allocated_index_bytes -
+            reused.memory.allocated_cell_array_bytes ==
+        snapshot_scratch_bytes);
+  CHECK(reused.memory.allocated_scratch_bytes == snapshot_scratch_bytes);
 }
 
 void checkRepeatedPublicSplitMergePreservesEvidence() {

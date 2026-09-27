@@ -108,6 +108,73 @@ class RuntimeEncodingTest(unittest.TestCase):
             self.assertEqual(got, expected)
             self.assertEqual(list(got), list(expected))
 
+    def test_physical_layer_payload_keeps_cell_order_across_frames(self):
+        from runtime.visualization import pack_visualization
+
+        frame = {
+            "shown": 0,
+            "points": np.empty((0, 3), dtype=np.float32),
+            "intensity": np.empty(0, dtype=np.float32),
+            "semantic_labels": np.empty(0, dtype=np.int32),
+            "raw_semantic_labels": np.empty(0, dtype=np.int32),
+            "ground": np.empty(0, dtype=bool),
+            "drivable": np.empty(0, dtype="U12"),
+            "semantic_confidence": np.empty(0, dtype=np.float32),
+            "slope": np.empty(0, dtype=np.float32),
+            "roughness": np.empty(0, dtype=np.float32),
+            "height_complexity": np.empty(0, dtype=np.float32),
+            "motion_probability": np.empty(0, dtype=np.float32),
+            "velocity_xy": np.empty((0, 2), dtype=np.float32),
+            "observation_quality": np.empty(0, dtype=np.float32),
+            "terrain_confidence": np.empty(0, dtype=np.float32),
+            "pipeline_status": {
+                "semantic": "unavailable",
+                "ground": "unavailable",
+                "terrain": "unavailable",
+                "temporal": "unavailable",
+                "diagnostics": [],
+            },
+            "index": 0,
+            "dataset": "fixture",
+            "seq": "00",
+            "id": "000000",
+            "pose": {
+                "available": False,
+                "matrix": np.eye(4).reshape(-1),
+                "provenance": {},
+            },
+            "n_points": 0,
+        }
+        rows = []
+        for index, x in enumerate((10, 20)):
+            rows.append(
+                {
+                    "l": 2,
+                    "ix": index,
+                    "iy": 0,
+                    "z": float(x),
+                    "c": 0,
+                    "m": 0.0,
+                    "q": 1.0,
+                    "d": 0.0,
+                    "u": 0.0,
+                    "physical_layers": [float(index + 1)] * 15,
+                }
+            )
+        cells = {"status": "available", "cells": rows}
+
+        first_metadata, first_payload = pack_visualization(frame, cells, 1)
+        second_metadata, second_payload = pack_visualization(frame, cells, 2)
+        self.assertEqual(first_payload, second_payload)
+        self.assertEqual(first_metadata["physical_layers"]["count"], 2)
+        self.assertEqual(second_metadata["physical_layers"]["offset"], 136)
+        physical = np.frombuffer(
+            second_payload,
+            dtype="<f4",
+            offset=second_metadata["physical_layers"]["offset"],
+        ).reshape(2, 15)
+        np.testing.assert_array_equal(physical[:, 0], [1, 2])
+
 
 if __name__ == "__main__":
     unittest.main()

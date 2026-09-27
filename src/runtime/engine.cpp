@@ -1215,6 +1215,7 @@ std::string render(const Result& result) {
       << ",\"allocated_cell_array_bytes\":" << snapshot.memory.allocated_cell_array_bytes
       << ",\"allocated_tile_bytes\":" << snapshot.memory.allocated_tile_bytes
       << ",\"allocated_index_bytes\":" << snapshot.memory.allocated_index_bytes
+      << ",\"allocated_scratch_bytes\":" << snapshot.memory.allocated_scratch_bytes
       << ",\"allocated_overhead_bytes\":" << snapshot.memory.allocated_overhead_bytes
       << ",\"allocated_bytes\":" << snapshot.memory.allocated_bytes << "},\"levels\":{";
   for (int level = 0; level < 4; ++level) {

@@ -19,6 +19,23 @@ test('physical inspection decodes separate surfaces rather than pooled height',(
   assert.equal(rows.find(r=>r.key==='overhead_mean')?.value,'3');
 });
 
+test('reused render instance index resolves its matching physical-layer row',()=>{
+  const bytes=new Uint8Array(17*4*2+60*2);
+  const view=new DataView(bytes.buffer);
+  const first=[1,0,0,0,0,1,.3,.3,.3,0,1,3,3,3,0];
+  const second=[1,0,0,0,0,1,.7,.7,.7,0,1,8,8,8,0];
+  [...first,...second].forEach((v,i)=>view.setFloat32(136+i*4,v,true));
+  const frame={metadata:{points:{count:0,offset:0,stride:68},cells:{count:2,offset:0,stride:68},physical_layers:{version:1,count:2,offset:136,stride:60}},payload:bytes};
+
+  // MapCanvas reuses its instance buffers; instance 1 must continue to map to
+  // cell row 1 and therefore physical-layer row 1 after an update.
+  const layers=core.decodePhysicalLayers(frame,1);
+  assert.ok(layers);
+  assert.equal(layers.ground.mean,0);
+  assert.ok(Math.abs(Number(layers.obstacle.mean)-0.7)<1e-6);
+  assert.equal(layers.overhead.mean,8);
+});
+
 test('missing and empty physical layers never invent measured surfaces',()=>{
   assert.equal(typeof core.decodePhysicalLayers,'function');
   assert.equal(core.decodePhysicalLayers({metadata:{},payload:new Uint8Array()},0),null);

@@ -1234,10 +1234,15 @@ void Map::snapshot_into(MapSnapshot& snapshot) const {
   snapshot.leaves_ordered_by_id = true;
   snapshot.active_leaf_count = snapshot.leaves.size();
   snapshot.tile_count = impl_->tiles.size();
+  for (const auto& bucket : order) {
+    snapshot.memory.allocated_scratch_bytes +=
+        bucket.capacity() * sizeof(std::pair<std::uint64_t, const StoredCell*>);
+  }
   // Includes the per-level cell position indexes, not only the tile table.
   snapshot.memory.allocated_index_bytes = index_bytes;
   snapshot.memory.allocated_bytes =
-      snapshot.memory.allocated_index_bytes + snapshot.memory.allocated_cell_array_bytes;
+      snapshot.memory.allocated_index_bytes + snapshot.memory.allocated_cell_array_bytes +
+      snapshot.memory.allocated_scratch_bytes;
   snapshot.memory.allocated_overhead_bytes =
       snapshot.memory.allocated_bytes - snapshot.memory.allocated_cell_array_bytes;
   snapshot.logical_bytes =
