@@ -218,7 +218,7 @@ export function inspectorRows(cell:Json):InspectorRow[]{
   {key:'xy',label:'XY (m)',value:typeof cell.x==='number'&&typeof cell.y==='number'&&Number.isFinite(cell.x)&&Number.isFinite(cell.y)?`${f(cell.x)} , ${f(cell.y)}`:'Unavailable',hint:'World-aligned cell center in odom'},
   {key:'resolution',label:'Resolution',value:resolutionLabel(cell.resolution),hint:'Cell edge length'},
   {key:'lod',label:'LOD level',value:lodLabel(cell.lod_level,cell.resolution),hint:'L0 5 cm · L1 10 cm · L2 20 cm · L3 40 cm'},
-  {key:'z',label:'Height mean (m)',value:f(cell.elevation),hint:'Fused elevation of this cell'},
+  {key:'z',label:'Pooled height mean (m)',value:f(cell.elevation),hint:'Average of all layers; not necessarily an observed surface'},
   {key:'zmin',label:'Height min (m)',value:f(cell.height_min),hint:'Lowest observed height'},
   {key:'zmax',label:'Height max (m)',value:f(cell.height_max),hint:'Highest observed height'},
   {key:'zvar',label:'Height variance',value:f(cell.height_variance,5),hint:'Surface roughness signal'},
@@ -230,6 +230,16 @@ export function inspectorRows(cell:Json):InspectorRow[]{
   {key:'motion',label:'Motion',value:motionLabel(cell.motion),hint:'From temporal tracking'},
   {key:'quality',label:'Observation quality',value:f(cell.quality),hint:'Gates UtilityLOD promotion'},
   {key:'utility',label:'Utility score',value:f(cell.utility),hint:'Promotion signal 0–1'},
+  ...(['ground','obstacle','overhead'] as const).flatMap(name=>{
+   const layer=cell.physical_layers?.[name];
+   const title=name[0].toUpperCase()+name.slice(1);
+   const supported=typeof layer?.count==='number'&&layer.count>0;
+   return [
+    {key:`${name}_count`,label:`${title} returns`,value:f(layer?.count,0),hint:'Zero means no observed surface in this layer'},
+    {key:`${name}_mean`,label:`${title} height (m)`,value:f(supported?layer.mean:null),hint:'Measured layer mean, not pooled elevation'},
+    {key:`${name}_extent`,label:`${title} min / max (m)`,value:supported?`${f(layer.min)} / ${f(layer.max)}`:'Unavailable',hint:'Observed vertical extent in world coordinates'},
+   ];
+  }),
  ];
 }
 export function datasetCapabilities(catalog:Json|null,sequenceId:string){

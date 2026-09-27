@@ -56,6 +56,28 @@ export function validateVisualization(metadata:Json,payload:Uint8Array){
     if(!s||!expected.includes(s.stride))throw new Error('Invalid visualization stride');
     if(!Number.isSafeInteger(s.count)||!Number.isSafeInteger(s.offset)||s.count<0||s.count>100000||s.offset<0||s.offset%4||s.offset+s.count*s.stride>payload.byteLength)throw new Error('Visualization section outside bounds');
   }
+  const layer=metadata.physical_layers;
+  if(layer!==undefined){
+    const end=metadata.cells.offset+metadata.cells.count*metadata.cells.stride;
+    if(!layer||layer.version!==1||layer.stride!==60||layer.count!==metadata.cells.count||!Number.isSafeInteger(layer.offset)||layer.offset<end||layer.offset%4||layer.offset+layer.count*60>payload.byteLength)throw new Error('Invalid physical layer section');
+  }
+}
+// Optional section aligned to the sampled cell order: each layer contains
+// count, mean, minimum, maximum, population variance. Empty layers have no surface.
+export function decodePhysicalLayers(frame:WireFrame,index:number):Json|null{
+  const section=frame.metadata.physical_layers;
+  if(section===undefined)return null;
+  validateVisualization(frame.metadata,frame.payload);
+  if(!Number.isSafeInteger(index)||index<0||index>=section.count)throw new Error('Physical layer index outside bounds');
+  const view=new DataView(frame.payload.buffer,frame.payload.byteOffset,frame.payload.byteLength);
+  const result:Json={};
+  ['ground','obstacle','overhead'].forEach((name,i)=>{
+    const base=section.offset+index*60+i*20;
+    const count=view.getFloat32(base,true);
+    const value=(offset:number)=>{const v=view.getFloat32(base+offset,true);return Number.isFinite(count)&&count>0&&Number.isFinite(v)?v:null;};
+    result[name]={count:Number.isFinite(count)&&count>=0?count:null,mean:value(4),min:value(8),max:value(12),variance:value(16)};
+  });
+  return result;
 }
 // Cell row field indices for the v3 layout (17 floats). v2 rows expose only
 // indices 0..8; anything else must render as Unavailable, never fabricated.
