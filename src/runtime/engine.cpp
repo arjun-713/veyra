@@ -783,6 +783,9 @@ Result run(const Options& options) {
   veyra::map::DepthImage scan_image{1440, 64, -25.0 * std::numbers::pi / 180.0,
                                     15.0 * std::numbers::pi / 180.0};
   veyra::map::SensorPose sensor_pose{};
+  // False until a frame supplies a finite sensor pose; clearing never runs on
+  // a fabricated pose (mirrors PersistentEngineSession::pose_valid_).
+  bool pose_valid = false;
   std::uint64_t expected_points = 0;
   std::uint64_t points = 0;
   std::uint64_t frame_rejected_before = 0;
@@ -893,6 +896,8 @@ Result run(const Options& options) {
       // clearing it keeps this off the allocator on the hot path.
       scan_image.clear();
       sensor_pose = {pose[3], pose[7], pose[11] + options.sensor_height_m};
+      pose_valid = std::isfinite(sensor_pose.x) && std::isfinite(sensor_pose.y) &&
+                   std::isfinite(sensor_pose.z);
       map.set_window_center(pose[3], pose[7]);
       map_point_count_before_update = map.point_count();
       frame_rejected_before = result.rejected_out_of_window;
@@ -908,11 +913,11 @@ Result run(const Options& options) {
       const auto update_started = Clock::now();
       if (ingest_observation(map, observation, result.rejected_out_of_window)) {
         ++result.input_points;
+        // Every accepted return is one beam's endpoint, so the raster is built
+        // from the same points the map ingests. Rejected points are excluded on
+        // purpose: a return outside the window cannot license clearing inside it.
+        if (pose_valid) scan_image.insert(observation, sensor_pose);
       }
-      // Every accepted return is one beam's endpoint, so the raster is built
-      // from the same points the map ingests. Rejected points are excluded on
-      // purpose: a return outside the window cannot license clearing inside it.
-      scan_image.insert(observation, sensor_pose);
       update_duration += std::chrono::nanoseconds{duration_ns(update_started)};
       ++points;
     } else if (kind == "E") {
@@ -926,10 +931,14 @@ Result run(const Options& options) {
       // snapshot, so the published map reflects both what this scan added and
       // what it contradicted. Its cost is counted in update_duration, where
       // every other per-frame map cost already is.
-      if (options.clearing_enabled) {
+      // Missing/invalid pose or an empty raster skips honestly: no evidence is
+      // not evidence of absence, so nothing is cleared (mirrors end_frame).
+      if (options.clearing_enabled && pose_valid && scan_image.filled_bins() > 0) {
         const auto clearing_started = Clock::now();
         result.clearing = map.clear_free_space(scan_image, sensor_pose);
         update_duration += std::chrono::nanoseconds{duration_ns(clearing_started)};
+      } else {
+        result.clearing.reset();
       }
       const auto snapshot_started = Clock::now();
       auto snapshot = map.snapshot();
