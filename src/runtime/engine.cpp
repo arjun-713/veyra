@@ -171,6 +171,16 @@ class MapPolicyAdapter {
       if (accepts(observation.x, observation.y)) add_support(policy_cell(observation.x, observation.y));
     }
     support_prepared_ = true;
+    // Resolve the complete scan before mutating topology. Otherwise a late
+    // critical return splits already-fused evidence into a non-spatial prior,
+    // or a later baseline request coarsens an earlier critical return.
+    for (const auto& observation : observations) {
+      if (!accepts(observation.x, observation.y)) continue;
+      const int level = requested_level(observation);
+      const auto found = support_counts_.find(policy_cell(observation.x, observation.y));
+      if (found != support_counts_.end())
+        found->second.level = std::min(found->second.level, level);
+    }
   }
 
   void update(const veyra::map::Observation& observation) {
@@ -178,6 +188,16 @@ class MapPolicyAdapter {
       std::visit([&observation](auto& map) { map.update(observation); }, map_);
       return;
     }
+    auto& map = std::get<veyra::map::Map>(map_);
+    const auto found = support_counts_.find(policy_cell(observation.x, observation.y));
+    const int level = support_prepared_ && found != support_counts_.end()
+                          ? found->second.level
+                          : requested_level(observation);
+    map.update_at_level(observation, level);
+  }
+
+ private:
+  int requested_level(const veyra::map::Observation& observation) {
     auto& map = std::get<veyra::map::Map>(map_);
     const double offset_x = observation.x - center_x_;
     const double offset_y = observation.y - center_y_;
@@ -213,9 +233,10 @@ class MapPolicyAdapter {
     }
     if (utility_ && options_promotion_telemetry_ && requested_level > decision.requested_level)
       utility_->record_promotion_budget_effects(1, 0, 0);
-    map.update_at_level(observation, requested_level);
+    return requested_level;
   }
 
+ public:
   void set_window_center(double x, double y) {
     if (utility_) utility_->begin_frame(frame_id_++);
     center_x_ = x;
@@ -335,13 +356,13 @@ class MapPolicyAdapter {
   }
   std::size_t support_count(veyra::core::CellId cell) const {
     const auto found = support_counts_.find(cell);
-    return found == support_counts_.end() ? 0 : found->second;
+    return found == support_counts_.end() ? 0 : found->second.count;
   }
   std::size_t add_support(veyra::core::CellId cell) {
     const auto found = support_counts_.find(cell);
-    if (found != support_counts_.end()) return ++found->second;
+    if (found != support_counts_.end()) return ++found->second.count;
     if (support_counts_.size() >= utility_->utility_config().max_state_cells) return 0;
-    support_counts_.emplace(cell, 1);
+    support_counts_.emplace(cell, FrameRegion{1, 3});
     return 1;
   }
   using Storage = std::variant<veyra::map::Uniform5Map, veyra::map::Uniform40Map,
@@ -368,7 +389,11 @@ class MapPolicyAdapter {
   double center_x_ = 0.0;
   double center_y_ = 0.0;
   bool options_promotion_telemetry_ = false;
-  std::unordered_map<veyra::core::CellId, std::size_t, veyra::core::CellIdHash> support_counts_;
+  struct FrameRegion {
+    std::size_t count = 0;
+    int level = 3;
+  };
+  std::unordered_map<veyra::core::CellId, FrameRegion, veyra::core::CellIdHash> support_counts_;
   bool support_prepared_ = false;
 };
 
