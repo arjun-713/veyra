@@ -1,0 +1,553 @@
+{
+  "schema_version": 2,
+  "dataset": "semanticposs",
+  "sequence": "00",
+  "start": 0,
+  "input_frames": 2,
+  "measured_frames_per_run": 2,
+  "perception": {
+    "bridge_scope": "C++ protocol_parse_and_validate across measured policy streams",
+    "dataset": "semanticposs",
+    "failures": 0,
+    "frames": 2,
+    "ground_ratio": 0.3321342819905939,
+    "known_motion_fraction": 0,
+    "known_terrain_fraction": 0.3260164038666796,
+    "points_processed": 132070,
+    "sequence": "00",
+    "status": {
+      "ground": "pypatchworkpp.patchworkpp",
+      "semantic": "ground_truth",
+      "temporal": "disabled",
+      "terrain": "available"
+    },
+    "timings": {
+      "bridge": {
+        "max_ms": 17.64205,
+        "mean_ms": 15.783938,
+        "p50_ms": 15.575925,
+        "p95_ms": 17.64205,
+        "p99_ms": 17.64205,
+        "samples": 8
+      },
+      "dataset_load": {
+        "max_ms": 91.769563,
+        "mean_ms": 73.2909775,
+        "p50_ms": 54.812392,
+        "p95_ms": 91.769563,
+        "p99_ms": 91.769563,
+        "samples": 2
+      },
+      "ground": {
+        "max_ms": 108.75746000010622,
+        "mean_ms": 93.80068200016467,
+        "p50_ms": 78.84390400022312,
+        "p95_ms": 108.75746000010622,
+        "p99_ms": 108.75746000010622,
+        "samples": 2
+      },
+      "semantic": {
+        "max_ms": 3.454593000242312,
+        "mean_ms": 1.9308089999867661,
+        "p50_ms": 0.4070249997312203,
+        "p95_ms": 3.454593000242312,
+        "p99_ms": 3.454593000242312,
+        "samples": 2
+      },
+      "sensor_transform": {
+        "max_ms": 3.991363000295678,
+        "mean_ms": 3.064429000232849,
+        "p50_ms": 2.13749500017002,
+        "p95_ms": 3.991363000295678,
+        "p99_ms": 3.991363000295678,
+        "samples": 2
+      },
+      "temporal": {
+        "max_ms": 0.00260600018009427,
+        "mean_ms": 0.0019874998997693183,
+        "p50_ms": 0.0013689996194443665,
+        "p95_ms": 0.00260600018009427,
+        "p99_ms": 0.00260600018009427,
+        "samples": 2
+      },
+      "terrain": {
+        "max_ms": 87.16140400019867,
+        "mean_ms": 76.6454000001886,
+        "p50_ms": 66.12939600017853,
+        "p95_ms": 87.16140400019867,
+        "p99_ms": 87.16140400019867,
+        "samples": 2
+      },
+      "total": {
+        "max_ms": 228.85661100008292,
+        "mean_ms": 197.25286250013596,
+        "p50_ms": 165.649114000189,
+        "p95_ms": 228.85661100008292,
+        "p99_ms": 228.85661100008292,
+        "samples": 2
+      }
+    }
+  },
+  "provenance": {
+    "build_type": "Release",
+    "compiler": "c++ (GCC) 16.2.1 20260819 (Red Hat 16.2.1-2)",
+    "config_digest": "d76eba29243e2639254c231d1d863bc022512a1f0a1929c62b33b3cabe2c91ed",
+    "config_sha256": {
+      "benchmark.yaml": "f2d60b90a3de53fbfc6347c5e527fd01291c1f2e2ea5e77ccafb1c8c21d3cf07",
+      "datasets.yaml": "2925075c5e70d169070e61c9ecb8fd6226c716e7602f4a552cc9c56f245f48b7",
+      "distance_lod.yaml": "50cfb183cf26ff738c5bc4aed4f7dde58d6ee1a0e20831b62d740d21a18e2414",
+      "hardware_profiles.yaml": "16cccff4b2958c05f2bc9e9936cb6278cf3120b0eb8c744fc4552209a38c5d45",
+      "perception.yaml": "e70419acf104ef42aa6478da924432ba55a00c3dbcf92a94db54bc06324030f4",
+      "resource_governor.yaml": "c0b54b59500eedb1972c3493794dbccf751bad9ca96bf264b8787bf95d4959a5",
+      "utility_lod.yaml": "f6821c94f37d9349e9728cb46741f7439ff44637309823f7a40aca0dd520f3dc"
+    },
+    "dataset_sha256": null,
+    "frame_range": {
+      "count": 2,
+      "end_exclusive": 2,
+      "sequence": "00",
+      "start": 0
+    },
+    "git_sha": "13f076a577b92eb8f65777686749e49fd30d9cf1",
+    "hardware": {
+      "capture": "runtime",
+      "logical_cpu_count": 8,
+      "machine": "x86_64",
+      "os": "Linux-7.2.7-200.fc44.x86_64-x86_64-with-glibc2.43",
+      "physical_memory_bytes": 16489238528,
+      "processor": "Intel(R) Core(TM) i5-8350U CPU @ 1.70GHz",
+      "profile": "auto",
+      "python": "3.13.15"
+    },
+    "map_window_radius_m": 100.20723126545361,
+    "measurement_scope": {
+      "map_update": "C++ map update calls only; excludes protocol parsing, snapshotting, and JSON/CSV serialization",
+      "map_window_follow": "C++ public map window-center update from the transmitted world-frame pose; excludes serialization",
+      "perception": "Python PerceptionPipeline processing, shared once before all policy runs",
+      "protocol_parse_and_validate": "C++ token parsing and Observation construction; excludes stdin I/O",
+      "snapshot_and_topology": "C++ map snapshot plus topology extraction; excludes JSON/CSV serialization"
+    },
+    "model_checkpoint_sha256": "067086f808985de376e19c174e249190b7c97996cd54be1dbb9d8b298804b548",
+    "perception_executed": true,
+    "policy_execution_order": [
+      [
+        "uniform5",
+        "uniform40",
+        "distance_lod",
+        "utility_lod"
+      ]
+    ],
+    "protocol_version": 4,
+    "pull_request_number": null,
+    "repetitions": 1,
+    "sample_adequacy": {
+      "fps_samples_per_policy": {
+        "p95_reliable": false,
+        "p99_reliable": false,
+        "samples": 1
+      },
+      "measured_frames_per_run": 2,
+      "note": "nearest-rank p95 needs >=20 samples and p99 >=100; short-run tails equal the max and are descriptive only, not SLO evidence",
+      "repetitions": 1,
+      "stage_latency_samples_per_policy": {
+        "p95_reliable": false,
+        "p99_reliable": false,
+        "samples": 2
+      }
+    },
+    "selection_digest": "c20fb4108e3a47fac89f407d8a2819a06e190f129937f3ed83a09a83c49841d3",
+    "source_state_sha256": "d5c509383cdeaa18b45069f4b6aaeb084a8a7b0b7031d6f99039014183c33912",
+    "timestamp_utc": "2026-09-27T15:14:52.538133+00:00",
+    "untracked_source_files": [],
+    "warmup_frames": 0,
+    "workflow_event": null,
+    "workflow_run_id": null,
+    "working_tree_dirty": true
+  },
+  "quality_resource": {
+    "dataset": "semanticposs",
+    "frame_range": {
+      "count": 2,
+      "end_exclusive": 2,
+      "sequence": "00",
+      "start": 0
+    },
+    "input_stream_digests": {
+      "distance_lod": "c20fb4108e3a47fac89f407d8a2819a06e190f129937f3ed83a09a83c49841d3",
+      "uniform40": "c20fb4108e3a47fac89f407d8a2819a06e190f129937f3ed83a09a83c49841d3",
+      "uniform5": "c20fb4108e3a47fac89f407d8a2819a06e190f129937f3ed83a09a83c49841d3",
+      "utility_lod": "c20fb4108e3a47fac89f407d8a2819a06e190f129937f3ed83a09a83c49841d3"
+    },
+    "latency_plot_metric": "map_update_p50_ms",
+    "measured_policy_count": 4,
+    "metric_definitions": {
+      "chamfer_distance_m": "mean of the two directed unsquared 3D nearest-neighbour distances in metres on matched common-support bins; lower is better",
+      "completion_fraction": "uniquely owned valid reference bins / all valid Uniform5 reference bins; higher is better",
+      "elevation_rmse_m": "root mean square vertical error in metres on matched common-support bins; lower is better",
+      "height_accuracy_10cm": "matched common 5cm XY bins with absolute elevation error <= 0.10m; higher is better",
+      "latency_frontier": "uses map-update p95 only when all four policies have at least 20 samples; otherwise uses map-update p50",
+      "logical_map_bytes": "logical map payload accounting, distinct from process RSS",
+      "map_update_p95_ms": "95th percentile C++ map-update call latency; excludes parsing, snapshots, and serialization",
+      "rss_bytes": "measured benchmark process peak RSS; includes non-map process memory",
+      "runtime_per_frame_ms": "median C++ frame_pipeline latency per processed frame; not perception or renderer latency"
+    },
+    "pareto": {
+      "joint_resource_quality": {
+        "dominated": {},
+        "frontier": [
+          "distance_lod",
+          "uniform40",
+          "uniform5",
+          "utility_lod"
+        ],
+        "objectives": [
+          {
+            "direction": "min",
+            "metric": "logical_map_bytes"
+          },
+          {
+            "direction": "min",
+            "metric": "map_update_p50_ms"
+          },
+          {
+            "direction": "max",
+            "metric": "height_accuracy_10cm"
+          },
+          {
+            "direction": "max",
+            "metric": "completion_fraction"
+          },
+          {
+            "direction": "min",
+            "metric": "symmetric_chamfer_m"
+          }
+        ],
+        "unavailable": [],
+        "weighted_score_used": false
+      },
+      "latency_vs_chamfer": {
+        "dominated": {
+          "distance_lod": [
+            "uniform5"
+          ],
+          "uniform40": [
+            "uniform5"
+          ],
+          "utility_lod": [
+            "uniform5"
+          ]
+        },
+        "frontier": [
+          "uniform5"
+        ],
+        "unavailable": [],
+        "weighted_score_used": false,
+        "x_direction": "min",
+        "x_metric": "map_update_p50_ms",
+        "y_direction": "min",
+        "y_metric": "symmetric_chamfer_m"
+      },
+      "latency_vs_completion": {
+        "dominated": {
+          "distance_lod": [
+            "uniform40",
+            "uniform5"
+          ],
+          "uniform40": [
+            "uniform5"
+          ],
+          "utility_lod": [
+            "distance_lod",
+            "uniform40",
+            "uniform5"
+          ]
+        },
+        "frontier": [
+          "uniform5"
+        ],
+        "unavailable": [],
+        "weighted_score_used": false,
+        "x_direction": "min",
+        "x_metric": "map_update_p50_ms",
+        "y_direction": "max",
+        "y_metric": "completion_fraction"
+      },
+      "latency_vs_height_accuracy": {
+        "dominated": {
+          "distance_lod": [
+            "uniform5"
+          ],
+          "uniform40": [
+            "uniform5"
+          ],
+          "utility_lod": [
+            "uniform5"
+          ]
+        },
+        "frontier": [
+          "uniform5"
+        ],
+        "unavailable": [],
+        "weighted_score_used": false,
+        "x_direction": "min",
+        "x_metric": "map_update_p50_ms",
+        "y_direction": "max",
+        "y_metric": "height_accuracy_10cm"
+      },
+      "memory_vs_chamfer": {
+        "dominated": {},
+        "frontier": [
+          "distance_lod",
+          "uniform40",
+          "uniform5",
+          "utility_lod"
+        ],
+        "unavailable": [],
+        "weighted_score_used": false,
+        "x_direction": "min",
+        "x_metric": "logical_map_bytes",
+        "y_direction": "min",
+        "y_metric": "symmetric_chamfer_m"
+      },
+      "memory_vs_completion": {
+        "dominated": {
+          "distance_lod": [
+            "uniform40"
+          ],
+          "uniform5": [
+            "uniform40"
+          ],
+          "utility_lod": [
+            "distance_lod",
+            "uniform40"
+          ]
+        },
+        "frontier": [
+          "uniform40"
+        ],
+        "unavailable": [],
+        "weighted_score_used": false,
+        "x_direction": "min",
+        "x_metric": "logical_map_bytes",
+        "y_direction": "max",
+        "y_metric": "completion_fraction"
+      },
+      "memory_vs_height_accuracy": {
+        "dominated": {},
+        "frontier": [
+          "distance_lod",
+          "uniform40",
+          "uniform5",
+          "utility_lod"
+        ],
+        "unavailable": [],
+        "weighted_score_used": false,
+        "x_direction": "min",
+        "x_metric": "logical_map_bytes",
+        "y_direction": "max",
+        "y_metric": "height_accuracy_10cm"
+      },
+      "rss_vs_chamfer": {
+        "dominated": {},
+        "frontier": [
+          "distance_lod",
+          "uniform40",
+          "uniform5",
+          "utility_lod"
+        ],
+        "unavailable": [],
+        "weighted_score_used": false,
+        "x_direction": "min",
+        "x_metric": "rss_bytes",
+        "y_direction": "min",
+        "y_metric": "symmetric_chamfer_m"
+      },
+      "rss_vs_completion": {
+        "dominated": {
+          "distance_lod": [
+            "uniform40"
+          ],
+          "uniform5": [
+            "uniform40"
+          ],
+          "utility_lod": [
+            "distance_lod",
+            "uniform40"
+          ]
+        },
+        "frontier": [
+          "uniform40"
+        ],
+        "unavailable": [],
+        "weighted_score_used": false,
+        "x_direction": "min",
+        "x_metric": "rss_bytes",
+        "y_direction": "max",
+        "y_metric": "completion_fraction"
+      },
+      "rss_vs_height_accuracy": {
+        "dominated": {},
+        "frontier": [
+          "distance_lod",
+          "uniform40",
+          "uniform5",
+          "utility_lod"
+        ],
+        "unavailable": [],
+        "weighted_score_used": false,
+        "x_direction": "min",
+        "x_metric": "rss_bytes",
+        "y_direction": "max",
+        "y_metric": "height_accuracy_10cm"
+      }
+    },
+    "policies": [
+      {
+        "active_cells": 91512,
+        "allocated_map_bytes": 25870304,
+        "chamfer_distance_m": 0,
+        "completion_fraction": 1,
+        "elevation_rmse_m": 0,
+        "height_accuracy_05cm": 1,
+        "height_accuracy_10cm": 1,
+        "height_accuracy_20cm": 1,
+        "logical_map_bytes": 17570304,
+        "map_update_p50_ms": 40.039089,
+        "map_update_p95_ms": 51.010655,
+        "map_update_p95_reliable": false,
+        "map_update_p99_ms": 51.010655,
+        "map_update_p99_reliable": false,
+        "map_update_sample_count": 2,
+        "matched_bins": 91512,
+        "pedestrian_retention_fraction": 0.996937212863706,
+        "pole_retention_fraction": 0.9888059701492538,
+        "policy": "uniform5",
+        "processing_fps_p50": 12.02146080800614,
+        "reference": "observed Uniform5 representation from identical stream",
+        "reference_bins": 91512,
+        "reference_is_ground_truth": false,
+        "rss_bytes": 63373312,
+        "runtime_ms": 82.207846,
+        "runtime_per_frame_ms": 82.207846,
+        "semantic_retention_fraction": 0.9989831887201736,
+        "status": "measured",
+        "symmetric_chamfer_m": 0,
+        "vehicle_retention_fraction": 0.9991384452249984
+      },
+      {
+        "active_cells": 15399,
+        "allocated_map_bytes": 4648256,
+        "chamfer_distance_m": 0.11963894194429986,
+        "completion_fraction": 1,
+        "elevation_rmse_m": 0.5651386860767195,
+        "height_accuracy_05cm": 0.49209939680041964,
+        "height_accuracy_10cm": 0.5615219861876038,
+        "height_accuracy_20cm": 0.6639566395663956,
+        "logical_map_bytes": 2956608,
+        "map_update_p50_ms": 49.263396,
+        "map_update_p95_ms": 182.675358,
+        "map_update_p95_reliable": false,
+        "map_update_p99_ms": 182.675358,
+        "map_update_p99_reliable": false,
+        "map_update_sample_count": 2,
+        "matched_bins": 91512,
+        "pedestrian_retention_fraction": 0.9571209800918836,
+        "pole_retention_fraction": 0.9664179104477612,
+        "policy": "uniform40",
+        "processing_fps_p50": 7.30543383282289,
+        "reference": "observed Uniform5 representation from identical stream",
+        "reference_bins": 91512,
+        "reference_is_ground_truth": false,
+        "rss_bytes": 21422080,
+        "runtime_ms": 71.855913,
+        "runtime_per_frame_ms": 71.855913,
+        "semantic_retention_fraction": 0.9487301156905278,
+        "status": "measured",
+        "symmetric_chamfer_m": 0.11963894194429986,
+        "vehicle_retention_fraction": 0.9859500298230499
+      },
+      {
+        "active_cells": 56384,
+        "allocated_map_bytes": 16029280,
+        "chamfer_distance_m": 0.059892548062802003,
+        "completion_fraction": 0.9992569280531515,
+        "elevation_rmse_m": 0.40484559413331717,
+        "height_accuracy_05cm": 0.6803180088360089,
+        "height_accuracy_10cm": 0.7332028345216745,
+        "height_accuracy_20cm": 0.8054547045186125,
+        "logical_map_bytes": 10838976,
+        "map_update_p50_ms": 60.752935,
+        "map_update_p95_ms": 108.209034,
+        "map_update_p95_reliable": false,
+        "map_update_p99_ms": 108.209034,
+        "map_update_p99_reliable": false,
+        "map_update_sample_count": 2,
+        "matched_bins": 91444,
+        "pedestrian_retention_fraction": 0.9693721286370597,
+        "pole_retention_fraction": 0.9664179104477612,
+        "policy": "distance_lod",
+        "processing_fps_p50": 8.836661938934707,
+        "reference": "observed Uniform5 representation from identical stream",
+        "reference_bins": 91512,
+        "reference_is_ground_truth": false,
+        "rss_bytes": 43999232,
+        "runtime_ms": 90.081961,
+        "runtime_per_frame_ms": 90.081961,
+        "semantic_retention_fraction": 0.9823413774403471,
+        "status": "partial",
+        "symmetric_chamfer_m": 0.059892548062802003,
+        "vehicle_retention_fraction": 0.991649546026907
+      },
+      {
+        "active_cells": 59009,
+        "allocated_map_bytes": 17132864,
+        "chamfer_distance_m": 0.05896129504987979,
+        "completion_fraction": 0.98688696564385,
+        "elevation_rmse_m": 0.4053976084931622,
+        "height_accuracy_05cm": 0.6878266454070334,
+        "height_accuracy_10cm": 0.7386393834706352,
+        "height_accuracy_20cm": 0.8092612277438214,
+        "logical_map_bytes": 11509056,
+        "map_update_p50_ms": 110.630722,
+        "map_update_p95_ms": 157.525625,
+        "map_update_p95_reliable": false,
+        "map_update_p99_ms": 157.525625,
+        "map_update_p99_reliable": false,
+        "map_update_sample_count": 2,
+        "matched_bins": 90312,
+        "pedestrian_retention_fraction": 0.9571209800918836,
+        "pole_retention_fraction": 0.9216417910447762,
+        "policy": "utility_lod",
+        "processing_fps_p50": 5.697296506327764,
+        "reference": "observed Uniform5 representation from identical stream",
+        "reference_bins": 91512,
+        "reference_is_ground_truth": false,
+        "rss_bytes": 50601984,
+        "runtime_ms": 157.154427,
+        "runtime_per_frame_ms": 157.154427,
+        "semantic_retention_fraction": 0.9701961315979755,
+        "status": "partial",
+        "symmetric_chamfer_m": 0.05896129504987979,
+        "vehicle_retention_fraction": 0.9668632778845516
+      }
+    ],
+    "reference": {
+      "definition": "Observed Uniform5 map support from the same dataset selection, poses, accepted observations, and world coordinate frame; not surveyed truth.",
+      "is_ground_truth": false,
+      "name": "Uniform5 high-resolution representation"
+    },
+    "same_input_for_all_policies": true,
+    "schema_version": 1,
+    "selection_digest": "c20fb4108e3a47fac89f407d8a2819a06e190f129937f3ed83a09a83c49841d3",
+    "sequence": "00",
+    "status": "measured",
+    "unavailable_policies": [],
+    "weighted_score_used": false
+  },
+  "evidence_scope": "branch-local two-frame GT-semantic representation smoke; not neural accuracy, main acceptance or reliable tail latency",
+  "acceptance": {
+    "issue_60": "NO-GO: useful critical-object retention advantage not demonstrated",
+    "production_policy": "utility_lod; not experimental V2",
+    "semantic_metrics": "GT-vs-GT neural-quality metrics intentionally excluded"
+  }
+}

@@ -1,5 +1,8 @@
 # Production UtilityLOD: bounded signal diagnosis
 
+Latest evidence: see **Final signal correction** below. Earlier captures are
+preserved as historical branch-local comparisons, not current implementation results.
+
 Scope: #57 diagnostics and the approved quality-boundary integration. This does not close
 #60 (task-relevant benefit) or #62 (final integrated-main benchmark).
 
@@ -128,3 +131,87 @@ VEYRA_BENCHMARK_BINARY="$PWD/build-utility-diagnostics/apps/benchmark/veyra_benc
 .venv/bin/python -m unittest benchmarks.test_utility_diagnostics \
   benchmarks.test_quality_resource benchmarks.test_product_benchmark -q
 ```
+
+## Final signal correction (2026-09-27)
+
+Source commit: `13f076a577b92eb8f65777686749e49fd30d9cf1`. The run recorded a
+dirty tree because the unrelated `:memory:.ses` artifact was preserved; there
+were no untracked source files. Source/config/binary hashes, input digest,
+hardware, selection and exact stage status are in `signal-correction-final.json`
+and `production-policy-smoke.json`. These are branch-local results, **not #62
+clean integrated-main evidence**. The earlier `signal-correction-after.json`
+and `production-policy-smoke-initial.csv` remain separate preliminary captures.
+
+The existing production UtilityLOD now uses configurable canonical-class
+importance, measured scan-local support, and an independently reachable
+critical-semantic condition subject to the existing support, dwell, cooldown,
+depth and governor gates. See `docs/utility-production-signal-correction.md`
+for formulas and limitations. DistanceLOD, defaults, existing weights and
+thresholds are unchanged. Experimental V2 is not included.
+
+Same selection: SemanticPOSS 00 frames 0:2, 132,070 points; GT semantics, real
+Patchwork++ and terrain, temporal disabled. Near-one semantic importance fell
+from 128,862 to 887 observations. The measured density gate rejected 12,463;
+quality rejected 3,877 (overlapping counters). There were 25,565 eligible
+critical-semantic observations and 663 critical-semantic promotion **requests**.
+The governor suppressed 7,709 optional requests. Requests are not successful
+splits, objects, or retention measurements.
+
+### Quality/resource acceptance: NO-GO for #60
+
+All four policies received the same observation stream. Uniform5 is the
+observed representation reference, not surveyed truth. Canonical values and
+metric definitions are in `production-policy-smoke.json` and its CSV.
+
+| Policy | Logical bytes | Active cells | Map p50 ms | Height accuracy at 10cm | Completion | Chamfer mm |
+|---|---:|---:|---:|---:|---:|---:|
+| Uniform5 | 17,570,304 | 91,512 | 40.04 | 100.00% | 100.00% | 0.00 |
+| Uniform40 | 2,956,608 | 15,399 | 49.26 | 56.15% | 100.00% | 119.64 |
+| DistanceLOD | 10,838,976 | 56,384 | 60.75 | 73.32% | 99.93% | 59.89 |
+| UtilityLOD | 11,509,056 | 59,009 | 110.63 | 73.86% | 98.69% | 58.96 |
+
+Utility uses 6.18% more logical state. Pedestrian retention falls from 96.94%
+to 95.71%, pole from 96.64% to 92.16%, and vehicle from 99.16% to 96.69%.
+Small global geometry gains do **not** establish useful task allocation.
+Only two timing samples per policy exist; p95/p99 are descriptive and flagged
+unreliable. Do not use this as a real-time or tail-latency claim.
+
+Synthetic spatial regressions demonstrate that supported person/pole/car regions
+can refine while equally distant road stays coarse. Actual topology decisions
+now have reachable, selective inputs, but the real-data retention gate remains
+failed. Nonspatial prior support and governor decisions require further
+attribution before assigning the retention loss to a single cause. #60 stays
+open; do not advertise UtilityLOD as superior to DistanceLOD.
+
+### Reproduce final smoke
+
+After building fresh binaries as above:
+
+```sh
+.venv/bin/python -m benchmarks.utility_diagnostics \
+  --executable build-utility-diagnostics/apps/benchmark/veyra_benchmark \
+  --dataset semanticposs --sequence 00 --start 0 --count 2
+
+.venv/bin/python -m benchmarks.run_benchmark \
+  --binary build-utility-diagnostics/apps/benchmark/veyra_benchmark \
+  --dataset semanticposs --sequence 00 --start 0 --count 2 \
+  --warmup-frames 0 --repetitions 1 --retain-frames --promotion-telemetry \
+  --quality-artifact-dir /tmp/veyra-production-utility-quality \
+  --output /tmp/veyra-production-utility.json \
+  --csv-output /tmp/veyra-production-utility.csv
+```
+
+### Final local verification
+
+- Fresh Release build and full CTest: **22/22 pass**, 243.83 s.
+- Python full discovery: **424 ran; 414 pass, 10 optional skips**, 205.59 s.
+- Enabled dataset benchmark/diagnostic/quality/product/runtime suites:
+  **61 tests pass**, 23.44 s.
+- Focused runtime/layer suites: **24 pass**; final zero-semantic-weight
+  ablation regression: rebuilt `test_policy` passes.
+- Changed-file Ruff, format, compilation and `git diff --check` pass.
+- Default `build/` runtime and benchmark rebuilt to avoid stale-config failures.
+- ASan/UBSan build attempt stopped at compiler sanity link: installed GCC
+  could not find `/usr/lib64/libasan.so.8.0.0`. Sanitizers are **not verified**.
+- No fresh frontend/Rust, interactive UI, neural quality, cross-platform,
+  full-repository Ruff or CI success claim is made by this follow-up.
