@@ -222,7 +222,7 @@ void PolicyConfig::validate() const {
       u.max_level_changes_per_decision <= 0 || u.max_level_changes_per_decision > 3 ||
       !std::isfinite(u.prediction_horizon_s) || u.prediction_horizon_s < 0.0 ||
       u.max_promotion_depth < 0 || u.max_promotion_depth > 3 || u.max_state_cells == 0 ||
-      u.state_ttl_frames == 0) {
+      u.state_ttl_frames == 0 || u.detail_sketch_max_regions > 256) {
     throw std::invalid_argument("invalid utility policy configuration");
   }
 }
@@ -658,7 +658,7 @@ PolicyConfig load_policy_config(const std::filesystem::path& path) {
          "utility.semantic_class_importance", "utility.critical_semantic_threshold",
          "utility.critical_semantic_min_confidence",
          "utility.density_reference_range_m", "utility.density_reference_count",
-         "utility.density_min_expected_count"});
+         "utility.density_min_expected_count", "utility.detail_sketch_max_regions"});
     config.mode = LodMode::UtilityLod;
   } else {
     throw std::invalid_argument("unsupported policy mode " + mode_it->second);
@@ -727,6 +727,9 @@ PolicyConfig load_policy_config(const std::filesystem::path& path) {
     if (values.contains("utility.state_ttl_frames"))
       u.state_ttl_frames =
           yaml_size(values.at("utility.state_ttl_frames"), "utility.state_ttl_frames");
+    if (values.contains("utility.detail_sketch_max_regions"))
+      u.detail_sketch_max_regions = yaml_size(values.at("utility.detail_sketch_max_regions"),
+                                            "utility.detail_sketch_max_regions");
   }
   config.validate();
   return config;

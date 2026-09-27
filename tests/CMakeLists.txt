@@ -29,6 +29,12 @@ target_compile_features(test_map_engine PRIVATE cxx_std_20)
 target_compile_options(test_map_engine PRIVATE -UNDEBUG)
 add_test(NAME map_engine COMMAND test_map_engine)
 
+add_executable(test_detail_preservation test_detail_preservation.cpp)
+target_link_libraries(test_detail_preservation PRIVATE veyra_map)
+target_compile_features(test_detail_preservation PRIVATE cxx_std_20)
+target_compile_options(test_detail_preservation PRIVATE -Wall -Wextra -Wpedantic -UNDEBUG)
+add_test(NAME detail_preservation COMMAND test_detail_preservation)
+
 find_package(Python3 COMPONENTS Interpreter REQUIRED)
 add_test(
   NAME python_unittest

@@ -350,6 +350,64 @@ class SparseTileStore {
 }  // namespace
 
 struct Map::Impl {
+  struct DetailSketch {
+    core::CellId region;
+    bool complete = false;
+    std::array<CellStats, 64> bins{};
+  };
+  using DetailIndex = std::pair<std::uint64_t, std::size_t>;
+
+  [[nodiscard]] DetailSketch* detail_for(core::CellId id) {
+    if (detail_index.empty()) return nullptr;
+    const auto key = planar_key(ancestor_at(id, kMaxLevel));
+    const auto found = std::lower_bound(detail_index.begin(), detail_index.end(), key,
+        [](const DetailIndex& entry, std::uint64_t value) { return entry.first < value; });
+    return found != detail_index.end() && found->first == key
+               ? &detail_sketches[found->second] : nullptr;
+  }
+
+  void invalidate_detail(core::CellId id) {
+    if (auto* sketch = detail_for(id)) sketch->complete = false;
+  }
+
+  void record_detail(const Observation& observation, const CellStats& one) {
+    if (detail_index.empty()) return;
+    if (auto* sketch = detail_for(index(observation.x, observation.y, kMaxLevel));
+        sketch != nullptr && sketch->complete) {
+      const auto fine = index(observation.x, observation.y, 0);
+      const auto x = static_cast<std::int64_t>(fine.ix) -
+                     static_cast<std::int64_t>(sketch->region.ix) * 8;
+      const auto y = static_cast<std::int64_t>(fine.iy) -
+                     static_cast<std::int64_t>(sketch->region.iy) * 8;
+      sketch->bins[static_cast<std::size_t>(y * 8 + x)].merge(one);
+    }
+  }
+
+  [[nodiscard]] bool region_has_history(core::CellId region) const {
+    for (int level = 0; level <= kMaxLevel; ++level) {
+      const int span = 1 << (kMaxLevel - level);
+      for (int y = 0; y < span; ++y) {
+        for (int x = 0; x < span; ++x) {
+          const auto ix = static_cast<std::int64_t>(region.ix) * span + x;
+          const auto iy = static_cast<std::int64_t>(region.iy) * span + y;
+          if (ix < std::numeric_limits<std::int32_t>::min() ||
+              ix > std::numeric_limits<std::int32_t>::max() ||
+              iy < std::numeric_limits<std::int32_t>::min() ||
+              iy > std::numeric_limits<std::int32_t>::max()) return true;
+          const core::CellId id{level, static_cast<std::int32_t>(ix),
+                                 static_cast<std::int32_t>(iy)};
+          const Tile* owner = tiles.find(tile_key_for(id));
+          if (owner == nullptr) continue;
+          for (const auto* entries : {&owner->leaves[level], &owner->priors[level]}) {
+            const auto* entry = entries->find(id);
+            if (entry != nullptr && entry->stats.count > 0) return true;
+          }
+        }
+      }
+    }
+    return false;
+  }
+
   explicit Impl(ResolutionPolicy initial_policy, MapConfig initial_config)
       : policy(initial_policy), config(initial_config) {
     if (!(config.window_radius_m > 0.0) || !std::isfinite(config.window_radius_m)) {
@@ -464,11 +522,38 @@ struct Map::Impl {
     const auto parent_stats = take_leaf(id);
     if (!parent_stats.has_value()) return false;
 
-    // A parent aggregate says nothing about how its observations partition
-    // across children. Retain it explicitly as a non-spatial prior.
-    merge_prior(id, *parent_stats);
+    std::array<CellStats, 4> children{};
+    bool rehydrated = false;
+    if (auto* sketch = detail_for(id); sketch != nullptr && sketch->complete) {
+      std::uint64_t reconstructed_count = 0;
+      const auto span = std::int64_t{1} << id.level;
+      const auto start_x = static_cast<std::int64_t>(id.ix) * span -
+                           static_cast<std::int64_t>(sketch->region.ix) * 8;
+      const auto start_y = static_cast<std::int64_t>(id.iy) * span -
+                           static_cast<std::int64_t>(sketch->region.iy) * 8;
+      for (std::int64_t y = 0; y < span; ++y) {
+        for (std::int64_t x = 0; x < span; ++x) {
+          const auto& bin = sketch->bins[static_cast<std::size_t>((start_y + y) * 8 + start_x + x)];
+          const auto child = static_cast<std::size_t>((y >= span / 2 ? 2 : 0) +
+                                                     (x >= span / 2 ? 1 : 0));
+          children[child].merge(bin);
+          reconstructed_count += bin.count;
+        }
+      }
+      rehydrated = reconstructed_count == parent_stats->count;
+      if (rehydrated) {
+        ++detail_rehydrated_splits;
+        detail_rehydrated_points += reconstructed_count;
+      }
+    }
+    // Incomplete history is never assigned a fabricated child location.
+    if (!rehydrated) {
+      merge_prior(id, *parent_stats);
+      children = {};
+    }
     for (int dy = 0; dy < 2; ++dy) {
-      for (int dx = 0; dx < 2; ++dx) merge_leaf(child_at(id, dx, dy), {});
+      for (int dx = 0; dx < 2; ++dx)
+        merge_leaf(child_at(id, dx, dy), children[static_cast<std::size_t>(dy * 2 + dx)]);
     }
     ++topology_changes;
     ++split_count;
@@ -555,7 +640,13 @@ struct Map::Impl {
     tiles.for_each_tile([&](TileKey key, Tile& tile) {
       if (skip_tile(key)) return;
       for (int level = 0; level <= kMaxLevel; ++level) {
-        auto remove = [&](CellTable& entries) { entries.erase_if(predicate); };
+        auto remove = [&](CellTable& entries) {
+          entries.erase_if([&](const StoredCell& entry) {
+            if (!predicate(entry)) return false;
+            invalidate_detail(entry.id);
+            return true;
+          });
+        };
         remove(tile.leaves[level]);
         remove(tile.priors[level]);
       }
@@ -572,6 +663,11 @@ struct Map::Impl {
   std::uint64_t topology_changes = 0;
   std::uint64_t split_count = 0;
   std::uint64_t merge_count = 0;
+  std::size_t detail_region_limit = 0;
+  std::vector<DetailSketch> detail_sketches;
+  std::vector<DetailIndex> detail_index;
+  std::uint64_t detail_rehydrated_splits = 0;
+  std::uint64_t detail_rehydrated_points = 0;
 };
 
 void CellStats::add(const Observation& observation) {
@@ -1040,6 +1136,7 @@ void Map::update_at_level(const Observation& observation, int level) {
     CellStats one;
     one.add(observation, impl_->config.clearance_envelope_m);
     existing->stats.merge(one);
+    impl_->record_detail(observation, one);
     return;
   }
   impl_->refine_ancestors(id);
@@ -1047,6 +1144,44 @@ void Map::update_at_level(const Observation& observation, int level) {
   CellStats one;
   one.add(observation, impl_->config.clearance_envelope_m);
   impl_->merge_leaf(id, one);
+  impl_->record_detail(observation, one);
+}
+
+void Map::configure_detail_preservation(std::size_t max_regions) {
+  if (max_regions > 256) throw std::invalid_argument("detail sketch region limit exceeds 256");
+  std::vector<Impl::DetailSketch> sketches;
+  std::vector<Impl::DetailIndex> lookup;
+  sketches.reserve(max_regions);
+  lookup.reserve(max_regions);
+  impl_->detail_sketches.swap(sketches);
+  impl_->detail_index.swap(lookup);
+  impl_->detail_region_limit = max_regions;
+}
+
+void Map::select_detail_regions(std::span<const core::CellId> regions) {
+  if (regions.size() > impl_->detail_region_limit)
+    throw std::invalid_argument("detail sketch selection exceeds configured bound");
+  for (const auto id : regions)
+    if (id.level != kMaxLevel) throw std::invalid_argument("detail region must be level 3");
+  for (std::size_t i = 0; i < impl_->detail_sketches.size();) {
+    if (std::find(regions.begin(), regions.end(), impl_->detail_sketches[i].region) != regions.end()) {
+      ++i;
+    } else {
+      impl_->detail_sketches[i] = std::move(impl_->detail_sketches.back());
+      impl_->detail_sketches.pop_back();
+    }
+  }
+  for (const auto id : regions) {
+    const auto found = std::find_if(impl_->detail_sketches.begin(), impl_->detail_sketches.end(),
+        [id](const auto& sketch) { return sketch.region == id; });
+    if (found == impl_->detail_sketches.end()) {
+      impl_->detail_sketches.push_back({.region = id, .complete = !impl_->region_has_history(id)});
+    }
+  }
+  impl_->detail_index.clear();
+  for (std::size_t i = 0; i < impl_->detail_sketches.size(); ++i)
+    impl_->detail_index.emplace_back(planar_key(impl_->detail_sketches[i].region), i);
+  std::sort(impl_->detail_index.begin(), impl_->detail_index.end());
 }
 
 void Map::set_window_center(double x, double y) {
@@ -1117,6 +1252,7 @@ ClearingStats Map::clear_free_space(const DepthImage& image, const SensorPose& p
             // wall needs repeated contradiction before it is released, so a
             // single bad frame cannot erase it.
             entry.stats.observe_free();
+            impl_->invalidate_detail(entry.id);
             ++stats.cleared;
             break;
           case ClearingOutcome::Occluded:
@@ -1211,10 +1347,21 @@ MapSnapshot Map::snapshot() const {
   snapshot.memory.allocated_index_bytes = index_bytes;
   snapshot.memory.allocated_bytes =
       snapshot.memory.allocated_index_bytes + snapshot.memory.allocated_cell_array_bytes;
+  snapshot.memory.detail_sketch_logical_bytes =
+      impl_->detail_sketches.size() * sizeof(Impl::DetailSketch) +
+      impl_->detail_index.size() * sizeof(Impl::DetailIndex);
+  snapshot.memory.detail_sketch_allocated_bytes =
+      impl_->detail_sketches.capacity() * sizeof(Impl::DetailSketch) +
+      impl_->detail_index.capacity() * sizeof(Impl::DetailIndex);
+  snapshot.memory.allocated_bytes += snapshot.memory.detail_sketch_allocated_bytes;
   snapshot.memory.allocated_overhead_bytes =
       snapshot.memory.allocated_bytes - snapshot.memory.allocated_cell_array_bytes;
   snapshot.logical_bytes =
-      snapshot.memory.logical_payload_bytes + snapshot.memory.retained_prior_payload_bytes;
+      snapshot.memory.logical_payload_bytes + snapshot.memory.retained_prior_payload_bytes +
+      snapshot.memory.detail_sketch_logical_bytes;
+  snapshot.detail_sketch_regions = impl_->detail_sketches.size();
+  snapshot.detail_rehydrated_splits = impl_->detail_rehydrated_splits;
+  snapshot.detail_rehydrated_points = impl_->detail_rehydrated_points;
   snapshot.topology_change_count = impl_->topology_changes;
   snapshot.split_count = impl_->split_count;
   snapshot.merge_count = impl_->merge_count;

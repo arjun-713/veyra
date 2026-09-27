@@ -143,7 +143,7 @@ void mixed_scan_preserves_support_and_topology_independent_of_order() {
         supported += leaf.stats.count;
       }
     }
-    CHECK(supported == 3); // exactly this scan, not fabricated parent history
+    CHECK(supported == 6); // both scans, rehydrated from measured spatial bins
     CHECK(snapshot.merge_count == 0);
   }
   CHECK(a.active_leaf_count == b.active_leaf_count);
@@ -156,6 +156,72 @@ int main() {
   sparse_far_and_low_confidence_do_not_refine();
   complete_frame_support_is_order_independent();
   mixed_scan_preserves_support_and_topology_independent_of_order();
+  {
+    Options options;
+    options.utility_config = std::string{VEYRA_SOURCE_DIR} + "/configs/utility_lod.yaml";
+    MapPolicyAdapter adapter{PolicyKind::kUtilityLod, {}, options};
+    std::vector<veyra::map::Observation> scan(3);
+    for (std::size_t i = 0; i < scan.size(); ++i) {
+      scan[i].x = 44.85 + 0.1 * static_cast<double>(i);
+      scan[i].y = 4.05;
+      scan[i].z = static_cast<double>(i);
+      scan[i].semantic_class = 6;
+      scan[i].semantic_confidence = 1.0F;
+      scan[i].observation_quality = 1.0F;
+    }
+    for (int frame = 0; frame < 2; ++frame) {
+      adapter.set_window_center(0.0, 0.0);
+      adapter.prepare_frame(scan);
+      for (const auto& observation : scan) adapter.update(observation);
+    }
+    const auto snapshot = adapter.snapshot();
+    CHECK(snapshot.point_count == 6);
+    CHECK(snapshot.nonspatial_prior_point_count == 0);
+    CHECK(level_at(snapshot, 44.85, 4.05) == 1);
+  }
+  {
+    const auto directory = std::filesystem::temp_directory_path() / "veyra-detail-admission-test";
+    std::filesystem::create_directories(directory);
+    const auto config_path = directory / "utility.yaml";
+    std::ifstream source{std::string{VEYRA_SOURCE_DIR} + "/configs/utility_lod.yaml"};
+    std::string config{std::istreambuf_iterator<char>{source}, std::istreambuf_iterator<char>{}};
+    const std::string setting = "detail_sketch_max_regions: 128";
+    const auto position = config.find(setting);
+    CHECK(position != std::string::npos);
+    config.replace(position, setting.size(), "detail_sketch_max_regions: 1");
+    { std::ofstream output{config_path}; output << config; }
+    Options options;
+    options.utility_config = config_path.string();
+    for (const bool reverse : {false, true}) {
+      MapPolicyAdapter adapter{PolicyKind::kUtilityLod, {}, options};
+      std::vector<veyra::map::Observation> scan;
+      for (int region = 0; region < 2; ++region) {
+        for (int i = 0; i < 3; ++i) {
+          veyra::map::Observation observation;
+          observation.x = 44.85 + 0.1 * i;
+          observation.y = 4.05 + 0.8 * region;
+          observation.semantic_class = region == 0 ? 1 : 6;
+          observation.semantic_confidence = observation.observation_quality = 1.0F;
+          scan.push_back(observation);
+        }
+      }
+      if (reverse) std::reverse(scan.begin(), scan.end());
+      for (int frame = 0; frame < 2; ++frame) {
+        adapter.set_window_center(0.0, 0.0);
+        adapter.prepare_frame(scan);
+        for (const auto& observation : scan) adapter.update(observation);
+      }
+      const auto snapshot = adapter.snapshot();
+      CHECK(snapshot.detail_sketch_regions == 1);
+      CHECK(snapshot.point_count == 12);
+      CHECK(snapshot.nonspatial_prior_point_count == 3); // only lower-priority car history
+      std::uint64_t pedestrian_support = 0;
+      for (const auto& leaf : snapshot.leaves)
+        if (leaf.stats.semantic_class == 6) pedestrian_support += leaf.stats.count;
+      CHECK(pedestrian_support == 6);
+    }
+    std::filesystem::remove_all(directory);
+  }
   const auto directory = std::filesystem::temp_directory_path() / "veyra-policy-adapter-test";
   std::filesystem::create_directories(directory);
   const auto governor_path = directory / "governor.yaml";

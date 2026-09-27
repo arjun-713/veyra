@@ -155,7 +155,11 @@ class MapPolicyAdapter {
                       options.governor_config)}
                 : std::nullopt) {
     options_promotion_telemetry_ = options.promotion_telemetry;
-    if (utility_) utility_->enable_promotion_telemetry(options.promotion_telemetry);
+    if (utility_) {
+      utility_->enable_promotion_telemetry(options.promotion_telemetry);
+      std::get<veyra::map::Map>(map_).configure_detail_preservation(
+          utility_->utility_config().detail_sketch_max_regions);
+    }
   }
 
   [[nodiscard]] bool accepts(double x, double y) const {
@@ -181,6 +185,33 @@ class MapPolicyAdapter {
       if (found != support_counts_.end())
         found->second.level = std::min(found->second.level, level);
     }
+    // A bounded top-k heap, with deterministic world-ID tie breaks. Cache
+    // selection uses physical evidence, never evaluation challenge masks.
+    using Candidate = std::pair<double, veyra::core::CellId>;
+    const auto better = [](const Candidate& a, const Candidate& b) {
+      if (a.first != b.first) return a.first > b.first;
+      return std::array{a.second.ix, a.second.iy} < std::array{b.second.ix, b.second.iy};
+    };
+    const auto limit = utility_->utility_config().detail_sketch_max_regions;
+    std::vector<Candidate> selected;
+    selected.reserve(limit);
+    for (const auto& [id, region] : support_counts_) {
+      if (limit == 0 || region.preservation_priority <= 0.0) continue;
+      Candidate candidate{region.preservation_priority, id};
+      if (selected.size() < limit) {
+        selected.push_back(candidate);
+        std::push_heap(selected.begin(), selected.end(), better);
+      } else if (better(candidate, selected.front())) {
+        std::pop_heap(selected.begin(), selected.end(), better);
+        selected.back() = candidate;
+        std::push_heap(selected.begin(), selected.end(), better);
+      }
+    }
+    std::sort(selected.begin(), selected.end(), better);
+    std::vector<veyra::core::CellId> regions;
+    regions.reserve(selected.size());
+    for (const auto& candidate : selected) regions.push_back(candidate.second);
+    std::get<veyra::map::Map>(map_).select_detail_regions(regions);
   }
 
   void update(const veyra::map::Observation& observation) {
@@ -205,21 +236,35 @@ class MapPolicyAdapter {
     const auto baseline_cell = policy_cell(observation.x, observation.y);
     const auto count = support_prepared_ ? support_count(baseline_cell) : add_support(baseline_cell);
     const auto& utility_config = utility_->utility_config();
+    const double importance = veyra::policy::semantic_importance(
+        utility_config, observation.semantic_class, observation.semantic_confidence);
+    const double density = veyra::policy::normalized_point_density(utility_config, count, range);
     const auto active_level = map.level_for(observation.x, observation.y);
+    const auto selected_region = support_counts_.find(baseline_cell);
+    if (active_level > 0 && selected_region != support_counts_.end() &&
+        utility_config.semantic_weight > 0.0 &&
+        observation.semantic_class < utility_config.semantic_class_importance.size() &&
+        utility_config.semantic_class_importance[observation.semantic_class] >=
+            utility_config.critical_semantic_threshold &&
+        observation.semantic_confidence >= utility_config.critical_semantic_min_confidence &&
+        observation.observation_quality >= utility_config.min_observation_quality &&
+        density >= utility_config.min_point_density) {
+      selected_region->second.preservation_priority =
+          std::max(selected_region->second.preservation_priority, importance);
+    }
     const auto decision = utility_->decide({
         .range_m = range,
         .active_level = active_level,
         .state_cell = baseline_cell,
         .safety_critical = observation.drivable == 2,
         .geometry_complexity = static_cast<double>(observation.geometry_complexity),
-        .semantic_importance = veyra::policy::semantic_importance(
-            utility_config, observation.semantic_class, observation.semantic_confidence),
+        .semantic_importance = importance,
         .motion = static_cast<double>(observation.motion_probability),
         .traversability_risk =
             observation.drivable == 2 ? static_cast<double>(observation.terrain_confidence) : 0.0,
         .semantic_uncertainty = 1.0 - static_cast<double>(observation.semantic_confidence),
         .observation_quality = static_cast<double>(observation.observation_quality),
-        .point_density = veyra::policy::normalized_point_density(utility_config, count, range),
+        .point_density = density,
         .range_rate_mps = veyra::policy::radial_range_rate_mps(
             static_cast<double>(observation.velocity_x),
             static_cast<double>(observation.velocity_y), offset_x, offset_y),
@@ -392,6 +437,7 @@ class MapPolicyAdapter {
   struct FrameRegion {
     std::size_t count = 0;
     int level = 3;
+    double preservation_priority = 0.0;
   };
   std::unordered_map<veyra::core::CellId, FrameRegion, veyra::core::CellIdHash> support_counts_;
   bool support_prepared_ = false;
@@ -1208,6 +1254,8 @@ std::string render(const Result& result) {
       << ",\"logical_bytes\":" << snapshot.logical_bytes
       << ",\"memory\":{\"logical_payload_bytes\":" << snapshot.memory.logical_payload_bytes
       << ",\"retained_prior_payload_bytes\":" << snapshot.memory.retained_prior_payload_bytes
+      << ",\"detail_sketch_logical_bytes\":" << snapshot.memory.detail_sketch_logical_bytes
+      << ",\"detail_sketch_allocated_bytes\":" << snapshot.memory.detail_sketch_allocated_bytes
       << ",\"allocated_cell_array_bytes\":" << snapshot.memory.allocated_cell_array_bytes
       << ",\"allocated_tile_bytes\":" << snapshot.memory.allocated_tile_bytes
       << ",\"allocated_index_bytes\":" << snapshot.memory.allocated_index_bytes
@@ -1221,6 +1269,9 @@ std::string render(const Result& result) {
   }
   out << "},\"nonspatial_prior_point_count\":" << snapshot.nonspatial_prior_point_count
       << ",\"split_count\":" << snapshot.split_count << ",\"merge_count\":" << snapshot.merge_count
+      << ",\"detail_sketch_regions\":" << snapshot.detail_sketch_regions
+      << ",\"detail_rehydrated_splits\":" << snapshot.detail_rehydrated_splits
+      << ",\"detail_rehydrated_points\":" << snapshot.detail_rehydrated_points
       << ",\"invariant_no_parent_descendant_overlap\":"
       << (snapshot.has_no_parent_descendant_overlap() ? "true" : "false")
       // Layer telemetry. `unmodelled_returns` is the field that makes a

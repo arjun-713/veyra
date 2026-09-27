@@ -4,6 +4,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <memory>
+#include <span>
 #include <vector>
 
 #include "veyra/core/types.hpp"
@@ -178,7 +179,7 @@ struct Leaf {
 };
 
 // Accounting names are deliberately non-overlapping. `allocated_bytes` is
-// the exact capacity owned by the map's contiguous tile table and vectors;
+// the exact capacity owned by the map's tile table, cell and sketch vectors;
 // `allocated_tile_bytes` is a diagnostic subset of that table, not an input
 // to the total.
 struct MapMemoryAccounting {
@@ -189,6 +190,8 @@ struct MapMemoryAccounting {
   std::size_t allocated_index_bytes = 0;
   std::size_t allocated_overhead_bytes = 0;
   std::size_t allocated_bytes = 0;
+  std::size_t detail_sketch_logical_bytes = 0;
+  std::size_t detail_sketch_allocated_bytes = 0;
 };
 
 // Aggregate layer evidence across the snapshot's active leaves.
@@ -221,13 +224,16 @@ struct MapSnapshot {
   // Includes active-leaf evidence and explicitly retained non-spatial priors.
   std::size_t point_count = 0;
   std::size_t nonspatial_prior_point_count = 0;
-  // Retained for source compatibility; equals the two logical payload fields.
+  // Includes leaf/prior payload and the bounded detail sketch when enabled.
   std::size_t logical_bytes = 0;
   MapMemoryAccounting memory;
   LayerTotals layers;
   std::uint64_t topology_change_count = 0;
   std::uint64_t split_count = 0;
   std::uint64_t merge_count = 0;
+  std::size_t detail_sketch_regions = 0;
+  std::uint64_t detail_rehydrated_splits = 0;
+  std::uint64_t detail_rehydrated_points = 0;
   // Set by Map::snapshot(), which emits leaves ordered by (level, ix, iy).
   // Queries then use that order; a hand-built snapshot keeps the default and
   // is scanned instead, so the answer never depends on the flag.
@@ -288,6 +294,11 @@ class Map {
   // the single seam used by a stateful policy; uniform and distance wrappers
   // continue to select their level internally.
   void update_at_level(const Observation& observation, int level);
+  // Bounded sufficient-statistic sketches, not raw observations. Disabled by
+  // default; only the Utility adapter selects regions before their first scan.
+  // Changing the bound discards sketches, never active map evidence.
+  void configure_detail_preservation(std::size_t max_regions);
+  void select_detail_regions(std::span<const core::CellId> regions);
   void set_window_center(double x, double y);
   // Drops cells whose newest evidence predates `minimum_timestamp`.
   void evict_stale_before(std::uint64_t minimum_timestamp);

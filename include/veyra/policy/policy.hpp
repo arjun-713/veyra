@@ -124,6 +124,9 @@ struct UtilityConfig {
   double prediction_horizon_s = 1.0;
   int max_promotion_depth = 1;
   std::size_t max_state_cells = 65536;
+  // Bounded 40cm sufficient-statistic sketches for production split support.
+  // Zero disables preservation; the map rejects bounds above 256.
+  std::size_t detail_sketch_max_regions = 128;
   std::uint64_t state_ttl_frames = 120;
 };
 

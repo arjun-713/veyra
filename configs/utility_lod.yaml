@@ -30,4 +30,7 @@ utility:
   prediction_horizon_s: 1.0
   max_promotion_depth: 1
   max_state_cells: 65536
+  # Up to 128 critical 40cm regions; 64 sufficient-statistic bins per region.
+  # Included in logical/allocated map bytes. Set 0 to disable preservation.
+  detail_sketch_max_regions: 128
   state_ttl_frames: 120
