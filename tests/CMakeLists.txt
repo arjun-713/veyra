@@ -154,3 +154,9 @@ target_link_libraries(test_persistent_clearing PRIVATE veyra_map veyra_policy ve
 target_compile_definitions(test_persistent_clearing PRIVATE VEYRA_SOURCE_DIR="${PROJECT_SOURCE_DIR}")
 target_compile_options(test_persistent_clearing PRIVATE -Wall -Wextra -Wpedantic -UNDEBUG)
 add_test(NAME persistent_clearing COMMAND test_persistent_clearing)
+
+add_executable(test_ghost_retention test_ghost_retention.cpp)
+target_link_libraries(test_ghost_retention PRIVATE veyra_map veyra_policy veyra_metrics)
+target_compile_definitions(test_ghost_retention PRIVATE VEYRA_SOURCE_DIR="${PROJECT_SOURCE_DIR}")
+target_compile_options(test_ghost_retention PRIVATE -Wall -Wextra -Wpedantic -UNDEBUG)
+add_test(NAME ghost_retention COMMAND test_ghost_retention)
