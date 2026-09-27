@@ -132,15 +132,32 @@ int main() {
     see_through.push_back(point_record(kWallX, kWallY, z));
 
   // --- Normal clearing still runs on the batch path. ---
+  // Result.clearing reports the last frame only. The first two contradictory
+  // frames arm the streak (no decrement); the third applies the first miss.
   {
-    const Result result = run_stream(build_stream({occupy, see_through}), clearing_options());
+    const Result armed_once = run_stream(build_stream({occupy, see_through}), clearing_options());
+    CHECK(armed_once.clearing.has_value());
+    CHECK(armed_once.clearing->examined > 0);
+    CHECK(armed_once.clearing->cleared == 0);
+    CHECK(armed_once.clearing->armed > 0);
+    const CellView flicker = find_cell(armed_once.snapshot, kPedX, kPedY);
+    CHECK(flicker.found);
+    CHECK(flicker.free_obs == 0);
+    CHECK(flicker.logodds >= veyra::map::logodds::kOccupiedThreshold);
+
+    const Result result = run_stream(build_stream({occupy, see_through, see_through, see_through}),
+                                     clearing_options());
     CHECK(result.clearing.has_value());
     CHECK(result.clearing->examined > 0);
     CHECK(result.clearing->cleared > 0);
     const CellView ped = find_cell(result.snapshot, kPedX, kPedY);
     CHECK(ped.found);
     CHECK(ped.free_obs == 1);
+    // Ingestion pins identical hits at one kHit, so the first applied miss
+    // steps 847 -> 442 (Unknown, not Free): exactly one decrement past arming.
+    CHECK(ped.logodds == veyra::map::logodds::kHit + veyra::map::logodds::kMiss);
     CHECK(ped.logodds < veyra::map::logodds::kOccupiedThreshold);
+    CHECK(ped.logodds > veyra::map::logodds::kFreeThreshold);
   }
 
   // --- Rejected-only final frame: nothing accepted, so the raster stays empty

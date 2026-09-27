@@ -38,6 +38,7 @@ struct CellView {
   std::int16_t logodds = 0;
   std::uint32_t free_obs = 0;
   std::uint64_t count = 0;
+  std::uint8_t streak = 0;
   bool found = false;
 };
 
@@ -51,6 +52,7 @@ CellView find_cell(const veyra::map::MapSnapshot& snapshot, double x, double y) 
       view.logodds = leaf.stats.occupancy_logodds;
       view.free_obs = leaf.stats.free_observations;
       view.count = leaf.stats.count;
+      view.streak = leaf.stats.consecutive_misses;
       view.found = true;
       return view;
     }
@@ -98,9 +100,39 @@ int main() {
   CHECK(ped_before.logodds >= veyra::map::logodds::kOccupiedThreshold);
 
   // Frame 1: pedestrian gone; dense wall sweep 0..2 m covers the claimed extent.
+  // First contradiction only arms the streak: log-odds must not move.
   std::vector<std::string> frame1;
   for (double z = 0.0; z <= 2.001; z += 0.02) frame1.push_back(point_record(kWallX, kWallY, z));
   session.ingest(frame_marker(2000, 1, frame1.size()));
+  feed_points(session, frame1);
+  session.ingest("E");
+
+  CHECK(session.result().clearing.has_value());
+  CHECK(session.result().clearing->examined > 0);
+  CHECK(session.result().clearing->cleared == 0);
+  CHECK(session.result().clearing->armed > 0);
+  const CellView ped_armed = find_cell(session.result().snapshot, kPedX, kPedY);
+  CHECK(ped_armed.found);
+  CHECK(ped_armed.logodds == ped_before.logodds);
+  CHECK(ped_armed.free_obs == ped_before.free_obs);
+  CHECK(ped_armed.streak == 1);
+
+  // Frame 2: second contradiction completes arming; still no decrement.
+  session.ingest(frame_marker(3000, 2, frame1.size()));
+  feed_points(session, frame1);
+  session.ingest("E");
+
+  CHECK(session.result().clearing.has_value());
+  CHECK(session.result().clearing->cleared == 0);
+  CHECK(session.result().clearing->armed > 0);
+  const CellView ped_armed2 = find_cell(session.result().snapshot, kPedX, kPedY);
+  CHECK(ped_armed2.found);
+  CHECK(ped_armed2.logodds == ped_before.logodds);
+  CHECK(ped_armed2.free_obs == ped_before.free_obs);
+  CHECK(ped_armed2.streak == 2);
+
+  // Frame 3: sustained contradiction applies exactly one clamped miss.
+  session.ingest(frame_marker(4000, 3, frame1.size()));
   feed_points(session, frame1);
   session.ingest("E");
 
@@ -117,6 +149,7 @@ int main() {
   CHECK(ped_after.logodds < ped_before.logodds);
   CHECK(ped_after.logodds == ped_before.logodds + veyra::map::logodds::kMiss);
   CHECK(ped_after.free_obs == ped_before.free_obs + 1);
+  CHECK(ped_after.streak == 2);
   // Occluded control: the wall produced the beams; it is confirmed, never cleared.
   CHECK(wall_after.logodds >= wall_before.logodds);
   CHECK(wall_after.count > wall_before.count);

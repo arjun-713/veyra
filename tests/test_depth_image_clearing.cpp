@@ -65,8 +65,7 @@ void test_departed_obstacle_is_cleared() {
   for (double z = 0.0; z <= 2.0; z += 0.02) image.insert(20.0, 0.0, z, pose);
 
   auto cell = obstacle_cell(10.0, 0.0, 0.2, 1.8);
-  const auto outcome =
-      veyra::map::test_cell_against_scan(cell, 10.0, 0.0, image, pose, 0.10);
+  const auto outcome = veyra::map::test_cell_against_scan(cell, 10.0, 0.0, image, pose, 0.10);
   check(outcome == veyra::map::ClearingOutcome::Cleared,
         "a beam measured at 20 m contradicts an obstacle claimed at 10 m");
 }
@@ -123,8 +122,7 @@ void test_unscanned_bearing_gives_no_evidence() {
   // Behind the sensor, where nothing was inserted.
   auto cell = obstacle_cell(-10.0, 0.0, 0.2, 1.8);
   const auto outcome = veyra::map::test_cell_against_scan(cell, -10.0, 0.0, image, pose, 0.10);
-  check(outcome != veyra::map::ClearingOutcome::Cleared,
-        "an unscanned bearing never clears");
+  check(outcome != veyra::map::ClearingOutcome::Cleared, "an unscanned bearing never clears");
 }
 
 // A cell with no obstacle claim has nothing to contradict.
@@ -173,9 +171,9 @@ void test_current_scan_obstacle_is_not_self_cleared() {
   const auto clearing = map.clear_free_space(image, pose);
   const auto after = map.snapshot();
   check(clearing.cleared == 0, "current obstacle hits dominate same-scan free evidence");
-  check(after.leaves.front().stats.occupancy_logodds ==
-            before.leaves.front().stats.occupancy_logodds,
-        "self-clearing must not reduce actual occupied support");
+  check(
+      after.leaves.front().stats.occupancy_logodds == before.leaves.front().stats.occupancy_logodds,
+      "self-clearing must not reduce actual occupied support");
 }
 
 // The actual beam passes above the obstacle; the quantized row centre passes
@@ -216,6 +214,14 @@ void test_current_ground_does_not_protect_a_departed_obstacle() {
   map.update_at_level(ground, 0);
   image.insert(ground, pose);
   image.insert(20.05, 0.05, 1.4, pose);
+  // Arming first: two contradictory passes raise the streak without moving
+  // log-odds, and ground-only evidence must not reset it.
+  check(map.clear_free_space(image, pose).armed == 1,
+        "first contradiction arms rather than decrements");
+  check(map.snapshot().leaves.front().stats.consecutive_misses == 1,
+        "the streak is visible after one contradiction");
+  check(map.clear_free_space(image, pose).armed == 1,
+        "second contradiction completes arming, still no decrement");
   check(map.clear_free_space(image, pose).cleared == 1,
         "current ground must not protect historical obstacle evidence");
 }
@@ -261,8 +267,7 @@ void test_clearing_drives_occupancy_and_traversability() {
   const auto after = veyra::map::classify(cell, profile, 1);
   check(after.traversability == veyra::map::Traversability::Drivable,
         "a contradicted obstacle stops blocking");
-  check(after.reason == veyra::map::TerrainReason::ClearedByVisibility,
-        "for the right reason");
+  check(after.reason == veyra::map::TerrainReason::ClearedByVisibility, "for the right reason");
   check(after.has_obstacle, "while the returns themselves are retained, not deleted");
 }
 
