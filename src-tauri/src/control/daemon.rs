@@ -14,6 +14,8 @@ pub const PROTOCOL_VERSION: u64 = 1;
 const MAX_FRAME_BYTES: usize = 64 * 1024;
 const MAX_ID_BYTES: usize = 128;
 const MAX_COMMAND_BYTES: usize = 64;
+/// Dataset directories are user paths (external volumes, iCloud, deep trees).
+const MAX_PATH_BYTES: usize = 4096;
 const CONNECTION_IO_TIMEOUT: Duration = Duration::from_millis(100);
 
 pub fn serve(repo: PathBuf, bind_addr: SocketAddr, secret: String) -> Result<(), String> {
@@ -322,11 +324,11 @@ fn dispatch_line(
             required_object(args, "config").and_then(|config| controller.validate_config(config))
         }
         "datasets" => required_string(args, "dataset").and_then(|dataset| {
-            required_string(args, "root")
+            required_path(args, "root")
                 .and_then(|root| controller.datasets(dataset, &PathBuf::from(root)))
         }),
         "open_dataset" => required_string(args, "dataset").and_then(|dataset| {
-            required_string(args, "root").and_then(|root| {
+            required_path(args, "root").and_then(|root| {
                 let sequence = optional_string(args, "sequence")?;
                 controller.open_dataset(dataset, &PathBuf::from(root), sequence)
             })
@@ -398,6 +400,13 @@ fn required_string<'a>(args: &'a Map<String, Value>, name: &str) -> Result<&'a s
         .and_then(Value::as_str)
         .filter(|value| !value.is_empty() && value.len() <= MAX_COMMAND_BYTES)
         .ok_or_else(|| format!("{name} must be a non-empty bounded string"))
+}
+
+fn required_path<'a>(args: &'a Map<String, Value>, name: &str) -> Result<&'a str, String> {
+    args.get(name)
+        .and_then(Value::as_str)
+        .filter(|value| !value.is_empty() && value.len() <= MAX_PATH_BYTES)
+        .ok_or_else(|| format!("{name} must be a non-empty path of at most {MAX_PATH_BYTES} bytes"))
 }
 
 fn required_object(args: &Map<String, Value>, name: &str) -> Result<Value, String> {
@@ -499,6 +508,45 @@ mod tests {
             "UNSUPPORTED_SCHEMA_VERSION"
         );
         assert!(!response.shutdown);
+    }
+
+    #[test]
+    fn dataset_roots_are_bounded_as_paths_not_command_names() {
+        let open = |root: String| {
+            json!({
+                "schema_version": 1,
+                "id": "open",
+                "authorization": TEST_SECRET,
+                "command": "open_dataset",
+                "args": {"dataset": "generic", "root": root}
+            })
+        };
+        let mut controller = RuntimeController::new("/tmp/veyra-daemon-path-test");
+        // A realistic macOS path well beyond the 64-byte command-name bound.
+        let long = format!(
+            "/Volumes/External SSD/{}/dataset",
+            "lidar-captures/".repeat(8)
+        );
+        assert!(long.len() > 64);
+        let response = dispatch_line(
+            &serde_json::to_vec(&open(long)).unwrap(),
+            &mut controller,
+            TEST_SECRET,
+        );
+        let message = response.value["error"]["message"]
+            .as_str()
+            .unwrap_or_default();
+        assert!(!message.contains("root must"), "{message}");
+
+        let response = dispatch_line(
+            &serde_json::to_vec(&open("/".repeat(4097))).unwrap(),
+            &mut controller,
+            TEST_SECRET,
+        );
+        assert!(response.value["error"]["message"]
+            .as_str()
+            .unwrap()
+            .contains("root must be a non-empty path of at most 4096 bytes"));
     }
 
     #[test]

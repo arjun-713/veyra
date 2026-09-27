@@ -102,6 +102,31 @@ runs require separate channel/publishing verification. Signing/notarization is
 not proven by these build commands; Tauri bundles remain unsigned until the
 release workflow implements and validates signing with real credentials.
 
+### macOS specifics
+
+- **Framework Python is made self-contained.** Python.org and Homebrew
+  interpreters are framework builds. Staging finds their real prefix through
+  the `executable` key in `pyvenv.cfg` and skips the base interpreter's
+  site-packages. `relocate_darwin_python` then points the interpreter at the
+  bundled `Python` dylib through `@loader_path`, copies every non-system dylib
+  into `python/lib/vendored` (OpenSSL, xz, sqlite and mpdecimal from
+  Homebrew), and ad-hoc re-signs each rewritten binary. Staging fails if any
+  absolute non-system link remains. Without this step, a staged Homebrew
+  interpreter still ran with `sys.prefix` pointing into `/opt/homebrew`.
+- **The app bundle is ad-hoc signed and sealed**
+  (`bundle.macOS.signingIdentity: "-"`), so `codesign --verify --deep --strict`
+  passes. It is not notarized. A downloaded copy triggers Gatekeeper's
+  unidentified-developer prompt: open it with Control-click → Open, or
+  `xattr -dr com.apple.quarantine Veyra.app`. Set `APPLE_SIGNING_IDENTITY`
+  and notarization credentials for real distribution.
+- **The frontend build step has a pinned directory.** `beforeBuildCommand` and
+  `beforeDevCommand` run in `apps/desktop` explicitly. Otherwise the Tauri CLI
+  picks `landing-page/` as the frontend and the build fails.
+- **DMG window styling needs Finder automation.** Tauri's DMG script styles the
+  window through Finder AppleScript. In a session without that permission it
+  fails after bundling `Veyra.app`. Building the DMG with
+  `bundle/dmg/bundle_dmg.sh --skip-jenkins` produces an unstyled image.
+
 The configured native runners do not prove latest macOS, Windows 11 or Ubuntu
 install-and-launch compatibility. See `../../reports/desktop-ui-review/README.md`
 for locally observed results and explicit cross-platform verification gaps.

@@ -282,6 +282,35 @@ def _git_source_state(repo: Path) -> dict[str, Any]:
     }
 
 
+def _source_identity(repo: Path) -> dict[str, Any]:
+    """Commit identity of the benchmarked code.
+
+    A staged desktop backend has no ``.git``; running ``git -C`` there would
+    walk up into whatever checkout the app happens to be installed under. It
+    therefore reports the identity that staging recorded in its manifest.
+    """
+    manifest = repo / "manifest.json"
+    if manifest.is_file() and (repo / "runtime" / "__main__.py").is_file():
+        try:
+            data = json.loads(manifest.read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError):
+            data = {}
+        if isinstance(data, dict) and data.get("product") == "veyra":
+            source = data.get("source") if isinstance(data.get("source"), dict) else {}
+            return {
+                "git_sha": source.get("git_sha"),
+                "working_tree_dirty": source.get("working_tree_dirty"),
+                "source_state_sha256": None,
+                "untracked_source_files": [],
+                "source_identity": "backend_manifest",
+            }
+    return {
+        "git_sha": _git_sha(repo),
+        **_git_source_state(repo),
+        "source_identity": "git",
+    }
+
+
 def _pull_request_number() -> int | None:
     event_path = os.environ.get("GITHUB_EVENT_PATH")
     if not event_path:
@@ -2280,7 +2309,7 @@ def run(args: argparse.Namespace) -> dict[str, Any]:
         }
     )
     measured_frames_per_run = max(0, selection["frames"] - args.warmup_frames)
-    source_state = _git_source_state(repo)
+    source_state = _source_identity(repo)
     result_report = {
         "schema_version": SCHEMA_VERSION,
         "provenance": {
@@ -2292,7 +2321,6 @@ def run(args: argparse.Namespace) -> dict[str, Any]:
             "model_checkpoint_sha256": _sha256_file(checkpoint)
             if checkpoint and checkpoint.is_file()
             else None,
-            "git_sha": _git_sha(repo),
             **source_state,
             "pull_request_number": _pull_request_number(),
             "workflow_run_id": os.environ.get("GITHUB_RUN_ID"),
