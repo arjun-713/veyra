@@ -1,5 +1,11 @@
 # P0.2 UI evidence — temporal state on the production path
 
+> **Update:** the initial SemanticPOSS-only assessment below predates the
+> local SemanticKITTI discovery. Real sequence-08 clearing results now live in
+> `RESULT.md` and `paired-real-kitti08-two-strike.json`. The code-binding notes
+> below are not a captured desktop rendering and should not be presented as
+> one.
+
 No isolated tracker script. Every number below comes from the normal
 production path: dataset adapter → `PerceptionPipeline.from_config`
 (temporal enabled) → `RuntimeSession._serialize` → `Telemetry.report`,

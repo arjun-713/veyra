@@ -13,9 +13,9 @@ import numpy as np
 
 ROOT = Path(__file__).resolve().parents[3]
 sys.path.insert(0, str(ROOT))
-from benchmarks.protocol import binary_frame_bytes
-from datasets.semantickitti import SemanticKITTIDataset
-from perception.pipeline import PerceptionPipeline
+from benchmarks.protocol import binary_frame_bytes  # noqa: E402
+from datasets.semantickitti import SemanticKITTIDataset  # noqa: E402
+from perception.pipeline import PerceptionPipeline  # noqa: E402
 
 os.chdir(ROOT)
 adapter = SemanticKITTIDataset(ROOT / "data/raw/semantickitti/dataset")
@@ -30,6 +30,7 @@ config = {
     "required_stages": ["semantic", "ground", "terrain", "temporal"],
 }
 pipeline = PerceptionPipeline.from_config(config)
+observer_path = Path(os.environ.get("VEYRA_GHOST_PROBE", "/tmp/veyra_persistent_probe"))
 processes = []
 records = []
 digests = {}
@@ -37,7 +38,7 @@ seed = {}
 try:
     for enabled in (False, True):
         cmd = [
-            os.environ.get("VEYRA_GHOST_PROBE", "/tmp/veyra_persistent_probe"),
+            str(observer_path),
             "--policy",
             "distance_lod",
             "--sensor-height",
@@ -93,6 +94,20 @@ try:
             report = json.loads(process.stdout.readline())
             assert report["snapshot"]["invariant_no_parent_descendant_overlap"]
             assert report["frame_metrics"][-1]["point_conservation"]["holds"]
+            assert (
+                0
+                <= report["current_obstacle_free"]
+                <= report["current_obstacle_nonoccupied"]
+                <= report["current_obstacle_cells"]
+            )
+            for support in report["seed_support"].values():
+                assert (
+                    0 <= support["free"]
+                    and 0 <= support["occupied"]
+                    and support["free"] + support["occupied"]
+                    <= support["resident"]
+                    <= support["bins"]
+                )
             pair.append(report)
         assert pair[0]["snapshot"]["point_count"] == pair[1]["snapshot"]["point_count"]
         gt_bins = np.unique(
@@ -143,6 +158,7 @@ finally:
 
 result = {
     "git_sha": subprocess.check_output(["git", "rev-parse", "HEAD"], text=True).strip(),
+    "observer_binary_sha256": hashlib.sha256(observer_path.read_bytes()).hexdigest(),
     "dirty": subprocess.check_output(
         ["git", "status", "--porcelain"], text=True
     ).strip(),

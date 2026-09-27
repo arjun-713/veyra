@@ -99,3 +99,36 @@ override the observer/output paths. The replay never writes datasets or models.
 - Validate live temporal visualization separately; a CLI replay is not UI proof.
 
 PR68 is deliberately **not merged** and issue54 is not closed by this result.
+
+## Follow-up: current two-strike PR head, fresh paired replay
+
+The final PR head adds a two-consecutive-contradiction arm before decrementing
+occupied log odds. I rebuilt the observer and runtime libraries from this
+checkout, then repeated the same SemanticKITTI 08 frames 000043–000054 against
+the same real poses, timestamps and dataset labels. Both clearing modes
+received identical pipeline observations. The per-frame artifact is
+`paired-real-kitti08-two-strike.json`; it records raw input hashes, map
+invariants, point conservation, seed-bin occupancy, seed-bin Free state,
+currently observed obstacle cells, and child-process exit state.
+
+At frame 54, among the original 1,200 moving-car 5 cm seed bins, clearing ON
+reported 145 occupied, 866 Free and 189 Unknown; clearing OFF retained all
+1,200 as occupied and declared none Free. Thus the update removed much of the
+departed vehicle's persistent occupied support, but did not remove it all.
+For the 664 parked-car seed bins, clearing ON retained 646 occupied, declared
+4 Free and left 14 Unknown; clearing OFF retained all 664 as occupied. At
+frame 50, only 3 parked seed bins were Free. These are map-state seed-bin
+measurements, not object IoU or independently labelled visibility truth.
+
+Across the 13,151 cells with current-frame obstacle observations at frame 54,
+56 were not Occupied and 2 were Free. This is a small nonzero contradiction
+count, so the result supports bounded clearing with high parked-seed
+retention, not perfect preservation. Both child processes exited; frame
+point-conservation and topology checks passed for both modes. No latency
+claim is made from this paired concurrent replay.
+
+The full Release CTest gate on this exact branch passed 25/25 with the freshly
+built benchmark and runtime binaries explicitly supplied to the Python test
+target. The actual temporal layer still needs a desktop pixel/render proof;
+the existing `UI_EVIDENCE.md` entries describing code bindings are not live
+GUI evidence. Keep issue #54 open until that is captured and reviewed.

@@ -33,15 +33,17 @@ int main(int argc, char** argv) {
           index.emplace(Key{leaf.id.level, leaf.id.ix, leaf.id.iy}, &leaf.stats);
           current_timestamp = std::max(current_timestamp, leaf.stats.last_seen);
         }
-        std::size_t current_obstacles = 0, current_nonoccupied = 0;
+        std::size_t current_obstacles = 0, current_nonoccupied = 0, current_free = 0;
         for (const auto& leaf : result.snapshot.leaves) {
           if (leaf.stats.obstacle.empty() || leaf.stats.obstacle.last_seen != current_timestamp)
             continue;
           ++current_obstacles;
-          if (leaf.stats.occupancy() != veyra::map::OccupancyState::Occupied)
+          const auto occupancy = leaf.stats.occupancy();
+          if (occupancy != veyra::map::OccupancyState::Occupied)
             ++current_nonoccupied;
+          if (occupancy == veyra::map::OccupancyState::Free) ++current_free;
         }
-        std::map<std::string, std::array<std::size_t, 3>> counts;
+        std::map<std::string, std::array<std::size_t, 4>> counts;
         for (const auto& s : support) {
           auto& c = counts[s.region];
           ++c[0];
@@ -52,6 +54,7 @@ int main(int argc, char** argv) {
             if (it == index.end()) continue;
             ++c[1];
             if (it->second->occupancy() == veyra::map::OccupancyState::Occupied) ++c[2];
+            if (it->second->occupancy() == veyra::map::OccupancyState::Free) ++c[3];
             break;
           }
         }
@@ -60,13 +63,15 @@ int main(int argc, char** argv) {
         report.pop_back();
         report += ",\"current_obstacle_cells\":" + std::to_string(current_obstacles) +
                   ",\"current_obstacle_nonoccupied\":" + std::to_string(current_nonoccupied) +
+                  ",\"current_obstacle_free\":" + std::to_string(current_free) +
                   ",\"seed_support\":{";
         bool first = true;
         for (const auto& [name, c] : counts) {
           if (!std::exchange(first, false)) report += ',';
           report += '"' + name + "\":{\"bins\":" + std::to_string(c[0]) +
                     ",\"resident\":" + std::to_string(c[1]) +
-                    ",\"occupied\":" + std::to_string(c[2]) + '}';
+                    ",\"occupied\":" + std::to_string(c[2]) +
+                    ",\"free\":" + std::to_string(c[3]) + '}';
         }
         std::cout << report << "}}\n" << std::flush;
       } else if (!line.empty()) {
