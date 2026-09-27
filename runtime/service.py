@@ -171,6 +171,7 @@ class ProductRuntime:
             policy=config["map"]["policy"],
             window_radius_m=config["map"]["window_radius_m"],
             transport="binary",
+            clear_free_space=config["map"].get("clear_free_space", False),
             utility_config=self.repo / "configs" / "utility_lod.yaml",
             governor_config=self.repo
             / "configs"

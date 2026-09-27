@@ -1,5 +1,6 @@
 """Visibility clearing must survive the shared product configuration boundary."""
 
+import tempfile
 import unittest
 from pathlib import Path
 
@@ -7,6 +8,31 @@ from runtime.config import validate_config
 
 
 class ClearingConfigTests(unittest.TestCase):
+    def test_shared_service_forwards_clearing_to_the_persistent_mapper(self):
+        from runtime.service import ProductRuntime
+        from tests.test_runtime_player import _write_frame
+
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            _write_frame(root, "00000", "000000", 0)
+            config = validate_config(
+                {
+                    "dataset": "rellis3d",
+                    "dataset_root": str(root),
+                    "sequence": "00000",
+                    "map": {"clear_free_space": True},
+                },
+                Path.cwd(),
+                check_paths=False,
+            )
+            runtime = ProductRuntime(Path.cwd())
+            session = runtime._create_session(config)
+            try:
+                self.assertTrue(session.map_runner.clear_free_space)
+            finally:
+                session.close()
+                runtime.close()
+
     def test_explicit_opt_in_survives_normalization_and_bad_types_are_rejected(self):
         base = {"dataset": "generic", "dataset_root": "/tmp", "sequence": "00"}
         for enabled in (False, True):
