@@ -119,6 +119,31 @@ class ProductBenchmarkTests(unittest.TestCase):
             with self.assertRaisesRegex(ValueError, "clean committed source"):
                 run(args)
 
+    def test_staged_backend_reports_its_manifest_identity_not_an_enclosing_repo(self):
+        from benchmarks.run_benchmark import _source_identity
+
+        with tempfile.TemporaryDirectory() as directory:
+            enclosing = Path(directory)
+            subprocess.run(["git", "init", "-q", str(enclosing)], check=True)
+            backend = enclosing / "Veyra.app/Contents/Resources/backend"
+            (backend / "runtime").mkdir(parents=True)
+            (backend / "runtime/__main__.py").write_text("\n")
+            (backend / "manifest.json").write_text(
+                json.dumps(
+                    {
+                        "product": "veyra",
+                        "source": {"git_sha": "abc123", "working_tree_dirty": False},
+                    }
+                )
+            )
+            identity = _source_identity(backend)
+            self.assertEqual(identity["git_sha"], "abc123")
+            self.assertIs(identity["working_tree_dirty"], False)
+            self.assertEqual(identity["source_identity"], "backend_manifest")
+
+            (backend / "manifest.json").unlink()
+            self.assertEqual(_source_identity(backend)["source_identity"], "git")
+
     def test_compact_snapshot_releases_optional_leaf_rows_after_quality(self):
         snapshot = {"levels": {"0": 1}, "leaves": [{"level": 0, "count": 1}]}
         compact = _compact_snapshot(snapshot)

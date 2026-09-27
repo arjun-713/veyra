@@ -298,6 +298,35 @@ def _git_source_state(repo: Path) -> dict[str, Any]:
     }
 
 
+def _source_identity(repo: Path) -> dict[str, Any]:
+    """Commit identity of the benchmarked code.
+
+    A staged desktop backend has no ``.git``; running ``git -C`` there would
+    walk up into whatever checkout the app happens to be installed under. It
+    therefore reports the identity that staging recorded in its manifest.
+    """
+    manifest = repo / "manifest.json"
+    if manifest.is_file() and (repo / "runtime" / "__main__.py").is_file():
+        try:
+            data = json.loads(manifest.read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError):
+            data = {}
+        if isinstance(data, dict) and data.get("product") == "veyra":
+            source = data.get("source") if isinstance(data.get("source"), dict) else {}
+            return {
+                "git_sha": source.get("git_sha"),
+                "working_tree_dirty": source.get("working_tree_dirty"),
+                "source_state_sha256": None,
+                "untracked_source_files": [],
+                "source_identity": "backend_manifest",
+            }
+    return {
+        "git_sha": _git_sha(repo),
+        **_git_source_state(repo),
+        "source_identity": "git",
+    }
+
+
 def _pull_request_number() -> int | None:
     event_path = os.environ.get("GITHUB_EVENT_PATH")
     if not event_path:
@@ -2306,10 +2335,12 @@ def run(args: argparse.Namespace) -> dict[str, Any]:
         }
     )
     measured_frames_per_run = max(0, selection["frames"] - args.warmup_frames)
-    source_state = _git_source_state(repo)
+    source_state = _source_identity(repo)
+    final_git_state = _git_source_state(repo)
     if getattr(args, "require_clean_source", False) and (
-        not source_state["execution_source_clean"]
-        or source_state["source_state_sha256"] != starting_source["source_state_sha256"]
+        not final_git_state["execution_source_clean"]
+        or final_git_state["source_state_sha256"]
+        != starting_source["source_state_sha256"]
         or _git_sha(repo) != starting_git_sha
         or _sha256_file(Path(args.binary)) != starting_binary_sha256
     ):
@@ -2327,14 +2358,16 @@ def run(args: argparse.Namespace) -> dict[str, Any]:
             "model_checkpoint_sha256": _sha256_file(checkpoint)
             if checkpoint and checkpoint.is_file()
             else None,
-            "git_sha": starting_git_sha,
+            **source_state,
+            "git_sha": source_state.get("git_sha")
+            if source_state.get("source_identity") == "backend_manifest"
+            else starting_git_sha,
             "benchmark_binary_sha256": starting_binary_sha256,
             "semantic_mode": "not_executed"
             if args.skip_perception
             else yaml.safe_load(perception_config_path.read_text())
             .get("semantic", {})
             .get("mode"),
-            **source_state,
             "pull_request_number": _pull_request_number(),
             "workflow_run_id": os.environ.get("GITHUB_RUN_ID"),
             "workflow_event": os.environ.get("GITHUB_EVENT_NAME"),
