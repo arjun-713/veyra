@@ -1,4 +1,6 @@
 import json
+import subprocess
+import sys
 import tempfile
 import unittest
 from pathlib import Path
@@ -50,6 +52,39 @@ class PackageBackendTests(unittest.TestCase):
             self.assertEqual(
                 json.loads((output / "manifest.json").read_text()), manifest
             )
+
+    def test_manifest_records_the_packaged_source_identity(self):
+        from scripts.package_backend import stage_backend
+
+        with tempfile.TemporaryDirectory() as raw:
+            root = Path(raw)
+            repo = self._repo(root)
+            git = [
+                "git",
+                "-C",
+                str(repo),
+                "-c",
+                "user.email=t@example.test",
+                "-c",
+                "user.name=T",
+            ]
+            subprocess.run(["git", "init", "-q", str(repo)], check=True)
+            subprocess.run([*git, "add", "runtime"], check=True)
+            subprocess.run([*git, "commit", "-q", "-m", "packaged"], check=True)
+            head = subprocess.run(
+                [*git, "rev-parse", "HEAD"], check=True, capture_output=True, text=True
+            ).stdout.strip()
+            (repo / "runtime/module.py").write_text("VALUE = 2\n")
+            mapper = repo / "build/apps/runtime/veyra_runtime"
+            mapper.parent.mkdir(parents=True)
+            mapper.write_bytes(b"mapper")
+            python = root / "python-runtime"
+            (python / "bin").mkdir(parents=True)
+            (python / "bin/python3").write_bytes(b"python")
+            output = stage_backend(repo, root / "stage", mapper, python, "linux", "x64")
+            manifest = json.loads((output / "manifest.json").read_text())
+            self.assertEqual(manifest["source"]["git_sha"], head)
+            self.assertIs(manifest["source"]["working_tree_dirty"], True)
 
     def test_rejects_symlinks_and_mapper_outside_repository(self):
         from scripts.package_backend import stage_backend
@@ -209,3 +244,87 @@ class PackageBackendTests(unittest.TestCase):
             (python / "bin" / "python3").write_bytes(b"python")
             with self.assertRaisesRegex(ValueError, "asset"):
                 stage_backend(repo, root / "stage", mapper, python, "linux", "x64")
+
+    def test_framework_virtual_environment_uses_its_recorded_executable(self):
+        from scripts.package_backend import stage_backend
+
+        with tempfile.TemporaryDirectory() as raw:
+            root = Path(raw)
+            repo = self._repo(root)
+            mapper = repo / "build/apps/runtime/veyra_runtime"
+            mapper.parent.mkdir(parents=True)
+            mapper.write_bytes(b"mapper")
+            # Homebrew/python.org layout: `home` has no bin/python3; the
+            # prefix lives inside Python.framework/Versions/X.Y.
+            cellar = root / "Cellar/python/3.12.14"
+            (cellar / "bin").mkdir(parents=True)
+            (cellar / "bin/python3.12").write_bytes(b"launcher")
+            prefix = cellar / "Frameworks/Python.framework/Versions/3.12"
+            (prefix / "bin").mkdir(parents=True)
+            (prefix / "bin/python3.12").write_bytes(b"framework executable")
+            (prefix / "bin/python3").symlink_to("python3.12")
+            (prefix / "lib/python3.12").mkdir(parents=True)
+            (prefix / "lib/python3.12/os.py").write_text("# stdlib\n")
+            outside = root / "homebrew-site-packages"
+            outside.mkdir()
+            (prefix / "lib/python3.12/site-packages").symlink_to(outside)
+
+            venv = root / "venv"
+            (venv / "bin").mkdir(parents=True)
+            (venv / "bin/python3").write_bytes(b"venv executable")
+            (venv / "lib/python3.12/site-packages/numpy").mkdir(parents=True)
+            (venv / "lib/python3.12/site-packages/numpy/__init__.py").write_text("\n")
+            (venv / "pyvenv.cfg").write_text(
+                f"home = {cellar / 'bin'}\n"
+                f"executable = {prefix / 'bin/python3.12'}\n"
+            )
+
+            output = stage_backend(repo, root / "stage", mapper, venv, "linux", "x64")
+
+            self.assertEqual(
+                (output / "python/bin/python3").read_bytes(), b"framework executable"
+            )
+            self.assertTrue((output / "python/lib/python3.12/os.py").is_file())
+            self.assertTrue(
+                (output / "python/lib/python3.12/site-packages/numpy").is_dir(),
+                "the venv overlay replaces the base site-packages link",
+            )
+
+    @unittest.skipUnless(sys.platform == "darwin", "Mach-O relocation needs macOS")
+    def test_darwin_relocation_vendors_libraries_and_leaves_no_absolute_links(self):
+        from scripts.package_backend import _macho_dependencies, relocate_darwin_python
+
+        with tempfile.TemporaryDirectory() as raw:
+            root = Path(raw).resolve()
+            external = root / "homebrew/lib"
+            external.mkdir(parents=True)
+            (root / "dep.c").write_text("int dep(void) { return 41; }\n")
+            (root / "main.c").write_text(
+                "int dep(void);\nint main(void) { return dep() + 1; }\n"
+            )
+            library = external / "libdep.1.dylib"
+            subprocess.check_call(
+                [
+                    "cc",
+                    "-dynamiclib",
+                    str(root / "dep.c"),
+                    "-o",
+                    str(library),
+                    "-install_name",
+                    str(library),
+                ]
+            )
+            runtime = root / "python"
+            (runtime / "bin").mkdir(parents=True)
+            executable = runtime / "bin/python3"
+            subprocess.check_call(
+                ["cc", str(root / "main.c"), str(library), "-o", str(executable)]
+            )
+
+            self.assertEqual(relocate_darwin_python(runtime), ["libdep.1.dylib"])
+            library.unlink()  # the build machine's copy is gone
+
+            _, dependencies = _macho_dependencies(executable)
+            self.assertIn("@loader_path/../lib/vendored/libdep.1.dylib", dependencies)
+            self.assertEqual(subprocess.run([str(executable)]).returncode, 42)
+            subprocess.check_call(["codesign", "--verify", str(executable)])

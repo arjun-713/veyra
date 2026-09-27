@@ -6,8 +6,10 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
+import os
 import shutil
 import subprocess
+import sys
 from pathlib import Path
 
 PACKAGE_ROOTS = ("runtime", "viewer", "benchmarks", "perception", "datasets", "configs")
@@ -45,12 +47,13 @@ def _copy_tree(
     *,
     reject_assets: bool = False,
     materialize_internal_links: bool = False,
+    skip_parts: frozenset[str] = frozenset(),
 ) -> None:
     if not source.is_dir():
         raise ValueError(f"required backend source is missing: {source}")
     for item in sorted(source.rglob("*")):
         relative = item.relative_to(source)
-        if any(part in IGNORED_PARTS for part in relative.parts):
+        if any(part in IGNORED_PARTS or part in skip_parts for part in relative.parts):
             continue
         if item.is_symlink():
             if not materialize_internal_links:
@@ -128,9 +131,18 @@ def _venv_base_root(runtime: Path, platform: str) -> Path | None:
     home = Path(values["home"]).expanduser().resolve(strict=True)
     if platform != "win32" and home.name == "bin":
         home = home.parent
-    if not _source_python(home, platform).is_file():
-        raise ValueError(f"Python base runtime is missing an executable: {home}")
-    return home
+    candidates = [home]
+    # Framework interpreters (python.org, Homebrew) keep their prefix inside
+    # Python.framework/Versions/X.Y; `home` resolves to a directory beside it
+    # that has no bin/python3. pyvenv.cfg (3.11+) records the real executable.
+    if values.get("executable") and platform != "win32":
+        executable = Path(values["executable"]).expanduser()
+        if executable.is_file():
+            candidates.append(executable.resolve(strict=True).parent.parent)
+    for candidate in candidates:
+        if _source_python(candidate, platform).is_file():
+            return candidate
+    raise ValueError(f"Python base runtime is missing an executable: {home}")
 
 
 def _copy_python_runtime(runtime: Path, destination: Path, platform: str) -> None:
@@ -184,7 +196,14 @@ def _copy_python_runtime(runtime: Path, destination: Path, platform: str) -> Non
     # A venv is not relocatable: pyvenv.cfg points at the machine that created
     # it. Flatten the base interpreter into the package and overlay only the
     # installed site-packages so the result has no dependency on that path.
-    _copy_tree(base, destination, materialize_internal_links=True)
+    # The base's own site-packages is never visible to the isolated venv (and
+    # Homebrew links it outside the prefix), so it is not copied.
+    _copy_tree(
+        base,
+        destination,
+        materialize_internal_links=True,
+        skip_parts=frozenset({"site-packages"}),
+    )
     site_packages = sorted(
         path for path in runtime.rglob("site-packages") if path.is_dir()
     )
@@ -197,6 +216,140 @@ def _copy_python_runtime(runtime: Path, destination: Path, platform: str) -> Non
             destination / relative,
             materialize_internal_links=True,
         )
+
+
+_SYSTEM_LIBRARY_PREFIXES = ("/usr/lib/", "/System/")
+_MACHO_MAGICS = {
+    bytes.fromhex(magic)
+    for magic in (
+        "feedfacf",
+        "cffaedfe",
+        "feedface",
+        "cefaedfe",
+        "cafebabe",
+        "bebafeca",
+    )
+}
+
+
+def _is_macho(path: Path) -> bool:
+    if path.is_symlink() or not path.is_file():
+        return False
+    with path.open("rb") as stream:
+        return stream.read(4) in _MACHO_MAGICS
+
+
+def _macho_dependencies(path: Path) -> tuple[str | None, list[str]]:
+    """Return (install id, load commands) for a Mach-O file via otool."""
+
+    def entries(flag: str) -> list[str]:
+        # Universal binaries print a "<path> (architecture X):" header per slice.
+        lines = subprocess.check_output(["otool", flag, str(path)], text=True)
+        return [
+            line.strip().split(" (compatibility")[0]
+            for line in lines.splitlines()
+            if line.strip() and not line.rstrip().endswith(":")
+        ]
+
+    identity = entries("-D")
+    install_id = identity[0] if identity else None
+    names = dict.fromkeys(name for name in entries("-L") if name != install_id)
+    return install_id, list(names)
+
+
+def _external(name: str) -> bool:
+    return name.startswith("/") and not name.startswith(_SYSTEM_LIBRARY_PREFIXES)
+
+
+def _loader_reference(source: Path, target: Path) -> str:
+    return "@loader_path/" + os.path.relpath(target, source.parent)
+
+
+def relocate_darwin_python(root: Path) -> list[str]:
+    """Make a flattened macOS interpreter independent of its build machine.
+
+    Framework interpreters (python.org, Homebrew) link their executable to the
+    framework ``Python`` dylib by absolute path, and stdlib extensions link
+    Homebrew dylibs (OpenSSL, xz, sqlite, mpdecimal). Rewrite the framework
+    link to ``@loader_path``, vendor every other non-system dylib under
+    ``lib/vendored``, re-sign each modified binary ad hoc (arm64 refuses to
+    execute invalid signatures) and fail if any absolute link remains.
+    Returns the vendored library names.
+    """
+    root = root.resolve(strict=True)
+    framework = root / "Python"
+    vendored_dir = root / "lib" / "vendored"
+    vendored: dict[str, Path] = {}
+    pending = sorted(path for path in root.rglob("*") if _is_macho(path))
+    modified: set[Path] = set()
+    while pending:
+        binary = pending.pop()
+        install_id, dependencies = _macho_dependencies(binary)
+        changes: list[str] = []
+        for name in dependencies:
+            if not _external(name):
+                continue
+            if Path(name).name == "Python" and framework.is_file():
+                target = framework
+            else:
+                source = Path(name).resolve(strict=True)
+                target = vendored.get(source.name)
+                if target is None:
+                    vendored_dir.mkdir(parents=True, exist_ok=True)
+                    target = vendored_dir / source.name
+                    shutil.copy2(source, target)
+                    target.chmod(0o755)
+                    vendored[source.name] = target
+                    pending.append(target)
+            changes += ["-change", name, _loader_reference(binary, target)]
+        if install_id and _external(install_id):
+            changes += ["-id", f"@rpath/{binary.name}"]
+        if changes:
+            subprocess.check_call(
+                ["install_name_tool", *changes, str(binary)],
+                stderr=subprocess.DEVNULL,
+            )
+            modified.add(binary)
+    for binary in sorted(modified):
+        subprocess.check_call(
+            ["codesign", "--force", "--sign", "-", str(binary)],
+            stderr=subprocess.DEVNULL,
+        )
+    remaining = [
+        f"{path.relative_to(root)} -> {name}"
+        for path in sorted(root.rglob("*"))
+        if _is_macho(path)
+        for name in _macho_dependencies(path)[1]
+        if _external(name)
+    ]
+    if remaining:
+        raise ValueError(
+            "staged macOS Python still links machine-specific libraries: "
+            + "; ".join(remaining[:10])
+        )
+    return sorted(vendored)
+
+
+def _source_identity(repo: Path) -> dict[str, object]:
+    """Record which commit was packaged; benchmark reports read it back."""
+
+    def git(*args: str) -> str | None:
+        try:
+            return subprocess.run(
+                ["git", "-C", str(repo), *args],
+                check=True,
+                capture_output=True,
+                text=True,
+            ).stdout
+        except (OSError, subprocess.CalledProcessError):
+            return None
+
+    sha = git("rev-parse", "HEAD")
+    status = git("status", "--porcelain", "--untracked-files=no")
+    return {
+        "git_sha": sha.strip() if sha else None,
+        "working_tree_dirty": None if status is None else bool(status.strip()),
+    }
 
 
 def stage_backend(
@@ -231,6 +384,8 @@ def stage_backend(
     normalized_python = output / "python" / _python_relative(platform)
     if not normalized_python.exists():
         shutil.copy2(python_executable, normalized_python)
+    if platform == "darwin" and sys.platform == "darwin":
+        relocate_darwin_python(output / "python")
     binary_name = "veyra_runtime.exe" if platform == "win32" else "veyra_runtime"
     (output / "bin").mkdir()
     shutil.copy2(mapper, output / "bin" / binary_name)
@@ -253,6 +408,7 @@ def stage_backend(
         "version": _product_version(repo),
         "platform": platform,
         "arch": arch,
+        "source": _source_identity(repo),
         "files": files,
     }
     (output / "manifest.json").write_text(

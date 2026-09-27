@@ -4,8 +4,14 @@
   "version": "0.1.0",
   "identifier": "com.veyra.desktop",
   "build": {
-    "beforeDevCommand": "npm run tauri:dev:frontend",
-    "beforeBuildCommand": "npm run tauri:build:frontend",
+    "beforeDevCommand": {
+      "script": "npm run tauri:dev:frontend",
+      "cwd": "../apps/desktop"
+    },
+    "beforeBuildCommand": {
+      "script": "npm run tauri:build:frontend",
+      "cwd": "../apps/desktop"
+    },
     "devUrl": "http://127.0.0.1:1420",
     "frontendDist": "../apps/desktop/dist"
   },
@@ -35,6 +41,9 @@
       "icons/512x512.png"
     ],
     "targets": ["deb", "rpm", "appimage", "nsis", "dmg"],
+    "macOS": {
+      "signingIdentity": "-"
+    },
     "category": "Utility",
     "shortDescription": "Adaptive semantic LiDAR mapping",
     "longDescription": "Veyra adaptive variable-resolution semantic 2.5D LiDAR mapping"

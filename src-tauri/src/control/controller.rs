@@ -4,6 +4,7 @@ use serde_json::{json, Value};
 
 use crate::supervisor::{RuntimeSupervisor, SupervisorError};
 
+use super::state::RuntimeState;
 use super::AppState;
 
 /// Build profile of this shell binary. The frontend displays it so
@@ -180,7 +181,8 @@ impl RuntimeController {
 
     pub fn stop(&mut self) -> Result<(), String> {
         self.supervisor.stop().map_err(|error| error.to_string())?;
-        if self.state.status().dataset_open {
+        let status = self.state.status();
+        if status.dataset_open || status.state == RuntimeState::Error {
             self.state.stop().map_err(|error| error.to_string())?;
         }
         Ok(())
@@ -198,7 +200,9 @@ impl RuntimeController {
 
     fn request(&mut self, command: &str, args: Value) -> Result<Value, String> {
         let response = self.supervisor.request(command, args).map_err(|error| {
-            self.state.fail();
+            if marks_runtime_failed(&error) {
+                self.state.fail();
+            }
             supervisor_error(error)
         })?;
         Ok(response)
@@ -301,6 +305,15 @@ fn select_openable_sequence(
         })
 }
 
+/// A rejected request (bad dataset path, invalid argument) leaves the runtime
+/// healthy and must not latch ERROR; only a lost or broken process does.
+fn marks_runtime_failed(error: &SupervisorError) -> bool {
+    !matches!(
+        error,
+        SupervisorError::Response(_) | SupervisorError::QueueFull
+    )
+}
+
 fn supervisor_error(error: SupervisorError) -> String {
     error.to_string()
 }
@@ -309,6 +322,33 @@ fn supervisor_error(error: SupervisorError) -> String {
 mod tests {
     use super::RuntimeController;
     use serde_json::json;
+
+    #[test]
+    fn rejected_requests_do_not_latch_error_but_process_failures_do() {
+        use super::marks_runtime_failed;
+        use crate::supervisor::SupervisorError;
+        assert!(!marks_runtime_failed(&SupervisorError::Response(
+            "dataset is invalid".into()
+        )));
+        assert!(!marks_runtime_failed(&SupervisorError::QueueFull));
+        for error in [
+            SupervisorError::NotRunning,
+            SupervisorError::Timeout("benchmark".into()),
+            SupervisorError::Protocol("bad packet".into()),
+            SupervisorError::Process("exit status: 1".into()),
+        ] {
+            assert!(marks_runtime_failed(&error), "{error}");
+        }
+    }
+
+    #[test]
+    fn stop_and_restart_recover_from_error_without_an_open_dataset() {
+        let mut controller = RuntimeController::new("/tmp/veyra-test-error-recovery");
+        controller.state.fail();
+        assert_eq!(controller.status()["state"], "error");
+        controller.stop().unwrap();
+        assert_eq!(controller.status()["state"], "ready");
+    }
 
     #[test]
     fn controller_starts_booting_without_starting_the_backend() {
