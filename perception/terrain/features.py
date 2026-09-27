@@ -100,7 +100,8 @@ class TerrainAnalyzer:
         gradient_y_per_point = np.full(count, np.nan, dtype=np.float32)
         result = np.full(count, "unknown", dtype="U12")
         output_confidence = np.zeros(count, dtype=np.float32)
-        if count == 0:
+
+        def evidence() -> TerrainEvidence:
             return TerrainEvidence(
                 slope=slope,
                 roughness=roughness,
@@ -112,60 +113,77 @@ class TerrainAnalyzer:
                 gradient_y=gradient_y_per_point,
             )
 
+        if count == 0:
+            return evidence()
+
         # Aggregate into a compact world-aligned raster first.  All local
         # sufficient statistics are then reduced by compiled ndimage kernels;
         # this removes the per-bucket Python candidate lists and least-squares
         # loop that dominated full LiDAR scans.
         cell_size = self.neighborhood_radius / 2.0
-        cell_coords = np.floor(xyz[:, :2] / cell_size).astype(np.int64)
-        min_cell = cell_coords.min(axis=0)
-        max_cell = cell_coords.max(axis=0)
-        width = int(max_cell[0] - min_cell[0] + 1)
-        height = int(max_cell[1] - min_cell[1] + 1)
-        flat_cells = (cell_coords[:, 1] - min_cell[1]) * width + (
-            cell_coords[:, 0] - min_cell[0]
-        )
-        cell_count = width * height
-        if cell_count > 4_000_000:
+        # The raster bound is judged on the full point extent, as before.
+        # floor(v / cell_size) is monotone in v, so the extreme cells are the
+        # cells of the extreme coordinates; no per-point cell array is needed.
+        # Per-column reductions: an axis-0 reduction over the strided (N, 2)
+        # view is several times slower on a full scan.
+        extent_min = np.floor(
+            np.array((xyz[:, 0].min(), xyz[:, 1].min())) / cell_size
+        ).astype(np.int64)
+        extent_max = np.floor(
+            np.array((xyz[:, 0].max(), xyz[:, 1].max())) / cell_size
+        ).astype(np.int64)
+        if (
+            int(extent_max[0] - extent_min[0] + 1)
+            * int(extent_max[1] - extent_min[1] + 1)
+            > 4_000_000
+        ):
             raise ValueError(
                 "terrain point extent is too large for the bounded raster analyzer"
             )
 
-        support_mask = mask.astype(np.float64)
-        flat_size = cell_count
+        # Only ground returns contribute to any aggregated field and only
+        # ground returns receive per-point output, so the raster spans the
+        # ground support alone (about a quarter of the full-scan raster on
+        # PandaSet) and only ground returns are aggregated. Every excluded
+        # cell held exact zeros (or +/-inf for min/max), so the box sums and
+        # per-cell statistics of the cells that remain are bit-identical.
+        ground_indices = np.flatnonzero(mask)
+        if ground_indices.size == 0:
+            return evidence()
+        ground_xyz = xyz[ground_indices]
+        cell_coords = np.floor(ground_xyz[:, :2] / cell_size).astype(np.int64)
+        cell_x = cell_coords[:, 0]
+        cell_y = cell_coords[:, 1]
+        min_x = cell_x.min()
+        min_y = cell_y.min()
+        width = int(cell_x.max() - min_x + 1)
+        height = int(cell_y.max() - min_y + 1)
+        flat_cells = (cell_y - min_y) * width + (cell_x - min_x)
+        flat_size = width * height
 
         def aggregate(values: np.ndarray) -> np.ndarray:
             return np.bincount(flat_cells, weights=values, minlength=flat_size).reshape(
                 height, width
             )
 
-        scaled = np.stack(
-            (
-                np.ones(count, dtype=np.float64),
-                xyz[:, 0],
-                xyz[:, 1],
-                xyz[:, 2],
-                xyz[:, 0] * xyz[:, 0],
-                xyz[:, 0] * xyz[:, 1],
-                xyz[:, 1] * xyz[:, 1],
-                xyz[:, 0] * xyz[:, 2],
-                xyz[:, 1] * xyz[:, 2],
-                xyz[:, 2] * xyz[:, 2],
-                confidence,
-            )
-        )
-        scaled *= support_mask
-        counts = aggregate(scaled[0])
-        sums = [aggregate(scaled[axis + 1]) for axis in range(3)]
-        second_moments = [aggregate(scaled[index]) for index in range(4, 10)]
-        confidence_sum = aggregate(scaled[10])
-        ground_z = xyz[:, 2].copy()
-        ground_z[~mask] = np.inf
+        gx = ground_xyz[:, 0]
+        gy = ground_xyz[:, 1]
+        gz = ground_xyz[:, 2]
+        counts = aggregate(np.ones(ground_indices.size, dtype=np.float64))
+        sums = [aggregate(gx), aggregate(gy), aggregate(gz)]
+        second_moments = [
+            aggregate(gx * gx),
+            aggregate(gx * gy),
+            aggregate(gy * gy),
+            aggregate(gx * gz),
+            aggregate(gy * gz),
+            aggregate(gz * gz),
+        ]
+        confidence_sum = aggregate(confidence[ground_indices])
         ground_min = np.full(flat_size, np.inf, dtype=np.float64)
-        np.minimum.at(ground_min, flat_cells, ground_z)
-        ground_z[~mask] = -np.inf
+        np.minimum.at(ground_min, flat_cells, gz)
         ground_max = np.full(flat_size, -np.inf, dtype=np.float64)
-        np.maximum.at(ground_max, flat_cells, ground_z)
+        np.maximum.at(ground_max, flat_cells, gz)
         ground_min = ground_min.reshape(height, width)
         ground_max = ground_max.reshape(height, width)
 
@@ -269,46 +287,28 @@ class TerrainAnalyzer:
         step_grid = np.maximum(neighbor_step, cell_range)
         valid &= np.isfinite(slope_grid + roughness_grid + complexity_grid)
 
-        point_x = cell_coords[:, 0] - min_cell[0]
-        point_y = cell_coords[:, 1] - min_cell[1]
-        point_cell = (point_y * width + point_x).astype(np.intp)
-        valid_flat = valid.ravel()
-        ground_points = mask & valid_flat[point_cell]
-        if np.any(ground_points):
-            slope[ground_points] = slope_grid.ravel()[point_cell[ground_points]]
-            roughness[ground_points] = roughness_grid.ravel()[point_cell[ground_points]]
-            complexity[ground_points] = complexity_grid.ravel()[
-                point_cell[ground_points]
-            ]
-            step[ground_points] = step_grid.ravel()[point_cell[ground_points]]
-            gradient_x_per_point[ground_points] = gradient_x.ravel()[
-                point_cell[ground_points]
-            ]
-            gradient_y_per_point[ground_points] = gradient_y.ravel()[
-                point_cell[ground_points]
-            ]
-            output_confidence[ground_points] = confidence_grid.ravel()[
-                point_cell[ground_points]
-            ]
+        point_cell = flat_cells.astype(np.intp)
+        selected = valid.ravel()[point_cell]
+        if np.any(selected):
+            ground_points = ground_indices[selected]
+            cells = point_cell[selected]
+            slope[ground_points] = slope_grid.ravel()[cells]
+            roughness[ground_points] = roughness_grid.ravel()[cells]
+            complexity[ground_points] = complexity_grid.ravel()[cells]
+            step[ground_points] = step_grid.ravel()[cells]
+            gradient_x_per_point[ground_points] = gradient_x.ravel()[cells]
+            gradient_y_per_point[ground_points] = gradient_y.ravel()[cells]
+            output_confidence[ground_points] = confidence_grid.ravel()[cells]
+            confident = output_confidence[ground_points] > 0.0
             drivable = (
                 (slope[ground_points] <= self.max_slope)
                 & (roughness[ground_points] <= self.max_roughness)
                 & (step[ground_points] <= self.max_step)
-                & (output_confidence[ground_points] > 0.0)
+                & confident
             )
-            ground_indices = np.flatnonzero(ground_points)
-            confident_indices = ground_indices[output_confidence[ground_points] > 0.0]
-            confident_drivable = drivable[output_confidence[ground_points] > 0.0]
+            confident_indices = ground_points[confident]
+            confident_drivable = drivable[confident]
             result[confident_indices[confident_drivable]] = "drivable"
             result[confident_indices[~confident_drivable]] = "non_drivable"
 
-        return TerrainEvidence(
-            slope=slope,
-            roughness=roughness,
-            height_complexity=complexity,
-            step=step,
-            drivable=result,
-            confidence=output_confidence,
-            gradient_x=gradient_x_per_point,
-            gradient_y=gradient_y_per_point,
-        )
+        return evidence()

@@ -112,6 +112,63 @@ void checkPointCountMatchesSnapshotTotal() {
   CHECK(map.point_count() == map.snapshot().point_count);
 }
 
+bool sameLeaves(const MapSnapshot& left, const MapSnapshot& right) {
+  if (left.leaves.size() != right.leaves.size()) return false;
+  for (std::size_t index = 0; index < left.leaves.size(); ++index) {
+    if (left.leaves[index].id != right.leaves[index].id ||
+        left.leaves[index].stats.count != right.leaves[index].stats.count)
+      return false;
+  }
+  return true;
+}
+
+// The live runtime snapshots every frame into one reused MapSnapshot. It must
+// be indistinguishable from a fresh snapshot, including after the map shrinks
+// (stale leaves or counters must not survive), and a steady map must refill
+// it without reallocating the leaf array.
+void checkSnapshotIntoMatchesFreshSnapshotAndReusesStorage() {
+  Map map(ResolutionPolicy::DistanceLod, {.window_radius_m = 100.0, .tile_size_m = 10.0});
+  std::uint64_t timestamp = 0;
+  for (int step = 0; step < 400; ++step) {
+    const double x = -12.0 + 0.06 * step;
+    map.update(point(x, 0.3 * std::sin(step * 0.1), 0.1 * step, ++timestamp));
+  }
+  MapSnapshot reused;
+  map.snapshot_into(reused);
+  const MapSnapshot fresh = map.snapshot();
+  CHECK(sameLeaves(reused, fresh));
+  CHECK(reused.point_count == fresh.point_count);
+  CHECK(reused.logical_bytes == fresh.logical_bytes);
+  CHECK(reused.memory.allocated_bytes == fresh.memory.allocated_bytes);
+  const std::size_t snapshot_scratch_bytes =
+      reused.memory.allocated_bytes - reused.memory.allocated_index_bytes -
+      reused.memory.allocated_cell_array_bytes;
+  CHECK(snapshot_scratch_bytes > 0);
+  CHECK(snapshot_scratch_bytes == reused.memory.allocated_scratch_bytes);
+  CHECK(reused.layers.ground_points == fresh.layers.ground_points);
+  CHECK(reused.leaves_ordered_by_id);
+  checkTopology(reused);
+
+  const auto* storage = reused.leaves.data();
+  const std::size_t capacity = reused.leaves.capacity();
+  map.snapshot_into(reused);
+  CHECK(reused.leaves.data() == storage);
+  CHECK(reused.leaves.capacity() == capacity);
+
+  // Shrink the map: move the window away so most leaves are evicted.
+  map.set_window_center(500.0, 0.0);
+  map.snapshot_into(reused);
+  const MapSnapshot shrunk = map.snapshot();
+  CHECK(sameLeaves(reused, shrunk));
+  CHECK(reused.point_count == shrunk.point_count);
+  CHECK(reused.logical_bytes == shrunk.logical_bytes);
+  CHECK(reused.active_leaf_count == shrunk.active_leaf_count);
+  CHECK(reused.memory.allocated_bytes - reused.memory.allocated_index_bytes -
+            reused.memory.allocated_cell_array_bytes ==
+        snapshot_scratch_bytes);
+  CHECK(reused.memory.allocated_scratch_bytes == snapshot_scratch_bytes);
+}
+
 void checkRepeatedPublicSplitMergePreservesEvidence() {
   Map map(ResolutionPolicy::Uniform40, {.window_radius_m = 5.0, .tile_size_m = 0.8});
   const std::array<std::pair<double, double>, 3> centres{{{-0.62, -0.58}, {0.22, 0.18},
@@ -291,5 +348,6 @@ int main() {
   checkRollingWindowConservesSurvivorIdentity();
   checkWindowEdgePointYieldsExactlyOneLeaf();
   checkPointCountMatchesSnapshotTotal();
+  checkSnapshotIntoMatchesFreshSnapshotAndReusesStorage();
   return 0;
 }

@@ -6,7 +6,7 @@ import os
 import sys
 import threading
 
-from .protocol import MAX_REQUEST, encode_message
+from .protocol import MAX_REQUEST, encode_head
 from .service import ProductRuntime
 
 
@@ -27,12 +27,15 @@ def main():
                     if runtime.outbox.closed:
                         return
                     continue
-                packet = memoryview(encode_message(*item))
-                while packet:
-                    sent = output.write(packet)
-                    if not sent:
-                        raise BrokenPipeError()
-                    packet = packet[sent:]
+                metadata, payload = item
+                # Same bytes as encode_message, without copying the payload.
+                for part in (encode_head(metadata, payload), payload):
+                    packet = memoryview(part)
+                    while packet:
+                        sent = output.write(packet)
+                        if not sent:
+                            raise BrokenPipeError()
+                        packet = packet[sent:]
         except (OSError, ValueError):
             runtime.stopping.set()
 

@@ -18,7 +18,6 @@ counts as "ground model unavailable" rather than silently treating as level.
 
 from __future__ import annotations
 
-import warnings
 
 import numpy as np
 
@@ -85,7 +84,6 @@ def height_above_ground(
     # over every return.
     codes = _pack(ix, iy)
     ground_codes = codes[ground]
-    unique_codes, inverse = np.unique(ground_codes, return_inverse=True)
     ground_z = array[ground, 2]
 
     # Per-cell medians without a per-cell call. Sorting by (cell, z) makes each
@@ -94,13 +92,17 @@ def height_above_ground(
     # elements for even. Calling np.median once per cell instead cost 58% of
     # this function's runtime -- 2500 Python-level calls per frame, each with
     # its own dispatch and NaN check, to do arithmetic that indexing already
-    # answers.
-    order = np.lexsort((ground_z, inverse))
-    sorted_groups = inverse[order]
+    # answers. The same sort also yields the distinct cells and their counts,
+    # so no separate np.unique sort is needed.
+    order = np.lexsort((ground_z, ground_codes))
+    sorted_codes = ground_codes[order]
     sorted_z = ground_z[order]
-    group_count = unique_codes.shape[0]
-    counts = np.bincount(sorted_groups, minlength=group_count).astype(np.int64)
-    starts = np.searchsorted(sorted_groups, np.arange(group_count), side="left")
+    new_cell = np.empty(sorted_codes.shape[0], dtype=bool)
+    new_cell[0] = True
+    np.not_equal(sorted_codes[1:], sorted_codes[:-1], out=new_cell[1:])
+    starts = np.flatnonzero(new_cell)
+    unique_codes = sorted_codes[starts]
+    counts = np.diff(starts, append=sorted_codes.shape[0]).astype(np.int64)
     lower = starts + (counts - 1) // 2
     upper = starts + counts // 2
     medians = 0.5 * (sorted_z[lower] + sorted_z[upper])
@@ -123,9 +125,20 @@ def height_above_ground(
             #
             # The median of whichever neighbours exist, matching the per-cell
             # estimator, so a cell beside a kerb does not inherit the kerb.
-            neighbours = np.full((missing.sum(), 8), np.nan, dtype=np.float64)
-            missing_ix = ix[missing]
-            missing_iy = iy[missing]
+            #
+            # The borrowed height depends only on the cell, so it is computed
+            # once per distinct missing cell (~1.6k) rather than once per
+            # missing return (~30k on a 97k-point PandaSet scan) and then
+            # broadcast back.
+            missing_codes = codes[missing]
+            missing_cells, inverse = np.unique(missing_codes, return_inverse=True)
+            # First return of each distinct cell, found without the stable
+            # sort that np.unique(return_index=True) would add.
+            first = np.full(missing_cells.shape[0], missing_codes.shape[0])
+            np.minimum.at(first, inverse, np.arange(missing_codes.shape[0]))
+            neighbours = np.full((missing_cells.shape[0], 8), np.nan, dtype=np.float64)
+            missing_ix = ix[missing][first]
+            missing_iy = iy[missing][first]
             column = 0
             for dx in (-1, 0, 1):
                 for dy in (-1, 0, 1):
@@ -137,15 +150,32 @@ def height_above_ground(
                         cell_heights,
                     )
                     column += 1
-            with warnings.catch_warnings():
-                # An all-NaN row means no neighbour had ground either. That is
-                # a legitimate answer -- NaN -- not a problem to report.
-                warnings.simplefilter("ignore", category=RuntimeWarning)
-                borrowed = np.nanmedian(neighbours, axis=1)
+            borrowed = _nanmedian_rows(neighbours)[inverse]
             heights[missing] = array[missing, 2] - borrowed
 
     heights[~finite] = np.nan
     return heights.astype(np.float32)
+
+
+def _nanmedian_rows(values: np.ndarray) -> np.ndarray:
+    """Row-wise median ignoring NaN; NaN for a row with no finite value.
+
+    Bit-identical to ``np.nanmedian(values, axis=1)`` -- the same sort and the
+    same ``(low + high) / 2`` of the two middle finite values -- without its
+    masked-array path, which also issued one ``RuntimeWarning`` per all-NaN
+    row (thousands per frame, each a Python-level call). An all-NaN row means
+    no neighbour had ground either; NaN is the legitimate answer.
+    """
+    ordered = np.sort(values, axis=1)  # NaN sorts after every finite value.
+    finite = np.count_nonzero(~np.isnan(values), axis=1)
+    upper = finite // 2
+    lower = np.where(finite % 2 == 1, upper, upper - 1)
+    rows = np.arange(values.shape[0])
+    low = ordered[rows, np.maximum(lower, 0)]
+    high = ordered[rows, upper]
+    medians = (low + high) / 2.0
+    medians[finite == 0] = np.nan
+    return medians
 
 
 def _pack(ix: np.ndarray, iy: np.ndarray) -> np.ndarray:

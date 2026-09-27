@@ -13,15 +13,20 @@ MAX_PAYLOAD = 32 * 1024 * 1024
 MAX_REQUEST = 65536
 
 
-def encode_message(metadata: dict, payload: bytes = b"") -> bytes:
+def encode_head(metadata: dict, payload: bytes = b"") -> bytes:
+    """Header and metadata of a message; the payload bytes follow unchanged.
+
+    Writers send ``encode_head(m, p)`` then ``p`` so a multi-megabyte payload
+    is never copied into a concatenated packet.
+    """
     data = json.dumps(metadata, allow_nan=False, separators=(",", ":")).encode("utf-8")
     if len(data) > MAX_METADATA or len(payload) > MAX_PAYLOAD:
         raise ValueError("message size exceeds protocol limit")
-    return (
-        HEADER.pack(b"VYRA", 1, 2 if payload else 1, len(data), len(payload))
-        + data
-        + payload
-    )
+    return HEADER.pack(b"VYRA", 1, 2 if payload else 1, len(data), len(payload)) + data
+
+
+def encode_message(metadata: dict, payload: bytes = b"") -> bytes:
+    return encode_head(metadata, payload) + payload
 
 
 def _read_exact(stream, count):

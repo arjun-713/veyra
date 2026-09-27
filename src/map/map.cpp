@@ -570,6 +570,9 @@ struct Map::Impl {
   double center_y = 0.0;
   SparseTileStore tiles;
   std::uint64_t topology_changes = 0;
+  // Snapshot ordering scratch, reused across frames (see snapshot_into).
+  mutable std::array<std::vector<std::pair<std::uint64_t, const StoredCell*>>, kMaxLevel + 1>
+      snapshot_order;
   std::uint64_t split_count = 0;
   std::uint64_t merge_count = 0;
 };
@@ -1136,18 +1139,42 @@ ClearingStats Map::clear_free_space(const DepthImage& image, const SensorPose& p
   return stats;
 }
 
+namespace {
+// An exact reserve for a map that grows every frame reallocates a slightly
+// larger block every frame. The macOS allocator keeps each freed large span
+// resident, so process memory climbed ~40 MB/frame while the map stayed
+// ~125 MB. Growing by half keeps reallocations logarithmic in map size.
+template <typename T>
+void reserve_geometric(std::vector<T>& values, std::size_t needed) {
+  if (needed <= values.capacity()) return;
+  values.reserve(std::max(needed, values.capacity() + values.capacity() / 2));
+}
+}  // namespace
+
 MapSnapshot Map::snapshot() const {
   MapSnapshot snapshot;
+  snapshot_into(snapshot);
+  return snapshot;
+}
+
+void Map::snapshot_into(MapSnapshot& snapshot) const {
+  // Keep the caller's leaf capacity; every other field starts fresh.
+  auto leaves = std::move(snapshot.leaves);
+  leaves.clear();
+  snapshot = MapSnapshot{};
+  snapshot.leaves = std::move(leaves);
   // Order by id through compact (key, cell) references and copy each leaf
   // once, rather than sorting the ~200-byte leaves themselves. Level is the
-  // primary key, so each level is its own bucket.
-  std::array<std::vector<std::pair<std::uint64_t, const StoredCell*>>, kMaxLevel + 1> order;
+  // primary key, so each level is its own bucket. The buckets are reused
+  // scratch, so a steady-state map snapshots without large allocations.
+  auto& order = impl_->snapshot_order;
+  for (auto& bucket : order) bucket.clear();
   {
     std::array<std::size_t, kMaxLevel + 1> sizes{};
     impl_->tiles.for_each_tile([&](TileKey, const Tile& tile) {
       for (int level = 0; level <= kMaxLevel; ++level) sizes[level] += tile.leaves[level].size();
     });
-    for (int level = 0; level <= kMaxLevel; ++level) order[level].reserve(sizes[level]);
+    for (int level = 0; level <= kMaxLevel; ++level) reserve_geometric(order[level], sizes[level]);
   }
   std::size_t index_bytes = impl_->tiles.allocated_index_bytes();
   impl_->tiles.for_each_tile([&](TileKey, const Tile& tile) {
@@ -1200,17 +1227,22 @@ MapSnapshot Map::snapshot() const {
               [](const auto& left, const auto& right) { return left.first < right.first; });
     total += bucket.size();
   }
-  snapshot.leaves.reserve(total);
+  reserve_geometric(snapshot.leaves, total);
   for (const auto& bucket : order) {
     for (const auto& [key, entry] : bucket) snapshot.leaves.push_back({entry->id, entry->stats});
   }
   snapshot.leaves_ordered_by_id = true;
   snapshot.active_leaf_count = snapshot.leaves.size();
   snapshot.tile_count = impl_->tiles.size();
+  for (const auto& bucket : order) {
+    snapshot.memory.allocated_scratch_bytes +=
+        bucket.capacity() * sizeof(std::pair<std::uint64_t, const StoredCell*>);
+  }
   // Includes the per-level cell position indexes, not only the tile table.
   snapshot.memory.allocated_index_bytes = index_bytes;
   snapshot.memory.allocated_bytes =
-      snapshot.memory.allocated_index_bytes + snapshot.memory.allocated_cell_array_bytes;
+      snapshot.memory.allocated_index_bytes + snapshot.memory.allocated_cell_array_bytes +
+      snapshot.memory.allocated_scratch_bytes;
   snapshot.memory.allocated_overhead_bytes =
       snapshot.memory.allocated_bytes - snapshot.memory.allocated_cell_array_bytes;
   snapshot.logical_bytes =
@@ -1218,7 +1250,6 @@ MapSnapshot Map::snapshot() const {
   snapshot.topology_change_count = impl_->topology_changes;
   snapshot.split_count = impl_->split_count;
   snapshot.merge_count = impl_->merge_count;
-  return snapshot;
 }
 
 std::uint64_t Map::point_count() const {
@@ -1250,6 +1281,7 @@ ClearingStats Uniform5Map::clear_free_space(const DepthImage& image, const Senso
 }
 
 MapSnapshot Uniform5Map::snapshot() const { return map_.snapshot(); }
+void Uniform5Map::snapshot_into(MapSnapshot& out) const { map_.snapshot_into(out); }
 std::uint64_t Uniform5Map::point_count() const { return map_.point_count(); }
 
 Uniform40Map::Uniform40Map(MapConfig config) : map_(ResolutionPolicy::Uniform40, config) {}
@@ -1268,6 +1300,7 @@ ClearingStats Uniform40Map::clear_free_space(const DepthImage& image, const Sens
 }
 
 MapSnapshot Uniform40Map::snapshot() const { return map_.snapshot(); }
+void Uniform40Map::snapshot_into(MapSnapshot& out) const { map_.snapshot_into(out); }
 std::uint64_t Uniform40Map::point_count() const { return map_.point_count(); }
 
 DistanceLodMap::DistanceLodMap(MapConfig config) : map_(ResolutionPolicy::DistanceLod, config) {}
@@ -1289,6 +1322,7 @@ ClearingStats DistanceLodMap::clear_free_space(const DepthImage& image, const Se
 }
 
 MapSnapshot DistanceLodMap::snapshot() const { return map_.snapshot(); }
+void DistanceLodMap::snapshot_into(MapSnapshot& out) const { map_.snapshot_into(out); }
 std::uint64_t DistanceLodMap::point_count() const { return map_.point_count(); }
 
 }  // namespace veyra::map
