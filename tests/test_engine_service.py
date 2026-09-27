@@ -45,6 +45,72 @@ class EngineServiceTests(unittest.TestCase):
     def setUp(self):
         self.binary = require_binary(self, "VEYRA_RUNTIME_BINARY", RUNTIME_RELATIVE)
 
+    def test_sampled_physical_layers_keep_the_same_cell_order(self):
+        import numpy as np
+
+        from tests.test_layered_end_to_end import _frame
+        from viewer.runtime import PersistentMapEngine
+
+        frame = _frame(
+            np.array(
+                [[0.01, 0.01, 0.0], [0.01, 0.01, 0.3], [0.01, 0.01, 3.0]],
+                dtype=np.float32,
+            ),
+            np.array([True, False, False]),
+            np.array([0.0, 0.3, 3.0], dtype=np.float32),
+        )
+        engine = PersistentMapEngine(self.binary, policy="uniform5")
+        try:
+            self.assertEqual(engine.process_frame(frame)["status"], "available")
+            cells = engine.map_cells_binary(budget=1)
+            self.assertIn("physical_layers_binary", cells)
+            self.assertEqual(cells["cell_count"], 1)
+            self.assertEqual(len(cells["cells_binary"]), 68)
+            layers = np.frombuffer(cells["physical_layers_binary"], dtype="<f4")
+            np.testing.assert_allclose(
+                layers, [1, 0, 0, 0, 0, 1, 0.3, 0.3, 0.3, 0, 1, 3, 3, 3, 0]
+            )
+        finally:
+            engine.close()
+
+    def test_sampled_layers_match_json_for_multiple_cells(self):
+        import numpy as np
+
+        from tests.test_layered_end_to_end import _frame
+        from viewer.runtime import PersistentMapEngine
+
+        frame = _frame(
+            np.array(
+                [[x, 0.01, x] for x in (0.01, 1.01, 2.01, 3.01)], dtype=np.float32
+            ),
+            np.ones(4, dtype=bool),
+            np.zeros(4, dtype=np.float32),
+        )
+        engine = PersistentMapEngine(self.binary, policy="uniform5")
+        try:
+            self.assertEqual(engine.process_frame(frame)["status"], "available")
+            for budget in (1, 2, 4):
+                binary = engine.map_cells_binary(budget=budget)
+                rows = engine.map_cells(budget=budget)["cells"]
+                cells = np.frombuffer(binary["cells_binary"], dtype="<f4").reshape(
+                    -1, 17
+                )
+                layers = np.frombuffer(
+                    binary["physical_layers_binary"], dtype="<f4"
+                ).reshape(-1, 15)
+                self.assertEqual(len(rows), len(cells))
+                for index, row in enumerate(rows):
+                    expected = [
+                        float("nan") if value is None else value
+                        for value in row["physical_layers"]
+                    ]
+                    np.testing.assert_allclose(layers[index], expected, equal_nan=True)
+                    self.assertAlmostEqual(
+                        float(cells[index, 2]), float(layers[index, 1]), places=5
+                    )
+        finally:
+            engine.close()
+
     def test_manual_governor_override_is_reported_and_validated(self):
         binary = self.binary
         result = subprocess.run(

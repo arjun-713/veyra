@@ -1951,10 +1951,13 @@ double display_cell_utility(const veyra::map::Leaf& leaf,
 // whole map update did.
 void write_cells_binary(std::ostream& out, const veyra::map::MapSnapshot& snapshot,
                         std::size_t budget, const veyra::policy::UtilityConfig& config,
-                        std::array<double, 2> center) {
+                        std::array<double, 2> center, bool with_layers = false) {
   const auto selected = select_display_cells(snapshot, budget, center);
   constexpr std::size_t kFloats = 17;
-  std::vector<unsigned char> rows(selected.size() * kFloats * sizeof(float));
+  constexpr std::size_t kLayerFloats = 15;
+  const auto cell_bytes = selected.size() * kFloats * sizeof(float);
+  const auto layer_bytes = with_layers ? selected.size() * kLayerFloats * sizeof(float) : 0;
+  std::vector<unsigned char> rows(cell_bytes + layer_bytes);
   unsigned char* cursor = rows.data();
   const auto put = [&cursor](double value) {
     const auto narrow = static_cast<float>(value);
@@ -1985,9 +1988,22 @@ void write_cells_binary(std::ostream& out, const veyra::map::MapSnapshot& snapsh
     put(leaf.stats.max_z());
     put(leaf.stats.variance_z());
   }
+  if (with_layers) {
+    for (const auto index : selected) {
+      const auto& stats = snapshot.leaves[index].stats;
+      for (const auto* layer : {&stats.ground, &stats.obstacle, &stats.overhead}) {
+        const auto absent = std::numeric_limits<double>::quiet_NaN();
+        put(layer->count);
+        put(layer->empty() ? absent : layer->mean_z);
+        put(layer->empty() ? absent : layer->min_z);
+        put(layer->empty() ? absent : layer->max_z);
+        put(layer->empty() ? absent : layer->variance_z());
+      }
+    }
+  }
   out << "{\"status\":\"available\",\"cell_count\":" << selected.size()
       << ",\"total_leaves\":" << snapshot.leaves.size() << ",\"binary_bytes\":" << rows.size()
-      << "}\n";
+      << (with_layers ? ",\"physical_layers_version\":1" : "") << "}\n";
   out.write(reinterpret_cast<const char*>(rows.data()), static_cast<std::streamsize>(rows.size()));
 }
 
@@ -2060,6 +2076,19 @@ std::string render_cells(const veyra::map::MapSnapshot& snapshot, std::size_t bu
     real(leaf.stats.drivable_evidence());
     out += ",\"u\":";
     real(utility);
+    out += ",\"physical_layers\":[";
+    bool first_layer = true;
+    for (const auto* layer : {&leaf.stats.ground, &leaf.stats.obstacle, &leaf.stats.overhead}) {
+      if (!std::exchange(first_layer, false)) out += ',';
+      integer(layer->count);
+      for (const auto value : {layer->mean_z, static_cast<double>(layer->min_z),
+                               static_cast<double>(layer->max_z), layer->variance_z()}) {
+        out += ',';
+        if (layer->empty()) out += "null";
+        else real(value);
+      }
+    }
+    out += ']';
     out += '}';
   }
   out += "]}";
@@ -2089,7 +2118,7 @@ int run_engine(const Options& options) {
         started = true;
         session_version = line.back() == '4' ? 4 : (line.back() == '3' ? 3 : 2);
         session.set_protocol_version(session_version);
-        std::cout << "{\"status\":\"ready\",\"protocol_version\":" << session_version << "}\n"
+        std::cout << "{\"status\":\"ready\",\"physical_layers_version\":1,\"protocol_version\":" << session_version << "}\n"
                   << std::flush;
         continue;
       }
@@ -2148,7 +2177,7 @@ int run_engine(const Options& options) {
         std::cout << report << std::flush;
         continue;
       }
-      if (line.rfind("MB ", 0) == 0) {
+      if (line.rfind("MB ", 0) == 0 || line.rfind("ML ", 0) == 0) {
         std::istringstream args(line.substr(3));
         std::uint64_t budget = 0;
         if (!(args >> budget) || budget == 0 || budget > 100000)
@@ -2159,7 +2188,7 @@ int run_engine(const Options& options) {
             input ? std::array<double, 2>{input->pose_translation[0], input->pose_translation[1]}
                   : std::array<double, 2>{};
         write_cells_binary(std::cout, session.result().snapshot, static_cast<std::size_t>(budget),
-                           session.display_utility(), center);
+                           session.display_utility(), center, line.rfind("ML ", 0) == 0);
         std::cout << std::flush;
         continue;
       }
