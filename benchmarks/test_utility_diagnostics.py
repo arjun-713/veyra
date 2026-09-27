@@ -1,8 +1,8 @@
 """Exercise bounded production-policy diagnostics through the real executable."""
 
 import json
-import sys
 import subprocess
+import sys
 import unittest
 from dataclasses import replace
 
@@ -17,12 +17,14 @@ class UtilityDiagnosticsTests(unittest.TestCase):
             [
                 sys.executable,
                 "-c",
-                "import json, os; "
-                "from benchmarks.utility_diagnostics import pipeline_logs_to_stderr; "
-                "\nwith pipeline_logs_to_stderr():\n"
-                " os.write(1, b'Patchwork native initialization\\n')\n"
-                " print('Python pipeline log', flush=True)\n"
-                "print(json.dumps({'valid': True}))",
+                (
+                    "import json, os; "
+                    "from benchmarks.utility_diagnostics import pipeline_logs_to_stderr; "
+                    "\nwith pipeline_logs_to_stderr():\n"
+                    " os.write(1, b'Patchwork native initialization\\n')\n"
+                    " print('Python pipeline log', flush=True)\n"
+                    "print(json.dumps({'valid': True}))"
+                ),
             ],
             capture_output=True,
             text=True,

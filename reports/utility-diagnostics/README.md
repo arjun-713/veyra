@@ -1,6 +1,6 @@
 # Production UtilityLOD: bounded signal diagnosis
 
-Scope: #57 diagnostics and Samay's quality-boundary handoff. This does not close
+Scope: #57 diagnostics and the approved quality-boundary integration. This does not close
 #60 (task-relevant benefit) or #62 (final integrated-main benchmark).
 
 ## Selection and provenance
@@ -18,7 +18,7 @@ hardware and stage status are in the artifact. The preserved unrelated
 `:memory:.ses` file makes `working_tree_dirty` true; the run is not claimed as a
 clean-main benchmark. No untracked source files were present at capture.
 
-## Measured findings
+## Original capture: measured findings
 
 - 89,110 / 132,070 observations failed the quality gate (67.5%). Density failed
   for none: every density value occupied the top histogram bin, consistent with
@@ -46,14 +46,15 @@ requests are classified separately even when their input quality is low.
 
 ## Integration prerequisite and next gate
 
-Samay owns `perception/pipeline.py`; it is unchanged on this branch. His exact
-quality-boundary contract and regression fixtures are in
-`docs/utility-signal-integration-contract.md`. Preserve conservative terrain
-quality for ground, but do not erase valid non-ground semantic evidence because
-a ground-fit confidence is zero. Unknown terrain must remain unknown.
+Arjun subsequently authorized the narrow `perception/pipeline.py` correction
+after confirming it was absent from Samay's PRs. Its contract and regression
+fixtures are in `docs/utility-signal-integration-contract.md`. Ground still uses
+conservative terrain quality; valid non-ground semantic evidence is no longer
+erased solely because ground-fit confidence is zero. Unknown terrain stays unknown.
 
-Review/integrate that correction and relevant temporal changes before the
-overlapping mapper-side class-importance/support correction. Keep DistanceLOD,
+Review this correction before the overlapping mapper-side class-importance/support
+correction. Temporal PR #68 is independently held for parked-support loss; do not
+merge that defect as an integration prerequisite. Keep DistanceLOD,
 safety floor, production defaults and frozen challenge selection unchanged.
 Only then test actual critical-region retention against DistanceLOD; report
 NO-GO if the advantage is not demonstrated. Final benchmark evidence must be
@@ -72,7 +73,7 @@ cmake --build build-utility-diagnostics --parallel 2
 Pipeline logs are on stderr; stdout is JSON. The CLI permits 1–8 frames only.
 This report contains aggregates, not scans, model weights or raw-point history.
 
-## Local verification
+## Original capture: local verification
 
 Fresh Release build and final full CTest: 22/22 passed, including the full
 Python unittest target (147.80 seconds). The three focused diagnostic tests
@@ -80,3 +81,50 @@ passed, including enabled/disabled snapshot equality and Python/native stdout
 isolation. Changed Python files passed Ruff/check/format; `git diff --check`
 passed. Optional dependency/data skips in the broader suite remain skips, not
 real neural/temporal/cross-platform proof. This report does not claim green CI.
+
+## Quality-boundary replay (2026-09-27)
+
+`quality-boundary-after.json` preserves a fresh branch-local diagnostic on the
+same SemanticPOSS sequence and frames (0:2), with 132,070 observations, GT
+semantics, real Patchwork++ and terrain, and temporal disabled. Its exact SHA,
+dirty-state indicator, source/binary/configuration digests and input digest are recorded;
+this is **not clean-main benchmark evidence**.
+
+| Gate failures, per observation | Original | Corrected quality boundary |
+|---|---:|---:|
+| All classes | 89,110 | 3,877 |
+| Car (ID 1) | 19,092 / 23,472 | 51 / 23,472 |
+| Person (ID 6) | 706 / 729 | 26 / 729 |
+| Bicyclist (ID 7) | 153 / 158 | 3 / 158 |
+| Pole (ID 18) | 1,366 / 1,367 | 8 / 1,367 |
+
+This demonstrates that the boundary stopped erasing legitimate non-ground
+confidence. It does **not** demonstrate useful refinement or quality superiority.
+Semantic importance still saturates for known classes, density still equals one,
+and semantics alone still cannot cross the fused-score threshold. Those #57
+mapper-side corrections remain outstanding. Governor suppression counts are
+load-dependent and must not be interpreted as a controlled latency comparison.
+
+### Integration verification
+
+Fresh Release rebuild and full CTest: **22/22 passed** (346.48 s). The Python
+entry ran **422 tests: 412 passed, 10 optional skips**, terminating in 286.69 s.
+The 41 focused diagnostic, quality/resource and product-benchmark tests passed.
+Changed Python files passed Ruff, formatting and compilation; diff checks passed.
+These are local software gates, not neural quality, live UI or cross-platform proof.
+
+Tests must use explicit paths to the freshly built executables. At present the
+top-level CMake configures tests before apps, so the conditional benchmark-target
+environment override is missing from generated CTest entries. Do not let an old
+`build/` executable masquerade as verification of this branch:
+
+```sh
+VEYRA_BENCHMARK_BINARY="$PWD/build-utility-diagnostics/apps/benchmark/veyra_benchmark" \
+VEYRA_RUNTIME_BINARY="$PWD/build-utility-diagnostics/apps/runtime/veyra_runtime" \
+VEYRA_MAPPER="$PWD/build-utility-diagnostics/apps/runtime/veyra_runtime" \
+ctest --test-dir build-utility-diagnostics --output-on-failure
+
+VEYRA_BENCHMARK_BINARY="$PWD/build-utility-diagnostics/apps/benchmark/veyra_benchmark" \
+.venv/bin/python -m unittest benchmarks.test_utility_diagnostics \
+  benchmarks.test_quality_resource benchmarks.test_product_benchmark -q
+```
