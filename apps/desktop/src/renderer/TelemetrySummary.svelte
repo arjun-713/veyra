@@ -9,14 +9,18 @@
  const semanticClass=(values:unknown,key:string)=>count(values,key);
  const trackLabel=(t:unknown)=>{if(t==null)return 'Unavailable';const n=typeof t==='number'?t:(typeof t==='object'?Object.keys(t as Json).length:NaN);if(typeof n!=='number'||!Number.isFinite(n))return '—';return n===0?'0 tracks':n===1?'1 track':`${n} tracks`;};
  const perception=()=>telemetry.perception??{};
+ const perceptionRequested=()=>perception().semantic_requested??perception().requested_mode??perception().requested??perception().requested_provider??perception().semantic_requested_mode??null;
+ const perceptionActual=()=>perception().semantic_actual??perception().actual??perception().actual_mode??perception().actual_provider??perception().semantic_actual_mode??null;
+ const perceptionFallback=()=>perception().semantic_fallback_reason??perception().fallback_reason??perception().fallbackReason??null;
  const totalRss=(value:Json)=>{const procs=value.processes??[];if(!procs.length||procs.some((p:Json)=>typeof p.rss_bytes!=='number'||!Number.isFinite(p.rss_bytes)))return null;return procs.reduce((s:number,p:Json)=>s+p.rss_bytes,0)/1048576;};
  const health=()=>telemetry.health??{};
  const stages=()=>telemetry.perception_stages_ms??{};
- let sem=$derived(semanticDisplay(perception().provider,perception().model,perception().execution_provider,perception().backend));
+ let sem=$derived(semanticDisplay(perception().provider,perception().model,perception().execution_provider,perception().backend,{requested:perceptionRequested(),actual:perceptionActual(),fallbackReason:perceptionFallback()}));
 </script>
 
 <section class="card perception-status" aria-label="Perception and runtime telemetry">
- <h3>Perception evidence <span>{state(perception().backend)}</span></h3>
+ <h3>Perception evidence <span>{state(perception().backend)}{#if sem.debugChip} · {sem.debugChip}{/if}</span></h3>
+ {#if sem.isFallback}<div role="note" style="border:1px solid #8a6d2b;background:#2b2410;color:#f0d48a;border-radius:6px;padding:10px 12px;margin-bottom:12px;font-size:11px;line-height:1.6"><strong>{sem.banner}</strong><br/><small style="color:#c9b478">{sem.bannerSub}</small></div>{/if}
  <div class="stage-grid">
   <div class="stage-item"><span>Semantic source</span><strong>{sem.source}</strong><small>{sem.sourceSub}</small></div>
   <div class="stage-item"><span>Neural inference</span><strong>{sem.neural}</strong><small>{sem.neuralSub}</small></div>

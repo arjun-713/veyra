@@ -19,7 +19,7 @@ export function pointColor(mode:string,p:ArrayLike<number>,layers:Record<string,
 export function cellColor(mode:string,p:ArrayLike<number>):[number,number,number]{ if(mode==='ground')return neutral;
  if(mode==='lod')return levelColors[Math.max(0,Math.min(3,Math.round(Math.log2(p[3]/.05))))];
  if(mode==='semantic')return semantic(p[4]);if(mode==='motion')return [Math.max(.2,p[5]),.4,.7*(1-p[5])];
- if(mode==='terrain')return p[7]>.65?[.2,.85,.5]:p[7]<.35?[.95,.3,.35]:neutral;
+ if(mode==='terrain'){const e=p[7];if(typeof e!=='number'||!Number.isFinite(e))return neutral;if(e>0)return [.2,.85,.5];if(e<0)return [.95,.3,.35];return neutral;}
  if(mode==='utility'){const u=Math.max(0,Math.min(1,p[8]));return [.15+.8*u,.75*(1-u)+.18,.95-.7*u];}return elevation(p[2]);
 }
 export function semanticRGB(id:number):[number,number,number]{return semantic(id);}

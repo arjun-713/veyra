@@ -4,7 +4,6 @@ use serde_json::{Map, Value};
 
 const MAX_EVENT_BYTES: usize = 1_048_576;
 const TELEMETRY_SCHEMA_VERSION: u64 = 1;
-const VISUALIZATION_SCHEMA_VERSION: u64 = 2;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) enum EventChannel {
@@ -53,10 +52,14 @@ pub(crate) fn normalize_event(mut payload: Value) -> Result<NormalizedEvent, Str
             return Err("telemetry event must declare schema_version 1".to_owned());
         }
         Some("visualization")
-            if object.get("schema_version").and_then(Value::as_u64)
-                != Some(VISUALIZATION_SCHEMA_VERSION) =>
+            if !matches!(
+                object.get("schema_version").and_then(Value::as_u64),
+                Some(2 | 3)
+            ) =>
         {
-            return Err("visualization event must declare schema_version 2".to_owned());
+            return Err(
+                "visualization event must declare supported schema_version 2 or 3".to_owned(),
+            );
         }
         _ => {}
     }
@@ -140,11 +143,48 @@ mod tests {
     }
 
     #[test]
+    fn current_visualization_schema_keeps_optional_physical_layer_metadata() {
+        let event = json!({
+            "type": "visualization", "schema_version": 3,
+            "physical_layers": {"version": 1, "count": 1, "offset": 68, "stride": 60}
+        });
+        let normalized = normalize_event(event).unwrap();
+        assert_eq!(normalized.payload["physical_layers"]["stride"], 60);
+        assert_eq!(normalized.channel, EventChannel::Visualization);
+    }
+
+    #[test]
+    fn supported_visualization_versions_forward_metadata_and_binary_unchanged() {
+        for (version, cell_stride) in [(2, 36), (3, 68)] {
+            let metadata = json!({
+                "type": "visualization",
+                "schema_version": version,
+                "generation": 7,
+                "points": {"count": 1, "offset": 0, "stride": 68},
+                "cells": {"count": 1, "offset": 68, "stride": cell_stride},
+                "layers": {"semantic": "ground_truth", "terrain": "available"}
+            });
+            let bytes = vec![0x7f; 68 + cell_stride];
+            let (channel, forwarded) = event_payload(metadata.clone(), bytes.clone()).unwrap();
+            assert_eq!(channel, EventChannel::Visualization);
+            assert_eq!(forwarded["metadata"], metadata);
+            assert_eq!(forwarded["payload"], json!(bytes));
+        }
+    }
+
+    #[test]
     fn malformed_and_unsupported_events_are_rejected() {
         assert!(normalize_event(json!(null)).is_err());
         assert!(normalize_event(json!({"type": "unknown"})).is_err());
         assert!(normalize_event(json!({"type": "telemetry", "schema_version": 2})).is_err());
         assert!(normalize_event(json!({"type": "visualization", "schema_version": 1})).is_err());
+        for version in [json!(4), json!(-1), json!(3.5), json!("3"), json!(null)] {
+            assert!(normalize_event(json!({
+                "type": "visualization", "schema_version": version
+            }))
+            .is_err());
+        }
+        assert!(normalize_event(json!({"type": "visualization"})).is_err());
     }
 
     #[test]
