@@ -99,12 +99,63 @@ void complete_frame_support_is_order_independent() {
   CHECK(forward.snapshot().point_count == 15);
   CHECK(reverse.snapshot().point_count == 15);
 }
+
+void mixed_scan_preserves_support_and_topology_independent_of_order() {
+  Options options;
+  MapPolicyAdapter forward{PolicyKind::kUtilityLod, {}, options};
+  MapPolicyAdapter reverse{PolicyKind::kUtilityLod, {}, options};
+  std::vector<veyra::map::Observation> points(6);
+  for (std::size_t i = 0; i < points.size(); ++i) {
+    auto& point = points[i];
+    point.x = 44.85 + 0.1 * (i % 3);
+    point.y = i < 3 ? 4.05 : 4.85;
+    point.z = static_cast<double>(i);
+    point.semantic_class = i == 2 ? 6 : 9;
+    point.semantic_confidence = point.observation_quality = 1.0F;
+  }
+  // Dwell is unchanged: the second scan is the first eligible promotion.
+  for (int frame = 0; frame < 2; ++frame) {
+    forward.set_window_center(0.0, 0.0);
+    reverse.set_window_center(0.0, 0.0);
+    forward.prepare_frame(points);
+    reverse.prepare_frame(points);
+    for (const auto& point : points) forward.update(point);
+    for (auto it = points.rbegin(); it != points.rend(); ++it) reverse.update(*it);
+  }
+  const auto a = forward.snapshot();
+  const auto b = reverse.snapshot();
+  CHECK(a.has_no_parent_descendant_overlap());
+  CHECK(b.has_no_parent_descendant_overlap());
+  CHECK(a.point_count == 12);
+  CHECK(b.point_count == 12);
+  // All current-scan points in the promoted physical footprint must retain
+  // spatial support, even when they preceded the critical observation.
+  CHECK(level_at(a, 44.85, 4.05) == 1);
+  CHECK(level_at(b, 44.85, 4.05) == 1);
+  CHECK(level_at(a, 44.85, 4.85) == 2);
+  CHECK(level_at(b, 44.85, 4.85) == 2);
+  for (const auto& snapshot : {a, b}) {
+    std::uint64_t supported = 0;
+    for (const auto& leaf : snapshot.leaves) {
+      const double resolution = veyra::core::resolution_m(leaf.id.level);
+      if (static_cast<double>(leaf.id.iy) * resolution >= 4.0 &&
+          static_cast<double>(leaf.id.iy) * resolution < 4.4) {
+        supported += leaf.stats.count;
+      }
+    }
+    CHECK(supported == 3); // exactly this scan, not fabricated parent history
+    CHECK(snapshot.merge_count == 0);
+  }
+  CHECK(a.active_leaf_count == b.active_leaf_count);
+  CHECK(a.split_count == b.split_count);
+}
 } // namespace
 
 int main() {
   selective_semantics_refine_actual_world_regions();
   sparse_far_and_low_confidence_do_not_refine();
   complete_frame_support_is_order_independent();
+  mixed_scan_preserves_support_and_topology_independent_of_order();
   const auto directory = std::filesystem::temp_directory_path() / "veyra-policy-adapter-test";
   std::filesystem::create_directories(directory);
   const auto governor_path = directory / "governor.yaml";
