@@ -114,6 +114,18 @@ pub async fn export_diagnostics(app: tauri::AppHandle) -> Result<Value, String> 
     request(app, "diagnostics", json!({})).await
 }
 
+/// Returns the complete report of the benchmark the runtime last announced.
+#[tauri::command]
+pub async fn read_benchmark_artifact(path: String, app: tauri::AppHandle) -> Result<Value, String> {
+    tauri::async_runtime::spawn_blocking(move || {
+        use tauri::Manager;
+        app.state::<crate::benchmark_artifact::BenchmarkArtifacts>()
+            .read(&path)
+    })
+    .await
+    .map_err(|error| format!("benchmark artifact worker failed: {error}"))?
+}
+
 #[tauri::command]
 pub async fn runtime_shutdown(app: tauri::AppHandle) -> Result<Value, String> {
     request(app, "shutdown", json!({})).await

@@ -1,0 +1,5883 @@
+{
+ "dataset": "generic",
+ "input_frames": 4,
+ "measured_frames_per_run": 4,
+ "perception": null,
+ "planner_evaluation": {
+  "reason": "pass --planner-evaluation to run the evaluation-only costmap/planner matrix",
+  "reference_is_ground_truth": false,
+  "runs": [],
+  "schema_version": 1,
+  "status": "not_requested"
+ },
+ "policies": {
+  "distance_lod": {
+   "adapter": {
+    "available": true,
+    "cpp_policy": "distance_lod",
+    "governor_config": "configs/resource_governor.yaml",
+    "integration_note": "public adapter available",
+    "signals": [],
+    "suite": "public",
+    "utility_config": "utility_lod.yaml"
+   },
+   "aggregate": {
+    "dropped_frames": 0,
+    "final_leaves_per_level": {
+     "0": 1213,
+     "1": 6170,
+     "2": 4841,
+     "3": 0
+    },
+    "fps": {
+     "count": 1,
+     "max": 951.8986570613746,
+     "mean": 951.8986570613746,
+     "min": 951.8986570613746,
+     "p50": 951.8986570613746,
+     "p95": 951.8986570613746,
+     "p99": 951.8986570613746
+    },
+    "governor": {
+     "actions_applied": 0,
+     "final_status": null,
+     "interventions": 0
+    },
+    "late_frames": 0,
+    "measured_frame_count": 4,
+    "merges_per_frame": {
+     "count": 4,
+     "max": 0,
+     "mean": 0.0,
+     "min": 0,
+     "p50": 0,
+     "p95": 0,
+     "p99": 0
+    },
+    "peak_rss_bytes": 15908864,
+    "quality": [
+     {
+      "duplicate_ownership": {
+       "holds": true,
+       "map_reported_flag": true,
+       "source": "independent active-leaf ID and observed-bin ownership check"
+      },
+      "elevation_vs_fine_reference": {
+       "by_range": [
+        {
+         "coverage": null,
+         "max_m": 10.0,
+         "mean_owner_level": null,
+         "min_m": 0.0,
+         "reference_bins": 0,
+         "rmse_m": null,
+         "sample_count": 0,
+         "scope": "unavailable: source frames were not retained"
+        },
+        {
+         "coverage": null,
+         "max_m": 30.0,
+         "mean_owner_level": null,
+         "min_m": 10.0,
+         "reference_bins": 0,
+         "rmse_m": null,
+         "sample_count": 0,
+         "scope": "unavailable: source frames were not retained"
+        },
+        {
+         "coverage": null,
+         "max_m": 60.0,
+         "mean_owner_level": null,
+         "min_m": 30.0,
+         "reference_bins": 0,
+         "rmse_m": null,
+         "sample_count": 0,
+         "scope": "unavailable: source frames were not retained"
+        },
+        {
+         "coverage": null,
+         "max_m": 100.0,
+         "mean_owner_level": null,
+         "min_m": 60.0,
+         "reference_bins": 0,
+         "rmse_m": null,
+         "sample_count": 0,
+         "scope": "unavailable: source frames were not retained"
+        }
+       ],
+       "coverage": 0.99968,
+       "reference": "5cm input-point bins",
+       "reference_bins": 12500,
+       "rmse_m": 0.00290436820140411,
+       "sample_count": 12496,
+       "scope": "observed reference bins covered by final active leaves; excludes evicted/uncovered bins"
+      },
+      "field_retention": {
+       "reason": "source ObservationFrames were not supplied",
+       "semantic": {
+        "reason": "source ObservationFrames were not supplied",
+        "status": "unavailable"
+       },
+       "status": "unavailable",
+       "terrain_hazard": {
+        "reason": "source ObservationFrames were not supplied",
+        "status": "unavailable"
+       }
+      },
+      "high_resolution_surface_comparison": {
+       "by_range": null,
+       "chamfer_definition": "mean of both directed unsquared 3D nearest-neighbour distances in metres on matched observed bins",
+       "chamfer_distance_m": 0.00047870767854489744,
+       "chamfer_sample_count": 12496,
+       "completion_fraction": 0.99968,
+       "duplicate_owner_bins": 0,
+       "elevation_rmse_m": 0.00290436820140411,
+       "height_accuracy_05cm": 1.0,
+       "height_accuracy_10cm": 1.0,
+       "height_accuracy_20cm": 1.0,
+       "height_accuracy_denominator": "matched bins only; completion reports missing support separately",
+       "height_accuracy_fraction_within_10cm": 1.0,
+       "height_accuracy_fraction_within_tolerance": 1.0,
+       "height_tolerance_m": 0.1,
+       "matched_bins": 12496,
+       "reference": "observed Uniform5 representation from identical stream",
+       "reference_bins": 12500,
+       "reference_is_ground_truth": false,
+       "status": "partial",
+       "symmetric_chamfer_m": 0.00047870767854489744
+      },
+      "mixed_resolution_topology": {
+       "duplicate_leaf_ids": 0,
+       "leaf_count": 12224,
+       "observed_bins": {
+        "covered": 12500,
+        "exactly_one_owner": true,
+        "gap": 0,
+        "overlap": 0,
+        "total": 12500
+       },
+       "parent_descendant_conflicts": 0,
+       "parent_descendant_exclusive": true,
+       "scope": "observed 5cm reference bins only; unobserved sparse space is excluded",
+       "status": "valid"
+      },
+      "point_conservation": {
+       "holds": true,
+       "scope": "active_window_after_frame"
+      },
+      "reconstruction": {
+       "reason": "source frames were not retained (--retain-frames)",
+       "status": "unavailable"
+      },
+      "split_merge_conservation": {
+       "holds": true,
+       "leaf_stat_points": 13596,
+       "nonspatial_prior_points": 4,
+       "snapshot_points": 13600
+      }
+     }
+    ],
+    "rejected_out_of_window": 0,
+    "splits_per_frame": {
+     "count": 4,
+     "max": 2,
+     "mean": 1.0,
+     "min": 0,
+     "p50": 1,
+     "p95": 2,
+     "p99": 2
+    },
+    "stage_latency_ns": {
+     "frame_pipeline": {
+      "count": 4,
+      "max": 1197084,
+      "mean": 1050532.0,
+      "min": 949751,
+      "p50": 981167,
+      "p95": 1197084,
+      "p99": 1197084
+     },
+     "map_update": {
+      "count": 4,
+      "max": 742000,
+      "mean": 663708.25,
+      "min": 620875,
+      "p50": 629583,
+      "p95": 742000,
+      "p99": 742000
+     },
+     "map_window_follow": {
+      "count": 4,
+      "max": 5250,
+      "mean": 3177.25,
+      "min": 417,
+      "p50": 3000,
+      "p95": 5250,
+      "p99": 5250
+     },
+     "protocol_parse_and_validate": {
+      "count": 4,
+      "max": 90542,
+      "mean": 83511.0,
+      "min": 79501,
+      "p50": 80167,
+      "p95": 90542,
+      "p99": 90542
+     },
+     "snapshot_and_topology": {
+      "count": 4,
+      "max": 478417,
+      "mean": 300135.5,
+      "min": 116792,
+      "p50": 235625,
+      "p95": 478417,
+      "p99": 478417
+     }
+    },
+    "topology_churn_per_frame": {
+     "count": 4,
+     "max": 2,
+     "mean": 1.0,
+     "min": 0,
+     "p50": 1,
+     "p95": 2,
+     "p99": 2
+    }
+   },
+   "runs": [
+    {
+     "detail_metric": {
+      "basis": "leaf sufficient-statistic counts",
+      "weighted_mean_level": 1.2088849661665195,
+      "weighted_resolution_m": 0.11557945451663927
+     },
+     "frame_metrics": [
+      {
+       "accepted_points": 3400,
+       "cells_by_level": [
+        422,
+        1548,
+        1261,
+        0
+       ],
+       "governor_actions_applied": 0,
+       "governor_interventions": 0,
+       "input": {
+        "drivable_counts": {
+         "drivable": 0,
+         "non_drivable": 0,
+         "unknown": 3400
+        },
+        "enriched_fields_available": true,
+        "ground": {
+         "false_count": 3400,
+         "true_count": 0
+        },
+        "motion_state_counts": {
+         "moving": 0,
+         "possibly_moving": 0,
+         "static": 0,
+         "unknown": 3400
+        },
+        "point_count": 3400,
+        "pose_available": true,
+        "pose_timestamp_us": 0,
+        "pose_translation_xyz": [
+         0,
+         0,
+         0
+        ],
+        "quality": {
+         "ground_gradient_x": {
+          "count": 0,
+          "max": null,
+          "mean": null,
+          "min": null
+         },
+         "ground_gradient_y": {
+          "count": 0,
+          "max": null,
+          "mean": null,
+          "min": null
+         },
+         "height_above_ground": {
+          "count": 0,
+          "max": null,
+          "mean": null,
+          "min": null
+         },
+         "height_complexity": {
+          "count": 0,
+          "max": null,
+          "mean": null,
+          "min": null
+         },
+         "intensity": {
+          "count": 3400,
+          "max": 0.5,
+          "mean": 0.5,
+          "min": 0.5
+         },
+         "motion_probability": {
+          "count": 3400,
+          "max": 0,
+          "mean": 0,
+          "min": 0
+         },
+         "observation_quality": {
+          "count": 3400,
+          "max": 0,
+          "mean": 0,
+          "min": 0
+         },
+         "raw_semantic_class": {
+          "count": 3400,
+          "max": 0,
+          "mean": 0,
+          "min": 0
+         },
+         "roughness": {
+          "count": 0,
+          "max": null,
+          "mean": null,
+          "min": null
+         },
+         "semantic_class": {
+          "count": 3400,
+          "max": 0,
+          "mean": 0,
+          "min": 0
+         },
+         "semantic_confidence": {
+          "count": 3400,
+          "max": 0,
+          "mean": 0,
+          "min": 0
+         },
+         "slope": {
+          "count": 0,
+          "max": null,
+          "mean": null,
+          "min": null
+         },
+         "step": {
+          "count": 0,
+          "max": null,
+          "mean": null,
+          "min": null
+         },
+         "terrain_confidence": {
+          "count": 3400,
+          "max": 0,
+          "mean": 0,
+          "min": 0
+         },
+         "velocity_x": {
+          "count": 3400,
+          "max": 0,
+          "mean": 0,
+          "min": 0
+         },
+         "velocity_y": {
+          "count": 3400,
+          "max": 0,
+          "mean": 0,
+          "min": 0
+         }
+        },
+        "source_index": 0,
+        "timestamp_us": 0
+       },
+       "map_point_count_before_update": 0,
+       "merges": 0,
+       "point_conservation": {
+        "holds": true,
+        "scope": "active_window_after_frame"
+       },
+       "rss_bytes": 5636096,
+       "splits": 0,
+       "stages_ns": {
+        "frame_pipeline": 949751,
+        "map_update": 742000,
+        "map_window_follow": 417,
+        "protocol_parse_and_validate": 90542,
+        "snapshot_and_topology": 116792
+       },
+       "topology_churn": 0
+      },
+      {
+       "accepted_points": 3400,
+       "cells_by_level": [
+        712,
+        3093,
+        2484,
+        0
+       ],
+       "governor_actions_applied": 0,
+       "governor_interventions": 0,
+       "input": {
+        "drivable_counts": {
+         "drivable": 0,
+         "non_drivable": 0,
+         "unknown": 3400
+        },
+        "enriched_fields_available": true,
+        "ground": {
+         "false_count": 3400,
+         "true_count": 0
+        },
+        "motion_state_counts": {
+         "moving": 0,
+         "possibly_moving": 0,
+         "static": 0,
+         "unknown": 3400
+        },
+        "point_count": 3400,
+        "pose_available": true,
+        "pose_timestamp_us": 100000,
+        "pose_translation_xyz": [
+         0.2,
+         0,
+         0
+        ],
+        "quality": {
+         "ground_gradient_x": {
+          "count": 0,
+          "max": null,
+          "mean": null,
+          "min": null
+         },
+         "ground_gradient_y": {
+          "count": 0,
+          "max": null,
+          "mean": null,
+          "min": null
+         },
+         "height_above_ground": {
+          "count": 0,
+          "max": null,
+          "mean": null,
+          "min": null
+         },
+         "height_complexity": {
+          "count": 0,
+          "max": null,
+          "mean": null,
+          "min": null
+         },
+         "intensity": {
+          "count": 3400,
+          "max": 0.5,
+          "mean": 0.5,
+          "min": 0.5
+         },
+         "motion_probability": {
+          "count": 3400,
+          "max": 0,
+          "mean": 0,
+          "min": 0
+         },
+         "observation_quality": {
+          "count": 3400,
+          "max": 0,
+          "mean": 0,
+          "min": 0
+         },
+         "raw_semantic_class": {
+          "count": 3400,
+          "max": 0,
+          "mean": 0,
+          "min": 0
+         },
+         "roughness": {
+          "count": 0,
+          "max": null,
+          "mean": null,
+          "min": null
+         },
+         "semantic_class": {
+          "count": 3400,
+          "max": 0,
+          "mean": 0,
+          "min": 0
+         },
+         "semantic_confidence": {
+          "count": 3400,
+          "max": 0,
+          "mean": 0,
+          "min": 0
+         },
+         "slope": {
+          "count": 0,
+          "max": null,
+          "mean": null,
+          "min": null
+         },
+         "step": {
+          "count": 0,
+          "max": null,
+          "mean": null,
+          "min": null
+         },
+         "terrain_confidence": {
+          "count": 3400,
+          "max": 0,
+          "mean": 0,
+          "min": 0
+         },
+         "velocity_x": {
+          "count": 3400,
+          "max": 0,
+          "mean": 0,
+          "min": 0
+         },
+         "velocity_y": {
+          "count": 3400,
+          "max": 0,
+          "mean": 0,
+          "min": 0
+         }
+        },
+        "source_index": 1,
+        "timestamp_us": 100000
+       },
+       "map_point_count_before_update": 3400,
+       "merges": 0,
+       "point_conservation": {
+        "holds": true,
+        "scope": "active_window_after_frame"
+       },
+       "rss_bytes": 8273920,
+       "splits": 1,
+       "stages_ns": {
+        "frame_pipeline": 981167,
+        "map_update": 662375,
+        "map_window_follow": 3000,
+        "protocol_parse_and_validate": 80167,
+        "snapshot_and_topology": 235625
+       },
+       "topology_churn": 1
+      },
+      {
+       "accepted_points": 3400,
+       "cells_by_level": [
+        966,
+        4632,
+        3678,
+        0
+       ],
+       "governor_actions_applied": 0,
+       "governor_interventions": 0,
+       "input": {
+        "drivable_counts": {
+         "drivable": 0,
+         "non_drivable": 0,
+         "unknown": 3400
+        },
+        "enriched_fields_available": true,
+        "ground": {
+         "false_count": 3400,
+         "true_count": 0
+        },
+        "motion_state_counts": {
+         "moving": 0,
+         "possibly_moving": 0,
+         "static": 0,
+         "unknown": 3400
+        },
+        "point_count": 3400,
+        "pose_available": true,
+        "pose_timestamp_us": 200000,
+        "pose_translation_xyz": [
+         0.4,
+         0,
+         0
+        ],
+        "quality": {
+         "ground_gradient_x": {
+          "count": 0,
+          "max": null,
+          "mean": null,
+          "min": null
+         },
+         "ground_gradient_y": {
+          "count": 0,
+          "max": null,
+          "mean": null,
+          "min": null
+         },
+         "height_above_ground": {
+          "count": 0,
+          "max": null,
+          "mean": null,
+          "min": null
+         },
+         "height_complexity": {
+          "count": 0,
+          "max": null,
+          "mean": null,
+          "min": null
+         },
+         "intensity": {
+          "count": 3400,
+          "max": 0.5,
+          "mean": 0.5,
+          "min": 0.5
+         },
+         "motion_probability": {
+          "count": 3400,
+          "max": 0,
+          "mean": 0,
+          "min": 0
+         },
+         "observation_quality": {
+          "count": 3400,
+          "max": 0,
+          "mean": 0,
+          "min": 0
+         },
+         "raw_semantic_class": {
+          "count": 3400,
+          "max": 0,
+          "mean": 0,
+          "min": 0
+         },
+         "roughness": {
+          "count": 0,
+          "max": null,
+          "mean": null,
+          "min": null
+         },
+         "semantic_class": {
+          "count": 3400,
+          "max": 0,
+          "mean": 0,
+          "min": 0
+         },
+         "semantic_confidence": {
+          "count": 3400,
+          "max": 0,
+          "mean": 0,
+          "min": 0
+         },
+         "slope": {
+          "count": 0,
+          "max": null,
+          "mean": null,
+          "min": null
+         },
+         "step": {
+          "count": 0,
+          "max": null,
+          "mean": null,
+          "min": null
+         },
+         "terrain_confidence": {
+          "count": 3400,
+          "max": 0,
+          "mean": 0,
+          "min": 0
+         },
+         "velocity_x": {
+          "count": 3400,
+          "max": 0,
+          "mean": 0,
+          "min": 0
+         },
+         "velocity_y": {
+          "count": 3400,
+          "max": 0,
+          "mean": 0,
+          "min": 0
+         }
+        },
+        "source_index": 2,
+        "timestamp_us": 200000
+       },
+       "map_point_count_before_update": 6800,
+       "merges": 0,
+       "point_conservation": {
+        "holds": true,
+        "scope": "active_window_after_frame"
+       },
+       "rss_bytes": 11485184,
+       "splits": 1,
+       "stages_ns": {
+        "frame_pipeline": 1074126,
+        "map_update": 620875,
+        "map_window_follow": 4042,
+        "protocol_parse_and_validate": 79501,
+        "snapshot_and_topology": 369708
+       },
+       "topology_churn": 1
+      },
+      {
+       "accepted_points": 3400,
+       "cells_by_level": [
+        1213,
+        6170,
+        4841,
+        0
+       ],
+       "governor_actions_applied": 0,
+       "governor_interventions": 0,
+       "input": {
+        "drivable_counts": {
+         "drivable": 0,
+         "non_drivable": 0,
+         "unknown": 3400
+        },
+        "enriched_fields_available": true,
+        "ground": {
+         "false_count": 3400,
+         "true_count": 0
+        },
+        "motion_state_counts": {
+         "moving": 0,
+         "possibly_moving": 0,
+         "static": 0,
+         "unknown": 3400
+        },
+        "point_count": 3400,
+        "pose_available": true,
+        "pose_timestamp_us": 300000,
+        "pose_translation_xyz": [
+         0.6000000000000001,
+         0,
+         0
+        ],
+        "quality": {
+         "ground_gradient_x": {
+          "count": 0,
+          "max": null,
+          "mean": null,
+          "min": null
+         },
+         "ground_gradient_y": {
+          "count": 0,
+          "max": null,
+          "mean": null,
+          "min": null
+         },
+         "height_above_ground": {
+          "count": 0,
+          "max": null,
+          "mean": null,
+          "min": null
+         },
+         "height_complexity": {
+          "count": 0,
+          "max": null,
+          "mean": null,
+          "min": null
+         },
+         "intensity": {
+          "count": 3400,
+          "max": 0.5,
+          "mean": 0.5,
+          "min": 0.5
+         },
+         "motion_probability": {
+          "count": 3400,
+          "max": 0,
+          "mean": 0,
+          "min": 0
+         },
+         "observation_quality": {
+          "count": 3400,
+          "max": 0,
+          "mean": 0,
+          "min": 0
+         },
+         "raw_semantic_class": {
+          "count": 3400,
+          "max": 0,
+          "mean": 0,
+          "min": 0
+         },
+         "roughness": {
+          "count": 0,
+          "max": null,
+          "mean": null,
+          "min": null
+         },
+         "semantic_class": {
+          "count": 3400,
+          "max": 0,
+          "mean": 0,
+          "min": 0
+         },
+         "semantic_confidence": {
+          "count": 3400,
+          "max": 0,
+          "mean": 0,
+          "min": 0
+         },
+         "slope": {
+          "count": 0,
+          "max": null,
+          "mean": null,
+          "min": null
+         },
+         "step": {
+          "count": 0,
+          "max": null,
+          "mean": null,
+          "min": null
+         },
+         "terrain_confidence": {
+          "count": 3400,
+          "max": 0,
+          "mean": 0,
+          "min": 0
+         },
+         "velocity_x": {
+          "count": 3400,
+          "max": 0,
+          "mean": 0,
+          "min": 0
+         },
+         "velocity_y": {
+          "count": 3400,
+          "max": 0,
+          "mean": 0,
+          "min": 0
+         }
+        },
+        "source_index": 3,
+        "timestamp_us": 300000
+       },
+       "map_point_count_before_update": 10200,
+       "merges": 0,
+       "point_conservation": {
+        "holds": true,
+        "scope": "active_window_after_frame"
+       },
+       "rss_bytes": 15908864,
+       "splits": 2,
+       "stages_ns": {
+        "frame_pipeline": 1197084,
+        "map_update": 629583,
+        "map_window_follow": 5250,
+        "protocol_parse_and_validate": 83834,
+        "snapshot_and_topology": 478417
+       },
+       "topology_churn": 2
+      }
+     ],
+     "frames": 4,
+     "input": {
+      "drivable_counts": {
+       "drivable": 0,
+       "non_drivable": 0,
+       "unknown": 3400
+      },
+      "enriched_fields_available": true,
+      "ground": {
+       "false_count": 3400,
+       "true_count": 0
+      },
+      "motion_state_counts": {
+       "moving": 0,
+       "possibly_moving": 0,
+       "static": 0,
+       "unknown": 3400
+      },
+      "point_count": 3400,
+      "pose_available": true,
+      "pose_timestamp_us": 300000,
+      "pose_translation_xyz": [
+       0.6000000000000001,
+       0,
+       0
+      ],
+      "quality": {
+       "ground_gradient_x": {
+        "count": 0,
+        "max": null,
+        "mean": null,
+        "min": null
+       },
+       "ground_gradient_y": {
+        "count": 0,
+        "max": null,
+        "mean": null,
+        "min": null
+       },
+       "height_above_ground": {
+        "count": 0,
+        "max": null,
+        "mean": null,
+        "min": null
+       },
+       "height_complexity": {
+        "count": 0,
+        "max": null,
+        "mean": null,
+        "min": null
+       },
+       "intensity": {
+        "count": 3400,
+        "max": 0.5,
+        "mean": 0.5,
+        "min": 0.5
+       },
+       "motion_probability": {
+        "count": 3400,
+        "max": 0,
+        "mean": 0,
+        "min": 0
+       },
+       "observation_quality": {
+        "count": 3400,
+        "max": 0,
+        "mean": 0,
+        "min": 0
+       },
+       "raw_semantic_class": {
+        "count": 3400,
+        "max": 0,
+        "mean": 0,
+        "min": 0
+       },
+       "roughness": {
+        "count": 0,
+        "max": null,
+        "mean": null,
+        "min": null
+       },
+       "semantic_class": {
+        "count": 3400,
+        "max": 0,
+        "mean": 0,
+        "min": 0
+       },
+       "semantic_confidence": {
+        "count": 3400,
+        "max": 0,
+        "mean": 0,
+        "min": 0
+       },
+       "slope": {
+        "count": 0,
+        "max": null,
+        "mean": null,
+        "min": null
+       },
+       "step": {
+        "count": 0,
+        "max": null,
+        "mean": null,
+        "min": null
+       },
+       "terrain_confidence": {
+        "count": 3400,
+        "max": 0,
+        "mean": 0,
+        "min": 0
+       },
+       "velocity_x": {
+        "count": 3400,
+        "max": 0,
+        "mean": 0,
+        "min": 0
+       },
+       "velocity_y": {
+        "count": 3400,
+        "max": 0,
+        "mean": 0,
+        "min": 0
+       }
+      },
+      "source_index": 3,
+      "timestamp_us": 300000
+     },
+     "input_frames": 4,
+     "input_points": 13600,
+     "measured_frames": 4,
+     "metrics": {
+      "elapsed_seconds": 0.004202128,
+      "fps": 951.8986570613746,
+      "frame_count": 4,
+      "map_update_latency_ns": {
+       "count": 4,
+       "max": 742000,
+       "mean": 663708.25,
+       "min": 620875,
+       "p50": 629583,
+       "p95": 742000,
+       "p99": 742000
+      },
+      "measured_rss_bytes": 15908864,
+      "memory": {
+       "allocated_map_bytes": 3539264,
+       "allocated_map_bytes_available": true,
+       "allocated_map_bytes_reason": "public map allocator measurement",
+       "current_rss_bytes": 15908864,
+       "logical_map_bytes": 2347776,
+       "peak_rss_bytes": 15908864
+      },
+      "stage_latency_ns": {
+       "frame_pipeline": {
+        "count": 4,
+        "max": 1197084,
+        "mean": 1050532,
+        "min": 949751,
+        "p50": 981167,
+        "p95": 1197084,
+        "p99": 1197084
+       },
+       "map_update": {
+        "count": 4,
+        "max": 742000,
+        "mean": 663708.25,
+        "min": 620875,
+        "p50": 629583,
+        "p95": 742000,
+        "p99": 742000
+       },
+       "map_window_follow": {
+        "count": 4,
+        "max": 5250,
+        "mean": 3177.25,
+        "min": 417,
+        "p50": 3000,
+        "p95": 5250,
+        "p99": 5250
+       },
+       "protocol_parse_and_validate": {
+        "count": 4,
+        "max": 90542,
+        "mean": 83511,
+        "min": 79501,
+        "p50": 80167,
+        "p95": 90542,
+        "p99": 90542
+       },
+       "snapshot_and_topology": {
+        "count": 4,
+        "max": 478417,
+        "mean": 300135.5,
+        "min": 116792,
+        "p50": 235625,
+        "p95": 478417,
+        "p99": 478417
+       }
+      },
+      "stream": {
+       "dropped_frames": 0,
+       "late_frames": 0,
+       "rejected_out_of_window": 0,
+       "source_index_complete": true
+      },
+      "topology": {
+       "per_frame": {
+        "cells_level_0": {
+         "count": 4,
+         "max": 1213,
+         "mean": 828.25,
+         "min": 422,
+         "p50": 712,
+         "p95": 1213,
+         "p99": 1213
+        },
+        "cells_level_1": {
+         "count": 4,
+         "max": 6170,
+         "mean": 3860.75,
+         "min": 1548,
+         "p50": 3093,
+         "p95": 6170,
+         "p99": 6170
+        },
+        "cells_level_2": {
+         "count": 4,
+         "max": 4841,
+         "mean": 3066,
+         "min": 1261,
+         "p50": 2484,
+         "p95": 4841,
+         "p99": 4841
+        },
+        "cells_level_3": {
+         "count": 4,
+         "max": 0,
+         "mean": 0,
+         "min": 0,
+         "p50": 0,
+         "p95": 0,
+         "p99": 0
+        },
+        "governor_actions_applied": {
+         "count": 4,
+         "max": 0,
+         "mean": 0,
+         "min": 0,
+         "p50": 0,
+         "p95": 0,
+         "p99": 0
+        },
+        "governor_interventions": {
+         "count": 4,
+         "max": 0,
+         "mean": 0,
+         "min": 0,
+         "p50": 0,
+         "p95": 0,
+         "p99": 0
+        },
+        "merges": {
+         "count": 4,
+         "max": 0,
+         "mean": 0,
+         "min": 0,
+         "p50": 0,
+         "p95": 0,
+         "p99": 0
+        },
+        "splits": {
+         "count": 4,
+         "max": 2,
+         "mean": 1,
+         "min": 0,
+         "p50": 1,
+         "p95": 2,
+         "p99": 2
+        },
+        "topology_churn": {
+         "count": 4,
+         "max": 2,
+         "mean": 1,
+         "min": 0,
+         "p50": 1,
+         "p95": 2,
+         "p99": 2
+        }
+       },
+       "per_level_cells_final": {
+        "0": 1213,
+        "1": 6170,
+        "2": 4841,
+        "3": 0
+       },
+       "total_change_count": 4,
+       "total_merge_count": 0,
+       "total_split_count": 4
+      }
+     },
+     "policy": "distance_lod",
+     "protocol_version": 2,
+     "quality": {
+      "duplicate_ownership": {
+       "holds": true,
+       "map_reported_flag": true,
+       "source": "independent active-leaf ID and observed-bin ownership check"
+      },
+      "elevation_vs_fine_reference": {
+       "by_range": [
+        {
+         "coverage": null,
+         "max_m": 10.0,
+         "mean_owner_level": null,
+         "min_m": 0.0,
+         "reference_bins": 0,
+         "rmse_m": null,
+         "sample_count": 0,
+         "scope": "unavailable: source frames were not retained"
+        },
+        {
+         "coverage": null,
+         "max_m": 30.0,
+         "mean_owner_level": null,
+         "min_m": 10.0,
+         "reference_bins": 0,
+         "rmse_m": null,
+         "sample_count": 0,
+         "scope": "unavailable: source frames were not retained"
+        },
+        {
+         "coverage": null,
+         "max_m": 60.0,
+         "mean_owner_level": null,
+         "min_m": 30.0,
+         "reference_bins": 0,
+         "rmse_m": null,
+         "sample_count": 0,
+         "scope": "unavailable: source frames were not retained"
+        },
+        {
+         "coverage": null,
+         "max_m": 100.0,
+         "mean_owner_level": null,
+         "min_m": 60.0,
+         "reference_bins": 0,
+         "rmse_m": null,
+         "sample_count": 0,
+         "scope": "unavailable: source frames were not retained"
+        }
+       ],
+       "coverage": 0.99968,
+       "reference": "5cm input-point bins",
+       "reference_bins": 12500,
+       "rmse_m": 0.00290436820140411,
+       "sample_count": 12496,
+       "scope": "observed reference bins covered by final active leaves; excludes evicted/uncovered bins"
+      },
+      "field_retention": {
+       "reason": "source ObservationFrames were not supplied",
+       "semantic": {
+        "reason": "source ObservationFrames were not supplied",
+        "status": "unavailable"
+       },
+       "status": "unavailable",
+       "terrain_hazard": {
+        "reason": "source ObservationFrames were not supplied",
+        "status": "unavailable"
+       }
+      },
+      "high_resolution_surface_comparison": {
+       "by_range": null,
+       "chamfer_definition": "mean of both directed unsquared 3D nearest-neighbour distances in metres on matched observed bins",
+       "chamfer_distance_m": 0.00047870767854489744,
+       "chamfer_sample_count": 12496,
+       "completion_fraction": 0.99968,
+       "duplicate_owner_bins": 0,
+       "elevation_rmse_m": 0.00290436820140411,
+       "height_accuracy_05cm": 1.0,
+       "height_accuracy_10cm": 1.0,
+       "height_accuracy_20cm": 1.0,
+       "height_accuracy_denominator": "matched bins only; completion reports missing support separately",
+       "height_accuracy_fraction_within_10cm": 1.0,
+       "height_accuracy_fraction_within_tolerance": 1.0,
+       "height_tolerance_m": 0.1,
+       "matched_bins": 12496,
+       "reference": "observed Uniform5 representation from identical stream",
+       "reference_bins": 12500,
+       "reference_is_ground_truth": false,
+       "status": "partial",
+       "symmetric_chamfer_m": 0.00047870767854489744
+      },
+      "mixed_resolution_topology": {
+       "duplicate_leaf_ids": 0,
+       "leaf_count": 12224,
+       "observed_bins": {
+        "covered": 12500,
+        "exactly_one_owner": true,
+        "gap": 0,
+        "overlap": 0,
+        "total": 12500
+       },
+       "parent_descendant_conflicts": 0,
+       "parent_descendant_exclusive": true,
+       "scope": "observed 5cm reference bins only; unobserved sparse space is excluded",
+       "status": "valid"
+      },
+      "point_conservation": {
+       "holds": true,
+       "scope": "active_window_after_frame"
+      },
+      "reconstruction": {
+       "reason": "source frames were not retained (--retain-frames)",
+       "status": "unavailable"
+      },
+      "split_merge_conservation": {
+       "holds": true,
+       "leaf_stat_points": 13596,
+       "nonspatial_prior_points": 4,
+       "snapshot_points": 13600
+      }
+     },
+     "schema_version": 2,
+     "snapshot": {
+      "active_leaf_count": 12224,
+      "invariant_no_parent_descendant_overlap": true,
+      "layers": {
+       "cells_with_ground": 0,
+       "free_cells": 0,
+       "ground_points": 0,
+       "obstacle_points": 13596,
+       "occluded_ground_cells": 12212,
+       "occupied_cells": 12212,
+       "overhead_points": 0,
+       "rejected_outliers": 0,
+       "unmodelled_returns": 13596
+      },
+      "levels": {
+       "0": 1213,
+       "1": 6170,
+       "2": 4841,
+       "3": 0
+      },
+      "logical_bytes": 2347776,
+      "memory": {
+       "allocated_bytes": 3539264,
+       "allocated_cell_array_bytes": 3348480,
+       "allocated_index_bytes": 190784,
+       "allocated_overhead_bytes": 190784,
+       "allocated_tile_bytes": 24576,
+       "logical_payload_bytes": 2347008,
+       "retained_prior_payload_bytes": 768
+      },
+      "merge_count": 0,
+      "nonspatial_prior_point_count": 4,
+      "point_count": 13600,
+      "split_count": 4,
+      "tile_count": 64
+     },
+     "stream_digest": "1a37d86f143241ff63f0dfad9e84fb65844fbae34f899d3f55f566cf2abd4bed",
+     "warmup_frames": 0
+    }
+   ]
+  },
+  "uniform40": {
+   "adapter": {
+    "available": true,
+    "cpp_policy": "uniform40",
+    "governor_config": "configs/resource_governor.yaml",
+    "integration_note": "public adapter available",
+    "signals": [],
+    "suite": "public",
+    "utility_config": "utility_lod.yaml"
+   },
+   "aggregate": {
+    "dropped_frames": 0,
+    "final_leaves_per_level": {
+     "0": 0,
+     "1": 0,
+     "2": 0,
+     "3": 6712
+    },
+    "fps": {
+     "count": 1,
+     "max": 594.6371754377384,
+     "mean": 594.6371754377384,
+     "min": 594.6371754377384,
+     "p50": 594.6371754377384,
+     "p95": 594.6371754377384,
+     "p99": 594.6371754377384
+    },
+    "governor": {
+     "actions_applied": 0,
+     "final_status": null,
+     "interventions": 0
+    },
+    "late_frames": 0,
+    "measured_frame_count": 4,
+    "merges_per_frame": {
+     "count": 4,
+     "max": 0,
+     "mean": 0.0,
+     "min": 0,
+     "p50": 0,
+     "p95": 0,
+     "p99": 0
+    },
+    "peak_rss_bytes": 9453568,
+    "quality": [
+     {
+      "duplicate_ownership": {
+       "holds": true,
+       "map_reported_flag": true,
+       "source": "independent active-leaf ID and observed-bin ownership check"
+      },
+      "elevation_vs_fine_reference": {
+       "by_range": [
+        {
+         "coverage": null,
+         "max_m": 10.0,
+         "mean_owner_level": null,
+         "min_m": 0.0,
+         "reference_bins": 0,
+         "rmse_m": null,
+         "sample_count": 0,
+         "scope": "unavailable: source frames were not retained"
+        },
+        {
+         "coverage": null,
+         "max_m": 30.0,
+         "mean_owner_level": null,
+         "min_m": 10.0,
+         "reference_bins": 0,
+         "rmse_m": null,
+         "sample_count": 0,
+         "scope": "unavailable: source frames were not retained"
+        },
+        {
+         "coverage": null,
+         "max_m": 60.0,
+         "mean_owner_level": null,
+         "min_m": 30.0,
+         "reference_bins": 0,
+         "rmse_m": null,
+         "sample_count": 0,
+         "scope": "unavailable: source frames were not retained"
+        },
+        {
+         "coverage": null,
+         "max_m": 100.0,
+         "mean_owner_level": null,
+         "min_m": 60.0,
+         "reference_bins": 0,
+         "rmse_m": null,
+         "sample_count": 0,
+         "scope": "unavailable: source frames were not retained"
+        }
+       ],
+       "coverage": 1.0,
+       "reference": "5cm input-point bins",
+       "reference_bins": 12500,
+       "rmse_m": 0.05508067878549314,
+       "sample_count": 12500,
+       "scope": "observed reference bins covered by final active leaves; excludes evicted/uncovered bins"
+      },
+      "field_retention": {
+       "reason": "source ObservationFrames were not supplied",
+       "semantic": {
+        "reason": "source ObservationFrames were not supplied",
+        "status": "unavailable"
+       },
+       "status": "unavailable",
+       "terrain_hazard": {
+        "reason": "source ObservationFrames were not supplied",
+        "status": "unavailable"
+       }
+      },
+      "high_resolution_surface_comparison": {
+       "by_range": null,
+       "chamfer_definition": "mean of both directed unsquared 3D nearest-neighbour distances in metres on matched observed bins",
+       "chamfer_distance_m": 0.007815421928645533,
+       "chamfer_sample_count": 12500,
+       "completion_fraction": 1.0,
+       "duplicate_owner_bins": 0,
+       "elevation_rmse_m": 0.05508067878549314,
+       "height_accuracy_05cm": 0.96272,
+       "height_accuracy_10cm": 0.9696,
+       "height_accuracy_20cm": 0.9808,
+       "height_accuracy_denominator": "matched bins only; completion reports missing support separately",
+       "height_accuracy_fraction_within_10cm": 0.9696,
+       "height_accuracy_fraction_within_tolerance": 0.9696,
+       "height_tolerance_m": 0.1,
+       "matched_bins": 12500,
+       "reference": "observed Uniform5 representation from identical stream",
+       "reference_bins": 12500,
+       "reference_is_ground_truth": false,
+       "status": "measured",
+       "symmetric_chamfer_m": 0.007815421928645533
+      },
+      "mixed_resolution_topology": {
+       "duplicate_leaf_ids": 0,
+       "leaf_count": 6712,
+       "observed_bins": {
+        "covered": 12500,
+        "exactly_one_owner": true,
+        "gap": 0,
+        "overlap": 0,
+        "total": 12500
+       },
+       "parent_descendant_conflicts": 0,
+       "parent_descendant_exclusive": true,
+       "scope": "observed 5cm reference bins only; unobserved sparse space is excluded",
+       "status": "valid"
+      },
+      "point_conservation": {
+       "holds": true,
+       "scope": "active_window_after_frame"
+      },
+      "reconstruction": {
+       "reason": "source frames were not retained (--retain-frames)",
+       "status": "unavailable"
+      },
+      "split_merge_conservation": {
+       "holds": true,
+       "leaf_stat_points": 13600,
+       "nonspatial_prior_points": 0,
+       "snapshot_points": 13600
+      }
+     }
+    ],
+    "rejected_out_of_window": 0,
+    "splits_per_frame": {
+     "count": 4,
+     "max": 0,
+     "mean": 0.0,
+     "min": 0,
+     "p50": 0,
+     "p95": 0,
+     "p99": 0
+    },
+    "stage_latency_ns": {
+     "frame_pipeline": {
+      "count": 4,
+      "max": 2456459,
+      "mean": 1681697.75,
+      "min": 1372499,
+      "p50": 1436334,
+      "p95": 2456459,
+      "p99": 2456459
+     },
+     "map_update": {
+      "count": 4,
+      "max": 2239792,
+      "mean": 1399417.0,
+      "min": 1081792,
+      "p50": 1092167,
+      "p95": 2239792,
+      "p99": 2239792
+     },
+     "map_window_follow": {
+      "count": 4,
+      "max": 3208,
+      "mean": 2312.5,
+      "min": 584,
+      "p50": 2666,
+      "p95": 3208,
+      "p99": 3208
+     },
+     "protocol_parse_and_validate": {
+      "count": 4,
+      "max": 131624,
+      "mean": 98134.75,
+      "min": 80540,
+      "p50": 81917,
+      "p95": 131624,
+      "p99": 131624
+     },
+     "snapshot_and_topology": {
+      "count": 4,
+      "max": 244875,
+      "mean": 181833.5,
+      "min": 117625,
+      "p50": 167834,
+      "p95": 244875,
+      "p99": 244875
+     }
+    },
+    "topology_churn_per_frame": {
+     "count": 4,
+     "max": 0,
+     "mean": 0.0,
+     "min": 0,
+     "p50": 0,
+     "p95": 0,
+     "p99": 0
+    }
+   },
+   "runs": [
+    {
+     "detail_metric": {
+      "basis": "leaf sufficient-statistic counts",
+      "weighted_mean_level": 3.0,
+      "weighted_resolution_m": 0.4
+     },
+     "frame_metrics": [
+      {
+       "accepted_points": 3400,
+       "cells_by_level": [
+        0,
+        0,
+        0,
+        2873
+       ],
+       "governor_actions_applied": 0,
+       "governor_interventions": 0,
+       "input": {
+        "drivable_counts": {
+         "drivable": 0,
+         "non_drivable": 0,
+         "unknown": 3400
+        },
+        "enriched_fields_available": true,
+        "ground": {
+         "false_count": 3400,
+         "true_count": 0
+        },
+        "motion_state_counts": {
+         "moving": 0,
+         "possibly_moving": 0,
+         "static": 0,
+         "unknown": 3400
+        },
+        "point_count": 3400,
+        "pose_available": true,
+        "pose_timestamp_us": 0,
+        "pose_translation_xyz": [
+         0,
+         0,
+         0
+        ],
+        "quality": {
+         "ground_gradient_x": {
+          "count": 0,
+          "max": null,
+          "mean": null,
+          "min": null
+         },
+         "ground_gradient_y": {
+          "count": 0,
+          "max": null,
+          "mean": null,
+          "min": null
+         },
+         "height_above_ground": {
+          "count": 0,
+          "max": null,
+          "mean": null,
+          "min": null
+         },
+         "height_complexity": {
+          "count": 0,
+          "max": null,
+          "mean": null,
+          "min": null
+         },
+         "intensity": {
+          "count": 3400,
+          "max": 0.5,
+          "mean": 0.5,
+          "min": 0.5
+         },
+         "motion_probability": {
+          "count": 3400,
+          "max": 0,
+          "mean": 0,
+          "min": 0
+         },
+         "observation_quality": {
+          "count": 3400,
+          "max": 0,
+          "mean": 0,
+          "min": 0
+         },
+         "raw_semantic_class": {
+          "count": 3400,
+          "max": 0,
+          "mean": 0,
+          "min": 0
+         },
+         "roughness": {
+          "count": 0,
+          "max": null,
+          "mean": null,
+          "min": null
+         },
+         "semantic_class": {
+          "count": 3400,
+          "max": 0,
+          "mean": 0,
+          "min": 0
+         },
+         "semantic_confidence": {
+          "count": 3400,
+          "max": 0,
+          "mean": 0,
+          "min": 0
+         },
+         "slope": {
+          "count": 0,
+          "max": null,
+          "mean": null,
+          "min": null
+         },
+         "step": {
+          "count": 0,
+          "max": null,
+          "mean": null,
+          "min": null
+         },
+         "terrain_confidence": {
+          "count": 3400,
+          "max": 0,
+          "mean": 0,
+          "min": 0
+         },
+         "velocity_x": {
+          "count": 3400,
+          "max": 0,
+          "mean": 0,
+          "min": 0
+         },
+         "velocity_y": {
+          "count": 3400,
+          "max": 0,
+          "mean": 0,
+          "min": 0
+         }
+        },
+        "source_index": 0,
+        "timestamp_us": 0
+       },
+       "map_point_count_before_update": 0,
+       "merges": 0,
+       "point_conservation": {
+        "holds": true,
+        "scope": "active_window_after_frame"
+       },
+       "rss_bytes": 5341184,
+       "splits": 0,
+       "stages_ns": {
+        "frame_pipeline": 2456459,
+        "map_update": 2239792,
+        "map_window_follow": 584,
+        "protocol_parse_and_validate": 98458,
+        "snapshot_and_topology": 117625
+       },
+       "topology_churn": 0
+      },
+      {
+       "accepted_points": 3400,
+       "cells_by_level": [
+        0,
+        0,
+        0,
+        4228
+       ],
+       "governor_actions_applied": 0,
+       "governor_interventions": 0,
+       "input": {
+        "drivable_counts": {
+         "drivable": 0,
+         "non_drivable": 0,
+         "unknown": 3400
+        },
+        "enriched_fields_available": true,
+        "ground": {
+         "false_count": 3400,
+         "true_count": 0
+        },
+        "motion_state_counts": {
+         "moving": 0,
+         "possibly_moving": 0,
+         "static": 0,
+         "unknown": 3400
+        },
+        "point_count": 3400,
+        "pose_available": true,
+        "pose_timestamp_us": 100000,
+        "pose_translation_xyz": [
+         0.2,
+         0,
+         0
+        ],
+        "quality": {
+         "ground_gradient_x": {
+          "count": 0,
+          "max": null,
+          "mean": null,
+          "min": null
+         },
+         "ground_gradient_y": {
+          "count": 0,
+          "max": null,
+          "mean": null,
+          "min": null
+         },
+         "height_above_ground": {
+          "count": 0,
+          "max": null,
+          "mean": null,
+          "min": null
+         },
+         "height_complexity": {
+          "count": 0,
+          "max": null,
+          "mean": null,
+          "min": null
+         },
+         "intensity": {
+          "count": 3400,
+          "max": 0.5,
+          "mean": 0.5,
+          "min": 0.5
+         },
+         "motion_probability": {
+          "count": 3400,
+          "max": 0,
+          "mean": 0,
+          "min": 0
+         },
+         "observation_quality": {
+          "count": 3400,
+          "max": 0,
+          "mean": 0,
+          "min": 0
+         },
+         "raw_semantic_class": {
+          "count": 3400,
+          "max": 0,
+          "mean": 0,
+          "min": 0
+         },
+         "roughness": {
+          "count": 0,
+          "max": null,
+          "mean": null,
+          "min": null
+         },
+         "semantic_class": {
+          "count": 3400,
+          "max": 0,
+          "mean": 0,
+          "min": 0
+         },
+         "semantic_confidence": {
+          "count": 3400,
+          "max": 0,
+          "mean": 0,
+          "min": 0
+         },
+         "slope": {
+          "count": 0,
+          "max": null,
+          "mean": null,
+          "min": null
+         },
+         "step": {
+          "count": 0,
+          "max": null,
+          "mean": null,
+          "min": null
+         },
+         "terrain_confidence": {
+          "count": 3400,
+          "max": 0,
+          "mean": 0,
+          "min": 0
+         },
+         "velocity_x": {
+          "count": 3400,
+          "max": 0,
+          "mean": 0,
+          "min": 0
+         },
+         "velocity_y": {
+          "count": 3400,
+          "max": 0,
+          "mean": 0,
+          "min": 0
+         }
+        },
+        "source_index": 1,
+        "timestamp_us": 100000
+       },
+       "map_point_count_before_update": 3400,
+       "merges": 0,
+       "point_conservation": {
+        "holds": true,
+        "scope": "active_window_after_frame"
+       },
+       "rss_bytes": 7438336,
+       "splits": 0,
+       "stages_ns": {
+        "frame_pipeline": 1436334,
+        "map_update": 1183917,
+        "map_window_follow": 2666,
+        "protocol_parse_and_validate": 81917,
+        "snapshot_and_topology": 167834
+       },
+       "topology_churn": 0
+      },
+      {
+       "accepted_points": 3400,
+       "cells_by_level": [
+        0,
+        0,
+        0,
+        5472
+       ],
+       "governor_actions_applied": 0,
+       "governor_interventions": 0,
+       "input": {
+        "drivable_counts": {
+         "drivable": 0,
+         "non_drivable": 0,
+         "unknown": 3400
+        },
+        "enriched_fields_available": true,
+        "ground": {
+         "false_count": 3400,
+         "true_count": 0
+        },
+        "motion_state_counts": {
+         "moving": 0,
+         "possibly_moving": 0,
+         "static": 0,
+         "unknown": 3400
+        },
+        "point_count": 3400,
+        "pose_available": true,
+        "pose_timestamp_us": 200000,
+        "pose_translation_xyz": [
+         0.4,
+         0,
+         0
+        ],
+        "quality": {
+         "ground_gradient_x": {
+          "count": 0,
+          "max": null,
+          "mean": null,
+          "min": null
+         },
+         "ground_gradient_y": {
+          "count": 0,
+          "max": null,
+          "mean": null,
+          "min": null
+         },
+         "height_above_ground": {
+          "count": 0,
+          "max": null,
+          "mean": null,
+          "min": null
+         },
+         "height_complexity": {
+          "count": 0,
+          "max": null,
+          "mean": null,
+          "min": null
+         },
+         "intensity": {
+          "count": 3400,
+          "max": 0.5,
+          "mean": 0.5,
+          "min": 0.5
+         },
+         "motion_probability": {
+          "count": 3400,
+          "max": 0,
+          "mean": 0,
+          "min": 0
+         },
+         "observation_quality": {
+          "count": 3400,
+          "max": 0,
+          "mean": 0,
+          "min": 0
+         },
+         "raw_semantic_class": {
+          "count": 3400,
+          "max": 0,
+          "mean": 0,
+          "min": 0
+         },
+         "roughness": {
+          "count": 0,
+          "max": null,
+          "mean": null,
+          "min": null
+         },
+         "semantic_class": {
+          "count": 3400,
+          "max": 0,
+          "mean": 0,
+          "min": 0
+         },
+         "semantic_confidence": {
+          "count": 3400,
+          "max": 0,
+          "mean": 0,
+          "min": 0
+         },
+         "slope": {
+          "count": 0,
+          "max": null,
+          "mean": null,
+          "min": null
+         },
+         "step": {
+          "count": 0,
+          "max": null,
+          "mean": null,
+          "min": null
+         },
+         "terrain_confidence": {
+          "count": 3400,
+          "max": 0,
+          "mean": 0,
+          "min": 0
+         },
+         "velocity_x": {
+          "count": 3400,
+          "max": 0,
+          "mean": 0,
+          "min": 0
+         },
+         "velocity_y": {
+          "count": 3400,
+          "max": 0,
+          "mean": 0,
+          "min": 0
+         }
+        },
+        "source_index": 2,
+        "timestamp_us": 200000
+       },
+       "map_point_count_before_update": 6800,
+       "merges": 0,
+       "point_conservation": {
+        "holds": true,
+        "scope": "active_window_after_frame"
+       },
+       "rss_bytes": 7929856,
+       "splits": 0,
+       "stages_ns": {
+        "frame_pipeline": 1372499,
+        "map_update": 1092167,
+        "map_window_follow": 2792,
+        "protocol_parse_and_validate": 80540,
+        "snapshot_and_topology": 197000
+       },
+       "topology_churn": 0
+      },
+      {
+       "accepted_points": 3400,
+       "cells_by_level": [
+        0,
+        0,
+        0,
+        6712
+       ],
+       "governor_actions_applied": 0,
+       "governor_interventions": 0,
+       "input": {
+        "drivable_counts": {
+         "drivable": 0,
+         "non_drivable": 0,
+         "unknown": 3400
+        },
+        "enriched_fields_available": true,
+        "ground": {
+         "false_count": 3400,
+         "true_count": 0
+        },
+        "motion_state_counts": {
+         "moving": 0,
+         "possibly_moving": 0,
+         "static": 0,
+         "unknown": 3400
+        },
+        "point_count": 3400,
+        "pose_available": true,
+        "pose_timestamp_us": 300000,
+        "pose_translation_xyz": [
+         0.6000000000000001,
+         0,
+         0
+        ],
+        "quality": {
+         "ground_gradient_x": {
+          "count": 0,
+          "max": null,
+          "mean": null,
+          "min": null
+         },
+         "ground_gradient_y": {
+          "count": 0,
+          "max": null,
+          "mean": null,
+          "min": null
+         },
+         "height_above_ground": {
+          "count": 0,
+          "max": null,
+          "mean": null,
+          "min": null
+         },
+         "height_complexity": {
+          "count": 0,
+          "max": null,
+          "mean": null,
+          "min": null
+         },
+         "intensity": {
+          "count": 3400,
+          "max": 0.5,
+          "mean": 0.5,
+          "min": 0.5
+         },
+         "motion_probability": {
+          "count": 3400,
+          "max": 0,
+          "mean": 0,
+          "min": 0
+         },
+         "observation_quality": {
+          "count": 3400,
+          "max": 0,
+          "mean": 0,
+          "min": 0
+         },
+         "raw_semantic_class": {
+          "count": 3400,
+          "max": 0,
+          "mean": 0,
+          "min": 0
+         },
+         "roughness": {
+          "count": 0,
+          "max": null,
+          "mean": null,
+          "min": null
+         },
+         "semantic_class": {
+          "count": 3400,
+          "max": 0,
+          "mean": 0,
+          "min": 0
+         },
+         "semantic_confidence": {
+          "count": 3400,
+          "max": 0,
+          "mean": 0,
+          "min": 0
+         },
+         "slope": {
+          "count": 0,
+          "max": null,
+          "mean": null,
+          "min": null
+         },
+         "step": {
+          "count": 0,
+          "max": null,
+          "mean": null,
+          "min": null
+         },
+         "terrain_confidence": {
+          "count": 3400,
+          "max": 0,
+          "mean": 0,
+          "min": 0
+         },
+         "velocity_x": {
+          "count": 3400,
+          "max": 0,
+          "mean": 0,
+          "min": 0
+         },
+         "velocity_y": {
+          "count": 3400,
+          "max": 0,
+          "mean": 0,
+          "min": 0
+         }
+        },
+        "source_index": 3,
+        "timestamp_us": 300000
+       },
+       "map_point_count_before_update": 10200,
+       "merges": 0,
+       "point_conservation": {
+        "holds": true,
+        "scope": "active_window_after_frame"
+       },
+       "rss_bytes": 9453568,
+       "splits": 0,
+       "stages_ns": {
+        "frame_pipeline": 1461499,
+        "map_update": 1081792,
+        "map_window_follow": 3208,
+        "protocol_parse_and_validate": 131624,
+        "snapshot_and_topology": 244875
+       },
+       "topology_churn": 0
+      }
+     ],
+     "frames": 4,
+     "input": {
+      "drivable_counts": {
+       "drivable": 0,
+       "non_drivable": 0,
+       "unknown": 3400
+      },
+      "enriched_fields_available": true,
+      "ground": {
+       "false_count": 3400,
+       "true_count": 0
+      },
+      "motion_state_counts": {
+       "moving": 0,
+       "possibly_moving": 0,
+       "static": 0,
+       "unknown": 3400
+      },
+      "point_count": 3400,
+      "pose_available": true,
+      "pose_timestamp_us": 300000,
+      "pose_translation_xyz": [
+       0.6000000000000001,
+       0,
+       0
+      ],
+      "quality": {
+       "ground_gradient_x": {
+        "count": 0,
+        "max": null,
+        "mean": null,
+        "min": null
+       },
+       "ground_gradient_y": {
+        "count": 0,
+        "max": null,
+        "mean": null,
+        "min": null
+       },
+       "height_above_ground": {
+        "count": 0,
+        "max": null,
+        "mean": null,
+        "min": null
+       },
+       "height_complexity": {
+        "count": 0,
+        "max": null,
+        "mean": null,
+        "min": null
+       },
+       "intensity": {
+        "count": 3400,
+        "max": 0.5,
+        "mean": 0.5,
+        "min": 0.5
+       },
+       "motion_probability": {
+        "count": 3400,
+        "max": 0,
+        "mean": 0,
+        "min": 0
+       },
+       "observation_quality": {
+        "count": 3400,
+        "max": 0,
+        "mean": 0,
+        "min": 0
+       },
+       "raw_semantic_class": {
+        "count": 3400,
+        "max": 0,
+        "mean": 0,
+        "min": 0
+       },
+       "roughness": {
+        "count": 0,
+        "max": null,
+        "mean": null,
+        "min": null
+       },
+       "semantic_class": {
+        "count": 3400,
+        "max": 0,
+        "mean": 0,
+        "min": 0
+       },
+       "semantic_confidence": {
+        "count": 3400,
+        "max": 0,
+        "mean": 0,
+        "min": 0
+       },
+       "slope": {
+        "count": 0,
+        "max": null,
+        "mean": null,
+        "min": null
+       },
+       "step": {
+        "count": 0,
+        "max": null,
+        "mean": null,
+        "min": null
+       },
+       "terrain_confidence": {
+        "count": 3400,
+        "max": 0,
+        "mean": 0,
+        "min": 0
+       },
+       "velocity_x": {
+        "count": 3400,
+        "max": 0,
+        "mean": 0,
+        "min": 0
+       },
+       "velocity_y": {
+        "count": 3400,
+        "max": 0,
+        "mean": 0,
+        "min": 0
+       }
+      },
+      "source_index": 3,
+      "timestamp_us": 300000
+     },
+     "input_frames": 4,
+     "input_points": 13600,
+     "measured_frames": 4,
+     "metrics": {
+      "elapsed_seconds": 0.006726791,
+      "fps": 594.6371754377384,
+      "frame_count": 4,
+      "map_update_latency_ns": {
+       "count": 4,
+       "max": 2239792,
+       "mean": 1399417,
+       "min": 1081792,
+       "p50": 1092167,
+       "p95": 2239792,
+       "p99": 2239792
+      },
+      "measured_rss_bytes": 9453568,
+      "memory": {
+       "allocated_map_bytes": 2131200,
+       "allocated_map_bytes_available": true,
+       "allocated_map_bytes_reason": "public map allocator measurement",
+       "current_rss_bytes": 9453568,
+       "logical_map_bytes": 1288704,
+       "peak_rss_bytes": 9453568
+      },
+      "stage_latency_ns": {
+       "frame_pipeline": {
+        "count": 4,
+        "max": 2456459,
+        "mean": 1681697.75,
+        "min": 1372499,
+        "p50": 1436334,
+        "p95": 2456459,
+        "p99": 2456459
+       },
+       "map_update": {
+        "count": 4,
+        "max": 2239792,
+        "mean": 1399417,
+        "min": 1081792,
+        "p50": 1092167,
+        "p95": 2239792,
+        "p99": 2239792
+       },
+       "map_window_follow": {
+        "count": 4,
+        "max": 3208,
+        "mean": 2312.5,
+        "min": 584,
+        "p50": 2666,
+        "p95": 3208,
+        "p99": 3208
+       },
+       "protocol_parse_and_validate": {
+        "count": 4,
+        "max": 131624,
+        "mean": 98134.75,
+        "min": 80540,
+        "p50": 81917,
+        "p95": 131624,
+        "p99": 131624
+       },
+       "snapshot_and_topology": {
+        "count": 4,
+        "max": 244875,
+        "mean": 181833.5,
+        "min": 117625,
+        "p50": 167834,
+        "p95": 244875,
+        "p99": 244875
+       }
+      },
+      "stream": {
+       "dropped_frames": 0,
+       "late_frames": 0,
+       "rejected_out_of_window": 0,
+       "source_index_complete": true
+      },
+      "topology": {
+       "per_frame": {
+        "cells_level_0": {
+         "count": 4,
+         "max": 0,
+         "mean": 0,
+         "min": 0,
+         "p50": 0,
+         "p95": 0,
+         "p99": 0
+        },
+        "cells_level_1": {
+         "count": 4,
+         "max": 0,
+         "mean": 0,
+         "min": 0,
+         "p50": 0,
+         "p95": 0,
+         "p99": 0
+        },
+        "cells_level_2": {
+         "count": 4,
+         "max": 0,
+         "mean": 0,
+         "min": 0,
+         "p50": 0,
+         "p95": 0,
+         "p99": 0
+        },
+        "cells_level_3": {
+         "count": 4,
+         "max": 6712,
+         "mean": 4821.25,
+         "min": 2873,
+         "p50": 4228,
+         "p95": 6712,
+         "p99": 6712
+        },
+        "governor_actions_applied": {
+         "count": 4,
+         "max": 0,
+         "mean": 0,
+         "min": 0,
+         "p50": 0,
+         "p95": 0,
+         "p99": 0
+        },
+        "governor_interventions": {
+         "count": 4,
+         "max": 0,
+         "mean": 0,
+         "min": 0,
+         "p50": 0,
+         "p95": 0,
+         "p99": 0
+        },
+        "merges": {
+         "count": 4,
+         "max": 0,
+         "mean": 0,
+         "min": 0,
+         "p50": 0,
+         "p95": 0,
+         "p99": 0
+        },
+        "splits": {
+         "count": 4,
+         "max": 0,
+         "mean": 0,
+         "min": 0,
+         "p50": 0,
+         "p95": 0,
+         "p99": 0
+        },
+        "topology_churn": {
+         "count": 4,
+         "max": 0,
+         "mean": 0,
+         "min": 0,
+         "p50": 0,
+         "p95": 0,
+         "p99": 0
+        }
+       },
+       "per_level_cells_final": {
+        "0": 0,
+        "1": 0,
+        "2": 0,
+        "3": 6712
+       },
+       "total_change_count": 0,
+       "total_merge_count": 0,
+       "total_split_count": 0
+      }
+     },
+     "policy": "uniform40",
+     "protocol_version": 2,
+     "quality": {
+      "duplicate_ownership": {
+       "holds": true,
+       "map_reported_flag": true,
+       "source": "independent active-leaf ID and observed-bin ownership check"
+      },
+      "elevation_vs_fine_reference": {
+       "by_range": [
+        {
+         "coverage": null,
+         "max_m": 10.0,
+         "mean_owner_level": null,
+         "min_m": 0.0,
+         "reference_bins": 0,
+         "rmse_m": null,
+         "sample_count": 0,
+         "scope": "unavailable: source frames were not retained"
+        },
+        {
+         "coverage": null,
+         "max_m": 30.0,
+         "mean_owner_level": null,
+         "min_m": 10.0,
+         "reference_bins": 0,
+         "rmse_m": null,
+         "sample_count": 0,
+         "scope": "unavailable: source frames were not retained"
+        },
+        {
+         "coverage": null,
+         "max_m": 60.0,
+         "mean_owner_level": null,
+         "min_m": 30.0,
+         "reference_bins": 0,
+         "rmse_m": null,
+         "sample_count": 0,
+         "scope": "unavailable: source frames were not retained"
+        },
+        {
+         "coverage": null,
+         "max_m": 100.0,
+         "mean_owner_level": null,
+         "min_m": 60.0,
+         "reference_bins": 0,
+         "rmse_m": null,
+         "sample_count": 0,
+         "scope": "unavailable: source frames were not retained"
+        }
+       ],
+       "coverage": 1.0,
+       "reference": "5cm input-point bins",
+       "reference_bins": 12500,
+       "rmse_m": 0.05508067878549314,
+       "sample_count": 12500,
+       "scope": "observed reference bins covered by final active leaves; excludes evicted/uncovered bins"
+      },
+      "field_retention": {
+       "reason": "source ObservationFrames were not supplied",
+       "semantic": {
+        "reason": "source ObservationFrames were not supplied",
+        "status": "unavailable"
+       },
+       "status": "unavailable",
+       "terrain_hazard": {
+        "reason": "source ObservationFrames were not supplied",
+        "status": "unavailable"
+       }
+      },
+      "high_resolution_surface_comparison": {
+       "by_range": null,
+       "chamfer_definition": "mean of both directed unsquared 3D nearest-neighbour distances in metres on matched observed bins",
+       "chamfer_distance_m": 0.007815421928645533,
+       "chamfer_sample_count": 12500,
+       "completion_fraction": 1.0,
+       "duplicate_owner_bins": 0,
+       "elevation_rmse_m": 0.05508067878549314,
+       "height_accuracy_05cm": 0.96272,
+       "height_accuracy_10cm": 0.9696,
+       "height_accuracy_20cm": 0.9808,
+       "height_accuracy_denominator": "matched bins only; completion reports missing support separately",
+       "height_accuracy_fraction_within_10cm": 0.9696,
+       "height_accuracy_fraction_within_tolerance": 0.9696,
+       "height_tolerance_m": 0.1,
+       "matched_bins": 12500,
+       "reference": "observed Uniform5 representation from identical stream",
+       "reference_bins": 12500,
+       "reference_is_ground_truth": false,
+       "status": "measured",
+       "symmetric_chamfer_m": 0.007815421928645533
+      },
+      "mixed_resolution_topology": {
+       "duplicate_leaf_ids": 0,
+       "leaf_count": 6712,
+       "observed_bins": {
+        "covered": 12500,
+        "exactly_one_owner": true,
+        "gap": 0,
+        "overlap": 0,
+        "total": 12500
+       },
+       "parent_descendant_conflicts": 0,
+       "parent_descendant_exclusive": true,
+       "scope": "observed 5cm reference bins only; unobserved sparse space is excluded",
+       "status": "valid"
+      },
+      "point_conservation": {
+       "holds": true,
+       "scope": "active_window_after_frame"
+      },
+      "reconstruction": {
+       "reason": "source frames were not retained (--retain-frames)",
+       "status": "unavailable"
+      },
+      "split_merge_conservation": {
+       "holds": true,
+       "leaf_stat_points": 13600,
+       "nonspatial_prior_points": 0,
+       "snapshot_points": 13600
+      }
+     },
+     "schema_version": 2,
+     "snapshot": {
+      "active_leaf_count": 6712,
+      "invariant_no_parent_descendant_overlap": true,
+      "layers": {
+       "cells_with_ground": 0,
+       "free_cells": 0,
+       "ground_points": 0,
+       "obstacle_points": 13600,
+       "occluded_ground_cells": 6712,
+       "occupied_cells": 6712,
+       "overhead_points": 0,
+       "rejected_outliers": 0,
+       "unmodelled_returns": 13600
+      },
+      "levels": {
+       "0": 0,
+       "1": 0,
+       "2": 0,
+       "3": 6712
+      },
+      "logical_bytes": 1288704,
+      "memory": {
+       "allocated_bytes": 2131200,
+       "allocated_cell_array_bytes": 1996800,
+       "allocated_index_bytes": 134400,
+       "allocated_overhead_bytes": 134400,
+       "allocated_tile_bytes": 24576,
+       "logical_payload_bytes": 1288704,
+       "retained_prior_payload_bytes": 0
+      },
+      "merge_count": 0,
+      "nonspatial_prior_point_count": 0,
+      "point_count": 13600,
+      "split_count": 0,
+      "tile_count": 64
+     },
+     "stream_digest": "1a37d86f143241ff63f0dfad9e84fb65844fbae34f899d3f55f566cf2abd4bed",
+     "warmup_frames": 0
+    }
+   ]
+  },
+  "uniform5": {
+   "adapter": {
+    "available": true,
+    "cpp_policy": "uniform5",
+    "governor_config": "configs/resource_governor.yaml",
+    "integration_note": "public adapter available",
+    "signals": [],
+    "suite": "public",
+    "utility_config": "utility_lod.yaml"
+   },
+   "aggregate": {
+    "dropped_frames": 0,
+    "final_leaves_per_level": {
+     "0": 12500,
+     "1": 0,
+     "2": 0,
+     "3": 0
+    },
+    "fps": {
+     "count": 1,
+     "max": 1335.1888007033774,
+     "mean": 1335.1888007033774,
+     "min": 1335.1888007033774,
+     "p50": 1335.1888007033774,
+     "p95": 1335.1888007033774,
+     "p99": 1335.1888007033774
+    },
+    "governor": {
+     "actions_applied": 0,
+     "final_status": null,
+     "interventions": 0
+    },
+    "late_frames": 0,
+    "measured_frame_count": 4,
+    "merges_per_frame": {
+     "count": 4,
+     "max": 0,
+     "mean": 0.0,
+     "min": 0,
+     "p50": 0,
+     "p95": 0,
+     "p99": 0
+    },
+    "peak_rss_bytes": 15073280,
+    "quality": [
+     {
+      "duplicate_ownership": {
+       "holds": true,
+       "map_reported_flag": true,
+       "source": "independent active-leaf ID and observed-bin ownership check"
+      },
+      "elevation_vs_fine_reference": {
+       "by_range": [
+        {
+         "coverage": null,
+         "max_m": 10.0,
+         "mean_owner_level": null,
+         "min_m": 0.0,
+         "reference_bins": 0,
+         "rmse_m": null,
+         "sample_count": 0,
+         "scope": "unavailable: source frames were not retained"
+        },
+        {
+         "coverage": null,
+         "max_m": 30.0,
+         "mean_owner_level": null,
+         "min_m": 10.0,
+         "reference_bins": 0,
+         "rmse_m": null,
+         "sample_count": 0,
+         "scope": "unavailable: source frames were not retained"
+        },
+        {
+         "coverage": null,
+         "max_m": 60.0,
+         "mean_owner_level": null,
+         "min_m": 30.0,
+         "reference_bins": 0,
+         "rmse_m": null,
+         "sample_count": 0,
+         "scope": "unavailable: source frames were not retained"
+        },
+        {
+         "coverage": null,
+         "max_m": 100.0,
+         "mean_owner_level": null,
+         "min_m": 60.0,
+         "reference_bins": 0,
+         "rmse_m": null,
+         "sample_count": 0,
+         "scope": "unavailable: source frames were not retained"
+        }
+       ],
+       "coverage": 1.0,
+       "reference": "5cm input-point bins",
+       "reference_bins": 12500,
+       "rmse_m": 0.0,
+       "sample_count": 12500,
+       "scope": "observed reference bins covered by final active leaves; excludes evicted/uncovered bins"
+      },
+      "field_retention": {
+       "reason": "source ObservationFrames were not supplied",
+       "semantic": {
+        "reason": "source ObservationFrames were not supplied",
+        "status": "unavailable"
+       },
+       "status": "unavailable",
+       "terrain_hazard": {
+        "reason": "source ObservationFrames were not supplied",
+        "status": "unavailable"
+       }
+      },
+      "high_resolution_surface_comparison": {
+       "by_range": null,
+       "chamfer_definition": "mean of both directed unsquared 3D nearest-neighbour distances in metres on matched observed bins",
+       "chamfer_distance_m": 0.0,
+       "chamfer_sample_count": 12500,
+       "completion_fraction": 1.0,
+       "duplicate_owner_bins": 0,
+       "elevation_rmse_m": 0.0,
+       "height_accuracy_05cm": 1.0,
+       "height_accuracy_10cm": 1.0,
+       "height_accuracy_20cm": 1.0,
+       "height_accuracy_denominator": "matched bins only; completion reports missing support separately",
+       "height_accuracy_fraction_within_10cm": 1.0,
+       "height_accuracy_fraction_within_tolerance": 1.0,
+       "height_tolerance_m": 0.1,
+       "matched_bins": 12500,
+       "reference": "observed Uniform5 representation from identical stream",
+       "reference_bins": 12500,
+       "reference_is_ground_truth": false,
+       "status": "measured",
+       "symmetric_chamfer_m": 0.0
+      },
+      "mixed_resolution_topology": {
+       "duplicate_leaf_ids": 0,
+       "leaf_count": 12500,
+       "observed_bins": {
+        "covered": 12500,
+        "exactly_one_owner": true,
+        "gap": 0,
+        "overlap": 0,
+        "total": 12500
+       },
+       "parent_descendant_conflicts": 0,
+       "parent_descendant_exclusive": true,
+       "scope": "observed 5cm reference bins only; unobserved sparse space is excluded",
+       "status": "valid"
+      },
+      "point_conservation": {
+       "holds": true,
+       "scope": "active_window_after_frame"
+      },
+      "reconstruction": {
+       "reason": "source frames were not retained (--retain-frames)",
+       "status": "unavailable"
+      },
+      "split_merge_conservation": {
+       "holds": true,
+       "leaf_stat_points": 13600,
+       "nonspatial_prior_points": 0,
+       "snapshot_points": 13600
+      }
+     }
+    ],
+    "rejected_out_of_window": 0,
+    "splits_per_frame": {
+     "count": 4,
+     "max": 0,
+     "mean": 0.0,
+     "min": 0,
+     "p50": 0,
+     "p95": 0,
+     "p99": 0
+    },
+    "stage_latency_ns": {
+     "frame_pipeline": {
+      "count": 4,
+      "max": 943791,
+      "mean": 748957.75,
+      "min": 621791,
+      "p50": 702041,
+      "p95": 943791,
+      "p99": 943791
+     },
+     "map_update": {
+      "count": 4,
+      "max": 407750,
+      "mean": 330489.5,
+      "min": 287042,
+      "p50": 296041,
+      "p95": 407750,
+      "p99": 407750
+     },
+     "map_window_follow": {
+      "count": 4,
+      "max": 5625,
+      "mean": 3177.0,
+      "min": 667,
+      "p50": 2666,
+      "p95": 5625,
+      "p99": 5625
+     },
+     "protocol_parse_and_validate": {
+      "count": 4,
+      "max": 91290,
+      "mean": 85072.25,
+      "min": 81999,
+      "p50": 82541,
+      "p95": 91290,
+      "p99": 91290
+     },
+     "snapshot_and_topology": {
+      "count": 4,
+      "max": 557666,
+      "mean": 330219.0,
+      "min": 122084,
+      "p50": 285709,
+      "p95": 557666,
+      "p99": 557666
+     }
+    },
+    "topology_churn_per_frame": {
+     "count": 4,
+     "max": 0,
+     "mean": 0.0,
+     "min": 0,
+     "p50": 0,
+     "p95": 0,
+     "p99": 0
+    }
+   },
+   "runs": [
+    {
+     "detail_metric": {
+      "basis": "leaf sufficient-statistic counts",
+      "weighted_mean_level": 0.0,
+      "weighted_resolution_m": 0.05
+     },
+     "frame_metrics": [
+      {
+       "accepted_points": 3400,
+       "cells_by_level": [
+        3250,
+        0,
+        0,
+        0
+       ],
+       "governor_actions_applied": 0,
+       "governor_interventions": 0,
+       "input": {
+        "drivable_counts": {
+         "drivable": 0,
+         "non_drivable": 0,
+         "unknown": 3400
+        },
+        "enriched_fields_available": true,
+        "ground": {
+         "false_count": 3400,
+         "true_count": 0
+        },
+        "motion_state_counts": {
+         "moving": 0,
+         "possibly_moving": 0,
+         "static": 0,
+         "unknown": 3400
+        },
+        "point_count": 3400,
+        "pose_available": true,
+        "pose_timestamp_us": 0,
+        "pose_translation_xyz": [
+         0,
+         0,
+         0
+        ],
+        "quality": {
+         "ground_gradient_x": {
+          "count": 0,
+          "max": null,
+          "mean": null,
+          "min": null
+         },
+         "ground_gradient_y": {
+          "count": 0,
+          "max": null,
+          "mean": null,
+          "min": null
+         },
+         "height_above_ground": {
+          "count": 0,
+          "max": null,
+          "mean": null,
+          "min": null
+         },
+         "height_complexity": {
+          "count": 0,
+          "max": null,
+          "mean": null,
+          "min": null
+         },
+         "intensity": {
+          "count": 3400,
+          "max": 0.5,
+          "mean": 0.5,
+          "min": 0.5
+         },
+         "motion_probability": {
+          "count": 3400,
+          "max": 0,
+          "mean": 0,
+          "min": 0
+         },
+         "observation_quality": {
+          "count": 3400,
+          "max": 0,
+          "mean": 0,
+          "min": 0
+         },
+         "raw_semantic_class": {
+          "count": 3400,
+          "max": 0,
+          "mean": 0,
+          "min": 0
+         },
+         "roughness": {
+          "count": 0,
+          "max": null,
+          "mean": null,
+          "min": null
+         },
+         "semantic_class": {
+          "count": 3400,
+          "max": 0,
+          "mean": 0,
+          "min": 0
+         },
+         "semantic_confidence": {
+          "count": 3400,
+          "max": 0,
+          "mean": 0,
+          "min": 0
+         },
+         "slope": {
+          "count": 0,
+          "max": null,
+          "mean": null,
+          "min": null
+         },
+         "step": {
+          "count": 0,
+          "max": null,
+          "mean": null,
+          "min": null
+         },
+         "terrain_confidence": {
+          "count": 3400,
+          "max": 0,
+          "mean": 0,
+          "min": 0
+         },
+         "velocity_x": {
+          "count": 3400,
+          "max": 0,
+          "mean": 0,
+          "min": 0
+         },
+         "velocity_y": {
+          "count": 3400,
+          "max": 0,
+          "mean": 0,
+          "min": 0
+         }
+        },
+        "source_index": 0,
+        "timestamp_us": 0
+       },
+       "map_point_count_before_update": 0,
+       "merges": 0,
+       "point_conservation": {
+        "holds": true,
+        "scope": "active_window_after_frame"
+       },
+       "rss_bytes": 5685248,
+       "splits": 0,
+       "stages_ns": {
+        "frame_pipeline": 621791,
+        "map_update": 407750,
+        "map_window_follow": 667,
+        "protocol_parse_and_validate": 91290,
+        "snapshot_and_topology": 122084
+       },
+       "topology_churn": 0
+      },
+      {
+       "accepted_points": 3400,
+       "cells_by_level": [
+        6362,
+        0,
+        0,
+        0
+       ],
+       "governor_actions_applied": 0,
+       "governor_interventions": 0,
+       "input": {
+        "drivable_counts": {
+         "drivable": 0,
+         "non_drivable": 0,
+         "unknown": 3400
+        },
+        "enriched_fields_available": true,
+        "ground": {
+         "false_count": 3400,
+         "true_count": 0
+        },
+        "motion_state_counts": {
+         "moving": 0,
+         "possibly_moving": 0,
+         "static": 0,
+         "unknown": 3400
+        },
+        "point_count": 3400,
+        "pose_available": true,
+        "pose_timestamp_us": 100000,
+        "pose_translation_xyz": [
+         0.2,
+         0,
+         0
+        ],
+        "quality": {
+         "ground_gradient_x": {
+          "count": 0,
+          "max": null,
+          "mean": null,
+          "min": null
+         },
+         "ground_gradient_y": {
+          "count": 0,
+          "max": null,
+          "mean": null,
+          "min": null
+         },
+         "height_above_ground": {
+          "count": 0,
+          "max": null,
+          "mean": null,
+          "min": null
+         },
+         "height_complexity": {
+          "count": 0,
+          "max": null,
+          "mean": null,
+          "min": null
+         },
+         "intensity": {
+          "count": 3400,
+          "max": 0.5,
+          "mean": 0.5,
+          "min": 0.5
+         },
+         "motion_probability": {
+          "count": 3400,
+          "max": 0,
+          "mean": 0,
+          "min": 0
+         },
+         "observation_quality": {
+          "count": 3400,
+          "max": 0,
+          "mean": 0,
+          "min": 0
+         },
+         "raw_semantic_class": {
+          "count": 3400,
+          "max": 0,
+          "mean": 0,
+          "min": 0
+         },
+         "roughness": {
+          "count": 0,
+          "max": null,
+          "mean": null,
+          "min": null
+         },
+         "semantic_class": {
+          "count": 3400,
+          "max": 0,
+          "mean": 0,
+          "min": 0
+         },
+         "semantic_confidence": {
+          "count": 3400,
+          "max": 0,
+          "mean": 0,
+          "min": 0
+         },
+         "slope": {
+          "count": 0,
+          "max": null,
+          "mean": null,
+          "min": null
+         },
+         "step": {
+          "count": 0,
+          "max": null,
+          "mean": null,
+          "min": null
+         },
+         "terrain_confidence": {
+          "count": 3400,
+          "max": 0,
+          "mean": 0,
+          "min": 0
+         },
+         "velocity_x": {
+          "count": 3400,
+          "max": 0,
+          "mean": 0,
+          "min": 0
+         },
+         "velocity_y": {
+          "count": 3400,
+          "max": 0,
+          "mean": 0,
+          "min": 0
+         }
+        },
+        "source_index": 1,
+        "timestamp_us": 100000
+       },
+       "map_point_count_before_update": 3400,
+       "merges": 0,
+       "point_conservation": {
+        "holds": true,
+        "scope": "active_window_after_frame"
+       },
+       "rss_bytes": 8421376,
+       "splits": 0,
+       "stages_ns": {
+        "frame_pipeline": 702041,
+        "map_update": 331125,
+        "map_window_follow": 2666,
+        "protocol_parse_and_validate": 82541,
+        "snapshot_and_topology": 285709
+       },
+       "topology_churn": 0
+      },
+      {
+       "accepted_points": 3400,
+       "cells_by_level": [
+        9435,
+        0,
+        0,
+        0
+       ],
+       "governor_actions_applied": 0,
+       "governor_interventions": 0,
+       "input": {
+        "drivable_counts": {
+         "drivable": 0,
+         "non_drivable": 0,
+         "unknown": 3400
+        },
+        "enriched_fields_available": true,
+        "ground": {
+         "false_count": 3400,
+         "true_count": 0
+        },
+        "motion_state_counts": {
+         "moving": 0,
+         "possibly_moving": 0,
+         "static": 0,
+         "unknown": 3400
+        },
+        "point_count": 3400,
+        "pose_available": true,
+        "pose_timestamp_us": 200000,
+        "pose_translation_xyz": [
+         0.4,
+         0,
+         0
+        ],
+        "quality": {
+         "ground_gradient_x": {
+          "count": 0,
+          "max": null,
+          "mean": null,
+          "min": null
+         },
+         "ground_gradient_y": {
+          "count": 0,
+          "max": null,
+          "mean": null,
+          "min": null
+         },
+         "height_above_ground": {
+          "count": 0,
+          "max": null,
+          "mean": null,
+          "min": null
+         },
+         "height_complexity": {
+          "count": 0,
+          "max": null,
+          "mean": null,
+          "min": null
+         },
+         "intensity": {
+          "count": 3400,
+          "max": 0.5,
+          "mean": 0.5,
+          "min": 0.5
+         },
+         "motion_probability": {
+          "count": 3400,
+          "max": 0,
+          "mean": 0,
+          "min": 0
+         },
+         "observation_quality": {
+          "count": 3400,
+          "max": 0,
+          "mean": 0,
+          "min": 0
+         },
+         "raw_semantic_class": {
+          "count": 3400,
+          "max": 0,
+          "mean": 0,
+          "min": 0
+         },
+         "roughness": {
+          "count": 0,
+          "max": null,
+          "mean": null,
+          "min": null
+         },
+         "semantic_class": {
+          "count": 3400,
+          "max": 0,
+          "mean": 0,
+          "min": 0
+         },
+         "semantic_confidence": {
+          "count": 3400,
+          "max": 0,
+          "mean": 0,
+          "min": 0
+         },
+         "slope": {
+          "count": 0,
+          "max": null,
+          "mean": null,
+          "min": null
+         },
+         "step": {
+          "count": 0,
+          "max": null,
+          "mean": null,
+          "min": null
+         },
+         "terrain_confidence": {
+          "count": 3400,
+          "max": 0,
+          "mean": 0,
+          "min": 0
+         },
+         "velocity_x": {
+          "count": 3400,
+          "max": 0,
+          "mean": 0,
+          "min": 0
+         },
+         "velocity_y": {
+          "count": 3400,
+          "max": 0,
+          "mean": 0,
+          "min": 0
+         }
+        },
+        "source_index": 2,
+        "timestamp_us": 200000
+       },
+       "map_point_count_before_update": 6800,
+       "merges": 0,
+       "point_conservation": {
+        "holds": true,
+        "scope": "active_window_after_frame"
+       },
+       "rss_bytes": 10649600,
+       "splits": 0,
+       "stages_ns": {
+        "frame_pipeline": 728208,
+        "map_update": 287042,
+        "map_window_follow": 3750,
+        "protocol_parse_and_validate": 81999,
+        "snapshot_and_topology": 355417
+       },
+       "topology_churn": 0
+      },
+      {
+       "accepted_points": 3400,
+       "cells_by_level": [
+        12500,
+        0,
+        0,
+        0
+       ],
+       "governor_actions_applied": 0,
+       "governor_interventions": 0,
+       "input": {
+        "drivable_counts": {
+         "drivable": 0,
+         "non_drivable": 0,
+         "unknown": 3400
+        },
+        "enriched_fields_available": true,
+        "ground": {
+         "false_count": 3400,
+         "true_count": 0
+        },
+        "motion_state_counts": {
+         "moving": 0,
+         "possibly_moving": 0,
+         "static": 0,
+         "unknown": 3400
+        },
+        "point_count": 3400,
+        "pose_available": true,
+        "pose_timestamp_us": 300000,
+        "pose_translation_xyz": [
+         0.6000000000000001,
+         0,
+         0
+        ],
+        "quality": {
+         "ground_gradient_x": {
+          "count": 0,
+          "max": null,
+          "mean": null,
+          "min": null
+         },
+         "ground_gradient_y": {
+          "count": 0,
+          "max": null,
+          "mean": null,
+          "min": null
+         },
+         "height_above_ground": {
+          "count": 0,
+          "max": null,
+          "mean": null,
+          "min": null
+         },
+         "height_complexity": {
+          "count": 0,
+          "max": null,
+          "mean": null,
+          "min": null
+         },
+         "intensity": {
+          "count": 3400,
+          "max": 0.5,
+          "mean": 0.5,
+          "min": 0.5
+         },
+         "motion_probability": {
+          "count": 3400,
+          "max": 0,
+          "mean": 0,
+          "min": 0
+         },
+         "observation_quality": {
+          "count": 3400,
+          "max": 0,
+          "mean": 0,
+          "min": 0
+         },
+         "raw_semantic_class": {
+          "count": 3400,
+          "max": 0,
+          "mean": 0,
+          "min": 0
+         },
+         "roughness": {
+          "count": 0,
+          "max": null,
+          "mean": null,
+          "min": null
+         },
+         "semantic_class": {
+          "count": 3400,
+          "max": 0,
+          "mean": 0,
+          "min": 0
+         },
+         "semantic_confidence": {
+          "count": 3400,
+          "max": 0,
+          "mean": 0,
+          "min": 0
+         },
+         "slope": {
+          "count": 0,
+          "max": null,
+          "mean": null,
+          "min": null
+         },
+         "step": {
+          "count": 0,
+          "max": null,
+          "mean": null,
+          "min": null
+         },
+         "terrain_confidence": {
+          "count": 3400,
+          "max": 0,
+          "mean": 0,
+          "min": 0
+         },
+         "velocity_x": {
+          "count": 3400,
+          "max": 0,
+          "mean": 0,
+          "min": 0
+         },
+         "velocity_y": {
+          "count": 3400,
+          "max": 0,
+          "mean": 0,
+          "min": 0
+         }
+        },
+        "source_index": 3,
+        "timestamp_us": 300000
+       },
+       "map_point_count_before_update": 10200,
+       "merges": 0,
+       "point_conservation": {
+        "holds": true,
+        "scope": "active_window_after_frame"
+       },
+       "rss_bytes": 15073280,
+       "splits": 0,
+       "stages_ns": {
+        "frame_pipeline": 943791,
+        "map_update": 296041,
+        "map_window_follow": 5625,
+        "protocol_parse_and_validate": 84459,
+        "snapshot_and_topology": 557666
+       },
+       "topology_churn": 0
+      }
+     ],
+     "frames": 4,
+     "input": {
+      "drivable_counts": {
+       "drivable": 0,
+       "non_drivable": 0,
+       "unknown": 3400
+      },
+      "enriched_fields_available": true,
+      "ground": {
+       "false_count": 3400,
+       "true_count": 0
+      },
+      "motion_state_counts": {
+       "moving": 0,
+       "possibly_moving": 0,
+       "static": 0,
+       "unknown": 3400
+      },
+      "point_count": 3400,
+      "pose_available": true,
+      "pose_timestamp_us": 300000,
+      "pose_translation_xyz": [
+       0.6000000000000001,
+       0,
+       0
+      ],
+      "quality": {
+       "ground_gradient_x": {
+        "count": 0,
+        "max": null,
+        "mean": null,
+        "min": null
+       },
+       "ground_gradient_y": {
+        "count": 0,
+        "max": null,
+        "mean": null,
+        "min": null
+       },
+       "height_above_ground": {
+        "count": 0,
+        "max": null,
+        "mean": null,
+        "min": null
+       },
+       "height_complexity": {
+        "count": 0,
+        "max": null,
+        "mean": null,
+        "min": null
+       },
+       "intensity": {
+        "count": 3400,
+        "max": 0.5,
+        "mean": 0.5,
+        "min": 0.5
+       },
+       "motion_probability": {
+        "count": 3400,
+        "max": 0,
+        "mean": 0,
+        "min": 0
+       },
+       "observation_quality": {
+        "count": 3400,
+        "max": 0,
+        "mean": 0,
+        "min": 0
+       },
+       "raw_semantic_class": {
+        "count": 3400,
+        "max": 0,
+        "mean": 0,
+        "min": 0
+       },
+       "roughness": {
+        "count": 0,
+        "max": null,
+        "mean": null,
+        "min": null
+       },
+       "semantic_class": {
+        "count": 3400,
+        "max": 0,
+        "mean": 0,
+        "min": 0
+       },
+       "semantic_confidence": {
+        "count": 3400,
+        "max": 0,
+        "mean": 0,
+        "min": 0
+       },
+       "slope": {
+        "count": 0,
+        "max": null,
+        "mean": null,
+        "min": null
+       },
+       "step": {
+        "count": 0,
+        "max": null,
+        "mean": null,
+        "min": null
+       },
+       "terrain_confidence": {
+        "count": 3400,
+        "max": 0,
+        "mean": 0,
+        "min": 0
+       },
+       "velocity_x": {
+        "count": 3400,
+        "max": 0,
+        "mean": 0,
+        "min": 0
+       },
+       "velocity_y": {
+        "count": 3400,
+        "max": 0,
+        "mean": 0,
+        "min": 0
+       }
+      },
+      "source_index": 3,
+      "timestamp_us": 300000
+     },
+     "input_frames": 4,
+     "input_points": 13600,
+     "measured_frames": 4,
+     "metrics": {
+      "elapsed_seconds": 0.002995831,
+      "fps": 1335.1888007033774,
+      "frame_count": 4,
+      "map_update_latency_ns": {
+       "count": 4,
+       "max": 407750,
+       "mean": 330489.5,
+       "min": 287042,
+       "p50": 296041,
+       "p95": 407750,
+       "p99": 407750
+      },
+      "measured_rss_bytes": 15073280,
+      "memory": {
+       "allocated_map_bytes": 3596800,
+       "allocated_map_bytes_available": true,
+       "allocated_map_bytes_reason": "public map allocator measurement",
+       "current_rss_bytes": 15073280,
+       "logical_map_bytes": 2400000,
+       "peak_rss_bytes": 15073280
+      },
+      "stage_latency_ns": {
+       "frame_pipeline": {
+        "count": 4,
+        "max": 943791,
+        "mean": 748957.75,
+        "min": 621791,
+        "p50": 702041,
+        "p95": 943791,
+        "p99": 943791
+       },
+       "map_update": {
+        "count": 4,
+        "max": 407750,
+        "mean": 330489.5,
+        "min": 287042,
+        "p50": 296041,
+        "p95": 407750,
+        "p99": 407750
+       },
+       "map_window_follow": {
+        "count": 4,
+        "max": 5625,
+        "mean": 3177,
+        "min": 667,
+        "p50": 2666,
+        "p95": 5625,
+        "p99": 5625
+       },
+       "protocol_parse_and_validate": {
+        "count": 4,
+        "max": 91290,
+        "mean": 85072.25,
+        "min": 81999,
+        "p50": 82541,
+        "p95": 91290,
+        "p99": 91290
+       },
+       "snapshot_and_topology": {
+        "count": 4,
+        "max": 557666,
+        "mean": 330219,
+        "min": 122084,
+        "p50": 285709,
+        "p95": 557666,
+        "p99": 557666
+       }
+      },
+      "stream": {
+       "dropped_frames": 0,
+       "late_frames": 0,
+       "rejected_out_of_window": 0,
+       "source_index_complete": true
+      },
+      "topology": {
+       "per_frame": {
+        "cells_level_0": {
+         "count": 4,
+         "max": 12500,
+         "mean": 7886.75,
+         "min": 3250,
+         "p50": 6362,
+         "p95": 12500,
+         "p99": 12500
+        },
+        "cells_level_1": {
+         "count": 4,
+         "max": 0,
+         "mean": 0,
+         "min": 0,
+         "p50": 0,
+         "p95": 0,
+         "p99": 0
+        },
+        "cells_level_2": {
+         "count": 4,
+         "max": 0,
+         "mean": 0,
+         "min": 0,
+         "p50": 0,
+         "p95": 0,
+         "p99": 0
+        },
+        "cells_level_3": {
+         "count": 4,
+         "max": 0,
+         "mean": 0,
+         "min": 0,
+         "p50": 0,
+         "p95": 0,
+         "p99": 0
+        },
+        "governor_actions_applied": {
+         "count": 4,
+         "max": 0,
+         "mean": 0,
+         "min": 0,
+         "p50": 0,
+         "p95": 0,
+         "p99": 0
+        },
+        "governor_interventions": {
+         "count": 4,
+         "max": 0,
+         "mean": 0,
+         "min": 0,
+         "p50": 0,
+         "p95": 0,
+         "p99": 0
+        },
+        "merges": {
+         "count": 4,
+         "max": 0,
+         "mean": 0,
+         "min": 0,
+         "p50": 0,
+         "p95": 0,
+         "p99": 0
+        },
+        "splits": {
+         "count": 4,
+         "max": 0,
+         "mean": 0,
+         "min": 0,
+         "p50": 0,
+         "p95": 0,
+         "p99": 0
+        },
+        "topology_churn": {
+         "count": 4,
+         "max": 0,
+         "mean": 0,
+         "min": 0,
+         "p50": 0,
+         "p95": 0,
+         "p99": 0
+        }
+       },
+       "per_level_cells_final": {
+        "0": 12500,
+        "1": 0,
+        "2": 0,
+        "3": 0
+       },
+       "total_change_count": 0,
+       "total_merge_count": 0,
+       "total_split_count": 0
+      }
+     },
+     "policy": "uniform5",
+     "protocol_version": 2,
+     "quality": {
+      "duplicate_ownership": {
+       "holds": true,
+       "map_reported_flag": true,
+       "source": "independent active-leaf ID and observed-bin ownership check"
+      },
+      "elevation_vs_fine_reference": {
+       "by_range": [
+        {
+         "coverage": null,
+         "max_m": 10.0,
+         "mean_owner_level": null,
+         "min_m": 0.0,
+         "reference_bins": 0,
+         "rmse_m": null,
+         "sample_count": 0,
+         "scope": "unavailable: source frames were not retained"
+        },
+        {
+         "coverage": null,
+         "max_m": 30.0,
+         "mean_owner_level": null,
+         "min_m": 10.0,
+         "reference_bins": 0,
+         "rmse_m": null,
+         "sample_count": 0,
+         "scope": "unavailable: source frames were not retained"
+        },
+        {
+         "coverage": null,
+         "max_m": 60.0,
+         "mean_owner_level": null,
+         "min_m": 30.0,
+         "reference_bins": 0,
+         "rmse_m": null,
+         "sample_count": 0,
+         "scope": "unavailable: source frames were not retained"
+        },
+        {
+         "coverage": null,
+         "max_m": 100.0,
+         "mean_owner_level": null,
+         "min_m": 60.0,
+         "reference_bins": 0,
+         "rmse_m": null,
+         "sample_count": 0,
+         "scope": "unavailable: source frames were not retained"
+        }
+       ],
+       "coverage": 1.0,
+       "reference": "5cm input-point bins",
+       "reference_bins": 12500,
+       "rmse_m": 0.0,
+       "sample_count": 12500,
+       "scope": "observed reference bins covered by final active leaves; excludes evicted/uncovered bins"
+      },
+      "field_retention": {
+       "reason": "source ObservationFrames were not supplied",
+       "semantic": {
+        "reason": "source ObservationFrames were not supplied",
+        "status": "unavailable"
+       },
+       "status": "unavailable",
+       "terrain_hazard": {
+        "reason": "source ObservationFrames were not supplied",
+        "status": "unavailable"
+       }
+      },
+      "high_resolution_surface_comparison": {
+       "by_range": null,
+       "chamfer_definition": "mean of both directed unsquared 3D nearest-neighbour distances in metres on matched observed bins",
+       "chamfer_distance_m": 0.0,
+       "chamfer_sample_count": 12500,
+       "completion_fraction": 1.0,
+       "duplicate_owner_bins": 0,
+       "elevation_rmse_m": 0.0,
+       "height_accuracy_05cm": 1.0,
+       "height_accuracy_10cm": 1.0,
+       "height_accuracy_20cm": 1.0,
+       "height_accuracy_denominator": "matched bins only; completion reports missing support separately",
+       "height_accuracy_fraction_within_10cm": 1.0,
+       "height_accuracy_fraction_within_tolerance": 1.0,
+       "height_tolerance_m": 0.1,
+       "matched_bins": 12500,
+       "reference": "observed Uniform5 representation from identical stream",
+       "reference_bins": 12500,
+       "reference_is_ground_truth": false,
+       "status": "measured",
+       "symmetric_chamfer_m": 0.0
+      },
+      "mixed_resolution_topology": {
+       "duplicate_leaf_ids": 0,
+       "leaf_count": 12500,
+       "observed_bins": {
+        "covered": 12500,
+        "exactly_one_owner": true,
+        "gap": 0,
+        "overlap": 0,
+        "total": 12500
+       },
+       "parent_descendant_conflicts": 0,
+       "parent_descendant_exclusive": true,
+       "scope": "observed 5cm reference bins only; unobserved sparse space is excluded",
+       "status": "valid"
+      },
+      "point_conservation": {
+       "holds": true,
+       "scope": "active_window_after_frame"
+      },
+      "reconstruction": {
+       "reason": "source frames were not retained (--retain-frames)",
+       "status": "unavailable"
+      },
+      "split_merge_conservation": {
+       "holds": true,
+       "leaf_stat_points": 13600,
+       "nonspatial_prior_points": 0,
+       "snapshot_points": 13600
+      }
+     },
+     "schema_version": 2,
+     "snapshot": {
+      "active_leaf_count": 12500,
+      "invariant_no_parent_descendant_overlap": true,
+      "layers": {
+       "cells_with_ground": 0,
+       "free_cells": 0,
+       "ground_points": 0,
+       "obstacle_points": 13600,
+       "occluded_ground_cells": 12500,
+       "occupied_cells": 12500,
+       "overhead_points": 0,
+       "rejected_outliers": 0,
+       "unmodelled_returns": 13600
+      },
+      "levels": {
+       "0": 12500,
+       "1": 0,
+       "2": 0,
+       "3": 0
+      },
+      "logical_bytes": 2400000,
+      "memory": {
+       "allocated_bytes": 3596800,
+       "allocated_cell_array_bytes": 3403776,
+       "allocated_index_bytes": 193024,
+       "allocated_overhead_bytes": 193024,
+       "allocated_tile_bytes": 24576,
+       "logical_payload_bytes": 2400000,
+       "retained_prior_payload_bytes": 0
+      },
+      "merge_count": 0,
+      "nonspatial_prior_point_count": 0,
+      "point_count": 13600,
+      "split_count": 0,
+      "tile_count": 64
+     },
+     "stream_digest": "1a37d86f143241ff63f0dfad9e84fb65844fbae34f899d3f55f566cf2abd4bed",
+     "warmup_frames": 0
+    }
+   ]
+  },
+  "utility_lod": {
+   "adapter": {
+    "available": true,
+    "cpp_policy": "utility_lod",
+    "governor_config": "configs/resource_governor.yaml",
+    "integration_note": "stateful public map/policy adapter available",
+    "signals": [
+     "geometry",
+     "semantics",
+     "motion",
+     "traversability",
+     "uncertainty"
+    ],
+    "suite": "public",
+    "utility_config": "utility_lod.yaml"
+   },
+   "aggregate": {
+    "dropped_frames": 0,
+    "final_leaves_per_level": {
+     "0": 1213,
+     "1": 6170,
+     "2": 4841,
+     "3": 0
+    },
+    "fps": {
+     "count": 1,
+     "max": 580.3550960690808,
+     "mean": 580.3550960690808,
+     "min": 580.3550960690808,
+     "p50": 580.3550960690808,
+     "p95": 580.3550960690808,
+     "p99": 580.3550960690808
+    },
+    "governor": {
+     "actions_applied": 0,
+     "final_status": {
+      "actions_applied": 0,
+      "actions_requested": 0,
+      "allow_optional_splits": true,
+      "budget": {
+       "max_actions_per_frame": 64,
+       "max_active_cells": 250000,
+       "max_logical_bytes": 134217728,
+       "max_rss_bytes": 0,
+       "near_field_radius_m": 10,
+       "target_frame_time_ms": 100
+      },
+      "interventions": 0,
+      "overload_frames": 0,
+      "recovery_frames": 0,
+      "state": "normal"
+     },
+     "interventions": 0
+    },
+    "late_frames": 0,
+    "measured_frame_count": 4,
+    "merges_per_frame": {
+     "count": 4,
+     "max": 0,
+     "mean": 0.0,
+     "min": 0,
+     "p50": 0,
+     "p95": 0,
+     "p99": 0
+    },
+    "peak_rss_bytes": 18317312,
+    "quality": [
+     {
+      "duplicate_ownership": {
+       "holds": true,
+       "map_reported_flag": true,
+       "source": "independent active-leaf ID and observed-bin ownership check"
+      },
+      "elevation_vs_fine_reference": {
+       "by_range": [
+        {
+         "coverage": null,
+         "max_m": 10.0,
+         "mean_owner_level": null,
+         "min_m": 0.0,
+         "reference_bins": 0,
+         "rmse_m": null,
+         "sample_count": 0,
+         "scope": "unavailable: source frames were not retained"
+        },
+        {
+         "coverage": null,
+         "max_m": 30.0,
+         "mean_owner_level": null,
+         "min_m": 10.0,
+         "reference_bins": 0,
+         "rmse_m": null,
+         "sample_count": 0,
+         "scope": "unavailable: source frames were not retained"
+        },
+        {
+         "coverage": null,
+         "max_m": 60.0,
+         "mean_owner_level": null,
+         "min_m": 30.0,
+         "reference_bins": 0,
+         "rmse_m": null,
+         "sample_count": 0,
+         "scope": "unavailable: source frames were not retained"
+        },
+        {
+         "coverage": null,
+         "max_m": 100.0,
+         "mean_owner_level": null,
+         "min_m": 60.0,
+         "reference_bins": 0,
+         "rmse_m": null,
+         "sample_count": 0,
+         "scope": "unavailable: source frames were not retained"
+        }
+       ],
+       "coverage": 0.99968,
+       "reference": "5cm input-point bins",
+       "reference_bins": 12500,
+       "rmse_m": 0.00290436820140411,
+       "sample_count": 12496,
+       "scope": "observed reference bins covered by final active leaves; excludes evicted/uncovered bins"
+      },
+      "field_retention": {
+       "reason": "source ObservationFrames were not supplied",
+       "semantic": {
+        "reason": "source ObservationFrames were not supplied",
+        "status": "unavailable"
+       },
+       "status": "unavailable",
+       "terrain_hazard": {
+        "reason": "source ObservationFrames were not supplied",
+        "status": "unavailable"
+       }
+      },
+      "high_resolution_surface_comparison": {
+       "by_range": null,
+       "chamfer_definition": "mean of both directed unsquared 3D nearest-neighbour distances in metres on matched observed bins",
+       "chamfer_distance_m": 0.00047870767854489744,
+       "chamfer_sample_count": 12496,
+       "completion_fraction": 0.99968,
+       "duplicate_owner_bins": 0,
+       "elevation_rmse_m": 0.00290436820140411,
+       "height_accuracy_05cm": 1.0,
+       "height_accuracy_10cm": 1.0,
+       "height_accuracy_20cm": 1.0,
+       "height_accuracy_denominator": "matched bins only; completion reports missing support separately",
+       "height_accuracy_fraction_within_10cm": 1.0,
+       "height_accuracy_fraction_within_tolerance": 1.0,
+       "height_tolerance_m": 0.1,
+       "matched_bins": 12496,
+       "reference": "observed Uniform5 representation from identical stream",
+       "reference_bins": 12500,
+       "reference_is_ground_truth": false,
+       "status": "partial",
+       "symmetric_chamfer_m": 0.00047870767854489744
+      },
+      "mixed_resolution_topology": {
+       "duplicate_leaf_ids": 0,
+       "leaf_count": 12224,
+       "observed_bins": {
+        "covered": 12500,
+        "exactly_one_owner": true,
+        "gap": 0,
+        "overlap": 0,
+        "total": 12500
+       },
+       "parent_descendant_conflicts": 0,
+       "parent_descendant_exclusive": true,
+       "scope": "observed 5cm reference bins only; unobserved sparse space is excluded",
+       "status": "valid"
+      },
+      "point_conservation": {
+       "holds": true,
+       "scope": "active_window_after_frame"
+      },
+      "reconstruction": {
+       "reason": "source frames were not retained (--retain-frames)",
+       "status": "unavailable"
+      },
+      "split_merge_conservation": {
+       "holds": true,
+       "leaf_stat_points": 13596,
+       "nonspatial_prior_points": 4,
+       "snapshot_points": 13600
+      }
+     }
+    ],
+    "rejected_out_of_window": 0,
+    "splits_per_frame": {
+     "count": 4,
+     "max": 2,
+     "mean": 1.0,
+     "min": 0,
+     "p50": 1,
+     "p95": 2,
+     "p99": 2
+    },
+    "stage_latency_ns": {
+     "frame_pipeline": {
+      "count": 4,
+      "max": 2181208,
+      "mean": 1723083.0,
+      "min": 1360875,
+      "p50": 1563624,
+      "p95": 2181208,
+      "p99": 2181208
+     },
+     "map_update": {
+      "count": 4,
+      "max": 956709,
+      "mean": 893135.5,
+      "min": 827167,
+      "p50": 878833,
+      "p95": 956709,
+      "p99": 956709
+     },
+     "map_window_follow": {
+      "count": 4,
+      "max": 43833,
+      "mean": 21978.75,
+      "min": 1333,
+      "p50": 17666,
+      "p95": 43833,
+      "p99": 43833
+     },
+     "protocol_parse_and_validate": {
+      "count": 4,
+      "max": 98500,
+      "mean": 87562.25,
+      "min": 80208,
+      "p50": 80625,
+      "p95": 98500,
+      "p99": 98500
+     },
+     "snapshot_and_topology": {
+      "count": 4,
+      "max": 1129042,
+      "mean": 720406.5,
+      "min": 311917,
+      "p50": 586500,
+      "p95": 1129042,
+      "p99": 1129042
+     }
+    },
+    "topology_churn_per_frame": {
+     "count": 4,
+     "max": 2,
+     "mean": 1.0,
+     "min": 0,
+     "p50": 1,
+     "p95": 2,
+     "p99": 2
+    }
+   },
+   "runs": [
+    {
+     "detail_metric": {
+      "basis": "leaf sufficient-statistic counts",
+      "weighted_mean_level": 1.2088849661665195,
+      "weighted_resolution_m": 0.11557945451663927
+     },
+     "frame_metrics": [
+      {
+       "accepted_points": 3400,
+       "cells_by_level": [
+        422,
+        1548,
+        1261,
+        0
+       ],
+       "governor_actions_applied": 0,
+       "governor_interventions": 0,
+       "input": {
+        "drivable_counts": {
+         "drivable": 0,
+         "non_drivable": 0,
+         "unknown": 3400
+        },
+        "enriched_fields_available": true,
+        "ground": {
+         "false_count": 3400,
+         "true_count": 0
+        },
+        "motion_state_counts": {
+         "moving": 0,
+         "possibly_moving": 0,
+         "static": 0,
+         "unknown": 3400
+        },
+        "point_count": 3400,
+        "pose_available": true,
+        "pose_timestamp_us": 0,
+        "pose_translation_xyz": [
+         0,
+         0,
+         0
+        ],
+        "quality": {
+         "ground_gradient_x": {
+          "count": 0,
+          "max": null,
+          "mean": null,
+          "min": null
+         },
+         "ground_gradient_y": {
+          "count": 0,
+          "max": null,
+          "mean": null,
+          "min": null
+         },
+         "height_above_ground": {
+          "count": 0,
+          "max": null,
+          "mean": null,
+          "min": null
+         },
+         "height_complexity": {
+          "count": 0,
+          "max": null,
+          "mean": null,
+          "min": null
+         },
+         "intensity": {
+          "count": 3400,
+          "max": 0.5,
+          "mean": 0.5,
+          "min": 0.5
+         },
+         "motion_probability": {
+          "count": 3400,
+          "max": 0,
+          "mean": 0,
+          "min": 0
+         },
+         "observation_quality": {
+          "count": 3400,
+          "max": 0,
+          "mean": 0,
+          "min": 0
+         },
+         "raw_semantic_class": {
+          "count": 3400,
+          "max": 0,
+          "mean": 0,
+          "min": 0
+         },
+         "roughness": {
+          "count": 0,
+          "max": null,
+          "mean": null,
+          "min": null
+         },
+         "semantic_class": {
+          "count": 3400,
+          "max": 0,
+          "mean": 0,
+          "min": 0
+         },
+         "semantic_confidence": {
+          "count": 3400,
+          "max": 0,
+          "mean": 0,
+          "min": 0
+         },
+         "slope": {
+          "count": 0,
+          "max": null,
+          "mean": null,
+          "min": null
+         },
+         "step": {
+          "count": 0,
+          "max": null,
+          "mean": null,
+          "min": null
+         },
+         "terrain_confidence": {
+          "count": 3400,
+          "max": 0,
+          "mean": 0,
+          "min": 0
+         },
+         "velocity_x": {
+          "count": 3400,
+          "max": 0,
+          "mean": 0,
+          "min": 0
+         },
+         "velocity_y": {
+          "count": 3400,
+          "max": 0,
+          "mean": 0,
+          "min": 0
+         }
+        },
+        "source_index": 0,
+        "timestamp_us": 0
+       },
+       "map_point_count_before_update": 0,
+       "merges": 0,
+       "point_conservation": {
+        "holds": true,
+        "scope": "active_window_after_frame"
+       },
+       "rss_bytes": 6635520,
+       "splits": 0,
+       "stages_ns": {
+        "frame_pipeline": 1360875,
+        "map_update": 956709,
+        "map_window_follow": 1333,
+        "protocol_parse_and_validate": 90916,
+        "snapshot_and_topology": 311917
+       },
+       "topology_churn": 0
+      },
+      {
+       "accepted_points": 3400,
+       "cells_by_level": [
+        712,
+        3093,
+        2484,
+        0
+       ],
+       "governor_actions_applied": 0,
+       "governor_interventions": 0,
+       "input": {
+        "drivable_counts": {
+         "drivable": 0,
+         "non_drivable": 0,
+         "unknown": 3400
+        },
+        "enriched_fields_available": true,
+        "ground": {
+         "false_count": 3400,
+         "true_count": 0
+        },
+        "motion_state_counts": {
+         "moving": 0,
+         "possibly_moving": 0,
+         "static": 0,
+         "unknown": 3400
+        },
+        "point_count": 3400,
+        "pose_available": true,
+        "pose_timestamp_us": 100000,
+        "pose_translation_xyz": [
+         0.2,
+         0,
+         0
+        ],
+        "quality": {
+         "ground_gradient_x": {
+          "count": 0,
+          "max": null,
+          "mean": null,
+          "min": null
+         },
+         "ground_gradient_y": {
+          "count": 0,
+          "max": null,
+          "mean": null,
+          "min": null
+         },
+         "height_above_ground": {
+          "count": 0,
+          "max": null,
+          "mean": null,
+          "min": null
+         },
+         "height_complexity": {
+          "count": 0,
+          "max": null,
+          "mean": null,
+          "min": null
+         },
+         "intensity": {
+          "count": 3400,
+          "max": 0.5,
+          "mean": 0.5,
+          "min": 0.5
+         },
+         "motion_probability": {
+          "count": 3400,
+          "max": 0,
+          "mean": 0,
+          "min": 0
+         },
+         "observation_quality": {
+          "count": 3400,
+          "max": 0,
+          "mean": 0,
+          "min": 0
+         },
+         "raw_semantic_class": {
+          "count": 3400,
+          "max": 0,
+          "mean": 0,
+          "min": 0
+         },
+         "roughness": {
+          "count": 0,
+          "max": null,
+          "mean": null,
+          "min": null
+         },
+         "semantic_class": {
+          "count": 3400,
+          "max": 0,
+          "mean": 0,
+          "min": 0
+         },
+         "semantic_confidence": {
+          "count": 3400,
+          "max": 0,
+          "mean": 0,
+          "min": 0
+         },
+         "slope": {
+          "count": 0,
+          "max": null,
+          "mean": null,
+          "min": null
+         },
+         "step": {
+          "count": 0,
+          "max": null,
+          "mean": null,
+          "min": null
+         },
+         "terrain_confidence": {
+          "count": 3400,
+          "max": 0,
+          "mean": 0,
+          "min": 0
+         },
+         "velocity_x": {
+          "count": 3400,
+          "max": 0,
+          "mean": 0,
+          "min": 0
+         },
+         "velocity_y": {
+          "count": 3400,
+          "max": 0,
+          "mean": 0,
+          "min": 0
+         }
+        },
+        "source_index": 1,
+        "timestamp_us": 100000
+       },
+       "map_point_count_before_update": 3400,
+       "merges": 0,
+       "point_conservation": {
+        "holds": true,
+        "scope": "active_window_after_frame"
+       },
+       "rss_bytes": 9748480,
+       "splits": 1,
+       "stages_ns": {
+        "frame_pipeline": 1563624,
+        "map_update": 878833,
+        "map_window_follow": 17666,
+        "protocol_parse_and_validate": 80625,
+        "snapshot_and_topology": 586500
+       },
+       "topology_churn": 1
+      },
+      {
+       "accepted_points": 3400,
+       "cells_by_level": [
+        966,
+        4632,
+        3678,
+        0
+       ],
+       "governor_actions_applied": 0,
+       "governor_interventions": 0,
+       "input": {
+        "drivable_counts": {
+         "drivable": 0,
+         "non_drivable": 0,
+         "unknown": 3400
+        },
+        "enriched_fields_available": true,
+        "ground": {
+         "false_count": 3400,
+         "true_count": 0
+        },
+        "motion_state_counts": {
+         "moving": 0,
+         "possibly_moving": 0,
+         "static": 0,
+         "unknown": 3400
+        },
+        "point_count": 3400,
+        "pose_available": true,
+        "pose_timestamp_us": 200000,
+        "pose_translation_xyz": [
+         0.4,
+         0,
+         0
+        ],
+        "quality": {
+         "ground_gradient_x": {
+          "count": 0,
+          "max": null,
+          "mean": null,
+          "min": null
+         },
+         "ground_gradient_y": {
+          "count": 0,
+          "max": null,
+          "mean": null,
+          "min": null
+         },
+         "height_above_ground": {
+          "count": 0,
+          "max": null,
+          "mean": null,
+          "min": null
+         },
+         "height_complexity": {
+          "count": 0,
+          "max": null,
+          "mean": null,
+          "min": null
+         },
+         "intensity": {
+          "count": 3400,
+          "max": 0.5,
+          "mean": 0.5,
+          "min": 0.5
+         },
+         "motion_probability": {
+          "count": 3400,
+          "max": 0,
+          "mean": 0,
+          "min": 0
+         },
+         "observation_quality": {
+          "count": 3400,
+          "max": 0,
+          "mean": 0,
+          "min": 0
+         },
+         "raw_semantic_class": {
+          "count": 3400,
+          "max": 0,
+          "mean": 0,
+          "min": 0
+         },
+         "roughness": {
+          "count": 0,
+          "max": null,
+          "mean": null,
+          "min": null
+         },
+         "semantic_class": {
+          "count": 3400,
+          "max": 0,
+          "mean": 0,
+          "min": 0
+         },
+         "semantic_confidence": {
+          "count": 3400,
+          "max": 0,
+          "mean": 0,
+          "min": 0
+         },
+         "slope": {
+          "count": 0,
+          "max": null,
+          "mean": null,
+          "min": null
+         },
+         "step": {
+          "count": 0,
+          "max": null,
+          "mean": null,
+          "min": null
+         },
+         "terrain_confidence": {
+          "count": 3400,
+          "max": 0,
+          "mean": 0,
+          "min": 0
+         },
+         "velocity_x": {
+          "count": 3400,
+          "max": 0,
+          "mean": 0,
+          "min": 0
+         },
+         "velocity_y": {
+          "count": 3400,
+          "max": 0,
+          "mean": 0,
+          "min": 0
+         }
+        },
+        "source_index": 2,
+        "timestamp_us": 200000
+       },
+       "map_point_count_before_update": 6800,
+       "merges": 0,
+       "point_conservation": {
+        "holds": true,
+        "scope": "active_window_after_frame"
+       },
+       "rss_bytes": 13385728,
+       "splits": 1,
+       "stages_ns": {
+        "frame_pipeline": 1786625,
+        "map_update": 827167,
+        "map_window_follow": 25083,
+        "protocol_parse_and_validate": 80208,
+        "snapshot_and_topology": 854167
+       },
+       "topology_churn": 1
+      },
+      {
+       "accepted_points": 3400,
+       "cells_by_level": [
+        1213,
+        6170,
+        4841,
+        0
+       ],
+       "governor_actions_applied": 0,
+       "governor_interventions": 0,
+       "input": {
+        "drivable_counts": {
+         "drivable": 0,
+         "non_drivable": 0,
+         "unknown": 3400
+        },
+        "enriched_fields_available": true,
+        "ground": {
+         "false_count": 3400,
+         "true_count": 0
+        },
+        "motion_state_counts": {
+         "moving": 0,
+         "possibly_moving": 0,
+         "static": 0,
+         "unknown": 3400
+        },
+        "point_count": 3400,
+        "pose_available": true,
+        "pose_timestamp_us": 300000,
+        "pose_translation_xyz": [
+         0.6000000000000001,
+         0,
+         0
+        ],
+        "quality": {
+         "ground_gradient_x": {
+          "count": 0,
+          "max": null,
+          "mean": null,
+          "min": null
+         },
+         "ground_gradient_y": {
+          "count": 0,
+          "max": null,
+          "mean": null,
+          "min": null
+         },
+         "height_above_ground": {
+          "count": 0,
+          "max": null,
+          "mean": null,
+          "min": null
+         },
+         "height_complexity": {
+          "count": 0,
+          "max": null,
+          "mean": null,
+          "min": null
+         },
+         "intensity": {
+          "count": 3400,
+          "max": 0.5,
+          "mean": 0.5,
+          "min": 0.5
+         },
+         "motion_probability": {
+          "count": 3400,
+          "max": 0,
+          "mean": 0,
+          "min": 0
+         },
+         "observation_quality": {
+          "count": 3400,
+          "max": 0,
+          "mean": 0,
+          "min": 0
+         },
+         "raw_semantic_class": {
+          "count": 3400,
+          "max": 0,
+          "mean": 0,
+          "min": 0
+         },
+         "roughness": {
+          "count": 0,
+          "max": null,
+          "mean": null,
+          "min": null
+         },
+         "semantic_class": {
+          "count": 3400,
+          "max": 0,
+          "mean": 0,
+          "min": 0
+         },
+         "semantic_confidence": {
+          "count": 3400,
+          "max": 0,
+          "mean": 0,
+          "min": 0
+         },
+         "slope": {
+          "count": 0,
+          "max": null,
+          "mean": null,
+          "min": null
+         },
+         "step": {
+          "count": 0,
+          "max": null,
+          "mean": null,
+          "min": null
+         },
+         "terrain_confidence": {
+          "count": 3400,
+          "max": 0,
+          "mean": 0,
+          "min": 0
+         },
+         "velocity_x": {
+          "count": 3400,
+          "max": 0,
+          "mean": 0,
+          "min": 0
+         },
+         "velocity_y": {
+          "count": 3400,
+          "max": 0,
+          "mean": 0,
+          "min": 0
+         }
+        },
+        "source_index": 3,
+        "timestamp_us": 300000
+       },
+       "map_point_count_before_update": 10200,
+       "merges": 0,
+       "point_conservation": {
+        "holds": true,
+        "scope": "active_window_after_frame"
+       },
+       "rss_bytes": 18317312,
+       "splits": 2,
+       "stages_ns": {
+        "frame_pipeline": 2181208,
+        "map_update": 909833,
+        "map_window_follow": 43833,
+        "protocol_parse_and_validate": 98500,
+        "snapshot_and_topology": 1129042
+       },
+       "topology_churn": 2
+      }
+     ],
+     "frames": 4,
+     "governor": {
+      "actions_applied": 0,
+      "actions_requested": 0,
+      "allow_optional_splits": true,
+      "budget": {
+       "max_actions_per_frame": 64,
+       "max_active_cells": 250000,
+       "max_logical_bytes": 134217728,
+       "max_rss_bytes": 0,
+       "near_field_radius_m": 10,
+       "target_frame_time_ms": 100
+      },
+      "interventions": 0,
+      "overload_frames": 0,
+      "recovery_frames": 0,
+      "state": "normal"
+     },
+     "input": {
+      "drivable_counts": {
+       "drivable": 0,
+       "non_drivable": 0,
+       "unknown": 3400
+      },
+      "enriched_fields_available": true,
+      "ground": {
+       "false_count": 3400,
+       "true_count": 0
+      },
+      "motion_state_counts": {
+       "moving": 0,
+       "possibly_moving": 0,
+       "static": 0,
+       "unknown": 3400
+      },
+      "point_count": 3400,
+      "pose_available": true,
+      "pose_timestamp_us": 300000,
+      "pose_translation_xyz": [
+       0.6000000000000001,
+       0,
+       0
+      ],
+      "quality": {
+       "ground_gradient_x": {
+        "count": 0,
+        "max": null,
+        "mean": null,
+        "min": null
+       },
+       "ground_gradient_y": {
+        "count": 0,
+        "max": null,
+        "mean": null,
+        "min": null
+       },
+       "height_above_ground": {
+        "count": 0,
+        "max": null,
+        "mean": null,
+        "min": null
+       },
+       "height_complexity": {
+        "count": 0,
+        "max": null,
+        "mean": null,
+        "min": null
+       },
+       "intensity": {
+        "count": 3400,
+        "max": 0.5,
+        "mean": 0.5,
+        "min": 0.5
+       },
+       "motion_probability": {
+        "count": 3400,
+        "max": 0,
+        "mean": 0,
+        "min": 0
+       },
+       "observation_quality": {
+        "count": 3400,
+        "max": 0,
+        "mean": 0,
+        "min": 0
+       },
+       "raw_semantic_class": {
+        "count": 3400,
+        "max": 0,
+        "mean": 0,
+        "min": 0
+       },
+       "roughness": {
+        "count": 0,
+        "max": null,
+        "mean": null,
+        "min": null
+       },
+       "semantic_class": {
+        "count": 3400,
+        "max": 0,
+        "mean": 0,
+        "min": 0
+       },
+       "semantic_confidence": {
+        "count": 3400,
+        "max": 0,
+        "mean": 0,
+        "min": 0
+       },
+       "slope": {
+        "count": 0,
+        "max": null,
+        "mean": null,
+        "min": null
+       },
+       "step": {
+        "count": 0,
+        "max": null,
+        "mean": null,
+        "min": null
+       },
+       "terrain_confidence": {
+        "count": 3400,
+        "max": 0,
+        "mean": 0,
+        "min": 0
+       },
+       "velocity_x": {
+        "count": 3400,
+        "max": 0,
+        "mean": 0,
+        "min": 0
+       },
+       "velocity_y": {
+        "count": 3400,
+        "max": 0,
+        "mean": 0,
+        "min": 0
+       }
+      },
+      "source_index": 3,
+      "timestamp_us": 300000
+     },
+     "input_frames": 4,
+     "input_points": 13600,
+     "measured_frames": 4,
+     "metrics": {
+      "elapsed_seconds": 0.006892332,
+      "fps": 580.3550960690808,
+      "frame_count": 4,
+      "map_update_latency_ns": {
+       "count": 4,
+       "max": 956709,
+       "mean": 893135.5,
+       "min": 827167,
+       "p50": 878833,
+       "p95": 956709,
+       "p99": 956709
+      },
+      "measured_rss_bytes": 18317312,
+      "memory": {
+       "allocated_map_bytes": 3539264,
+       "allocated_map_bytes_available": true,
+       "allocated_map_bytes_reason": "public map allocator measurement",
+       "current_rss_bytes": 18317312,
+       "logical_map_bytes": 2347776,
+       "peak_rss_bytes": 18317312
+      },
+      "stage_latency_ns": {
+       "frame_pipeline": {
+        "count": 4,
+        "max": 2181208,
+        "mean": 1723083,
+        "min": 1360875,
+        "p50": 1563624,
+        "p95": 2181208,
+        "p99": 2181208
+       },
+       "map_update": {
+        "count": 4,
+        "max": 956709,
+        "mean": 893135.5,
+        "min": 827167,
+        "p50": 878833,
+        "p95": 956709,
+        "p99": 956709
+       },
+       "map_window_follow": {
+        "count": 4,
+        "max": 43833,
+        "mean": 21978.75,
+        "min": 1333,
+        "p50": 17666,
+        "p95": 43833,
+        "p99": 43833
+       },
+       "protocol_parse_and_validate": {
+        "count": 4,
+        "max": 98500,
+        "mean": 87562.25,
+        "min": 80208,
+        "p50": 80625,
+        "p95": 98500,
+        "p99": 98500
+       },
+       "snapshot_and_topology": {
+        "count": 4,
+        "max": 1129042,
+        "mean": 720406.5,
+        "min": 311917,
+        "p50": 586500,
+        "p95": 1129042,
+        "p99": 1129042
+       }
+      },
+      "stream": {
+       "dropped_frames": 0,
+       "late_frames": 0,
+       "rejected_out_of_window": 0,
+       "source_index_complete": true
+      },
+      "topology": {
+       "per_frame": {
+        "cells_level_0": {
+         "count": 4,
+         "max": 1213,
+         "mean": 828.25,
+         "min": 422,
+         "p50": 712,
+         "p95": 1213,
+         "p99": 1213
+        },
+        "cells_level_1": {
+         "count": 4,
+         "max": 6170,
+         "mean": 3860.75,
+         "min": 1548,
+         "p50": 3093,
+         "p95": 6170,
+         "p99": 6170
+        },
+        "cells_level_2": {
+         "count": 4,
+         "max": 4841,
+         "mean": 3066,
+         "min": 1261,
+         "p50": 2484,
+         "p95": 4841,
+         "p99": 4841
+        },
+        "cells_level_3": {
+         "count": 4,
+         "max": 0,
+         "mean": 0,
+         "min": 0,
+         "p50": 0,
+         "p95": 0,
+         "p99": 0
+        },
+        "governor_actions_applied": {
+         "count": 4,
+         "max": 0,
+         "mean": 0,
+         "min": 0,
+         "p50": 0,
+         "p95": 0,
+         "p99": 0
+        },
+        "governor_interventions": {
+         "count": 4,
+         "max": 0,
+         "mean": 0,
+         "min": 0,
+         "p50": 0,
+         "p95": 0,
+         "p99": 0
+        },
+        "merges": {
+         "count": 4,
+         "max": 0,
+         "mean": 0,
+         "min": 0,
+         "p50": 0,
+         "p95": 0,
+         "p99": 0
+        },
+        "splits": {
+         "count": 4,
+         "max": 2,
+         "mean": 1,
+         "min": 0,
+         "p50": 1,
+         "p95": 2,
+         "p99": 2
+        },
+        "topology_churn": {
+         "count": 4,
+         "max": 2,
+         "mean": 1,
+         "min": 0,
+         "p50": 1,
+         "p95": 2,
+         "p99": 2
+        }
+       },
+       "per_level_cells_final": {
+        "0": 1213,
+        "1": 6170,
+        "2": 4841,
+        "3": 0
+       },
+       "total_change_count": 4,
+       "total_merge_count": 0,
+       "total_split_count": 4
+      }
+     },
+     "policy": "utility_lod",
+     "protocol_version": 2,
+     "quality": {
+      "duplicate_ownership": {
+       "holds": true,
+       "map_reported_flag": true,
+       "source": "independent active-leaf ID and observed-bin ownership check"
+      },
+      "elevation_vs_fine_reference": {
+       "by_range": [
+        {
+         "coverage": null,
+         "max_m": 10.0,
+         "mean_owner_level": null,
+         "min_m": 0.0,
+         "reference_bins": 0,
+         "rmse_m": null,
+         "sample_count": 0,
+         "scope": "unavailable: source frames were not retained"
+        },
+        {
+         "coverage": null,
+         "max_m": 30.0,
+         "mean_owner_level": null,
+         "min_m": 10.0,
+         "reference_bins": 0,
+         "rmse_m": null,
+         "sample_count": 0,
+         "scope": "unavailable: source frames were not retained"
+        },
+        {
+         "coverage": null,
+         "max_m": 60.0,
+         "mean_owner_level": null,
+         "min_m": 30.0,
+         "reference_bins": 0,
+         "rmse_m": null,
+         "sample_count": 0,
+         "scope": "unavailable: source frames were not retained"
+        },
+        {
+         "coverage": null,
+         "max_m": 100.0,
+         "mean_owner_level": null,
+         "min_m": 60.0,
+         "reference_bins": 0,
+         "rmse_m": null,
+         "sample_count": 0,
+         "scope": "unavailable: source frames were not retained"
+        }
+       ],
+       "coverage": 0.99968,
+       "reference": "5cm input-point bins",
+       "reference_bins": 12500,
+       "rmse_m": 0.00290436820140411,
+       "sample_count": 12496,
+       "scope": "observed reference bins covered by final active leaves; excludes evicted/uncovered bins"
+      },
+      "field_retention": {
+       "reason": "source ObservationFrames were not supplied",
+       "semantic": {
+        "reason": "source ObservationFrames were not supplied",
+        "status": "unavailable"
+       },
+       "status": "unavailable",
+       "terrain_hazard": {
+        "reason": "source ObservationFrames were not supplied",
+        "status": "unavailable"
+       }
+      },
+      "high_resolution_surface_comparison": {
+       "by_range": null,
+       "chamfer_definition": "mean of both directed unsquared 3D nearest-neighbour distances in metres on matched observed bins",
+       "chamfer_distance_m": 0.00047870767854489744,
+       "chamfer_sample_count": 12496,
+       "completion_fraction": 0.99968,
+       "duplicate_owner_bins": 0,
+       "elevation_rmse_m": 0.00290436820140411,
+       "height_accuracy_05cm": 1.0,
+       "height_accuracy_10cm": 1.0,
+       "height_accuracy_20cm": 1.0,
+       "height_accuracy_denominator": "matched bins only; completion reports missing support separately",
+       "height_accuracy_fraction_within_10cm": 1.0,
+       "height_accuracy_fraction_within_tolerance": 1.0,
+       "height_tolerance_m": 0.1,
+       "matched_bins": 12496,
+       "reference": "observed Uniform5 representation from identical stream",
+       "reference_bins": 12500,
+       "reference_is_ground_truth": false,
+       "status": "partial",
+       "symmetric_chamfer_m": 0.00047870767854489744
+      },
+      "mixed_resolution_topology": {
+       "duplicate_leaf_ids": 0,
+       "leaf_count": 12224,
+       "observed_bins": {
+        "covered": 12500,
+        "exactly_one_owner": true,
+        "gap": 0,
+        "overlap": 0,
+        "total": 12500
+       },
+       "parent_descendant_conflicts": 0,
+       "parent_descendant_exclusive": true,
+       "scope": "observed 5cm reference bins only; unobserved sparse space is excluded",
+       "status": "valid"
+      },
+      "point_conservation": {
+       "holds": true,
+       "scope": "active_window_after_frame"
+      },
+      "reconstruction": {
+       "reason": "source frames were not retained (--retain-frames)",
+       "status": "unavailable"
+      },
+      "split_merge_conservation": {
+       "holds": true,
+       "leaf_stat_points": 13596,
+       "nonspatial_prior_points": 4,
+       "snapshot_points": 13600
+      }
+     },
+     "schema_version": 2,
+     "snapshot": {
+      "active_leaf_count": 12224,
+      "invariant_no_parent_descendant_overlap": true,
+      "layers": {
+       "cells_with_ground": 0,
+       "free_cells": 0,
+       "ground_points": 0,
+       "obstacle_points": 13596,
+       "occluded_ground_cells": 12212,
+       "occupied_cells": 12212,
+       "overhead_points": 0,
+       "rejected_outliers": 0,
+       "unmodelled_returns": 13596
+      },
+      "levels": {
+       "0": 1213,
+       "1": 6170,
+       "2": 4841,
+       "3": 0
+      },
+      "logical_bytes": 2347776,
+      "memory": {
+       "allocated_bytes": 3539264,
+       "allocated_cell_array_bytes": 3348480,
+       "allocated_index_bytes": 190784,
+       "allocated_overhead_bytes": 190784,
+       "allocated_tile_bytes": 24576,
+       "logical_payload_bytes": 2347008,
+       "retained_prior_payload_bytes": 768
+      },
+      "merge_count": 0,
+      "nonspatial_prior_point_count": 4,
+      "point_count": 13600,
+      "split_count": 4,
+      "tile_count": 64
+     },
+     "stream_digest": "1a37d86f143241ff63f0dfad9e84fb65844fbae34f899d3f55f566cf2abd4bed",
+     "warmup_frames": 0
+    }
+   ]
+  }
+ },
+ "provenance": {
+  "build_type": "Release",
+  "compiler": "Apple clang version 21.0.0 (clang-2100.3.34.2)",
+  "config_digest": "fea60ebeea07480781e9713f0b08cfefa86a62ffe74d9a563f52e9df454a110e",
+  "config_sha256": {
+   "benchmark.yaml": "f2d60b90a3de53fbfc6347c5e527fd01291c1f2e2ea5e77ccafb1c8c21d3cf07",
+   "datasets.yaml": "2925075c5e70d169070e61c9ecb8fd6226c716e7602f4a552cc9c56f245f48b7",
+   "distance_lod.yaml": "50cfb183cf26ff738c5bc4aed4f7dde58d6ee1a0e20831b62d740d21a18e2414",
+   "hardware_profiles.yaml": "16cccff4b2958c05f2bc9e9936cb6278cf3120b0eb8c744fc4552209a38c5d45",
+   "perception.yaml": "7fb3085bb8a47d0a7024b0a435d7a586a782f258d37ccf220e31365e9382832d",
+   "resource_governor.yaml": "c0b54b59500eedb1972c3493794dbccf751bad9ca96bf264b8787bf95d4959a5",
+   "utility_lod.yaml": "7c98ee39e870aa97912ce00436e2f9416d2bce50f8a178965abc82eeb87faa77"
+  },
+  "dataset_sha256": null,
+  "frame_range": {
+   "count": 4,
+   "end_exclusive": 4,
+   "sequence": "s",
+   "start": 0
+  },
+  "git_sha": "b559686192ba351ca52500b52189ce5325f1d9f8",
+  "hardware": {
+   "capture": "runtime",
+   "logical_cpu_count": 14,
+   "machine": "arm64",
+   "os": "macOS-27.0-arm64-arm-64bit",
+   "physical_memory_bytes": 25769803776,
+   "processor": "Apple M4 Pro",
+   "profile": "auto",
+   "python": "3.12.14"
+  },
+  "map_window_radius_m": 100.001,
+  "measurement_scope": {
+   "map_update": "C++ map update calls only; excludes protocol parsing, snapshotting, and JSON/CSV serialization",
+   "map_window_follow": "C++ public map window-center update from the transmitted world-frame pose; excludes serialization",
+   "perception": "not run; source dataset frames were sent directly to the map",
+   "protocol_parse_and_validate": "C++ token parsing and Observation construction; excludes stdin I/O",
+   "snapshot_and_topology": "C++ map snapshot plus topology extraction; excludes JSON/CSV serialization"
+  },
+  "model_checkpoint_sha256": null,
+  "perception_executed": false,
+  "policy_execution_order": [
+   [
+    "uniform5",
+    "uniform40",
+    "distance_lod",
+    "utility_lod"
+   ]
+  ],
+  "protocol_version": 4,
+  "pull_request_number": null,
+  "repetitions": 1,
+  "sample_adequacy": {
+   "fps_samples_per_policy": {
+    "p95_reliable": false,
+    "p99_reliable": false,
+    "samples": 1
+   },
+   "measured_frames_per_run": 4,
+   "note": "nearest-rank p95 needs >=20 samples and p99 >=100; short-run tails equal the max and are descriptive only, not SLO evidence",
+   "repetitions": 1,
+   "stage_latency_samples_per_policy": {
+    "p95_reliable": false,
+    "p99_reliable": false,
+    "samples": 4
+   }
+  },
+  "selection_digest": "1a37d86f143241ff63f0dfad9e84fb65844fbae34f899d3f55f566cf2abd4bed",
+  "source_state_sha256": "0994c127799ff2e54ec18350b0704e6e3c1746e3f5b0f1e7326b18e476bed26e",
+  "timestamp_utc": "2026-09-27T06:08:46.540249+00:00",
+  "untracked_source_files": [
+   "src-tauri/gen/schemas/macOS-schema.json",
+   "tests/test_desktop_benchmark_contract.py"
+  ],
+  "warmup_frames": 0,
+  "workflow_event": null,
+  "workflow_run_id": null,
+  "working_tree_dirty": true
+ },
+ "quality_resource": {
+  "dataset": "generic",
+  "frame_range": {
+   "count": 4,
+   "end_exclusive": 4,
+   "sequence": "s",
+   "start": 0
+  },
+  "input_stream_digests": {
+   "distance_lod": "1a37d86f143241ff63f0dfad9e84fb65844fbae34f899d3f55f566cf2abd4bed",
+   "uniform40": "1a37d86f143241ff63f0dfad9e84fb65844fbae34f899d3f55f566cf2abd4bed",
+   "uniform5": "1a37d86f143241ff63f0dfad9e84fb65844fbae34f899d3f55f566cf2abd4bed",
+   "utility_lod": "1a37d86f143241ff63f0dfad9e84fb65844fbae34f899d3f55f566cf2abd4bed"
+  },
+  "latency_plot_metric": "map_update_p50_ms",
+  "measured_policy_count": 4,
+  "metric_definitions": {
+   "chamfer_distance_m": "mean of the two directed unsquared 3D nearest-neighbour distances in metres on matched common-support bins; lower is better",
+   "completion_fraction": "uniquely owned valid reference bins / all valid Uniform5 reference bins; higher is better",
+   "elevation_rmse_m": "root mean square vertical error in metres on matched common-support bins; lower is better",
+   "height_accuracy_10cm": "matched common 5cm XY bins with absolute elevation error <= 0.10m; higher is better",
+   "latency_frontier": "uses map-update p95 only when all four policies have at least 20 samples; otherwise uses map-update p50",
+   "logical_map_bytes": "logical map payload accounting, distinct from process RSS",
+   "map_update_p95_ms": "95th percentile C++ map-update call latency; excludes parsing, snapshots, and serialization",
+   "rss_bytes": "measured benchmark process peak RSS; includes non-map process memory",
+   "runtime_per_frame_ms": "median C++ frame_pipeline latency per processed frame; not perception or renderer latency"
+  },
+  "pareto": {
+   "joint_resource_quality": {
+    "dominated": {
+     "utility_lod": [
+      "distance_lod"
+     ]
+    },
+    "frontier": [
+     "distance_lod",
+     "uniform40",
+     "uniform5"
+    ],
+    "objectives": [
+     {
+      "direction": "min",
+      "metric": "logical_map_bytes"
+     },
+     {
+      "direction": "min",
+      "metric": "map_update_p50_ms"
+     },
+     {
+      "direction": "max",
+      "metric": "height_accuracy_10cm"
+     },
+     {
+      "direction": "max",
+      "metric": "completion_fraction"
+     },
+     {
+      "direction": "min",
+      "metric": "symmetric_chamfer_m"
+     }
+    ],
+    "unavailable": [],
+    "weighted_score_used": false
+   },
+   "latency_vs_chamfer": {
+    "dominated": {
+     "distance_lod": [
+      "uniform5"
+     ],
+     "uniform40": [
+      "distance_lod",
+      "uniform5",
+      "utility_lod"
+     ],
+     "utility_lod": [
+      "distance_lod",
+      "uniform5"
+     ]
+    },
+    "frontier": [
+     "uniform5"
+    ],
+    "unavailable": [],
+    "weighted_score_used": false,
+    "x_direction": "min",
+    "x_metric": "map_update_p50_ms",
+    "y_direction": "min",
+    "y_metric": "symmetric_chamfer_m"
+   },
+   "latency_vs_completion": {
+    "dominated": {
+     "distance_lod": [
+      "uniform5"
+     ],
+     "uniform40": [
+      "uniform5"
+     ],
+     "utility_lod": [
+      "distance_lod",
+      "uniform5"
+     ]
+    },
+    "frontier": [
+     "uniform5"
+    ],
+    "unavailable": [],
+    "weighted_score_used": false,
+    "x_direction": "min",
+    "x_metric": "map_update_p50_ms",
+    "y_direction": "max",
+    "y_metric": "completion_fraction"
+   },
+   "latency_vs_height_accuracy": {
+    "dominated": {
+     "distance_lod": [
+      "uniform5"
+     ],
+     "uniform40": [
+      "distance_lod",
+      "uniform5",
+      "utility_lod"
+     ],
+     "utility_lod": [
+      "distance_lod",
+      "uniform5"
+     ]
+    },
+    "frontier": [
+     "uniform5"
+    ],
+    "unavailable": [],
+    "weighted_score_used": false,
+    "x_direction": "min",
+    "x_metric": "map_update_p50_ms",
+    "y_direction": "max",
+    "y_metric": "height_accuracy_10cm"
+   },
+   "memory_vs_chamfer": {
+    "dominated": {},
+    "frontier": [
+     "distance_lod",
+     "uniform40",
+     "uniform5",
+     "utility_lod"
+    ],
+    "unavailable": [],
+    "weighted_score_used": false,
+    "x_direction": "min",
+    "x_metric": "logical_map_bytes",
+    "y_direction": "min",
+    "y_metric": "symmetric_chamfer_m"
+   },
+   "memory_vs_completion": {
+    "dominated": {
+     "distance_lod": [
+      "uniform40"
+     ],
+     "uniform5": [
+      "uniform40"
+     ],
+     "utility_lod": [
+      "uniform40"
+     ]
+    },
+    "frontier": [
+     "uniform40"
+    ],
+    "unavailable": [],
+    "weighted_score_used": false,
+    "x_direction": "min",
+    "x_metric": "logical_map_bytes",
+    "y_direction": "max",
+    "y_metric": "completion_fraction"
+   },
+   "memory_vs_height_accuracy": {
+    "dominated": {
+     "uniform5": [
+      "distance_lod",
+      "utility_lod"
+     ]
+    },
+    "frontier": [
+     "distance_lod",
+     "uniform40",
+     "utility_lod"
+    ],
+    "unavailable": [],
+    "weighted_score_used": false,
+    "x_direction": "min",
+    "x_metric": "logical_map_bytes",
+    "y_direction": "max",
+    "y_metric": "height_accuracy_10cm"
+   },
+   "rss_vs_chamfer": {
+    "dominated": {
+     "distance_lod": [
+      "uniform5"
+     ],
+     "utility_lod": [
+      "distance_lod",
+      "uniform5"
+     ]
+    },
+    "frontier": [
+     "uniform40",
+     "uniform5"
+    ],
+    "unavailable": [],
+    "weighted_score_used": false,
+    "x_direction": "min",
+    "x_metric": "rss_bytes",
+    "y_direction": "min",
+    "y_metric": "symmetric_chamfer_m"
+   },
+   "rss_vs_completion": {
+    "dominated": {
+     "distance_lod": [
+      "uniform40",
+      "uniform5"
+     ],
+     "uniform5": [
+      "uniform40"
+     ],
+     "utility_lod": [
+      "distance_lod",
+      "uniform40",
+      "uniform5"
+     ]
+    },
+    "frontier": [
+     "uniform40"
+    ],
+    "unavailable": [],
+    "weighted_score_used": false,
+    "x_direction": "min",
+    "x_metric": "rss_bytes",
+    "y_direction": "max",
+    "y_metric": "completion_fraction"
+   },
+   "rss_vs_height_accuracy": {
+    "dominated": {
+     "distance_lod": [
+      "uniform5"
+     ],
+     "utility_lod": [
+      "distance_lod",
+      "uniform5"
+     ]
+    },
+    "frontier": [
+     "uniform40",
+     "uniform5"
+    ],
+    "unavailable": [],
+    "weighted_score_used": false,
+    "x_direction": "min",
+    "x_metric": "rss_bytes",
+    "y_direction": "max",
+    "y_metric": "height_accuracy_10cm"
+   }
+  },
+  "policies": [
+   {
+    "active_cells": 12500,
+    "allocated_map_bytes": 3596800.0,
+    "chamfer_distance_m": 0.0,
+    "completion_fraction": 1.0,
+    "elevation_rmse_m": 0.0,
+    "height_accuracy_05cm": 1.0,
+    "height_accuracy_10cm": 1.0,
+    "height_accuracy_20cm": 1.0,
+    "logical_map_bytes": 2400000.0,
+    "map_update_p50_ms": 0.296041,
+    "map_update_p95_ms": 0.40775,
+    "map_update_p95_reliable": false,
+    "map_update_p99_ms": 0.40775,
+    "map_update_p99_reliable": false,
+    "map_update_sample_count": 4.0,
+    "matched_bins": 12500,
+    "pedestrian_retention_fraction": null,
+    "pole_retention_fraction": null,
+    "policy": "uniform5",
+    "processing_fps_p50": 1335.1888007033774,
+    "reference": "observed Uniform5 representation from identical stream",
+    "reference_bins": 12500,
+    "reference_is_ground_truth": false,
+    "rss_bytes": 15073280.0,
+    "runtime_ms": 0.702041,
+    "runtime_per_frame_ms": 0.702041,
+    "semantic_retention_fraction": null,
+    "status": "measured",
+    "symmetric_chamfer_m": 0.0,
+    "vehicle_retention_fraction": null
+   },
+   {
+    "active_cells": 6712,
+    "allocated_map_bytes": 2131200.0,
+    "chamfer_distance_m": 0.007815421928645533,
+    "completion_fraction": 1.0,
+    "elevation_rmse_m": 0.05508067878549314,
+    "height_accuracy_05cm": 0.96272,
+    "height_accuracy_10cm": 0.9696,
+    "height_accuracy_20cm": 0.9808,
+    "logical_map_bytes": 1288704.0,
+    "map_update_p50_ms": 1.092167,
+    "map_update_p95_ms": 2.239792,
+    "map_update_p95_reliable": false,
+    "map_update_p99_ms": 2.239792,
+    "map_update_p99_reliable": false,
+    "map_update_sample_count": 4.0,
+    "matched_bins": 12500,
+    "pedestrian_retention_fraction": null,
+    "pole_retention_fraction": null,
+    "policy": "uniform40",
+    "processing_fps_p50": 594.6371754377384,
+    "reference": "observed Uniform5 representation from identical stream",
+    "reference_bins": 12500,
+    "reference_is_ground_truth": false,
+    "rss_bytes": 9453568.0,
+    "runtime_ms": 1.436334,
+    "runtime_per_frame_ms": 1.436334,
+    "semantic_retention_fraction": null,
+    "status": "measured",
+    "symmetric_chamfer_m": 0.007815421928645533,
+    "vehicle_retention_fraction": null
+   },
+   {
+    "active_cells": 12224,
+    "allocated_map_bytes": 3539264.0,
+    "chamfer_distance_m": 0.00047870767854489744,
+    "completion_fraction": 0.99968,
+    "elevation_rmse_m": 0.00290436820140411,
+    "height_accuracy_05cm": 1.0,
+    "height_accuracy_10cm": 1.0,
+    "height_accuracy_20cm": 1.0,
+    "logical_map_bytes": 2347776.0,
+    "map_update_p50_ms": 0.629583,
+    "map_update_p95_ms": 0.742,
+    "map_update_p95_reliable": false,
+    "map_update_p99_ms": 0.742,
+    "map_update_p99_reliable": false,
+    "map_update_sample_count": 4.0,
+    "matched_bins": 12496,
+    "pedestrian_retention_fraction": null,
+    "pole_retention_fraction": null,
+    "policy": "distance_lod",
+    "processing_fps_p50": 951.8986570613746,
+    "reference": "observed Uniform5 representation from identical stream",
+    "reference_bins": 12500,
+    "reference_is_ground_truth": false,
+    "rss_bytes": 15908864.0,
+    "runtime_ms": 0.981167,
+    "runtime_per_frame_ms": 0.981167,
+    "semantic_retention_fraction": null,
+    "status": "partial",
+    "symmetric_chamfer_m": 0.00047870767854489744,
+    "vehicle_retention_fraction": null
+   },
+   {
+    "active_cells": 12224,
+    "allocated_map_bytes": 3539264.0,
+    "chamfer_distance_m": 0.00047870767854489744,
+    "completion_fraction": 0.99968,
+    "elevation_rmse_m": 0.00290436820140411,
+    "height_accuracy_05cm": 1.0,
+    "height_accuracy_10cm": 1.0,
+    "height_accuracy_20cm": 1.0,
+    "logical_map_bytes": 2347776.0,
+    "map_update_p50_ms": 0.878833,
+    "map_update_p95_ms": 0.956709,
+    "map_update_p95_reliable": false,
+    "map_update_p99_ms": 0.956709,
+    "map_update_p99_reliable": false,
+    "map_update_sample_count": 4.0,
+    "matched_bins": 12496,
+    "pedestrian_retention_fraction": null,
+    "pole_retention_fraction": null,
+    "policy": "utility_lod",
+    "processing_fps_p50": 580.3550960690808,
+    "reference": "observed Uniform5 representation from identical stream",
+    "reference_bins": 12500,
+    "reference_is_ground_truth": false,
+    "rss_bytes": 18317312.0,
+    "runtime_ms": 1.563624,
+    "runtime_per_frame_ms": 1.563624,
+    "semantic_retention_fraction": null,
+    "status": "partial",
+    "symmetric_chamfer_m": 0.00047870767854489744,
+    "vehicle_retention_fraction": null
+   }
+  ],
+  "reference": {
+   "definition": "Observed Uniform5 map support from the same dataset selection, poses, accepted observations, and world coordinate frame; not surveyed truth.",
+   "is_ground_truth": false,
+   "name": "Uniform5 high-resolution representation"
+  },
+  "same_input_for_all_policies": true,
+  "schema_version": 1,
+  "selection_digest": "1a37d86f143241ff63f0dfad9e84fb65844fbae34f899d3f55f566cf2abd4bed",
+  "sequence": "s",
+  "status": "measured",
+  "unavailable_policies": [],
+  "weighted_score_used": false
+ },
+ "reference_baselines": {
+  "uniform_5cm_2d": {
+   "reference_bins": 12500,
+   "representation": "sparse_2d_elevation_bins",
+   "status": "executed_as_fine_reference",
+   "voxel_size_m": 0.05
+  },
+  "uniform_5cm_3d": {
+   "bounds_max_m": [
+    35.56016159057617,
+    34.94530487060547,
+    1.199181079864502
+   ],
+   "bounds_min_m": [
+    -34.95402526855469,
+    -34.937660217285156,
+    -0.06699050217866898
+   ],
+   "dense_voxel_count": 53335476,
+   "dimensions": [
+    1412,
+    1399,
+    27
+   ],
+   "estimated_bytes_per_voxel": 16,
+   "estimated_dense_bytes": 853367616,
+   "executed_through_map_engine": false,
+   "representation": "dense_uniform_3d_voxels",
+   "status": "analytical_only",
+   "voxel_size_m": 0.05,
+   "warning": "memory estimate only; no dense grid was allocated or timed"
+  }
+ },
+ "schema_version": 2,
+ "semantic_quality": {
+  "reason": "paired adapter labels are unavailable for this selection",
+  "status": "unavailable"
+ },
+ "sequence": "s",
+ "shared_stage_latency_ns": {
+  "perception": null
+ },
+ "start": 0,
+ "utility_ablation": {
+  "baseline": "ablation_distance",
+  "full_vs_distance_assessment": "unavailable",
+  "interpretation": {
+   "assessment": "descriptive result on this selection; no cross-hardware or general quality claim",
+   "elevation_rmse_m": "negative delta is better",
+   "resource_fractions": "negative delta uses less measured resource",
+   "weighted_mean_level": "negative delta means finer retained detail"
+  },
+  "members": {},
+  "missing_policies": [
+   "ablation_distance",
+   "ablation_geometry",
+   "ablation_semantics",
+   "ablation_motion",
+   "ablation_traversability"
+  ],
+  "required_policies": [
+   "ablation_distance",
+   "ablation_geometry",
+   "ablation_semantics",
+   "ablation_motion",
+   "ablation_traversability",
+   "utility_lod"
+  ],
+  "status": "not_run"
+ },
+ "utility_vs_distance_detail": {
+  "interpretation": "negative means UtilityLOD retained finer leaves on identical input; detail alone is not quality gain",
+  "weighted_mean_level_delta": 0.0
+ }
+}

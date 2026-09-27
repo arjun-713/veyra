@@ -144,6 +144,40 @@ logical map bytes on the x axes:
 python -m benchmarks.tradeoff_plot results/*.json --output tradeoff.svg
 ```
 
+## Desktop consumer contract
+
+The desktop reads benchmark evidence only through
+`apps/desktop/src/renderer/benchmark-report.ts`, for runs it launched and for
+opened files alike, so both views agree.
+
+- **Acceptance.** `acceptBenchmarkReport` rejects anything that is not a
+  `schema_version: 2` object with `policies`. The only migration it performs is
+  unwrapping early desktop exports that nested the report under `mapping`. A
+  report with no `provenance`, or with policies that have no raw `runs`, is
+  still shown but flagged as incomplete.
+- **Live runs.** Runtime events are capped at 1 MiB and a complete report grows
+  with frame count. The runtime's `benchmark` completion event therefore
+  carries no report. It announces `artifact`, `artifact_bytes` and
+  `artifact_sha256`. The desktop then loads that exact file through the
+  `read_benchmark_artifact` Tauri command, which refuses any path the runtime
+  did not announce. A partial event summary is never treated as the report.
+- **Field paths.**
+
+  | Value | Path |
+  | --- | --- |
+  | Quality/resource rows | `quality_resource.policies` (derived from `policies.*` only when that table is absent) |
+  | mIoU and accuracy (0–1 fractions, shown as %) | `semantic_quality.overall` and `semantic_quality.range_bins` |
+  | Semantic source (`ground_truth` is labelled as not being a model score) | `perception.status.semantic` |
+  | Analytical dense 3D estimate | `reference_baselines.uniform_5cm_3d` |
+  | Uniform5 quality reference | `reference_baselines.uniform_5cm_2d` |
+  | Measured sparse 3D leg (a policy with `adapter.suite = "reference"`) | `policies.*`; shown as unavailable when absent |
+  | Commit, tree state, host, build, frame range, sample adequacy | `provenance` |
+- **Units and tails.** Bytes are shown in MiB and latencies in ms. p95 and p99
+  are labelled descriptive below 20 and 100 samples. The latency trade-off
+  plot uses p95 only when every policy has at least 20 samples.
+- **Export.** The exported file is the complete accepted report, including
+  provenance.
+
 ## CSV and compatibility
 
 CSV contains one row per requested policy with common latency, memory,

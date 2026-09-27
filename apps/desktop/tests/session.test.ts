@@ -1,7 +1,8 @@
 import {test} from 'node:test';
 import assert from 'node:assert/strict';
 import {canPlayback, telemetryFreshness, processRss, acceptFrame, diagnosticMessage, mergeSessionStatus} from '../src/renderer/session.ts';
-import {benchmarkEvidence, validationOutcome} from '../src/renderer/session.ts';
+import {validationOutcome} from '../src/renderer/session.ts';
+import {qualityResourceRows} from '../src/renderer/benchmark-report.ts';
 
 test('completed validation displays the actual verdict, never a generic success',()=>{
  assert.equal(validationOutcome({state:'complete',result:{status:'pass'}}),'pass');
@@ -15,11 +16,12 @@ test('late visualization cannot resurrect a stopped session',()=>{
 });
 
 test('comparison reads measured memory and quality from the real report envelope',()=>{
- const row=benchmarkEvidence({aggregate:{final_leaves_per_level:{'0':2,'1':3},quality:[{elevation_vs_fine_reference:{rmse_m:0.125}}]},runs:[{metrics:{memory:{logical_map_bytes:4096}}}]});
+ const uniform5={aggregate:{final_leaves_per_level:{'0':2,'1':3},quality:[{elevation_vs_fine_reference:{rmse_m:0.125}}]},runs:[{metrics:{memory:{logical_map_bytes:4096}}}]};
+ const [row]=qualityResourceRows({schema_version:2,policies:{uniform5}});
  assert.equal(row.logicalBytes,4096);
- assert.equal(row.leaves,5);
- assert.equal(row.rmse,0.125);
- assert.equal(benchmarkEvidence({}).leaves,null);
+ assert.equal(row.activeCells,5);
+ assert.equal(row.rmseM,0.125);
+ assert.equal(qualityResourceRows({schema_version:2,policies:{uniform5:{}}})[0].activeCells,null);
 });
 
 test('layer acknowledgement does not erase dataset and playback metadata',()=>{
