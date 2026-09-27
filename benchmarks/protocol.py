@@ -50,9 +50,60 @@ def binary_frame_bytes(frame: ObservationFrame) -> bytes:
     Handshake is VEYRA_ENGINE 4. B count is followed by a 152-byte frame header
     and packed rows; the engine responds after consuming the complete frame.
     """
-    count = len(frame.points)
-    if count > 2_000_000:
-        raise ValueError("binary frame exceeds point limit")
+    return bytes(BinaryFrameEncoder().encode(frame))
+
+
+class BinaryFrameEncoder:
+    """Produce ``binary_frame_bytes`` records into one reused buffer.
+
+    A live session sends one ~8 MB record per frame. Building it as a
+    structured array, ``tobytes()`` and a prefix concatenation allocated three
+    frame-sized blocks per frame, each a slightly different size as the point
+    count varies, which the platform allocator keeps resident. The encoder
+    writes rows in place into a buffer that grows geometrically and is then
+    reused, so steady-state encoding allocates no frame-sized memory.
+
+    The returned view aliases the buffer: it is valid until the next
+    ``encode`` call and must be consumed (written or copied) before then.
+    """
+
+    def __init__(self) -> None:
+        self._buffer = bytearray()
+        #: Points whose drivability is ``drivable`` or ``non_drivable`` in the
+        #: last encoded frame (the ``np.isin`` count), taken from the codes.
+        self.known_drivability_points = 0
+
+    @property
+    def capacity(self) -> int:
+        return len(self._buffer)
+
+    def encode(self, frame: ObservationFrame) -> memoryview:
+        count = len(frame.points)
+        if count > 2_000_000:
+            raise ValueError("binary frame exceeds point limit")
+        prefix = f"B {count}\n".encode("ascii")
+        header = _binary_frame_header(frame)
+        start = len(prefix) + len(header)
+        size = start + count * _BINARY_POINT.itemsize
+        if size > len(self._buffer):
+            current = len(self._buffer)
+            self._buffer = bytearray(max(size + size // 4, current + current // 2))
+        view = memoryview(self._buffer)
+        view[: len(prefix)] = prefix
+        view[len(prefix) : start] = header
+        points = np.frombuffer(
+            self._buffer, dtype=_BINARY_POINT, count=count, offset=start
+        )
+        _fill_binary_points(points, frame)
+        drivable = points["drivable"]
+        self.known_drivability_points = int(
+            np.count_nonzero(drivable == _DRIVABLE["drivable"])
+            + np.count_nonzero(drivable == _DRIVABLE["non_drivable"])
+        )
+        return view[:size]
+
+
+def _binary_frame_header(frame: ObservationFrame) -> bytes:
     missing = (1 << 64) - 1
 
     def stamp(value):
@@ -64,14 +115,16 @@ def binary_frame_bytes(frame: ObservationFrame) -> bytes:
     source = int(frame.frame_id) if frame.frame_id.isdecimal() else missing
     if source >= missing and source != missing:
         raise ValueError("frame index outside binary range")
-    header = struct.pack(
+    return struct.pack(
         "<QQQ16d",
         stamp(frame.timestamp),
         stamp(frame.pose.timestamp),
         source,
         *frame.pose.matrix.reshape(-1),
     )
-    points = np.empty(count, dtype=_BINARY_POINT)
+
+
+def _fill_binary_points(points: np.ndarray, frame: ObservationFrame) -> None:
     for destination, value in (
         ("xyzi", frame.points),
         ("semantic", frame.semantic_class),
@@ -95,10 +148,12 @@ def binary_frame_bytes(frame: ObservationFrame) -> bytes:
         ("drivable", frame.drivable, _DRIVABLE),
         ("state", frame.motion_state, _MOTION_STATE),
     ):
-        points[field] = np.select(
-            [values == key for key in mapping], list(mapping.values()), default=255
-        )
-    return f"B {count}\n".encode("ascii") + header + points.tobytes()
+        # Keys are distinct, so this equals np.select(..., default=255)
+        # without its per-key int64 temporaries.
+        codes = points[field]
+        codes.fill(255)
+        for key, code in mapping.items():
+            codes[values == key] = code
 
 
 def _number(value: float) -> str:
@@ -256,10 +311,11 @@ def binary_stream_file(frames: Iterable[ObservationFrame], path: str | Path) -> 
     output_path.parent.mkdir(parents=True, exist_ok=True)
     prefix = f"VEYRA_STREAM {PROTOCOL_VERSION}\nH ".encode("ascii")
     digest = hashlib.sha256()
+    encoder = BinaryFrameEncoder()
     with output_path.open("wb+") as output:
         output.write(prefix + b"0" * 64 + b"\n")
         for frame in frames:
-            encoded = binary_frame_bytes(frame)
+            encoded = encoder.encode(frame)
             output.write(encoded)
             digest.update(encoded)
         checksum = digest.hexdigest().encode("ascii")

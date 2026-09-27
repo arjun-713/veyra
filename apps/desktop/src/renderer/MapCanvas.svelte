@@ -5,7 +5,7 @@
  import {pointColor,cellColor,displayPosition} from './colors';
  import {clampRenderCounts} from './dashboard';
  import {ScanHistory,colorInput,ACCUMULATION_POINT_CAPACITY,HISTORY_STRIDE} from './accumulation';
- import type {WireFrame,Json} from '../core';
+ import {decodePhysicalLayers,type WireFrame,type Json} from '../core';
  let {frame=null,mode='semantic',showPoints=true,showCells=true,boundaries=false,view='orbit',follow=false,accumulate=1,showRings=false,onStats=()=>{},onInspect=()=>{}}=$props<{frame:WireFrame|null;mode:string;showPoints:boolean;showCells:boolean;boundaries:boolean;view:string;follow:boolean;accumulate?:number;showRings?:boolean;onStats?:(value:Json)=>void;onInspect?:(value:Json)=>void}>();
  let host:HTMLDivElement,ready=$state(false),failure=$state('');
  let renderer:THREE.WebGLRenderer,scene:THREE.Scene,camera:THREE.PerspectiveCamera,controls:OrbitControls;
@@ -14,11 +14,19 @@
  const pointCapacity=ACCUMULATION_POINT_CAPACITY;
  let position=new Float32Array(pointCapacity*3),colors=new Float32Array(pointCapacity*3),cellData=new Float32Array(0),cellStride=17;
  const history=new ScanHistory(1,pointCapacity);let paintedMode='',paintedLayers='';
- const transform=new THREE.Object3D(),color=new THREE.Color();
- let lastGeneration=-1,lastIndex=-1;
+ const color=new THREE.Color();let matrices:Float32Array<ArrayBufferLike>=new Float32Array(0),instanceColors:Float32Array<ArrayBufferLike>=new Float32Array(0);
+ const littleEndian=new Uint8Array(new Uint32Array([1]).buffer)[0]===1;
+ // Payload sections are little-endian float32 at 4-byte offsets: on
+ // little-endian hosts one aligned copy replaces a DataView call per float.
+ function readFloats(bytes:Uint8Array,data:DataView,offset:number,count:number):Float32Array{
+  const start=bytes.byteOffset+offset;
+  if(littleEndian&&start%4===0)return new Float32Array(bytes.buffer.slice(start,start+count*4));
+  const out=new Float32Array(count);for(let i=0;i<count;i++)out[i]=data.getFloat32(offset+i*4,true);return out;
+ }
+ let lastGeneration=-1,lastIndex=-1,inspectionFrame:WireFrame|null=null;
  function update(){
   if(!ready)return;points.visible=showPoints;mesh.visible=showCells;(mesh.material as THREE.MeshBasicMaterial).wireframe=boundaries;
-  if(!frame){pointGeo.setDrawRange(0,0);mesh.count=0;lastGeneration=-1;lastIndex=-1;history.clear();return;}
+  if(!frame){pointGeo.setDrawRange(0,0);mesh.count=0;inspectionFrame=null;lastGeneration=-1;lastIndex=-1;history.clear();return;}
   const meta=frame.metadata;
   if(meta.generation<lastGeneration||(meta.generation===lastGeneration&&meta.index<lastIndex))return;
   lastGeneration=meta.generation;lastIndex=meta.index;
@@ -30,19 +38,27 @@
   cellStride=Math.max(9,Math.round((meta.cells.stride??36)/4));
   const cellRow=new Float32Array(cellStride);
   // Copy the point section into an aligned little-endian view once.
-  const wire=new Float32Array(pointCount*17);
-  for(let i=0;i<wire.length;i++)wire[i]=data.getFloat32(meta.points.offset+i*4,true);
+  const wire=readFloats(bytes,data,meta.points.offset,pointCount*17);
+  const cells=readFloats(bytes,data,meta.cells.offset,cellCount*cellStride);
   const changed=history.push(meta as any,wire,pointCount);
   paintPoints(changed,meta.layers??{});
-  cellData=new Float32Array(cellCount*17);
+  // Rendered instance i, cellData row i, and physical-layer row i share the
+  // same ordered payload prefix even when rendering clamps the cell count.
+  cellData=new Float32Array(cellCount*17);inspectionFrame=frame;
   for(let i=0;i<cellCount;i++){
-   for(let j=0;j<cellStride;j++)cellRow[j]=data.getFloat32(meta.cells.offset+i*cellStride*4+j*4,true);
+   for(let j=0;j<cellStride;j++)cellRow[j]=cells[i*cellStride+j];
    for(let j=0;j<17;j++)cellData[i*17+j]=j<cellStride?cellRow[j]:Number.NaN;
    const size=cellRow[3];
-   transform.position.set(...displayPosition(cellRow[0],cellRow[1],cellRow[2]) as [number,number,number]);transform.scale.set(size*.95,.025,size*.95);transform.updateMatrix();mesh.setMatrixAt(i,transform.matrix);
-   color.setRGB(...cellColor(mode,cellRow));mesh.setColorAt(i,color);
+   // Cells are axis-aligned boxes: write scale + translation straight into
+   // the column-major instance matrix instead of composing an Object3D.
+   const [px,py,pz]=displayPosition(cellRow[0],cellRow[1],cellRow[2]);const m=matrices,o=i*16;
+   m[o]=size*.95;m[o+1]=0;m[o+2]=0;m[o+3]=0;m[o+4]=0;m[o+5]=.025;m[o+6]=0;m[o+7]=0;m[o+8]=0;m[o+9]=0;m[o+10]=size*.95;m[o+11]=0;m[o+12]=px;m[o+13]=py;m[o+14]=pz;m[o+15]=1;
+   const [r,g,b]=cellColor(mode,cellRow);color.setRGB(r,g,b);instanceColors[i*3]=color.r;instanceColors[i*3+1]=color.g;instanceColors[i*3+2]=color.b;
   }
-  mesh.count=cellCount;mesh.instanceMatrix.needsUpdate=true;if(mesh.instanceColor)mesh.instanceColor.needsUpdate=true;mesh.computeBoundingSphere();
+  mesh.count=cellCount;mesh.instanceMatrix.clearUpdateRanges();mesh.instanceMatrix.addUpdateRange(0,cellCount*16);mesh.instanceMatrix.needsUpdate=true;
+  mesh.instanceColor!.clearUpdateRanges();mesh.instanceColor!.addUpdateRange(0,cellCount*3);mesh.instanceColor!.needsUpdate=true;
+  // Bounds are only needed to raycast a click; Three recomputes them lazily.
+  mesh.boundingSphere=null;
   onStats({status:'available',source_points:meta.n_points??meta.points.count,source_cells:meta.total_leaves??meta.cells.count,rendered_points:history.pointCount,accumulated_scans:history.frameCount,rendered_cells:cellCount,sampling_active:clamped.truncated||(meta.n_points??0)>pointCount||(meta.total_leaves??0)>cellCount});
   if(follow&&meta.pose?.length===16){const target=new THREE.Vector3(...displayPosition(meta.pose[3],meta.pose[7],meta.pose[11]));const delta=target.clone().sub(controls.target);camera.position.add(delta);controls.target.copy(target);}
   // Range rings sit on the vehicle, through the same world->display mapping.
@@ -68,7 +84,8 @@
   const pos=pointGeo.getAttribute('position') as THREE.BufferAttribute,col=pointGeo.getAttribute('color') as THREE.BufferAttribute;
   pos.clearUpdateRanges();pos.addUpdateRange(0,n*3);pos.needsUpdate=true;
   col.clearUpdateRanges();col.addUpdateRange(0,n*3);col.needsUpdate=true;
-  pointGeo.computeBoundingSphere();
+  // No bounds pass: computeBoundingSphere scans the whole 2M-point buffer
+  // (ignoring drawRange) and the map cloud is never frustum culled.
  }
  function roundSprite(){
   const size=64,canvas=document.createElement('canvas');canvas.width=canvas.height=size;
@@ -85,8 +102,10 @@
    scene=new THREE.Scene();scene.background=new THREE.Color('#0b1219');camera=new THREE.PerspectiveCamera(55,1,.05,3000);camera.position.set(-32,25,36);controls=new OrbitControls(camera,renderer.domElement);controls.enableDamping=true;
    scene.add(new THREE.GridHelper(200,40,0x2d4b5e,0x172b39));
    pointGeo=new THREE.BufferGeometry();pointGeo.setAttribute('position',new THREE.BufferAttribute(position,3).setUsage(THREE.DynamicDrawUsage));pointGeo.setAttribute('color',new THREE.BufferAttribute(colors,3).setUsage(THREE.DynamicDrawUsage));pointGeo.setDrawRange(0,0);
-   points=new THREE.Points(pointGeo,new THREE.PointsMaterial({size:.09,sizeAttenuation:true,vertexColors:true,map:roundSprite(),alphaTest:.5}));scene.add(points);
-   mesh=new THREE.InstancedMesh(new THREE.BoxGeometry(1,1,1),new THREE.MeshBasicMaterial(),capacity);mesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage);mesh.count=0;scene.add(mesh);
+   points=new THREE.Points(pointGeo,new THREE.PointsMaterial({size:.09,sizeAttenuation:true,vertexColors:true,map:roundSprite(),alphaTest:.5}));points.frustumCulled=false;scene.add(points);
+   mesh=new THREE.InstancedMesh(new THREE.BoxGeometry(1,1,1),new THREE.MeshBasicMaterial(),capacity);mesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage);mesh.frustumCulled=false;
+   mesh.instanceColor=new THREE.InstancedBufferAttribute(new Float32Array(capacity*3),3).setUsage(THREE.DynamicDrawUsage);
+   matrices=mesh.instanceMatrix.array as Float32Array;instanceColors=mesh.instanceColor.array as Float32Array;mesh.count=0;scene.add(mesh);
    rings=new THREE.Group();
    for(const [radius,color] of [[10,0x33d9f2],[30,0x4dd980],[60,0xffb340],[100,0xd966d9]] as [number,number][]){
     const ring=new THREE.Mesh(new THREE.RingGeometry(radius-0.25,radius+0.25,128),new THREE.MeshBasicMaterial({color,transparent:true,opacity:0.5,side:THREE.DoubleSide}));
@@ -96,7 +115,7 @@
    const resize=new ResizeObserver(()=>{const w=host.clientWidth,h=host.clientHeight;renderer.setSize(w,h);camera.aspect=w/h;camera.updateProjectionMatrix();});resize.observe(host);
    let animation=0,frames=0,last=performance.now(),duration=0;
    const draw=()=>{animation=requestAnimationFrame(draw);const start=performance.now();controls.update();renderer.render(scene,camera);duration+=performance.now()-start;frames++;if(start-last>1000){onStats({fps:frames*1000/(start-last),latency_ms:duration/frames,entities:mesh.count+pointGeo.drawRange.count});last=start;frames=0;duration=0;}};draw();
-   const pick=(event:MouseEvent)=>{const rect=host.getBoundingClientRect();const ray=new THREE.Raycaster();ray.setFromCamera(new THREE.Vector2((event.clientX-rect.left)/rect.width*2-1,-(event.clientY-rect.top)/rect.height*2+1),camera);const hit=ray.intersectObject(mesh)[0];if(hit?.instanceId!==undefined){const r=cellData.subarray(hit.instanceId*17,hit.instanceId*17+17);const num=(i:number)=>Number.isFinite(r[i])?r[i]:null;const size=num(3);const level=size!=null?Math.max(0,Math.min(3,Math.round(Math.log2(size/0.05)))):null;onInspect({x:num(0),y:num(1),elevation:num(2),resolution:size,lod_level:level,semantic_class:num(4),motion:num(5),quality:num(6),drivable_evidence:num(7),utility:num(8),semantic_confidence:num(9),ground_evidence:num(10),terrain_confidence:num(11),geometry_complexity:num(12),point_count:num(13),height_min:num(14),height_max:num(15),height_variance:num(16)});}};
+   const pick=(event:MouseEvent)=>{const rect=host.getBoundingClientRect();const ray=new THREE.Raycaster();ray.setFromCamera(new THREE.Vector2((event.clientX-rect.left)/rect.width*2-1,-(event.clientY-rect.top)/rect.height*2+1),camera);const hit=ray.intersectObject(mesh)[0];if(hit?.instanceId!==undefined){const r=cellData.subarray(hit.instanceId*17,hit.instanceId*17+17);const num=(i:number)=>Number.isFinite(r[i])?r[i]:null;const size=num(3);const level=size!=null?Math.max(0,Math.min(3,Math.round(Math.log2(size/0.05)))):null;onInspect({x:num(0),y:num(1),elevation:num(2),resolution:size,lod_level:level,semantic_class:num(4),motion:num(5),quality:num(6),drivable_evidence:num(7),utility:num(8),semantic_confidence:num(9),ground_evidence:num(10),terrain_confidence:num(11),geometry_complexity:num(12),point_count:num(13),height_min:num(14),height_max:num(15),height_variance:num(16),physical_layers:inspectionFrame?decodePhysicalLayers(inspectionFrame,hit.instanceId):null});}};
    host.addEventListener('click',pick);
    const lost=(event:Event)=>{event.preventDefault();failure='WebGL context lost. Switch workspace and back, or reload the window to restore rendering — mapping continues in the backend.';onStats({status:'context_lost'});};
    const restored=()=>{failure='';lastGeneration=-1;lastIndex=-1;update();onStats({status:'available'});};

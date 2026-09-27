@@ -12,10 +12,13 @@ A unit test cannot catch that. Only a test that crosses the protocol can.
 from __future__ import annotations
 
 import json
+import os
 import shutil
 import subprocess
+import tempfile
 import unittest
 from pathlib import Path
+from unittest.mock import patch
 
 import numpy as np
 
@@ -27,6 +30,10 @@ REPO = Path(__file__).resolve().parents[1]
 
 def _engine() -> Path | None:
     """The benchmark engine binary, wherever this checkout put it."""
+    override = os.environ.get("VEYRA_BENCHMARK_BINARY", "").strip()
+    if override:
+        candidate = Path(override).expanduser().resolve()
+        return candidate if candidate.is_file() else None
     for candidate in (
         REPO / "build" / "apps" / "benchmark" / "veyra_benchmark",
         REPO / "build" / "Release" / "apps" / "benchmark" / "veyra_benchmark",
@@ -36,6 +43,15 @@ def _engine() -> Path | None:
             return candidate
     found = shutil.which("veyra_benchmark")
     return Path(found) if found else None
+
+
+class EngineSelectionTests(unittest.TestCase):
+    def test_layer_tests_honor_fresh_binary_instead_of_stale_build(self):
+        with tempfile.TemporaryDirectory(prefix="veyra-layer-binary-") as directory:
+            fresh = Path(directory) / "veyra_benchmark"
+            fresh.touch()
+            with patch.dict(os.environ, {"VEYRA_BENCHMARK_BINARY": str(fresh)}):
+                self.assertEqual(_engine(), fresh)
 
 
 def _frame(
@@ -587,6 +603,61 @@ class HeightAboveGroundStage(unittest.TestCase):
             np.all(both_nan | close),
             f"{int((~(both_nan | close)).sum())} of {count} points disagree",
         )
+
+    def test_neighbour_fallback_matches_per_return_nanmedian(self) -> None:
+        """The one-ring fallback is computed per cell, not per return.
+
+        It must still equal, bit for bit, np.nanmedian over the eight
+        neighbour cell heights of every return that lacks its own ground
+        cell, including the all-NaN (no neighbour) case, and must not emit a
+        warning per all-NaN row.
+        """
+        import warnings
+
+        from perception.ground import height_above_ground
+
+        rng = np.random.default_rng(20260927)
+        count = 6000
+        xy = rng.uniform(-30.0, 30.0, (count, 2))
+        z = rng.normal(0.0, 0.3, count)
+        points = np.column_stack([xy, z])
+        # Sparse, patchy ground so many cells need (or lack) a neighbour.
+        mask = (rng.random(count) < 0.35) & (np.hypot(xy[:, 0], xy[:, 1]) < 22.0)
+
+        cell = 2.0
+        with warnings.catch_warnings():
+            warnings.simplefilter("error")
+            hag = height_above_ground(points, mask, cell_size_m=cell)
+
+        keys = np.floor(xy / cell).astype(np.int64)
+        cell_height: dict[tuple[int, int], float] = {}
+        for key in np.unique(keys[mask], axis=0):
+            ground_here = mask & (keys[:, 0] == key[0]) & (keys[:, 1] == key[1])
+            if int(ground_here.sum()) >= 3:
+                cell_height[(int(key[0]), int(key[1]))] = float(
+                    np.median(z[ground_here])
+                )
+        expected = np.full(count, np.nan)
+        fallbacks = 0
+        for index in range(count):
+            own = (int(keys[index, 0]), int(keys[index, 1]))
+            if own in cell_height:
+                expected[index] = z[index] - cell_height[own]
+                continue
+            neighbours = [
+                cell_height.get((own[0] + dx, own[1] + dy), np.nan)
+                for dx in (-1, 0, 1)
+                for dy in (-1, 0, 1)
+                if (dx, dy) != (0, 0)
+            ]
+            with warnings.catch_warnings():
+                warnings.simplefilter("ignore", category=RuntimeWarning)
+                expected[index] = z[index] - np.nanmedian(neighbours)
+            fallbacks += 1
+
+        self.assertGreater(fallbacks, 500)
+        self.assertTrue(np.isnan(expected).any(), "cover the no-neighbour case")
+        np.testing.assert_array_equal(hag, expected.astype(np.float32))
 
     def test_median_resists_leaked_non_ground_returns(self) -> None:
         from perception.ground import height_above_ground

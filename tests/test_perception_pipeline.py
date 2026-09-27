@@ -337,7 +337,58 @@ class PerceptionPipelineTests(unittest.TestCase):
         np.testing.assert_array_equal(
             output.frame.motion_state, ["static", "moving", "moving"]
         )
-        np.testing.assert_allclose(output.frame.observation_quality, [0.9, 0.7, 0.0])
+        np.testing.assert_allclose(output.frame.observation_quality, [0.9, 0.7, 0.8])
+
+    def test_missing_terrain_support_does_not_erase_weak_non_ground_semantics(self):
+        class WeakObjectProvider(_SemanticProvider):
+            def infer(self, points, labels=None):
+                return replace(
+                    super().infer(points, labels),
+                    semantic_confidence=np.array([0.9, 0.8, 0.2], dtype=np.float32),
+                )
+
+        class UnsupportedTerrain(_TerrainAnalyzer):
+            def analyze(self, points, ground):
+                return replace(
+                    super().analyze(points, ground),
+                    confidence=np.zeros(3, dtype=np.float32),
+                )
+
+        output = PerceptionPipeline(
+            semantic_provider=WeakObjectProvider(),
+            ground_segmenter=_GroundSegmenter(),
+            terrain_analyzer=UnsupportedTerrain(),
+            temporal_enabled=False,
+        ).process(_frame())
+
+        # The actual ground stage, not the input's all-false mask, owns this gate.
+        np.testing.assert_array_equal(output.frame.ground, [True, True, False])
+        np.testing.assert_allclose(output.frame.observation_quality, [0.0, 0.0, 0.2])
+        np.testing.assert_array_equal(output.frame.terrain_confidence, [0.0, 0.0, 0.0])
+        self.assertEqual(output.frame.drivable[2], "unknown")
+        self.assertEqual(output.status.temporal, "disabled")
+        self.assertEqual(output.frame.motion_probability[2], 0.0)
+
+    def test_without_terrain_quality_remains_semantic_confidence(self):
+        output = PerceptionPipeline(
+            semantic_provider=_SemanticProvider(),
+            ground_segmenter=_GroundSegmenter(),
+            terrain_enabled=False,
+            temporal_enabled=False,
+        ).process(_frame())
+        np.testing.assert_allclose(output.frame.observation_quality, [0.9, 0.8, 0.8])
+        self.assertEqual(output.status.terrain, "disabled")
+
+    def test_unknown_semantics_do_not_gain_quality_from_non_ground_status(self):
+        output = PerceptionPipeline(
+            semantic_provider=GroundTruthSemanticProvider(),
+            ground_segmenter=_GroundSegmenter(),
+            terrain_analyzer=_TerrainAnalyzer(),
+            temporal_enabled=False,
+        ).process(_frame())
+        np.testing.assert_array_equal(output.frame.semantic_class, [0, 0, 0])
+        np.testing.assert_array_equal(output.frame.observation_quality, [0.0, 0.0, 0.0])
+        self.assertEqual(output.frame.drivable[2], "unknown")
 
     def test_unavailable_optional_backends_are_reported_without_fabricated_evidence(
         self,

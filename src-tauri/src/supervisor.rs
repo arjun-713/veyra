@@ -565,9 +565,15 @@ mod tests {
         !supervisor.is_running()
     }
 
-    #[cfg(target_os = "linux")]
+    /// Portable across Linux and macOS: `ps -p` also lists unreaped zombies,
+    /// so a stopped child must be both terminated and reaped to count as gone.
+    #[cfg(unix)]
     fn pid_alive(pid: u32) -> bool {
-        std::path::Path::new(&format!("/proc/{pid}")).exists()
+        std::process::Command::new("ps")
+            .args(["-p", &pid.to_string()])
+            .stdout(std::process::Stdio::null())
+            .status()
+            .is_ok_and(|status| status.success())
     }
 
     #[test]
@@ -599,7 +605,7 @@ mod tests {
     }
 
     #[test]
-    #[cfg(target_os = "linux")]
+    #[cfg(unix)]
     fn stop_leaves_no_orphan_and_supervisor_restarts() {
         let supervisor = RuntimeSupervisor::new(test_repo());
         supervisor.start().expect("start");
@@ -621,7 +627,7 @@ mod tests {
     }
 
     #[test]
-    #[cfg(target_os = "linux")]
+    #[cfg(unix)]
     fn external_crash_is_reaped_and_recovered() {
         let supervisor = RuntimeSupervisor::new(test_repo());
         supervisor.start().expect("start");

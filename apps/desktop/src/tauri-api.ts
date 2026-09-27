@@ -61,6 +61,7 @@ export function createTauriAPI():TauriDesktopAPI{
   saveConfig:config=>saveJsonFile('Veyra configuration',config),
   openReport:()=>openJsonFile('Open Veyra benchmark report'),
   exportReport:report=>saveJsonFile('Veyra benchmark',report),
+  loadBenchmarkArtifact:path=>invoke<Json>('read_benchmark_artifact',{path}),
   diagnostics:async()=>{const value=await invoke<Json>('export_diagnostics');return saveJsonFile('Veyra diagnostics',value);},
   screenshot:saveRendererScreenshot,
   restart:()=>invoke<Json>('runtime_command',{command:'restart',args:{}}),

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import copy
+import hashlib
 import json
 import queue
 import subprocess
@@ -48,6 +49,50 @@ COMMANDS = {
     "presets": (),
     "diagnostics": (),
 }
+BENCHMARK_ARTIFACT_LIMIT = 32 * 1024 * 1024
+BENCHMARK_REPORT_SCHEMA = 2
+
+
+def benchmark_completion_event(output: Path, csv: Path) -> dict:
+    """Announce a finished benchmark artifact without truncating its evidence.
+
+    Runtime events are capped at 1 MiB, while a complete schema-v2 report grows
+    with frame count. The event therefore identifies the authoritative file
+    (path, size and SHA-256); the desktop loads that file intact instead of
+    receiving a lossy policy summary. ``summary`` is for event logs only.
+    """
+    raw = output.read_bytes()
+    if len(raw) > BENCHMARK_ARTIFACT_LIMIT:
+        raise RuntimeError("benchmark artifact exceeds UI import limit")
+    report = json.loads(raw)
+    if report.get("schema_version") != BENCHMARK_REPORT_SCHEMA:
+        raise RuntimeError(
+            f"benchmark wrote unsupported report schema {report.get('schema_version')!r}"
+        )
+    if not isinstance(report.get("provenance"), dict) or not isinstance(
+        report.get("policies"), dict
+    ):
+        raise RuntimeError("benchmark report is missing provenance or policies")
+    provenance = report["provenance"]
+    return {
+        "type": "benchmark",
+        "state": "complete",
+        "artifact": str(output),
+        "csv_artifact": str(csv),
+        "artifact_bytes": len(raw),
+        "artifact_sha256": hashlib.sha256(raw).hexdigest(),
+        "report_schema_version": report["schema_version"],
+        "summary": {
+            "dataset": report.get("dataset"),
+            "sequence": report.get("sequence"),
+            "input_frames": report.get("input_frames"),
+            "policies": sorted(report["policies"]),
+            "git_sha": provenance.get("git_sha"),
+            "quality_resource_status": (report.get("quality_resource") or {}).get(
+                "status"
+            ),
+        },
+    }
 
 
 class ProductRuntime:
@@ -515,7 +560,11 @@ class ProductRuntime:
             args.get("warmup_frames", 0), "warmup_frames", 0, count - 1, True
         )
         if count > self.status()["frames"] - start:
-            raise ValueError("benchmark frame range exceeds sequence")
+            raise ValueError(
+                f"benchmark requests {count} frames from frame {start}, but this "
+                f"session provides {self.status()['frames']} (the playback frame "
+                "limit applies unless full_sequence is enabled)"
+            )
         profile = args.get("hardware_profile", "auto")
         if not isinstance(profile, str) or len(profile) > 128:
             raise ValueError("invalid hardware profile")
@@ -567,30 +616,7 @@ class ProductRuntime:
                     code = self._benchmark.wait()
                 if code:
                     raise RuntimeError(log.read_text(errors="replace")[-4096:])
-                if output.stat().st_size > 32 * 1024 * 1024:
-                    raise RuntimeError("benchmark artifact exceeds UI import limit")
-                report = json.loads(output.read_text())
-                # Full CI artifacts remain files; only a bounded policy summary travels over telemetry.
-                self.outbox.publish(
-                    {
-                        "type": "benchmark",
-                        "state": "complete",
-                        "artifact": str(output),
-                        "csv_artifact": str(csv),
-                        "report": {
-                            "schema_version": report["schema_version"],
-                            "dataset": report["dataset"],
-                            "sequence": report["sequence"],
-                            "policies": {
-                                name: {
-                                    "aggregate": value["aggregate"],
-                                    "quality": value["runs"][-1].get("quality"),
-                                }
-                                for name, value in report["policies"].items()
-                            },
-                        },
-                    }
-                )
+                self.outbox.publish(benchmark_completion_event(output, csv))
             except Exception as error:  # noqa: BLE001 - worker boundary reports benchmark failure.
                 self.outbox.publish(
                     {"type": "benchmark", "state": "error", "error": str(error)}

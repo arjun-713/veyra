@@ -22,7 +22,7 @@ from typing import Any, Protocol
 
 import numpy as np
 
-from benchmarks.protocol import PROTOCOL_VERSION, frame_records
+from benchmarks.protocol import PROTOCOL_VERSION, BinaryFrameEncoder, frame_records
 from datasets.common.adapter import DatasetAdapter
 from perception.pipeline import PerceptionPipeline
 
@@ -49,7 +49,8 @@ class RuntimeConfig:
 # Seventeen float32 per display cell (visualization schema v3); 100,000
 # cells is the engine's budget ceiling.
 _CELL_ROW_BYTES = 17 * 4
-_MAX_BINARY_CELL_BYTES = 100000 * _CELL_ROW_BYTES
+_PHYSICAL_LAYER_ROW_BYTES = 15 * 4
+_MAX_BINARY_CELL_BYTES = 100000 * (_CELL_ROW_BYTES + _PHYSICAL_LAYER_ROW_BYTES)
 
 
 def load_runtime_config(path: str | Path) -> RuntimeConfig:
@@ -132,6 +133,8 @@ class PersistentMapEngine:
         self._responses = queue.Queue(maxsize=2)
         self._stderr_tail = deque(maxlen=16)
         self._lock = threading.RLock()
+        self._frame_encoder = BinaryFrameEncoder()
+        self._physical_layers_version = None
 
     def _start(self) -> dict[str, Any] | None:
         if not self.executable.is_file():
@@ -184,6 +187,7 @@ class PersistentMapEngine:
         if ready.get("status") != "ready":
             self.close()
             return ready
+        self._physical_layers_version = ready.get("physical_layers_version")
         return None
 
     @property
@@ -297,6 +301,9 @@ class PersistentMapEngine:
         writer.start()
         writer.join(self.timeout_s)
         if writer.is_alive():
+            # The abandoned writer may still reference the reused frame
+            # buffer; give later frames a fresh encoder rather than overwrite it.
+            self._frame_encoder = BinaryFrameEncoder()
             self.close()
             return {"status": "unavailable", "reason": "map engine write timed out"}
         if error:
@@ -328,22 +335,25 @@ class PersistentMapEngine:
 
         with self._lock:
             if self.transport == "binary":
-                from benchmarks.protocol import binary_frame_bytes
-
-                command = binary_frame_bytes(frame)
+                # The record aliases the encoder's reused buffer; _exchange
+                # finishes (or abandons, see there) the write before returning.
+                command = self._frame_encoder.encode(frame)
+                known = self._frame_encoder.known_drivability_points
             else:
                 command = "".join(frame_records(frame))
+                known = None
             response = self._command(command)
         if response.get("status") == "unavailable":
             return response
-        known = np.isin(frame.drivable, ("drivable", "non_drivable"))
+        if known is None:
+            known = np.count_nonzero(
+                np.isin(frame.drivable, ("drivable", "non_drivable"))
+            )
         return {
             "status": "available",
             "source": "veyra_persistent_engine",
             "input_points": int(frame.points.shape[0]),
-            "unknown_traversability_points": int(
-                frame.points.shape[0] - np.count_nonzero(known)
-            ),
+            "unknown_traversability_points": int(frame.points.shape[0] - known),
             "input": response.get("input", {}),
             "snapshot": response.get("snapshot", {}),
             "metrics": _viewer_metrics(response.get("metrics", {})),
@@ -373,25 +383,46 @@ class PersistentMapEngine:
         ``cells_binary`` holds ``cell_count`` rows of seventeen little-endian
         float32 in the visualization schema-v3 cell layout (see
         runtime/visualization.py): the frame's cell section, unparsed.
+        Negotiated layer support adds a separate ``physical_layers_binary``
+        buffer in exactly the same sampled order, without changing those rows.
         """
 
         with self._lock:
             clipped = max(1, min(int(budget), 100000))
-            response = self._command(f"MB {clipped}\n")
+            unavailable = self._start() if self._process is None else None
+            if unavailable is not None:
+                return unavailable
+            command = "ML" if self._physical_layers_version == 1 else "MB"
+            response = self._exchange(f"{command} {clipped}\n")
         payload = response.get("binary")
         if response.get("status") != "available" or not isinstance(payload, bytes):
             return {
                 "status": "unavailable",
                 "reason": response.get("reason", "map cells unavailable"),
             }
-        if len(payload) != response.get("cell_count", -1) * _CELL_ROW_BYTES:
+        count = response.get("cell_count")
+        if (
+            isinstance(count, bool)
+            or not isinstance(count, int)
+            or not 0 <= count <= clipped
+        ):
+            return {"status": "unavailable", "reason": "map cell count is invalid"}
+        cell_bytes = count * _CELL_ROW_BYTES
+        has_layers = response.get("physical_layers_version") == 1
+        expected_bytes = cell_bytes + (
+            count * _PHYSICAL_LAYER_ROW_BYTES if has_layers else 0
+        )
+        if len(payload) != expected_bytes:
             return {"status": "unavailable", "reason": "map cells size mismatch"}
-        return {
+        result = {
             "status": "available",
             "cell_count": response["cell_count"],
             "total_leaves": response.get("total_leaves", 0),
-            "cells_binary": payload,
+            "cells_binary": payload[:cell_bytes],
         }
+        if has_layers:
+            result["physical_layers_binary"] = payload[cell_bytes:]
+        return result
 
     def set_governor_override(self, mode: str) -> dict[str, Any]:
         if mode not in {"automatic", "disabled", "conserve"}:

@@ -5,6 +5,7 @@
 #include <cstdint>
 #include <filesystem>
 #include <optional>
+#include <string_view>
 #include <unordered_map>
 #include <vector>
 
@@ -28,6 +29,8 @@ struct DecisionInput {
   double observation_quality = 0.0;
   double point_density = 0.0;
   double range_rate_mps = 0.0;
+  // Unified taxonomy identity; unknown/unrecognized IDs never trigger semantic admission.
+  std::uint32_t semantic_class = 0;
 };
 
 struct PolicyDecision {
@@ -39,20 +42,41 @@ struct PolicyDecision {
   ResolutionAction action = ResolutionAction::Keep;
 };
 
+enum class UtilityDecisionReason : std::size_t {
+  ProtectedBaseline, QualityGate, DensityGate, StateCapacity, Cooldown,
+  ScoreBelowSplit, InsufficientDwell, LevelChangeLimit, Promoted,
+  SafetyPromotion, PredictivePromotion, RetainedPromotion, CriticalSemanticPromotion, Count
+};
+inline constexpr std::array<std::string_view, static_cast<std::size_t>(UtilityDecisionReason::Count)>
+    kUtilityDecisionReasons{"protected_baseline", "quality_gate", "density_gate", "state_capacity",
+                            "cooldown", "score_below_split", "insufficient_dwell", "level_change_limit",
+                            "promoted", "safety_promotion", "predictive_promotion", "retained_promotion",
+                            "critical_semantic_promotion"};
+
 // Fixed-size, opt-in aggregates for benchmark diagnostics. Transition bins are
 // indexed by active, requested, and baseline level respectively.
 struct PromotionTelemetry {
   std::uint64_t decisions = 0;
   std::uint64_t gate_passed = 0;
   std::uint64_t gate_failed = 0;
+  std::uint64_t quality_failed = 0;
+  std::uint64_t density_failed = 0;
+  // Quality and density on [0,1]; no per-observation trace retention.
+  std::array<std::array<std::uint64_t, 20>, 2> support_histogram{};
+  // Unified learning IDs 0..19; index 20 is an unrecognized ID, not a class.
+  std::array<std::uint64_t, 21> class_decisions{};
+  std::array<std::uint64_t, 21> class_gate_failed{};
+  std::array<std::uint64_t, static_cast<std::size_t>(UtilityDecisionReason::Count)> decision_reasons{};
   std::uint64_t safety_decisions = 0;
   std::uint64_t predictive_decisions = 0;
+  std::uint64_t critical_semantic_decisions = 0;
   std::uint64_t budget_suppressed = 0;
   std::uint64_t governor_actions_requested = 0;
   std::uint64_t governor_actions_applied = 0;
   std::array<std::array<std::array<std::uint64_t, 4>, 4>, 4> promotion_transitions{};
   std::array<double, 5> signal_raw_sum{};
   std::array<double, 5> signal_weighted_sum{};
+  std::array<double, 5> signal_effective_weighted_sum{};
   std::array<double, 5> signal_min{};
   std::array<double, 5> signal_max{};
   // Twenty equal-width bins on [0,1], with 1.0 in the final bin.
@@ -72,6 +96,17 @@ struct PromotionTelemetry {
 };
 
 struct UtilityConfig {
+  // Canonical IDs 0..19. Physical priorities, not confidence in any known class.
+  std::array<double, 20> semantic_class_importance{
+      0.0, 0.8, 0.7, 0.7, 0.8, 0.8, 1.0, 1.0, 1.0, 0.05,
+      0.05, 0.10, 0.10, 0.35, 0.35, 0.15, 0.50, 0.15, 0.90, 0.80};
+  double critical_semantic_threshold = 0.80;
+  double critical_semantic_min_confidence = 0.80;
+  // Support in one 40cm policy region per scan; inverse-square range prior
+  // with a minimum distinct-return requirement to reject isolated far noise.
+  double density_reference_range_m = 10.0;
+  double density_reference_count = 16.0;
+  double density_min_expected_count = 3.0;
   double geometry_weight = 0.20;
   double semantic_weight = 0.30;
   double motion_weight = 0.15;
@@ -92,6 +127,11 @@ struct UtilityConfig {
   std::uint64_t state_ttl_frames = 120;
 };
 
+[[nodiscard]] double semantic_importance(const UtilityConfig& config,
+                                         std::uint32_t semantic_class, double confidence);
+[[nodiscard]] double normalized_point_density(const UtilityConfig& config,
+                                              std::size_t point_count, double range_m);
+
 struct PolicyConfig {
   LodMode mode = LodMode::DistanceLod;
   std::array<double, 3> distance_boundaries_m{10.0, 30.0, 60.0};
@@ -107,6 +147,7 @@ class LodPolicy {
  public:
   explicit LodPolicy(PolicyConfig config = PolicyConfig::defaults());
   [[nodiscard]] PolicyDecision decide(const DecisionInput& input);
+  [[nodiscard]] const UtilityConfig& utility_config() const noexcept { return config_.utility; }
   // Explicit frame IDs make hysteresis independent of point count. IDs must increase.
   void begin_frame(std::uint64_t frame_id);
   void reset() noexcept;
@@ -138,6 +179,7 @@ class LodPolicy {
     double frame_score = 0.0;
     bool frame_predictive = false;
     bool frame_safety = false;
+    bool frame_critical_semantic = false;
     int frame_goal = 3;
     bool frame_promotion_counted = false;
   };

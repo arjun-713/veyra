@@ -1,12 +1,14 @@
 import type {Json,WireFrame} from '../core';
 import {defaultRuntimeConfig} from './runtime-config.ts';
+import {comparisonScope,qualityResourceRows} from './benchmark-report.ts';
+import {PUBLIC_POLICY_LABELS} from './benchmark-quality.ts';
 export const classNames=['Unknown','Car','Bicycle','Motorcycle','Truck','Other vehicle','Person','Bicyclist','Motorcyclist','Road','Parking','Sidewalk','Other ground','Building','Fence','Vegetation','Trunk','Terrain','Pole','Traffic sign'];
 export const datasetFormats=[['generic','Generic manifest'],['semanticposs','SemanticPOSS'],['semantickitti','SemanticKITTI'],['rellis3d','RELLIS-3D']] as const;
 export interface DashboardEvent {time:number;message:string;kind:string}
 export function defaultSessionConfig():Json{return defaultRuntimeConfig();}
 export function evidenceAvailable(value:unknown){return typeof value==='string'&&value.length>0&&!['unavailable','disabled','skipped','invalid'].includes(value);}
 export function profileConfig(current:Json,name:string):Json{
- if(name==='LowResource'){const low=defaultRuntimeConfig();return {...current,preset:name,map:{...current.map,...low.map},playback:{...current.playback,...low.playback},visualization:low.visualization};}
+ if(name==='LowResource'){const low=defaultRuntimeConfig();return {...current,preset:name,map:{...current.map,...low.map,policy:current.map?.policy??low.map.policy},playback:{...current.playback,...low.playback},visualization:low.visualization};}
  const profiles:Record<string,Json>={Performance:{resource_profile:'performance',visualization:{point_budget:20000,cell_budget:10000,update_hz:10}},Balanced:{resource_profile:'balanced',visualization:{point_budget:50000,cell_budget:20000,update_hz:15}},Quality:{resource_profile:'quality',visualization:{point_budget:100000,cell_budget:50000,update_hz:30}}};
  const selected=profiles[name]??profiles.Balanced;
  return {...current,preset:name,map:{...(current.map??{}),resource_profile:selected.resource_profile,governor_override:'automatic'},visualization:selected.visualization};
@@ -100,6 +102,7 @@ export function lastMeasuredPrefix(isStale:boolean):string{return isStale?'LAST 
 // merely because the runtime paused.
 export function measurementDisplay(state:unknown):{label:string;sub:string}{
  if(state==='running')return {label:'MEASURING',sub:'frames processing; warmup excluded per artifact'};
+ if(state==='loading')return {label:'LOADING REPORT',sub:'benchmark finished; reading the complete artifact'};
  if(state==='complete')return {label:'COMPLETE',sub:'results below are the last valid measurement window'};
  if(state==='failed')return {label:'FAILED',sub:'see error banner; no valid measurement'};
  return {label:'IDLE',sub:'no measurement running'};
@@ -144,12 +147,15 @@ export function recordEvent(events:DashboardEvent[],event:Json,now=Date.now()):D
  if(events.at(-1)?.message===message)return events;
  return [...events,{time:now,message,kind:event.error?'error':event.type}].slice(-200);
 }
+// Compact four-policy summary for the Overview. Same canonical rows as the
+// Evaluation comparison: logical map bytes (not process RSS) and the map-update
+// percentile that is reliable for every policy (p95 at >=20 samples, else p50).
 export function comparisonMetrics(report:Json|null){
- const p=(report?.mapping??report)?.policies;
- const uniform=p?.uniform5?.aggregate,adaptive=(p?.utility_lod??p?.distance_lod)?.aggregate;
- const memoryUniform=uniform?.peak_rss_bytes??null,memoryAdaptive=adaptive?.peak_rss_bytes??null;
- const latencyUniform=uniform?.stage_latency_ns?.map_update?.p95,latencyAdaptive=adaptive?.stage_latency_ns?.map_update?.p95;
- return {memoryUniform,memoryAdaptive,memoryReduction:typeof memoryUniform==='number'&&memoryUniform>0&&typeof memoryAdaptive==='number'?(1-memoryAdaptive/memoryUniform)*100:null,latencyUniform:typeof latencyUniform==='number'?latencyUniform/1e6:null,latencyAdaptive:typeof latencyAdaptive==='number'?latencyAdaptive/1e6:null,adaptivePolicy:p?.utility_lod?'Utility LOD':'Distance LOD'};
+ const rows=qualityResourceRows(report),scope=comparisonScope(report);
+ const uniform=rows.find(row=>row.policy==='uniform5')?.logicalBytes??null;
+ const entries=rows.map(row=>({policy:row.policy,label:PUBLIC_POLICY_LABELS[row.policy],memory:row.logicalBytes,latency:scope.latencyMetric==='p95'?row.mapP95Ms:row.mapP50Ms,memoryReduction:uniform!==null&&uniform>0&&row.logicalBytes!==null&&row.policy!=='uniform5'?(1-row.logicalBytes/uniform)*100:null}));
+ const max=(values:(number|null)[])=>Math.max(0,...values.filter((value):value is number=>value!==null));
+ return {rows:entries,latencyMetric:scope.latencyMetric,memoryMax:max(entries.map(entry=>entry.memory)),latencyMax:max(entries.map(entry=>entry.latency)),sameInput:scope.sameInput};
 }
 export function summarizeVisual(frame:WireFrame|null){
  if(!frame||!evidenceAvailable(frame.metadata.layers?.semantic))return [];
@@ -218,7 +224,7 @@ export function inspectorRows(cell:Json):InspectorRow[]{
   {key:'xy',label:'XY (m)',value:typeof cell.x==='number'&&typeof cell.y==='number'&&Number.isFinite(cell.x)&&Number.isFinite(cell.y)?`${f(cell.x)} , ${f(cell.y)}`:'Unavailable',hint:'World-aligned cell center in odom'},
   {key:'resolution',label:'Resolution',value:resolutionLabel(cell.resolution),hint:'Cell edge length'},
   {key:'lod',label:'LOD level',value:lodLabel(cell.lod_level,cell.resolution),hint:'L0 5 cm · L1 10 cm · L2 20 cm · L3 40 cm'},
-  {key:'z',label:'Height mean (m)',value:f(cell.elevation),hint:'Fused elevation of this cell'},
+  {key:'z',label:'Pooled height mean (m)',value:f(cell.elevation),hint:'Average of all layers; not necessarily an observed surface'},
   {key:'zmin',label:'Height min (m)',value:f(cell.height_min),hint:'Lowest observed height'},
   {key:'zmax',label:'Height max (m)',value:f(cell.height_max),hint:'Highest observed height'},
   {key:'zvar',label:'Height variance',value:f(cell.height_variance,5),hint:'Surface roughness signal'},
@@ -230,6 +236,16 @@ export function inspectorRows(cell:Json):InspectorRow[]{
   {key:'motion',label:'Motion',value:motionLabel(cell.motion),hint:'From temporal tracking'},
   {key:'quality',label:'Observation quality',value:f(cell.quality),hint:'Gates UtilityLOD promotion'},
   {key:'utility',label:'Utility score',value:f(cell.utility),hint:'Promotion signal 0–1'},
+  ...(['ground','obstacle','overhead'] as const).flatMap(name=>{
+   const layer=cell.physical_layers?.[name];
+   const title=name[0].toUpperCase()+name.slice(1);
+   const supported=typeof layer?.count==='number'&&layer.count>0;
+   return [
+    {key:`${name}_count`,label:`${title} returns`,value:f(layer?.count,0),hint:'Zero means no observed surface in this layer'},
+    {key:`${name}_mean`,label:`${title} height (m)`,value:f(supported?layer.mean:null),hint:'Measured layer mean, not pooled elevation'},
+    {key:`${name}_extent`,label:`${title} min / max (m)`,value:supported?`${f(layer.min)} / ${f(layer.max)}`:'Unavailable',hint:'Observed vertical extent in world coordinates'},
+   ];
+  }),
  ];
 }
 export function datasetCapabilities(catalog:Json|null,sequenceId:string){

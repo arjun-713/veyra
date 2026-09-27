@@ -188,15 +188,16 @@ struct Leaf {
 };
 
 // Accounting names are deliberately non-overlapping. `allocated_bytes` is
-// the exact capacity owned by the map's contiguous tile table and vectors;
-// `allocated_tile_bytes` is a diagnostic subset of that table, not an input
-// to the total.
+// the capacity owned by the map's contiguous tile table, cell/index vectors,
+// and retained snapshot-order scratch; `allocated_tile_bytes` is a diagnostic
+// subset of that table, not an input to the total.
 struct MapMemoryAccounting {
   std::size_t logical_payload_bytes = 0;
   std::size_t retained_prior_payload_bytes = 0;
   std::size_t allocated_cell_array_bytes = 0;
   std::size_t allocated_tile_bytes = 0;
   std::size_t allocated_index_bytes = 0;
+  std::size_t allocated_scratch_bytes = 0;
   std::size_t allocated_overhead_bytes = 0;
   std::size_t allocated_bytes = 0;
 };
@@ -316,6 +317,9 @@ class Map {
   void split(core::CellId id);
   void merge_children(core::CellId parent);
   [[nodiscard]] MapSnapshot snapshot() const;
+  // Same result as snapshot(), written into `out` so a caller that snapshots
+  // every frame reuses its leaf storage instead of allocating a new array.
+  void snapshot_into(MapSnapshot& out) const;
   [[nodiscard]] std::uint64_t point_count() const;
 
  private:
@@ -338,6 +342,7 @@ class Uniform5Map {
   void evict_stale_before(std::uint64_t minimum_timestamp);
   ClearingStats clear_free_space(const DepthImage& image, const SensorPose& pose);
   [[nodiscard]] MapSnapshot snapshot() const;
+  void snapshot_into(MapSnapshot& out) const;
   [[nodiscard]] std::uint64_t point_count() const;
 
  private:
@@ -359,6 +364,7 @@ class Uniform40Map {
   void evict_stale_before(std::uint64_t minimum_timestamp);
   ClearingStats clear_free_space(const DepthImage& image, const SensorPose& pose);
   [[nodiscard]] MapSnapshot snapshot() const;
+  void snapshot_into(MapSnapshot& out) const;
   [[nodiscard]] std::uint64_t point_count() const;
 
  private:
@@ -383,6 +389,7 @@ class DistanceLodMap {
   void split(core::CellId id);
   void merge_children(core::CellId parent);
   [[nodiscard]] MapSnapshot snapshot() const;
+  void snapshot_into(MapSnapshot& out) const;
   [[nodiscard]] std::uint64_t point_count() const;
 
  private:

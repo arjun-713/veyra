@@ -342,6 +342,73 @@ class TerrainAnalyzerTests(unittest.TestCase):
         self.assertEqual(evidence.confidence.shape, (60_000,))
         self.assertTrue(np.any(evidence.drivable != "unknown"))
 
+    def test_non_ground_returns_beyond_ground_support_do_not_change_evidence(self):
+        # The raster spans only the ground support. Distant non-ground returns
+        # (buildings, far clutter) widen the scan extent but must not change
+        # a single bit of the evidence computed for the ground patch.
+        rng = np.random.default_rng(20260927)
+        ground_points = np.column_stack(
+            (
+                rng.uniform(-12.0, 9.0, 4_000),
+                rng.uniform(-7.0, 15.0, 4_000),
+                rng.normal(0.0, 0.05, 4_000) + 0.1 * rng.uniform(-1, 1, 4_000),
+            )
+        )
+        confidence = rng.uniform(0.2, 1.0, 4_000)
+        clutter = np.column_stack(
+            (
+                rng.uniform(-150.0, 170.0, 3_000),
+                rng.uniform(-160.0, 140.0, 3_000),
+                rng.uniform(-2.0, 12.0, 3_000),
+            )
+        )
+        points = np.vstack((ground_points, clutter))
+        order = rng.permutation(len(points))
+        mask = np.arange(len(points)) < len(ground_points)
+        analyzer = TerrainAnalyzer()
+
+        alone = analyzer.analyze(
+            ground_points, GroundEvidence(np.ones(len(ground_points)), confidence)
+        )
+        mixed = analyzer.analyze(
+            points[order],
+            GroundEvidence(
+                mask[order], np.concatenate((confidence, np.ones(len(clutter))))[order]
+            ),
+        )
+
+        inverse = np.argsort(order)[: len(ground_points)]
+        for name in (
+            "slope",
+            "roughness",
+            "height_complexity",
+            "step",
+            "drivable",
+            "confidence",
+            "gradient_x",
+            "gradient_y",
+        ):
+            np.testing.assert_array_equal(
+                getattr(mixed, name)[inverse], getattr(alone, name), err_msg=name
+            )
+        clutter_rows = np.argsort(order)[len(ground_points) :]
+        self.assertTrue(np.all(mixed.drivable[clutter_rows] == "unknown"))
+        self.assertTrue(np.all(np.isnan(mixed.slope[clutter_rows])))
+        self.assertTrue(np.all(mixed.confidence[clutter_rows] == 0.0))
+
+    def test_raster_bound_still_covers_the_full_point_extent(self):
+        # The bounded-raster guard is judged on every return, not only on the
+        # ground support, and still fails closed when there is no ground.
+        ground_patch = grid()
+        far = np.array([[3_000.0, 3_000.0, 0.0]])
+        points = np.vstack((ground_patch, far))
+        with_ground = np.concatenate((np.ones(len(ground_patch)), [0.0]))
+        for mask in (with_ground, np.zeros(len(points))):
+            with self.assertRaisesRegex(ValueError, "too large"):
+                TerrainAnalyzer().analyze(
+                    points, GroundEvidence(mask, np.ones(len(points)))
+                )
+
 
 if __name__ == "__main__":
     unittest.main()
