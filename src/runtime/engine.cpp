@@ -225,6 +225,10 @@ class MapPolicyAdapter {
     return std::visit([](const auto& map) { return map.snapshot(); }, map_);
   }
 
+  void snapshot_into(veyra::map::MapSnapshot& out) const {
+    std::visit([&out](const auto& map) { map.snapshot_into(out); }, map_);
+  }
+
   // O(n) conservation bookkeeping without the snapshot's leaf sort.
   [[nodiscard]] std::uint64_t point_count() const {
     return std::visit([](const auto& map) { return map.point_count(); }, map_);
@@ -1603,12 +1607,16 @@ class PersistentEngineSession {
     }
     parse_duration_ += std::chrono::nanoseconds{duration_ns(parse_started)};
     const auto snapshot_started = Clock::now();
-    auto snapshot = map_->snapshot();
+    // The live session snapshots every frame into the snapshot it already
+    // owns, so steady-state frames refill existing leaf storage rather than
+    // allocating (and leaving behind) a new array the size of the map.
+    auto& snapshot = result_.snapshot;
+    map_->snapshot_into(snapshot);
     if (map_->apply_governor(
         snapshot,
         static_cast<double>((parse_duration_ + window_duration_ + update_duration_).count()) /
             1'000'000.0))
-      snapshot = map_->snapshot();
+      map_->snapshot_into(snapshot);
     result_.governor = map_->governor_status();
     result_.promotion_telemetry = map_->promotion_telemetry();
     const auto governor_interventions =
@@ -1681,13 +1689,12 @@ class PersistentEngineSession {
                                          snapshot.count_at_level(2), snapshot.count_at_level(3)},
                       .rss_bytes = rss});
     }
-    result_.snapshot = snapshot;
+    metrics_->set_logical_map_bytes(snapshot.logical_bytes);
+    metrics_->set_allocated_map_bytes(snapshot.memory.allocated_bytes);
     if (!result_.source_indices_complete)
       result_.dropped_frames = std::nullopt;
     else if (!result_.dropped_frames.has_value())
       result_.dropped_frames = 0;
-    metrics_->set_logical_map_bytes(snapshot.logical_bytes);
-    metrics_->set_allocated_map_bytes(snapshot.memory.allocated_bytes);
     result_.metrics = metrics_->report(Clock::time_point{} + measured_elapsed_);
     open_ = false;
   }
@@ -1795,7 +1802,10 @@ std::vector<std::size_t> select_display_cells(const veyra::map::MapSnapshot& sna
   std::vector<std::size_t> selected(total);
   for (std::size_t index = 0; index < total; ++index) selected[index] = index;
   if (total > budget) {
-    std::vector<double> distance(total);
+    // Per-frame scratch sized by the whole map; reused so a growing map does
+    // not leave a slightly larger freed block behind on every frame.
+    thread_local std::vector<double> distance;
+    distance.resize(total);
     for (std::size_t index = 0; index < total; ++index) {
       const auto& id = snapshot.leaves[index].id;
       const double size = 0.05 * std::ldexp(1.0, id.level);

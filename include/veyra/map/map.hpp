@@ -306,6 +306,9 @@ class Map {
   void split(core::CellId id);
   void merge_children(core::CellId parent);
   [[nodiscard]] MapSnapshot snapshot() const;
+  // Same result as snapshot(), written into `out` so a caller that snapshots
+  // every frame reuses its leaf storage instead of allocating a new array.
+  void snapshot_into(MapSnapshot& out) const;
   [[nodiscard]] std::uint64_t point_count() const;
 
  private:
@@ -328,6 +331,7 @@ class Uniform5Map {
   void evict_stale_before(std::uint64_t minimum_timestamp);
   ClearingStats clear_free_space(const DepthImage& image, const SensorPose& pose);
   [[nodiscard]] MapSnapshot snapshot() const;
+  void snapshot_into(MapSnapshot& out) const;
   [[nodiscard]] std::uint64_t point_count() const;
 
  private:
@@ -349,6 +353,7 @@ class Uniform40Map {
   void evict_stale_before(std::uint64_t minimum_timestamp);
   ClearingStats clear_free_space(const DepthImage& image, const SensorPose& pose);
   [[nodiscard]] MapSnapshot snapshot() const;
+  void snapshot_into(MapSnapshot& out) const;
   [[nodiscard]] std::uint64_t point_count() const;
 
  private:
@@ -373,6 +378,7 @@ class DistanceLodMap {
   void split(core::CellId id);
   void merge_children(core::CellId parent);
   [[nodiscard]] MapSnapshot snapshot() const;
+  void snapshot_into(MapSnapshot& out) const;
   [[nodiscard]] std::uint64_t point_count() const;
 
  private:
