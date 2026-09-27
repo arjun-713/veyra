@@ -1180,8 +1180,8 @@ std::string render(const Result& result) {
     // not auditable.
     const auto& clearing = *result.clearing;
     out << ",\"clearing\":{\"examined\":" << clearing.examined
-        << ",\"cleared\":" << clearing.cleared << ",\"occluded\":" << clearing.occluded
-        << ",\"no_evidence\":" << clearing.no_evidence
+        << ",\"cleared\":" << clearing.cleared << ",\"armed\":" << clearing.armed
+        << ",\"occluded\":" << clearing.occluded << ",\"no_evidence\":" << clearing.no_evidence
         << ",\"spared_by_elevation\":" << clearing.spared_by_elevation << '}';
   }
   if (result.include_leaf_details) {

@@ -105,6 +105,10 @@ struct ClearingStats {
   // Obstacle evidence contradicted: a beam was measured passing through the
   // claimed vertical extent.
   std::size_t cleared = 0;
+  // Contradicted but still arming: the streak rose without touching log-odds.
+  // Transient observability for the strike rule -- a pass that cannot show how
+  // many cells it spared this frame is not auditable.
+  std::size_t armed = 0;
   // The scan measured a surface at or before this cell, so it says nothing
   // about what lies behind. Left alone.
   std::size_t occluded = 0;
@@ -118,11 +122,11 @@ struct ClearingStats {
 
 // Result of testing one cell's obstacle evidence against one scan.
 enum class ClearingOutcome : std::uint8_t {
-  NoObstacle = 0,       // nothing claimed here to contradict
-  NoEvidence = 1,       // no return along this bearing
-  Occluded = 2,         // a surface was measured at or before this cell
-  SparedByElevation = 3,// beams passed, but not through the claimed extent
-  Cleared = 4,          // a beam traversed the claimed extent: contradicted
+  NoObstacle = 0,         // nothing claimed here to contradict
+  NoEvidence = 1,         // no return along this bearing
+  Occluded = 2,           // a surface was measured at or before this cell
+  SparedByElevation = 3,  // beams passed, but not through the claimed extent
+  Cleared = 4,            // a beam traversed the claimed extent: contradicted
 };
 
 // Tests whether a scan contradicts the obstacle evidence in one cell.
