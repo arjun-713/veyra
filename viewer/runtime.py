@@ -901,6 +901,19 @@ class RuntimeSession:
                 "temporal": status.temporal,
                 "diagnostics": list(status.diagnostics),
                 "semantic_execution": status.semantic_execution,
+                "semantic_requested": getattr(
+                    status,
+                    "semantic_requested",
+                    getattr(status, "semantic_requested_mode", None),
+                ),
+                "semantic_fallback_reason": getattr(
+                    status, "semantic_fallback_reason", None
+                ),
+                "semantic_model": getattr(
+                    status,
+                    "semantic_model",
+                    getattr(status, "semantic_checkpoint", None),
+                ),
             },
             "perception_timings_ms": {
                 key: float(value) for key, value in output.timings_ms.items()

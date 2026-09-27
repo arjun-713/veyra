@@ -395,7 +395,11 @@ class CenetModeTests(unittest.TestCase):
             os.environ.pop("VEYRA_CENET_CHECKPOINT", None)
             pipeline = PerceptionPipeline.from_config(
                 self._config(
-                    {"mode": "cenet", "checkpoint": "/nonexistent/cenet-weights.bin"}
+                    {
+                        "mode": "cenet",
+                        "checkpoint": "/nonexistent/cenet-weights.bin",
+                        "allow_fallback_to_ground_truth": True,
+                    }
                 )
             )
 
@@ -406,7 +410,7 @@ class CenetModeTests(unittest.TestCase):
             "/nonexistent/cenet-weights.bin", pipeline.semantic_fallback_reason
         )
 
-        output = pipeline.process(_frame())
+        output = pipeline.process(replace(_frame(), dataset="semanticposs"))
 
         # Provenance stays explicit: fallback output is reported as ground
         # truth, never relabelled as neural output.
@@ -423,7 +427,13 @@ class CenetModeTests(unittest.TestCase):
             os.environ, {"VEYRA_CENET_CHECKPOINT": "/nonexistent/env-override.bin"}
         ):
             pipeline = PerceptionPipeline.from_config(
-                self._config({"mode": "cenet", "checkpoint": "/nonexistent/config.bin"})
+                self._config(
+                    {
+                        "mode": "cenet",
+                        "checkpoint": "/nonexistent/config.bin",
+                        "allow_fallback_to_ground_truth": True,
+                    }
+                )
             )
 
         self.assertIsInstance(pipeline.semantic_provider, GroundTruthSemanticProvider)
@@ -502,7 +512,11 @@ class CenetModeTests(unittest.TestCase):
                 os.environ.pop("VEYRA_CENET_CHECKPOINT", None)
                 pipeline = build_pipeline(
                     {
-                        "semantic": {"mode": "cenet", "checkpoint": blank},
+                        "semantic": {
+                            "mode": "cenet",
+                            "checkpoint": blank,
+                            "allow_fallback_to_ground_truth": True,
+                        },
                         "ground": {"enabled": False},
                         "terrain": {"enabled": False},
                         "temporal": {"enabled": False},

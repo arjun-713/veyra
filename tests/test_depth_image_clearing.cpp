@@ -155,6 +155,71 @@ void test_bin_keeps_the_nearest_return() {
         "and nothing beyond that first surface may be claimed free");
 }
 
+// A different elevation sees through part of a cell, but the SAME scan also
+// directly observes an obstacle there. Negative evidence cannot erase that hit.
+void test_current_scan_obstacle_is_not_self_cleared() {
+  veyra::map::Map map{veyra::map::ResolutionPolicy::Uniform5};
+  veyra::map::SensorPose pose{0.0, 0.0, 0.0};
+  auto image = make_image();
+  auto low = ret(10.025, 0.025, 0.2, 0.2, 0);
+  auto high = ret(10.025, 0.025, 1.2, 1.2, 0);
+  low.timestamp = high.timestamp = 42;
+  map.update_at_level(low, 0);
+  map.update_at_level(high, 0);
+  image.insert(low, pose);
+  image.insert(high, pose);
+  image.insert(20.05, 0.05, 1.4, pose);
+  const auto before = map.snapshot();
+  const auto clearing = map.clear_free_space(image, pose);
+  const auto after = map.snapshot();
+  check(clearing.cleared == 0, "current obstacle hits dominate same-scan free evidence");
+  check(after.leaves.front().stats.occupancy_logodds ==
+            before.leaves.front().stats.occupancy_logodds,
+        "self-clearing must not reduce actual occupied support");
+}
+
+// The actual beam passes above the obstacle; the quantized row centre passes
+// through it. A raster centre is not a measured ray and cannot license clearing.
+void test_quantized_elevation_does_not_invent_a_crossing() {
+  veyra::map::SensorPose pose{0.0, 0.0, 0.0};
+  veyra::map::DepthImage image{1440, 1, 0.0, 0.1};
+  image.insert(20.0, 0.0, 1.8, pose);
+  auto cell = obstacle_cell(10.0, 0.0, 0.4, 0.6);
+  check(veyra::map::test_cell_against_scan(cell, 10.0, 0.0, image, pose, 0.1) !=
+            veyra::map::ClearingOutcome::Cleared,
+        "a quantized row centre cannot manufacture free-space evidence");
+}
+
+void test_neighboring_beam_cannot_clear_a_cell_it_misses() {
+  veyra::map::Map map{veyra::map::ResolutionPolicy::Uniform5};
+  const veyra::map::SensorPose pose{0.0, 0.0, 0.0};
+  auto image = make_image();
+  map.update_at_level(ret(40.025, 0.025, 0.3, 0.3, 0), 0);
+  map.update_at_level(ret(40.025, 0.025, 0.5, 0.5, 0), 0);
+  // Same azimuth bin, but at x=40 the ray's y=0.10 misses [0, 0.05].
+  image.insert(80.0, 0.20, 0.8, pose);
+  const auto before = map.snapshot();
+  map.clear_free_space(image, pose);
+  check(map.snapshot().leaves.front().stats.occupancy_logodds ==
+            before.leaves.front().stats.occupancy_logodds,
+        "a neighboring measured ray must intersect the actual XY footprint");
+}
+
+void test_current_ground_does_not_protect_a_departed_obstacle() {
+  veyra::map::Map map{veyra::map::ResolutionPolicy::Uniform5};
+  const veyra::map::SensorPose pose{0.0, 0.0, 0.0};
+  auto image = make_image();
+  map.update_at_level(ret(10.025, 0.025, 0.2, 0.2, 0), 0);
+  map.update_at_level(ret(10.025, 0.025, 1.2, 1.2, 0), 0);
+  auto ground = ret(10.025, 0.025, 0.0, 0.0, 1);
+  ground.timestamp = 2;
+  map.update_at_level(ground, 0);
+  image.insert(ground, pose);
+  image.insert(20.05, 0.05, 1.4, pose);
+  check(map.clear_free_space(image, pose).cleared == 1,
+        "current ground must not protect historical obstacle evidence");
+}
+
 // The margin exists so a surface does not clear itself through range noise.
 void test_margin_prevents_self_clearing() {
   veyra::map::SensorPose pose{0.0, 0.0, 0.0};
@@ -210,6 +275,10 @@ int main() {
   test_unscanned_bearing_gives_no_evidence();
   test_empty_obstacle_layer_is_a_no_op();
   test_bin_keeps_the_nearest_return();
+  test_current_scan_obstacle_is_not_self_cleared();
+  test_quantized_elevation_does_not_invent_a_crossing();
+  test_neighboring_beam_cannot_clear_a_cell_it_misses();
+  test_current_ground_does_not_protect_a_departed_obstacle();
   test_margin_prevents_self_clearing();
   test_clearing_drives_occupancy_and_traversability();
 

@@ -290,6 +290,20 @@ fn packaged_tauri_session_runs_a_real_semanticposs_flow() {
                     health = event.metadata.get("health").cloned().unwrap_or(Value::Null);
                 }
                 Some("visualization") => {
+                    let (channel, forwarded) = crate::forwardable_runtime_event(event.clone())
+                        .expect("real runtime visualization must pass the Tauri event bridge");
+                    assert_eq!(channel, "veyra://visualization");
+                    assert_eq!(forwarded["metadata"]["schema_version"], 3);
+                    assert!(
+                        forwarded["metadata"]["cells"]["count"]
+                            .as_u64()
+                            .unwrap_or(0)
+                            > 0
+                    );
+                    assert_eq!(
+                        forwarded["payload"].as_array().unwrap().len(),
+                        event.payload.len()
+                    );
                     visual = visual.max(event.payload.len());
                 }
                 _ => {}
