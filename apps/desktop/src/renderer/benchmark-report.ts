@@ -317,13 +317,24 @@ export function comparisonScope(report: Json | null): ComparisonScope {
     : {};
   const rows = qualityResourceRows(report);
   const allP95 = rows.every(row => row.p95Reliable);
+  const inputDigestValues = PUBLIC_POLICIES.map(policy => digests[policy]);
+  const allInputDigestsPresent = inputDigestValues.every(digest => typeof digest === 'string' && digest.length > 0);
+  const inputDigestsMatch = allInputDigestsPresent && inputDigestValues.every(digest => digest === inputDigestValues[0]);
+  const sameInputClaim = bool(table.same_input_for_all_policies);
+  const sameInput = sameInputClaim === false
+    ? false
+    : sameInputClaim === true && inputDigestsMatch
+      ? true
+      : sameInputClaim === true && allInputDigestsPresent
+        ? false
+        : null;
   return {
     status: table.status === 'measured' || table.status === 'partial' ? table.status : 'unavailable',
-    sameInput: bool(table.same_input_for_all_policies),
+    sameInput,
     inputDigests: digests,
     dataset: text(report?.dataset), sequence: text(report?.sequence),
     frameStart: provenance.frameStart ?? nonNegative(report?.start), frameCount: provenance.frameCount,
-    latencyMetric: table.latency_plot_metric === 'map_update_p95_ms' || (!table.latency_plot_metric && allP95) ? 'p95' : 'p50',
+    latencyMetric: allP95 && (table.latency_plot_metric === 'map_update_p95_ms' || !table.latency_plot_metric) ? 'p95' : 'p50',
     referenceIsGroundTruth: bool(table.reference?.is_ground_truth),
   };
 }
