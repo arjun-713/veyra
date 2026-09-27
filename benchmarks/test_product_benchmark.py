@@ -58,6 +58,7 @@ class ProductBenchmarkTests(unittest.TestCase):
             report_file.write_text('{"run":2}')
             second = _git_source_state(repo)
             self.assertTrue(first["working_tree_dirty"])
+            self.assertFalse(first["execution_source_clean"])
             self.assertEqual(
                 first["source_state_sha256"], second["source_state_sha256"]
             )
@@ -70,6 +71,53 @@ class ProductBenchmarkTests(unittest.TestCase):
             self.assertNotEqual(
                 first["source_state_sha256"], changed["source_state_sha256"]
             )
+
+    def test_clean_source_gate_preserves_unrelated_untracked_artifacts(self):
+        from benchmarks.run_benchmark import _git_source_state, run
+        from types import SimpleNamespace
+
+        with tempfile.TemporaryDirectory() as directory:
+            repo = Path(directory)
+            subprocess.run(["git", "init", "-q", str(repo)], check=True)
+            (repo / ":memory:.ses").write_text("unrelated session")
+            subprocess.run(
+                [
+                    "git",
+                    "-C",
+                    str(repo),
+                    "-c",
+                    "user.name=Veyra Test",
+                    "-c",
+                    "user.email=audit@example.test",
+                    "commit",
+                    "-q",
+                    "--allow-empty",
+                    "-m",
+                    "baseline",
+                ],
+                check=True,
+            )
+            state = _git_source_state(repo)
+            self.assertTrue(state["working_tree_dirty"])
+            self.assertTrue(state["execution_source_clean"])
+            for name in ("widget.svelte", "helper.rs", "rules.cmake"):
+                path = repo / name
+                path.write_text("uncommitted runtime source\n")
+                self.assertFalse(_git_source_state(repo)["execution_source_clean"])
+                path.unlink()
+            (repo / "new_source.py").write_text("VALUE = 1\n")
+            args = SimpleNamespace(
+                repo=repo,
+                start=0,
+                count=2,
+                warmup_frames=0,
+                repetitions=1,
+                policies="uniform5",
+                require_clean_source=True,
+            )
+            # Must reject dirty source BEFORE reading datasets or launching a mapper.
+            with self.assertRaisesRegex(ValueError, "clean committed source"):
+                run(args)
 
     def test_compact_snapshot_releases_optional_leaf_rows_after_quality(self):
         snapshot = {"levels": {"0": 1}, "leaves": [{"level": 0, "count": 1}]}
