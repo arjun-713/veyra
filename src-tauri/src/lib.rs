@@ -1,3 +1,4 @@
+mod benchmark_artifact;
 mod commands;
 pub mod control;
 mod control_host;
@@ -15,6 +16,7 @@ use std::time::Duration;
 
 use tauri::{Emitter, Manager};
 
+use benchmark_artifact::BenchmarkArtifacts;
 use desktop_control::DesktopControlService;
 
 #[derive(Clone)]
@@ -53,6 +55,7 @@ pub fn run() {
             );
             let startup_diagnostic = control.startup_diagnostic().map(str::to_owned);
             app.manage(Mutex::new(control));
+            app.manage(BenchmarkArtifacts::default());
             let event_pump = EventPump::new();
             spawn_event_pump(app.handle().clone(), Arc::clone(&event_pump.running));
             app.manage(event_pump);
@@ -80,6 +83,7 @@ pub fn run() {
             commands::choose_dataset,
             commands::open_dataset,
             commands::export_diagnostics,
+            commands::read_benchmark_artifact,
             commands::runtime_shutdown,
         ]);
     let app = builder
@@ -118,6 +122,9 @@ fn spawn_event_pump(app_handle: tauri::AppHandle, running: Arc<AtomicBool>) {
                 for event in events {
                     match forwardable_runtime_event(event) {
                         Ok((channel, payload)) => {
+                            if let Some(artifacts) = app_handle.try_state::<BenchmarkArtifacts>() {
+                                artifacts.observe(&payload);
+                            }
                             let _ = app_handle.emit(channel, payload);
                         }
                         Err(error) => {

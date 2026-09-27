@@ -4,13 +4,14 @@
  import {semanticRGB,cssRGB} from './colors';
  import veyraLogo from '../assets/veyra-logo.png';
  import {policies,type Json,type WireFrame} from '../core';import {nativeRuntimeUnavailableMessage} from '../api';
+ import {acceptBenchmarkReport,benchmarkLifecycle,millis,qualityResourceRows,type AcceptedReport} from './benchmark-report';
  import {acceptFrame,canPlayback,diagnosticMessage,formatTelemetryAge,processRss,telemetryFreshness,mergeSessionStatus,validationOutcome} from './session';
  let workspace=$state('Dashboard'),status=$state<Json>({state:'unconfigured',index:0,frames:0,policy:'distance_lod',speed:1}),telemetry=$state<Json>({}),desktop=$state<Json>({}),render=$state<Json>({}),info=$state<Json>({});
  let frame=$state.raw<WireFrame|null>(null),samples=$state<Json[]>([]),error=$state(''),notice=$state(''),busy=$state(false),catalog=$state<Json|null>(null),inspector=$state<Json|null>(null);
  let dataset=$state('generic'),sequence=$state(''),config=$state<Json>(defaultSessionConfig());
  let configText=$state(''),mode=$state('semantic'),showPoints=$state(true),showCells=$state(true),boundaries=$state(false),view=$state('orbit'),follow=$state(false),accumulate=$state(20),seekIndex=$state(0),preset=$state('LowResource'),viewMode=$state('both'),showRings=$state(false);
  function setViewMode(next:string){viewMode=next;showPoints=next!=='map';showCells=next!=='raw';}
- let report=$state<Json|null>(null),previousReport=$state<Json|null>(null),benchmarkState=$state('idle'),benchmarkCount=$state(100),validationState=$state('idle'),validationResult=$state<Json|null>(null);
+ let report=$state<Json|null>(null),reportMeta=$state<(Omit<AcceptedReport,'report'>&{artifactSha256:string|null})|null>(null),previousReport=$state<Json|null>(null),benchmarkState=$state('idle'),benchmarkCount=$state(100),validationState=$state('idle'),validationResult=$state<Json|null>(null);
  let events=$state<DashboardEvent[]>([]);
  let now=$state(Date.now()),awaitingFrame=$state(false);
  const playbackEnabled=()=>canPlayback(status,busy);
@@ -25,8 +26,16 @@
  const semWorkload=$derived(semanticDisplay(telemetry.perception?.provider,telemetry.perception?.model,telemetry.perception?.execution_provider,telemetry.perception?.backend,{requested:telemetry.perception?.semantic_requested??telemetry.perception?.requested_mode??telemetry.perception?.requested??telemetry.perception?.requested_provider??telemetry.perception?.semantic_requested_mode??null,actual:telemetry.perception?.semantic_actual??telemetry.perception?.actual??telemetry.perception?.actual_mode??telemetry.perception?.actual_provider??telemetry.perception?.semantic_actual_mode??null,fallbackReason:telemetry.perception?.semantic_fallback_reason??telemetry.perception?.fallback_reason??telemetry.perception?.fallbackReason??null}));
  const format=(value:any,decimals=1)=>typeof value==='number'&&Number.isFinite(value)?value.toLocaleString(undefined,{maximumFractionDigits:decimals}):'—';
  const mb=(value:any)=>typeof value==='number'?format(value/1048576)+' MB':'—';
- function rows(value:Json|null){const mapping=value?.mapping??value;return Object.entries(mapping?.policies??{}) as [string,Json][];}
- function quality(value:Json){return value.aggregate?.quality?.at(-1)?.elevation_vs_fine_reference?.rmse_m;}
+ function setReport(accepted:AcceptedReport,artifactSha256:string|null=null){const {report:value,...meta}=accepted;report=value;reportMeta={...meta,artifactSha256};}
+ // The completion event only announces the artifact; the full report is loaded intact.
+ async function loadGeneratedReport(event:Json){
+  if(typeof event.artifact!=='string'){benchmarkState='failed';error='Benchmark finished without announcing its report artifact.';return;}
+  benchmarkState='loading';
+  try{setReport(acceptBenchmarkReport(await window.veyra.loadBenchmarkArtifact(event.artifact),'generated'),typeof event.artifact_sha256==='string'?event.artifact_sha256:null);benchmarkState='complete';}
+  catch(e){benchmarkState='failed';error=`Benchmark finished but its report could not be loaded: ${e instanceof Error?e.message:String(e)}`;}
+ }
+ const previousRow=(policy:string)=>qualityResourceRows(previousReport).find(row=>row.policy===policy);
+ const tailMs=(value:number|null,reliable:boolean)=>value===null?'—':millis(value)+(reliable?'':' (descriptive)');
  async function action(fn:()=>Promise<any>){if(busy)return;busy=true;error='';notice='';try{return await fn();}catch(e){error=e instanceof Error?e.message:String(e);awaitingFrame=false;}finally{busy=false;}}
  function clearSessionView(){frame=null;telemetry={};render={};samples=[];inspector=null;}
  async function command(name:string,args:Json={}){return action(async()=>{const reload=['sequence','reset','policy'].includes(name);if(reload){clearSessionView();awaitingFrame=true;}const r=await window.veyra.command(name,args);if(r.status)status=mergeSessionStatus(status,r.status);if(reload){const preview=await window.veyra.command('step');if(preview.status)status=preview.status;}return r;});}
@@ -38,7 +47,7 @@ function syncGovernorOverride(value:unknown){if(value==='automatic'||value==='di
   if(layer==='lod'||layer==='utility')setViewMode('map');}}
  async function stopRuntime(){await action(async()=>{const response=await window.veyra.stop();if(response?.status)status=response.status;clearSessionView();awaitingFrame=false;notice='Runtime stopped. Open the dataset again to begin a new session.';});}
  async function runValidation(){await action(async()=>{validationState='running';validationResult=null;try{const response=await window.veyra.command('validation');if(response?.status)status=response.status;if(response?.result)validationResult=response.result;validationState=response?.result?.status==='pass'?'pass':'fail';}catch(error){validationState='fail';throw error;}});}
- async function runBenchmark(){await action(async()=>{benchmarkState='running';try{const response=await window.veyra.command('benchmark',{dataset:status.dataset,sequence:status.sequence,count:benchmarkCount});if(response.result?.report){report=response.result.report;benchmarkState='complete';}}catch(e){benchmarkState='failed';throw e;}});}
+ async function runBenchmark(){await action(async()=>{benchmarkState='running';try{await window.veyra.command('benchmark',{dataset:status.dataset,sequence:status.sequence,count:benchmarkCount});}catch(e){benchmarkState='failed';throw e;}});}
  async function restartRuntime(){await action(async()=>{clearSessionView();awaitingFrame=true;const response=await window.veyra.restart();if(response.status)status=response.status;if(status.frames){const preview=await window.veyra.command('step');if(preview.status)status=preview.status;}else{awaitingFrame=false;notice='Runtime restarted. Open a dataset preview to continue.';}});}
 function confirmSaved(ok:unknown,saved:string,cancelled:string){notice=ok?saved:cancelled;}
  function refreshText(){configText=JSON.stringify(config,null,2);}
@@ -78,7 +87,7 @@ function confirmSaved(ok:unknown,saved:string,cancelled:string){notice=ok?saved:
    if(event.type==='status'){status={...status,...event};if(event.error)error=event.error.process+': '+event.error.message;}
    if(event.type==='telemetry'){telemetry=event;const latency=event.latency_ms??{},rss=processRss(event.processes??[]);samples=[...samples,{timestamp:event.timestamp,fps:event.fps,p95:latency.end_to_end?.p95,rss:rss===null?null:rss/1048576,mapping:latency.mapping,perception:latency.perception}].slice(-300);}
    if(event.type==='desktop_telemetry')desktop=event;
-   if(event.type==='benchmark'){benchmarkState=event.state;if(event.report)report=event.report;if(event.error)error=String(event.error.message??event.error);}
+   if(event.type==='benchmark'){if(event.error){benchmarkState='failed';error=String(event.error.message??event.error);}else if(benchmarkLifecycle(event.state)==='complete')void loadGeneratedReport(event);else benchmarkState=benchmarkLifecycle(event.state);}
    if(event.type==='validation'){validationState=validationOutcome(event);if(event.result)validationResult=event.result;}
   });
   const offVisual=window.veyra.onVisualization(value=>{try{if(!acceptFrame(value,frame,status.state,awaitingFrame))return;frame=value;awaitingFrame=false;notice='';}catch(e){error=`Visualization failed: ${e instanceof Error?e.message:String(e)}`;awaitingFrame=false;}});
@@ -154,7 +163,7 @@ function confirmSaved(ok:unknown,saved:string,cancelled:string){notice=ok?saved:
    </div>
   {:else if workspace==='Benchmarks'}
    <div class="workspace-scroll">
-   <ComparisonEvidence {report} />
+   <ComparisonEvidence {report} meta={reportMeta} />
    <section class="card runtime-actions"><h3>Session validation <span>{validationState.toUpperCase()}</span></h3><p class="hint">Runs the configured real dataset frame through perception and the mapper. It is a live smoke validation, not a replacement for repository CI.</p><button class="primary" disabled={busy||!sessionActive(status)} onclick={runValidation}>Run session validation</button>{#if validationResult}<table><tbody>
       <tr><td>Result</td><td><strong>{String(validationResult.status??validationState).toUpperCase()}</strong> (real validator — never fabricated)</td></tr>
       <tr><td>Dataset / sequence</td><td>{validationResult.dataset??status.dataset??'—'} / {validationResult.sequence??status.sequence??'—'}</td></tr>
@@ -163,10 +172,10 @@ function confirmSaved(ok:unknown,saved:string,cancelled:string){notice=ok?saved:
       <tr><td>Map</td><td>{validationResult.map??'—'}</td></tr>
       <tr><td>Policy</td><td>{labels[status.policy]??status.policy??'—'}</td></tr>
       <tr><td>Elapsed</td><td>{format(validationResult.elapsed_ms,1)} ms</td></tr>
-      <tr><td>Commit / hardware</td><td>{info.commit??'N/A'} / {info.platform??'N/A'}</td></tr>
+      <tr><td>Commit / hardware</td><td>{info.commit??'Not reported by this desktop build'} / {info.platform??'Unavailable'}</td></tr>
      </tbody></table><details><summary>Raw validator output</summary><pre>{JSON.stringify(validationResult,null,2)}</pre></details>{/if}</section>
-   <div class="page-intro"><div><h2>Quality has a resource cost.</h2><p>Compare all four policies using the same report schema as CI.</p></div><span class="chip" title={measurementDisplay(benchmarkState).sub}>{measurementDisplay(benchmarkState).label}</span></div><section class="card benchmark-controls"><div><label for="benchmark-count">Frames</label><input id="benchmark-count" type="number" min="1" max="100000" bind:value={benchmarkCount}/></div><button class="primary" disabled={busy||!sessionActive(status)} onclick={runBenchmark}>Run four-policy benchmark</button><button onclick={()=>action(async()=>{const loaded=await window.veyra.openReport();if(loaded){previousReport=report;report=loaded;}})}>Open report</button><button disabled={!report} onclick={()=>action(async()=>{const saved=await window.veyra.exportReport(report!);confirmSaved(saved,'Benchmark report exported.','Benchmark export cancelled — no file written.');})}>Export JSON</button><button onclick={()=>action(async()=>{previousReport=await window.veyra.openReport();})}>Compare previous run</button></section>
-    {#if report}{#if previousReport}<section class="card"><h3>Previous run comparison</h3><table><thead><tr><th>Policy</th><th>Current bench p95</th><th>Previous bench p95</th><th>Current RMSE</th><th>Previous RMSE</th></tr></thead><tbody>{#each rows(report) as [policy,result]}{@const previous=rows(previousReport).find(([key])=>key===policy)?.[1]}<tr><td>{labels[policy]??policy}</td><td>{format(result.aggregate?.stage_latency_ns?.map_update?.p95/1e6)} ms</td><td>{format(previous?.aggregate?.stage_latency_ns?.map_update?.p95/1e6)} ms</td><td>{format(quality(result),4)}</td><td>{previous?format(quality(previous),4):'—'}</td></tr>{/each}</tbody></table></section>{/if}<details class="card"><summary>Full benchmark artifact</summary><pre>{JSON.stringify(report,null,2)}</pre></details>{:else}<div class="blank-card"><Icon name="file" size={32}/><h2>No benchmark loaded</h2><p>Configure a dataset session, then run a measured comparison.<br/>Existing JSON artifacts can be opened at any time.</p></div>{/if}
+   <div class="page-intro"><div><h2>Quality has a resource cost.</h2><p>Compare all four policies using the same report schema as CI.</p></div><span class="chip" title={measurementDisplay(benchmarkState).sub}>{measurementDisplay(benchmarkState).label}</span></div><section class="card benchmark-controls"><div><label for="benchmark-count">Frames</label><input id="benchmark-count" type="number" min="1" max="100000" bind:value={benchmarkCount}/></div><button class="primary" disabled={busy||!sessionActive(status)} onclick={runBenchmark}>Run four-policy benchmark</button><button onclick={()=>action(async()=>{const loaded=await window.veyra.openReport();if(loaded){const accepted=acceptBenchmarkReport(loaded,'loaded');previousReport=report;setReport(accepted);}})}>Open report</button><button disabled={!report} onclick={()=>action(async()=>{const saved=await window.veyra.exportReport(report!);confirmSaved(saved,'Benchmark report exported.','Benchmark export cancelled — no file written.');})}>Export JSON</button><button onclick={()=>action(async()=>{const loaded=await window.veyra.openReport();if(loaded)previousReport=acceptBenchmarkReport(loaded,'loaded').report;})}>Compare previous run</button></section>
+    {#if report}{#if previousReport}<section class="card"><h3>Previous run comparison</h3><table><thead><tr><th>Policy</th><th>Current map p95 ↓</th><th>Previous map p95 ↓</th><th>Current elevation RMSE ↓</th><th>Previous elevation RMSE ↓</th></tr></thead><tbody>{#each qualityResourceRows(report) as row}{@const previous=previousRow(row.policy)}<tr><td>{labels[row.policy]??row.policy}</td><td>{tailMs(row.mapP95Ms,row.p95Reliable)}</td><td>{previous?tailMs(previous.mapP95Ms,previous.p95Reliable):'—'}</td><td>{row.rmseM===null?'—':format(row.rmseM,4)+' m'}</td><td>{previous?.rmseM==null?'—':format(previous.rmseM,4)+' m'}</td></tr>{/each}</tbody></table></section>{/if}<details class="card"><summary>Full benchmark artifact</summary><pre>{JSON.stringify(report,null,2)}</pre></details>{:else}<div class="blank-card"><Icon name="file" size={32}/><h2>No benchmark loaded</h2><p>Configure a dataset session, then run a measured comparison.<br/>Existing JSON artifacts can be opened at any time.</p></div>{/if}
    </div>
   {:else}
    <SessionSetup {catalog} {status} {config} bind:configText {dataset} {sequence} {preset} {busy}

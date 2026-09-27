@@ -100,6 +100,7 @@ export function lastMeasuredPrefix(isStale:boolean):string{return isStale?'LAST 
 // merely because the runtime paused.
 export function measurementDisplay(state:unknown):{label:string;sub:string}{
  if(state==='running')return {label:'MEASURING',sub:'frames processing; warmup excluded per artifact'};
+ if(state==='loading')return {label:'LOADING REPORT',sub:'benchmark finished; reading the complete artifact'};
  if(state==='complete')return {label:'COMPLETE',sub:'results below are the last valid measurement window'};
  if(state==='failed')return {label:'FAILED',sub:'see error banner; no valid measurement'};
  return {label:'IDLE',sub:'no measurement running'};

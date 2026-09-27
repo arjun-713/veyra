@@ -453,3 +453,8 @@ details[open] > summary { margin-bottom: 16px; }
 @media (prefers-reduced-transparency: reduce) {
   .map-toolbar .segmented { backdrop-filter: none; background: #172634; }
 }
+.provenance-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); column-gap: 32px; }
+.report-issues { margin: 16px 0 0; padding-left: 18px; color: #8a5a00; font-size: 12px; line-height: 1.7; }
+.report-warning { margin: 0 0 12px; padding: 10px 12px; border-radius: var(--radius-control); background: #fff5e0; color: #7a4f00; font-size: 12px; line-height: 1.6; }
+.baseline-detail { color: var(--secondary); }
+@media (max-width: 900px) { .provenance-grid { grid-template-columns: minmax(0, 1fr); } }

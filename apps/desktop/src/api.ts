@@ -15,6 +15,8 @@ export interface DesktopAPI {
  saveConfig(config:Json):Promise<boolean>;
  openReport():Promise<Json|null>;
  exportReport(report:Json):Promise<boolean>;
+ /** Complete report of the benchmark the runtime just announced; never a partial event summary. */
+ loadBenchmarkArtifact(path:string):Promise<Json>;
  diagnostics():Promise<Json|boolean>;
  screenshot():Promise<boolean>;
  restart():Promise<Json>;

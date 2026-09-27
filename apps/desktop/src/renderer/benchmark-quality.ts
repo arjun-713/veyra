@@ -1,4 +1,5 @@
 import type {Json} from '../core.ts';
+import {comparisonScope, qualityResourceRows} from './benchmark-report.ts';
 
 export const PUBLIC_POLICY_LABELS: Record<string, string> = {
   uniform5: 'Uniform5', uniform40: 'Uniform40',
@@ -32,17 +33,24 @@ export function policyQuality(value: Json) {
 
 export type QualityMetric = 'heightAccuracy' | 'completion' | 'surfaceChamfer';
 
+const ROW_METRIC = {heightAccuracy: 'heightAccuracy10', completion: 'completion', surfaceChamfer: 'chamferM'} as const;
+
+/**
+ * Plot points from the canonical quality/resource rows. Latency uses map-update
+ * p95 only when every policy has at least 20 samples (the producer's frontier
+ * rule); otherwise p50. Policies missing either coordinate are omitted.
+ */
 export function qualityPlotPoints(report: Json | null, resource: 'memory' | 'latency', metric: QualityMetric) {
-  const policies = (report?.mapping ?? report)?.policies ?? {};
-  return Object.keys(PUBLIC_POLICY_LABELS).flatMap(policy => {
-    const value = policies[policy];
-    if (!value) return [];
-    const rawX = resource === 'memory'
-      ? value.runs?.at(-1)?.metrics?.memory?.logical_map_bytes ?? value.aggregate?.logical_map_bytes
-      : value.aggregate?.stage_latency_ns?.map_update?.p50;
-    const x = nonNegative(rawX);
-    const y = policyQuality(value)[metric];
-    if (x === null || y === null) return [];
-    return [{policy, x: x / (resource === 'memory' ? 1048576 : 1000000), y}];
+  const latencyMetric = comparisonScope(report).latencyMetric;
+  return qualityResourceRows(report).flatMap(row => {
+    const x = resource === 'memory'
+      ? (row.logicalBytes === null ? null : row.logicalBytes / 1048576)
+      : latencyMetric === 'p95' ? row.mapP95Ms : row.mapP50Ms;
+    const y = row[ROW_METRIC[metric]];
+    return x === null || y === null ? [] : [{policy: row.policy, x, y}];
   });
+}
+
+export function latencyAxisLabel(report: Json | null): string {
+  return comparisonScope(report).latencyMetric === 'p95' ? 'Map-update p95 (ms) ↓' : 'Map-update p50 (ms) ↓';
 }
