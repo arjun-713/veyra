@@ -2,8 +2,8 @@
 
 #include <algorithm>
 #include <array>
-#include <charconv>
 #include <bit>
+#include <charconv>
 #include <chrono>
 #include <cmath>
 #include <cstdint>
@@ -27,8 +27,9 @@
 #if defined(_WIN32)
 #include <io.h>
 #else
-#include <cerrno>
 #include <unistd.h>
+
+#include <cerrno>
 #endif
 
 #include "veyra/map/map.hpp"
@@ -145,7 +146,7 @@ class MapPolicyAdapter {
         map_(make_storage(kind, config)),
         utility_(kind == PolicyKind::kUtilityLod
                      ? std::optional<veyra::policy::LodPolicy>{veyra::policy::load_policy_config(
-                      options.utility_config)}
+                           options.utility_config)}
                      : std::nullopt),
         governor_(
             kind == PolicyKind::kUtilityLod
@@ -300,9 +301,8 @@ class MapPolicyAdapter {
   }
 
   [[nodiscard]] std::optional<veyra::policy::PromotionTelemetry> promotion_telemetry() const {
-    return utility_ && options_promotion_telemetry_
-               ? std::optional{utility_->promotion_telemetry()}
-               : std::nullopt;
+    return utility_ && options_promotion_telemetry_ ? std::optional{utility_->promotion_telemetry()}
+                                                    : std::nullopt;
   }
 
   void set_governor_override(veyra::policy::GovernorOverride mode) {
@@ -409,10 +409,9 @@ Options parse_options(int argc, char** argv) {
   for (int index = 1; index < argc; ++index) {
     const std::string_view arg(argv[index]);
     const auto needs_value = arg == "--policy" || arg == "--output" || arg == "--window-radius" ||
-                             arg == "--sensor-height" ||
-                             arg == "--levels" || arg == "--distance-boundaries" ||
-                             arg == "--warmup-frames" || arg == "--utility-config" ||
-                             arg == "--governor-config";
+                             arg == "--sensor-height" || arg == "--levels" ||
+                             arg == "--distance-boundaries" || arg == "--warmup-frames" ||
+                             arg == "--utility-config" || arg == "--governor-config";
     if (needs_value && index + 1 >= argc) {
       throw std::invalid_argument("missing option value");
     }
@@ -488,19 +487,30 @@ void observe_quality(InputSummary& summary, std::string_view name, std::optional
   entry->second.add(value);
 }
 
-constexpr std::array<const char*, 22> kFieldNames{
-    "x",           "y",
-    "z",           "intensity",
-    "semantic_class", "semantic_confidence",
-    "ground",      "drivable",
-    "slope",       "roughness",
-    "height_complexity", "terrain_confidence",
-    "step",        "motion_probability",
-    "motion_state", "velocity_x",
-    "velocity_y",  "observation_quality",
-    "raw_semantic_class", "height_above_ground", "ground_gradient_x", "ground_gradient_y"};
-constexpr std::array<std::size_t, 16> kQualityFields{3U,  4U,  5U,  8U,  9U,  10U, 11U,
-                                                     12U, 13U, 15U, 16U, 17U, 18U, 19U, 20U, 21U};
+constexpr std::array<const char*, 22> kFieldNames{"x",
+                                                  "y",
+                                                  "z",
+                                                  "intensity",
+                                                  "semantic_class",
+                                                  "semantic_confidence",
+                                                  "ground",
+                                                  "drivable",
+                                                  "slope",
+                                                  "roughness",
+                                                  "height_complexity",
+                                                  "terrain_confidence",
+                                                  "step",
+                                                  "motion_probability",
+                                                  "motion_state",
+                                                  "velocity_x",
+                                                  "velocity_y",
+                                                  "observation_quality",
+                                                  "raw_semantic_class",
+                                                  "height_above_ground",
+                                                  "ground_gradient_x",
+                                                  "ground_gradient_y"};
+constexpr std::array<std::size_t, 16> kQualityFields{3U,  4U,  5U,  8U,  9U,  10U, 11U, 12U,
+                                                     13U, 15U, 16U, 17U, 18U, 19U, 20U, 21U};
 // The quality accumulators a frame updates, resolved once instead of looked up
 // by name for every field of every point. std::map nodes are stable, and
 // entries are only ever added, so the pointers stay valid for the frame.
@@ -650,7 +660,8 @@ veyra::map::Observation parse_observation_record(std::istringstream& input, int 
                                                  InputSummary& summary) {
   std::vector<std::string> fields;
   for (std::string field; input >> field;) fields.push_back(std::move(field));
-  const std::size_t expected_fields = stream_version == 1 ? 6U : (stream_version == 4 ? 22U : (stream_version == 3 ? 20U : 19U));
+  const std::size_t expected_fields =
+      stream_version == 1 ? 6U : (stream_version == 4 ? 22U : (stream_version == 3 ? 20U : 19U));
   if (fields.size() != expected_fields) throw std::invalid_argument("malformed point record");
   if (stream_version >= 2) {
     // V2 records carry no height above ground. It defaults to NaN rather than
@@ -923,9 +934,9 @@ Result run(const Options& options) {
       const auto snapshot_started = Clock::now();
       auto snapshot = map.snapshot();
       if (map.apply_governor(
-          snapshot,
-          static_cast<double>((parse_duration + window_duration + update_duration).count()) /
-              1'000'000.0))
+              snapshot,
+              static_cast<double>((parse_duration + window_duration + update_duration).count()) /
+                  1'000'000.0))
         snapshot = map.snapshot();
       result.governor = map.governor_status();
       const auto governor_interventions =
@@ -1275,8 +1286,7 @@ std::string render(const Result& result) {
     }
     out << "},\"accepted_points\":" << frame.accepted_points
         << ",\"map_point_count_before_update\":" << frame.map_point_count_before_update
-        << ",\"point_conservation\":{\"holds\":"
-        << (frame.point_conservation ? "true" : "false")
+        << ",\"point_conservation\":{\"holds\":" << (frame.point_conservation ? "true" : "false")
         << ",\"scope\":\"active_window_after_frame\"}"
         << ",\"topology_churn\":" << frame.topology_churn << ",\"splits\":" << frame.splits
         << ",\"merges\":" << frame.merges
@@ -1305,11 +1315,9 @@ std::string render(const Result& result) {
       if (i) out << ',';
       out << '\"' << signal_names[i] << "\":{\"raw_sum\":" << telemetry.signal_raw_sum[i]
           << ",\"weighted_sum\":" << telemetry.signal_weighted_sum[i]
-          << ",\"min\":" << telemetry.signal_min[i]
-          << ",\"max\":" << telemetry.signal_max[i]
+          << ",\"min\":" << telemetry.signal_min[i] << ",\"max\":" << telemetry.signal_max[i]
           << ",\"exact_zero_count\":" << telemetry.signal_exact_zero_count[i]
-          << ",\"near_one_count\":" << telemetry.signal_near_one_count[i]
-          << ",\"histogram\":[";
+          << ",\"near_one_count\":" << telemetry.signal_near_one_count[i] << ",\"histogram\":[";
       for (std::size_t bin = 0; bin < 20; ++bin) {
         if (bin) out << ',';
         out << telemetry.signal_histogram[i][bin];
@@ -1427,6 +1435,8 @@ class PersistentEngineSession {
     frame_rejected_before_ = 0;
     map_point_count_before_update_ = 0;
     input_summary_ = InputSummary{};
+    scan_image_.clear();
+    pose_valid_ = false;
   }
 
   void ingest(std::string_view line) {
@@ -1521,8 +1531,10 @@ class PersistentEngineSession {
     parse_duration_ += std::chrono::nanoseconds{duration_ns(parse_started)};
     const auto update_started = Clock::now();
     for (const auto& observation : pending_) {
-      if (ingest_observation(*map_, observation, result_.rejected_out_of_window))
+      if (ingest_observation(*map_, observation, result_.rejected_out_of_window)) {
         ++result_.input_points;
+        if (pose_valid_) scan_image_.insert(observation, sensor_pose_);
+      }
       ++points_;
     }
     update_duration_ += std::chrono::nanoseconds{duration_ns(update_started)};
@@ -1576,6 +1588,12 @@ class PersistentEngineSession {
     map_->set_window_center(pose[3], pose[7]);
     map_point_count_before_update_ = map_->point_count();
     frame_rejected_before_ = result_.rejected_out_of_window;
+    // Rebuilt, not reallocated: the raster is the same shape every frame, so
+    // clearing it keeps this off the allocator on the hot path (mirrors run()).
+    scan_image_.clear();
+    sensor_pose_ = {pose[3], pose[7], pose[11] + options_.sensor_height_m};
+    pose_valid_ = std::isfinite(sensor_pose_.x) && std::isfinite(sensor_pose_.y) &&
+                  std::isfinite(sensor_pose_.z);
     window_duration_ = std::chrono::nanoseconds{duration_ns(window_started)};
     update_duration_ = std::chrono::nanoseconds{0};
     open_ = true;
@@ -1588,8 +1606,13 @@ class PersistentEngineSession {
     observation.timestamp = input_summary_.timestamp_us.value_or(result_.input_frames);
     parse_duration_ += std::chrono::nanoseconds{duration_ns(parse_started)};
     const auto update_started = Clock::now();
-    if (ingest_observation(*map_, observation, result_.rejected_out_of_window)) {
+    const bool accepted = ingest_observation(*map_, observation, result_.rejected_out_of_window);
+    if (accepted) {
       ++result_.input_points;
+      // Every accepted return is one beam's endpoint, so the raster is built
+      // from the same points the map ingests. Rejected points are excluded on
+      // purpose: a return outside the window cannot license clearing inside it.
+      if (pose_valid_) scan_image_.insert(observation, sensor_pose_);
     }
     update_duration_ += std::chrono::nanoseconds{duration_ns(update_started)};
     ++points_;
@@ -1602,12 +1625,24 @@ class PersistentEngineSession {
       throw std::invalid_argument("frame point count mismatch");
     }
     parse_duration_ += std::chrono::nanoseconds{duration_ns(parse_started)};
+    // Visibility clearing runs after the frame is integrated and before the
+    // snapshot, so the published map reflects both what this scan added and
+    // what it contradicted (mirrors run()). Opt-in via --clear-free-space,
+    // default off. Missing/invalid pose or an empty raster skips honestly:
+    // no evidence is not evidence of absence, so nothing is cleared.
+    if (options_.clearing_enabled && pose_valid_ && scan_image_.filled_bins() > 0) {
+      const auto clearing_started = Clock::now();
+      result_.clearing = map_->clear_free_space(scan_image_, sensor_pose_);
+      update_duration_ += std::chrono::nanoseconds{duration_ns(clearing_started)};
+    } else {
+      result_.clearing.reset();
+    }
     const auto snapshot_started = Clock::now();
     auto snapshot = map_->snapshot();
     if (map_->apply_governor(
-        snapshot,
-        static_cast<double>((parse_duration_ + window_duration_ + update_duration_).count()) /
-            1'000'000.0))
+            snapshot,
+            static_cast<double>((parse_duration_ + window_duration_ + update_duration_).count()) /
+                1'000'000.0))
       snapshot = map_->snapshot();
     result_.governor = map_->governor_status();
     result_.promotion_telemetry = map_->promotion_telemetry();
@@ -1721,6 +1756,17 @@ class PersistentEngineSession {
   InputSummary input_summary_;
   // Decoded rows of the current binary frame; reused so frames do not allocate.
   std::vector<veyra::map::Observation> pending_;
+  // One-scan depth raster for visibility clearing (mirrors run()'s scan_image:
+  // 1440 x 64 over [-25, +15] degrees, close to a 64-beam spinning unit).
+  // Bins coarser than the sensor's angular resolution would merge distinct
+  // beams; finer would leave gaps that read as "nothing measured" and suppress
+  // clearing.
+  veyra::map::DepthImage scan_image_{1440, 64, -25.0 * std::numbers::pi / 180.0,
+                                     15.0 * std::numbers::pi / 180.0};
+  veyra::map::SensorPose sensor_pose_{};
+  // False until a frame supplies a finite sensor pose; clearing never runs on
+  // a fabricated pose.
+  bool pose_valid_ = false;
 };
 
 // Batch counterpart to run() for compact binary streams. It uses the same
@@ -1769,7 +1815,8 @@ int run_binary(const Options& options) {
       }
       trailer = true;
     } else {
-      throw std::invalid_argument("binary stream accepts only header, metadata, frames, and trailer");
+      throw std::invalid_argument(
+          "binary stream accepts only header, metadata, frames, and trailer");
     }
   }
   if (!header || !metadata || !trailer || session.frame_count() == 0 ||
