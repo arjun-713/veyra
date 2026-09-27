@@ -1,8 +1,10 @@
 # Production UtilityLOD diagnostics and perception handoff
 
-Scope: #57, on production `utility_lod`. This adds observability and the approved
-narrow perception-quality correction, not a V2 import, policy retune, new
-default, or claim that UtilityLOD beats DistanceLOD.
+Scope: #57, on production `utility_lod`. This adds observability, the approved
+narrow perception-quality correction and the subsequent measured-support/class
+signal correction. It is not a V2 import, weight retune, new default, or claim
+that UtilityLOD beats DistanceLOD. The new policy contract is documented in
+`docs/utility-production-signal-correction.md`.
 
 ## What the mapper now reports
 
@@ -53,13 +55,16 @@ The bounded measured diagnosis and full aggregate artifact are recorded in
 `reports/utility-diagnostics/README.md`. This is branch-local GT-semantic
 diagnostic evidence, not the final-main benchmark required by #62.
 
-## Current defects to measure, not silently fix here
+## Original defects (preserved diagnosis)
 
-`MapPolicyAdapter::update` currently uses confidence for every known class,
-without class-specific importance, and supplies constant `point_density = 1`.
+Before the signal correction, `MapPolicyAdapter::update` used confidence for
+every known class, without class-specific importance, and supplied constant
+`point_density = 1`.
 Production config has semantic weight `0.30` and split threshold `0.55`; semantics
 alone cannot pass this fused-score threshold. This is a reachability limitation,
-not proof that changing one weight would establish useful refinement.
+not proof that changing one weight would establish useful refinement. The new
+path has explicit class priorities, measured range-aware support and separately
+quality-gated critical semantic admission; the weights/thresholds are unchanged.
 
 The original `PerceptionPipeline._quality` took the minimum of semantic and
 terrain confidence for all points. Terrain confidence may legitimately be zero

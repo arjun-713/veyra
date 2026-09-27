@@ -90,10 +90,11 @@ class UtilityDiagnosticsTests(unittest.TestCase):
         self.assertEqual(
             sum(evidence["support_histograms"]["point_density"]), evidence["decisions"]
         )
-        # This records the current defect, not an endorsement of constant density.
-        self.assertEqual(
-            evidence["support_histograms"]["point_density"][19], evidence["decisions"]
-        )
+        # Both returns share one 40cm region around 45m in each scan. The
+        # range-aware expected support is 3: measured density=2/3, bin 13.
+        # Repeating four frames must not accumulate density across scans.
+        self.assertEqual(evidence["support_histograms"]["point_density"][13], 8)
+        self.assertEqual(evidence["support_histograms"]["point_density"][19], 0)
         self.assertGreater(evidence["quality_failed"], 0)
         self.assertEqual(evidence["density_failed"], 0)
         self.assertEqual(

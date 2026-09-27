@@ -564,7 +564,11 @@ void utility_diagnostics_separate_quality_density_and_effective_contributions() 
   assert(telemetry.signal_effective_weighted_sum[1] == 2 * config.utility.semantic_weight);
   assert(telemetry.decision_reasons[static_cast<std::size_t>(veyra::policy::UtilityDecisionReason::QualityGate)] == 1);
   assert(telemetry.decision_reasons[static_cast<std::size_t>(veyra::policy::UtilityDecisionReason::DensityGate)] == 1);
-  assert(telemetry.decision_reasons[static_cast<std::size_t>(veyra::policy::UtilityDecisionReason::ScoreBelowSplit)] == 2);
+  // With adequate support, semantics now has its own reachable admission path;
+  // recording it as score-too-low would hide the actual production decision.
+  assert(telemetry.decision_reasons[static_cast<std::size_t>(veyra::policy::UtilityDecisionReason::CriticalSemanticPromotion)] == 1);
+  assert(telemetry.decision_reasons[static_cast<std::size_t>(veyra::policy::UtilityDecisionReason::RetainedPromotion)] == 1);
+  assert(telemetry.critical_semantic_decisions == 2);
   assert(plain.promotion_telemetry().decisions == 0);
   observed.enable_promotion_telemetry(false);
   assert(observed.promotion_telemetry().decisions == 0);
@@ -597,6 +601,42 @@ void utility_diagnostics_identify_dwell_admission_and_protected_baseline() {
 }  // namespace
 
 int main() {
+  {
+    const auto config = veyra::policy::load_policy_config(
+        std::filesystem::path{VEYRA_SOURCE_DIR} / "configs" / "utility_lod.yaml");
+    const auto& u = config.utility;
+    assert(veyra::policy::semantic_importance(u, 0, 1.0) == 0.0);
+    assert(veyra::policy::semantic_importance(u, 999, 1.0) == 0.0);
+    assert(veyra::policy::semantic_importance(u, 9, 1.0) <
+           veyra::policy::semantic_importance(u, 6, 0.9));
+    assert(veyra::policy::semantic_importance(u, 6, 0.2) == 0.2);
+    assert(veyra::policy::normalized_point_density(u, 0, 80.0) == 0.0);
+    assert(veyra::policy::normalized_point_density(u, 1, 80.0) < u.min_point_density);
+    assert(veyra::policy::normalized_point_density(u, 2, 80.0) > u.min_point_density);
+    assert(veyra::policy::normalized_point_density(u, 1, 10.0) <
+           veyra::policy::normalized_point_density(u, 1, 80.0));
+    auto ablated = config;
+    ablated.utility.semantic_weight = 0.0;
+    LodPolicy geometry_only{ablated};
+    for (std::uint64_t frame = 1; frame <= 3; ++frame) {
+      geometry_only.begin_frame(frame);
+      const auto decision = geometry_only.decide({
+          .range_m = 45.0, .active_level = 2, .state_cell = {3, 100, 0},
+          .semantic_importance = 1.0, .observation_quality = 1.0,
+          .point_density = 1.0, .semantic_class = 6});
+      assert(decision.requested_level == 2);
+    }
+    auto invalid = config;
+    invalid.utility.semantic_class_importance[0] = 1.0;
+    bool threw = false;
+    try { invalid.validate(); } catch (const std::invalid_argument&) { threw = true; }
+    assert(threw);
+    invalid = config;
+    invalid.utility.density_min_expected_count = 0.0;
+    threw = false;
+    try { invalid.validate(); } catch (const std::invalid_argument&) { threw = true; }
+    assert(threw);
+  }
   utility_diagnostics_separate_quality_density_and_effective_contributions();
   utility_diagnostics_identify_dwell_admission_and_protected_baseline();
   utility_requires_quality_and_accumulates_late_frame_hazards();

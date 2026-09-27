@@ -4,6 +4,15 @@ mode: utility_lod
 distance_boundaries_m: [10.0, 30.0, 60.0]
 max_range_m: 100.0
 utility:
+  # Unified IDs: unknown, car, bicycle, motorcycle, truck, other-vehicle,
+  # person, bicyclist, motorcyclist, road, parking, sidewalk, other-ground,
+  # building, fence, vegetation, trunk, terrain, pole, traffic-sign.
+  semantic_class_importance: [0.0, 0.8, 0.7, 0.7, 0.8, 0.8, 1.0, 1.0, 1.0, 0.05, 0.05, 0.10, 0.10, 0.35, 0.35, 0.15, 0.50, 0.15, 0.90, 0.80]
+  critical_semantic_threshold: 0.80
+  critical_semantic_min_confidence: 0.80
+  density_reference_range_m: 10.0
+  density_reference_count: 16.0
+  density_min_expected_count: 3.0
   geometry_weight: 0.20
   semantic_weight: 0.30
   motion_weight: 0.15

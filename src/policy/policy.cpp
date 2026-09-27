@@ -11,6 +11,25 @@
 
 namespace veyra::policy {
 
+double semantic_importance(const UtilityConfig& config, std::uint32_t semantic_class,
+                          double confidence) {
+  if (semantic_class >= config.semantic_class_importance.size()) return 0.0;
+  if (!std::isfinite(confidence) || confidence < 0.0 || confidence > 1.0)
+    throw std::invalid_argument("semantic confidence must be in [0,1]");
+  return config.semantic_class_importance[semantic_class] * confidence;
+}
+
+double normalized_point_density(const UtilityConfig& config, std::size_t point_count,
+                               double range_m) {
+  if (!std::isfinite(range_m) || range_m < 0.0)
+    throw std::invalid_argument("support range must be finite and nonnegative");
+  const double ratio = config.density_reference_range_m /
+                       std::max(range_m, config.density_reference_range_m);
+  const double expected = std::max(config.density_min_expected_count,
+                                    config.density_reference_count * ratio * ratio);
+  return std::min(1.0, static_cast<double>(point_count) / expected);
+}
+
 double radial_range_rate_mps(double velocity_x, double velocity_y, double offset_x,
                              double offset_y) noexcept {
   if (!std::isfinite(velocity_x) || !std::isfinite(velocity_y) || !std::isfinite(offset_x) ||
@@ -184,6 +203,15 @@ void PolicyConfig::validate() const {
     throw std::invalid_argument("distance boundaries must be strictly increasing within range");
   }
   const auto& u = utility;
+  for (double priority : u.semantic_class_importance)
+    validate_signal(priority, "semantic class importance");
+  if (u.semantic_class_importance[0] != 0.0 ||
+      !unit_interval(u.critical_semantic_threshold) || u.critical_semantic_threshold <= 0.0 ||
+      !unit_interval(u.critical_semantic_min_confidence) || u.critical_semantic_min_confidence <= 0.0 ||
+      !std::isfinite(u.density_reference_range_m) || u.density_reference_range_m <= 0.0 ||
+      !std::isfinite(u.density_reference_count) || u.density_reference_count <= 0.0 ||
+      !std::isfinite(u.density_min_expected_count) || u.density_min_expected_count < 2.0)
+    throw std::invalid_argument("invalid semantic/support configuration");
   if (!unit_interval(u.geometry_weight) || !unit_interval(u.semantic_weight) ||
       !unit_interval(u.motion_weight) || !unit_interval(u.traversability_risk_weight) ||
       !unit_interval(u.uncertainty_weight) || !unit_interval(u.min_observation_quality) ||
@@ -265,6 +293,14 @@ PolicyDecision LodPolicy::decide(const DecisionInput& input) {
       const auto& u = config_.utility;
       const bool uncertainty_gate = input.observation_quality >= u.min_observation_quality &&
                                     input.point_density >= u.min_point_density;
+      // Critical semantics must have a reachable path independent of the fused
+      // sum: 0.30 semantic weight cannot reach a 0.55 split threshold. This is
+      // still quality/support gated, dwell-limited and governor-vetoable.
+      const bool critical_semantic = uncertainty_gate && u.semantic_weight > 0.0 &&
+          input.semantic_class > 0 && input.semantic_class < u.semantic_class_importance.size() &&
+          u.semantic_class_importance[input.semantic_class] >= u.critical_semantic_threshold &&
+          input.semantic_importance >= u.semantic_class_importance[input.semantic_class] *
+                                           u.critical_semantic_min_confidence;
       const double score =
           uncertainty_gate
               ? std::clamp(input.geometry_complexity * u.geometry_weight +
@@ -302,6 +338,7 @@ PolicyDecision LodPolicy::decide(const DecisionInput& input) {
         ++telemetry.decision_reasons[static_cast<std::size_t>(reason)];
         if (input.safety_critical) ++telemetry.safety_decisions;
         if (predictive_refinement) ++telemetry.predictive_decisions;
+        if (critical_semantic) ++telemetry.critical_semantic_decisions;
         const std::array<double, 5> raw{input.geometry_complexity, input.semantic_importance,
                                         input.motion, input.traversability_risk,
                                         input.semantic_uncertainty};
@@ -372,12 +409,14 @@ PolicyDecision LodPolicy::decide(const DecisionInput& input) {
         tracked.frame_score = 0.0;
         tracked.frame_predictive = false;
         tracked.frame_safety = false;
+        tracked.frame_critical_semantic = false;
         tracked.frame_goal = 3;
         tracked.frame_promotion_counted = false;
       }
       tracked.frame_score = std::max(tracked.frame_score, score);
       tracked.frame_predictive = tracked.frame_predictive || predictive_refinement;
       tracked.frame_safety = tracked.frame_safety || input.safety_critical;
+      tracked.frame_critical_semantic = tracked.frame_critical_semantic || critical_semantic;
       tracked.frame_goal = std::min(tracked.frame_goal, promotion_goal);
       // Re-evaluate from the frame-start state with max evidence: repeated
       // points cannot consume extra hysteresis/cooldown frames.
@@ -396,7 +435,8 @@ PolicyDecision LodPolicy::decide(const DecisionInput& input) {
       } else if (!state.promoted) {
         state.low_frames = 0;
         state.high_frames =
-            (state.ema >= u.split_threshold || tracked.frame_predictive || tracked.frame_safety)
+            (state.ema >= u.split_threshold || tracked.frame_predictive || tracked.frame_safety ||
+             tracked.frame_critical_semantic)
                 ? state.high_frames + 1
                 : 0;
         if (transitions_allowed && state.high_frames >= u.split_consecutive_frames) {
@@ -408,7 +448,8 @@ PolicyDecision LodPolicy::decide(const DecisionInput& input) {
       } else {
         state.high_frames = 0;
         state.low_frames =
-            state.ema <= u.merge_threshold && !tracked.frame_predictive && !tracked.frame_safety
+            state.ema <= u.merge_threshold && !tracked.frame_predictive && !tracked.frame_safety &&
+                !tracked.frame_critical_semantic
                 ? state.low_frames + 1
                 : 0;
         if (transitions_allowed && state.low_frames >= u.merge_consecutive_frames) {
@@ -441,6 +482,8 @@ PolicyDecision LodPolicy::decide(const DecisionInput& input) {
             if (!promotion_transition) return UtilityDecisionReason::RetainedPromotion;
             if (tracked.frame_safety) return UtilityDecisionReason::SafetyPromotion;
             if (tracked.frame_predictive) return UtilityDecisionReason::PredictivePromotion;
+            if (tracked.frame_critical_semantic && state.ema < u.split_threshold)
+              return UtilityDecisionReason::CriticalSemanticPromotion;
             return UtilityDecisionReason::Promoted;
           }
           if (state.promoted) return UtilityDecisionReason::LevelChangeLimit;
@@ -448,7 +491,8 @@ PolicyDecision LodPolicy::decide(const DecisionInput& input) {
             return UtilityDecisionReason::QualityGate;
           if (input.point_density < u.min_point_density) return UtilityDecisionReason::DensityGate;
           if (!transitions_allowed) return UtilityDecisionReason::Cooldown;
-          if (state.ema < u.split_threshold && !tracked.frame_predictive && !tracked.frame_safety)
+          if (state.ema < u.split_threshold && !tracked.frame_predictive && !tracked.frame_safety &&
+              !tracked.frame_critical_semantic)
             return UtilityDecisionReason::ScoreBelowSplit;
           return UtilityDecisionReason::InsufficientDwell;
         }();
@@ -610,7 +654,11 @@ PolicyConfig load_policy_config(const std::filesystem::path& path) {
          "utility.merge_threshold", "utility.split_consecutive_frames",
          "utility.merge_consecutive_frames", "utility.cooldown_frames",
          "utility.max_level_changes_per_decision", "utility.prediction_horizon_s"},
-        {"utility.max_promotion_depth", "utility.max_state_cells", "utility.state_ttl_frames"});
+        {"utility.max_promotion_depth", "utility.max_state_cells", "utility.state_ttl_frames",
+         "utility.semantic_class_importance", "utility.critical_semantic_threshold",
+         "utility.critical_semantic_min_confidence",
+         "utility.density_reference_range_m", "utility.density_reference_count",
+         "utility.density_min_expected_count"});
     config.mode = LodMode::UtilityLod;
   } else {
     throw std::invalid_argument("unsupported policy mode " + mode_it->second);
@@ -619,6 +667,30 @@ PolicyConfig load_policy_config(const std::filesystem::path& path) {
   config.max_range_m = yaml_double(values.at("max_range_m"), "max_range_m");
   if (config.mode == LodMode::UtilityLod) {
     auto& u = config.utility;
+    if (values.contains("utility.semantic_class_importance")) {
+      const auto& value = values.at("utility.semantic_class_importance");
+      if (value.empty() || value.front() != '[' || value.back() != ']')
+        throw std::invalid_argument("semantic_class_importance requires 20 priorities");
+      std::stringstream items{value.substr(1, value.size() - 2)};
+      std::string item;
+      std::size_t index = 0;
+      while (std::getline(items, item, ',')) {
+        if (index == u.semantic_class_importance.size())
+          throw std::invalid_argument("semantic_class_importance requires 20 priorities");
+        u.semantic_class_importance[index++] = yaml_double(trim(item), "semantic_class_importance");
+      }
+      if (index != u.semantic_class_importance.size())
+        throw std::invalid_argument("semantic_class_importance requires 20 priorities");
+    }
+    for (const auto& [key, field] :
+         std::array<std::pair<const char*, double*>, 5>{{
+           {"utility.critical_semantic_threshold", &u.critical_semantic_threshold},
+           {"utility.critical_semantic_min_confidence", &u.critical_semantic_min_confidence},
+           {"utility.density_reference_range_m", &u.density_reference_range_m},
+           {"utility.density_reference_count", &u.density_reference_count},
+           {"utility.density_min_expected_count", &u.density_min_expected_count}}}) {
+      if (values.contains(key)) *field = yaml_double(values.at(key), key);
+    }
     u.geometry_weight =
         yaml_double(values.at("utility.geometry_weight"), "utility.geometry_weight");
     u.semantic_weight =
