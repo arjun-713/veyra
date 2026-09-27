@@ -10,6 +10,7 @@ use std::path::{Path, PathBuf};
 use std::sync::Mutex;
 
 use serde_json::Value;
+use sha2::{Digest, Sha256};
 
 pub(crate) const MAX_ARTIFACT_BYTES: u64 = 32 * 1024 * 1024;
 const REPORT_SCHEMA_VERSION: u64 = 2;
@@ -18,6 +19,7 @@ const REPORT_SCHEMA_VERSION: u64 = 2;
 pub(crate) struct AnnouncedArtifact {
     path: PathBuf,
     bytes: u64,
+    sha256: String,
 }
 
 #[derive(Default)]
@@ -51,12 +53,19 @@ pub(crate) fn announced_artifact(payload: &Value) -> Option<AnnouncedArtifact> {
     }
     let path = payload.get("artifact").and_then(Value::as_str)?;
     let bytes = payload.get("artifact_bytes").and_then(Value::as_u64)?;
-    if path.is_empty() || bytes == 0 || bytes > MAX_ARTIFACT_BYTES {
+    let sha256 = payload.get("artifact_sha256").and_then(Value::as_str)?;
+    if path.is_empty()
+        || bytes == 0
+        || bytes > MAX_ARTIFACT_BYTES
+        || sha256.len() != 64
+        || !sha256.bytes().all(|byte| byte.is_ascii_hexdigit())
+    {
         return None;
     }
     Some(AnnouncedArtifact {
         path: PathBuf::from(path),
         bytes,
+        sha256: sha256.to_ascii_lowercase(),
     })
 }
 
@@ -86,6 +95,10 @@ pub(crate) fn read_announced(
             raw.len()
         ));
     }
+    let actual_sha256 = format!("{:x}", Sha256::digest(&raw));
+    if actual_sha256 != announced.sha256 {
+        return Err("benchmark artifact SHA-256 mismatch after completion".to_owned());
+    }
     let report: Value = serde_json::from_slice(&raw)
         .map_err(|error| format!("benchmark artifact is not valid JSON: {error}"))?;
     if report.get("schema_version").and_then(Value::as_u64) != Some(REPORT_SCHEMA_VERSION) {
@@ -98,6 +111,7 @@ pub(crate) fn read_announced(
 mod tests {
     use super::{announced_artifact, read_announced, BenchmarkArtifacts, MAX_ARTIFACT_BYTES};
     use serde_json::json;
+    use sha2::{Digest, Sha256};
 
     fn write(dir: &std::path::Path, text: &str) -> std::path::PathBuf {
         let path = dir.join("benchmark.json");
@@ -127,7 +141,7 @@ mod tests {
         assert!(announced_artifact(&json!({
             "type": "benchmark", "state": "complete", "artifact": "/x", "artifact_bytes": 10
         }))
-        .is_some());
+        .is_none());
     }
 
     #[test]
@@ -138,10 +152,35 @@ mod tests {
         let registry = BenchmarkArtifacts::default();
         registry.observe(&json!({
             "type": "benchmark", "state": "complete",
-            "artifact": path.to_string_lossy(), "artifact_bytes": text.len()
+            "artifact": path.to_string_lossy(), "artifact_bytes": text.len(),
+            "artifact_sha256": format!("{:x}", Sha256::digest(text.as_bytes()))
         }));
         let report = registry.read(&path.to_string_lossy()).unwrap();
         assert_eq!(report["provenance"]["git_sha"], "abc");
+        let _ = std::fs::remove_dir_all(dir);
+    }
+
+    #[test]
+    fn same_length_valid_report_mutation_is_rejected_by_sha256() {
+        let dir = scratch("sha-mismatch");
+        let original = r#"{"schema_version":2,"policies":{"distance_lod":{"memory":10}}}"#;
+        let changed = r#"{"schema_version":2,"policies":{"distance_lod":{"memory":11}}}"#;
+        assert_eq!(original.len(), changed.len());
+        let path = write(&dir, original);
+        let announced = announced_artifact(&json!({
+            "type": "benchmark", "state": "complete",
+            "artifact": path.to_string_lossy(),
+            "artifact_bytes": original.len(),
+            "artifact_sha256": format!("{:x}", Sha256::digest(original.as_bytes()))
+        }))
+        .expect("runtime SHA-256 should be accepted");
+
+        std::fs::write(&path, changed).unwrap();
+        let error = read_announced(Some(&announced), &path.to_string_lossy()).unwrap_err();
+        assert!(
+            error.contains("SHA-256 mismatch"),
+            "unexpected error: {error}"
+        );
         let _ = std::fs::remove_dir_all(dir);
     }
 
@@ -157,7 +196,8 @@ mod tests {
 
         let announced = announced_artifact(&json!({
             "type": "benchmark", "state": "complete",
-            "artifact": requested, "artifact_bytes": text.len()
+            "artifact": requested, "artifact_bytes": text.len(),
+            "artifact_sha256": format!("{:x}", Sha256::digest(text.as_bytes()))
         }))
         .unwrap();
         assert!(read_announced(Some(&announced), "/etc/passwd")
@@ -173,7 +213,8 @@ mod tests {
         std::fs::write(&path, legacy).unwrap();
         let announced = announced_artifact(&json!({
             "type": "benchmark", "state": "complete",
-            "artifact": requested, "artifact_bytes": legacy.len()
+            "artifact": requested, "artifact_bytes": legacy.len(),
+            "artifact_sha256": format!("{:x}", Sha256::digest(legacy.as_bytes()))
         }))
         .unwrap();
         assert!(read_announced(Some(&announced), &requested)
