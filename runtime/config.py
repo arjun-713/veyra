@@ -154,6 +154,7 @@ def validate_config(config, repo: Path, *, check_paths=True):
             "window_radius_m",
             "resource_profile",
             "governor_override",
+            "clear_free_space",
         ),
         "map",
     )
@@ -180,6 +181,9 @@ def validate_config(config, repo: Path, *, check_paths=True):
     governor_override = map_config.get("governor_override", "automatic")
     if governor_override not in ("automatic", "disabled", "conserve"):
         raise ValueError("unsupported governor override")
+    clear_free_space = map_config.get("clear_free_space", False)
+    if not isinstance(clear_free_space, bool):
+        raise TypeError("map clear_free_space must be a boolean")
     pipeline = normalized_pipeline(config.get("pipeline"))
     playback = _merged_section(preset, config, "playback")
     _keys(playback, ("fps", "speed", "frame_limit", "full_sequence"), "playback")
@@ -223,6 +227,7 @@ def validate_config(config, repo: Path, *, check_paths=True):
             "window_radius_m": radius,
             "resource_profile": resource_profile,
             "governor_override": governor_override,
+            "clear_free_space": clear_free_space,
         },
         "playback": playback,
         "visualization": visual,
