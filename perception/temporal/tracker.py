@@ -30,7 +30,8 @@ class MotionEvidence:
     # Genuine tracker IDs per point, aligned with the input frame. ``None``
     # means the tracker did not report identity (legacy caller); ``-1`` marks
     # a point with no associated track (e.g. an excluded class). Genuine IDs
-    # are the tracker's own monotonic IDs, never regenerated or reused.
+    # are the tracker's own monotonic IDs within a sequence, never
+    # regenerated or reused in-sequence; a sequence reset restarts IDs.
     track_id: np.ndarray | None = None
 
     def __post_init__(self) -> None:

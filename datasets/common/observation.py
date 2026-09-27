@@ -173,7 +173,8 @@ class ObservationFrame:
     # None means tracker identity is unavailable (temporal stage disabled or
     # unproven metadata) and must stay distinguishable from zero tracks.
     # When present, -1 marks a point with no associated track; genuine IDs
-    # are the tracker's own monotonic IDs, never regenerated or reused.
+    # are the tracker's own monotonic IDs within a sequence, never
+    # regenerated or reused in-sequence; a sequence reset restarts IDs.
     track_id: np.ndarray | None = None
     # Height of each return above the locally fitted ground surface, metres.
     #
