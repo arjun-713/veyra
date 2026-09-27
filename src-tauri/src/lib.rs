@@ -38,6 +38,7 @@ pub fn run() {
     let builder = tauri::Builder::default()
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_fs::init())
+        .plugin(tauri_plugin_screenshots::init())
         .setup(|app| {
             let config_dir = app.path().app_config_dir().map_err(|error| {
                 format!("cannot resolve protected control storage directory: {error}")

@@ -24,6 +24,7 @@
     "@tauri-apps/plugin-dialog": "^2.7.3",
     "@tauri-apps/plugin-fs": "^2.5.2",
     "svelte": "^5.0.0",
+    "tauri-plugin-screenshots-api": "^2.2.0",
     "three": "^0.183.0",
     "uplot": "^1.6.32"
   },
