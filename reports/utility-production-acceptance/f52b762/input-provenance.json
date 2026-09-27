@@ -1,0 +1,334 @@
+{
+  "candidate_code_sha": "f52b762616f44aa0948df9899faec195c0123d40",
+  "base_main_sha": "c6e2c30f43f00a0f35c3b2e094d3850cf6d3da3c",
+  "code_is_current_main": false,
+  "source_state": {
+    "working_tree_dirty": true,
+    "execution_source_clean": true,
+    "source_state_sha256": "d5c509383cdeaa18b45069f4b6aaeb084a8a7b0b7031d6f99039014183c33912",
+    "untracked_source_files": []
+  },
+  "dataset": "semanticposs",
+  "sequence": "00",
+  "frame_range": [
+    0,
+    30
+  ],
+  "semantic_provider": "ground_truth",
+  "execution_provider": "dataset labels; no neural inference",
+  "model_checkpoint_sha256": null,
+  "input_files": [
+    {
+      "path": "data/raw/semanticposs/dataset/sequences/00/velodyne/000000.bin",
+      "bytes": 1066528,
+      "sha256": "d87d504c4b32505ddda250c691b9af243cbe0c5f43ce7c56a4ca51619e13a4dd"
+    },
+    {
+      "path": "data/raw/semanticposs/dataset/sequences/00/labels/000000.label",
+      "bytes": 266632,
+      "sha256": "1f7a32faa7c234cb5020a8a9cd4d6b052b542c7a539cf0b89835d011d5e4924b"
+    },
+    {
+      "path": "data/raw/semanticposs/dataset/sequences/00/velodyne/000001.bin",
+      "bytes": 1066448,
+      "sha256": "064cedbb314318e40ac8bf9fca961a99679fe303226dc0ad06d2e4f4061fc72a"
+    },
+    {
+      "path": "data/raw/semanticposs/dataset/sequences/00/labels/000001.label",
+      "bytes": 266612,
+      "sha256": "3fd987602de1500129c7ae233e12fffab3cc07474bcf1e06988f3ba481ca8791"
+    },
+    {
+      "path": "data/raw/semanticposs/dataset/sequences/00/velodyne/000002.bin",
+      "bytes": 1065856,
+      "sha256": "0c84fe99dff37000c068fa294756cf14ac56514331ba8b77230de9fa9c35da76"
+    },
+    {
+      "path": "data/raw/semanticposs/dataset/sequences/00/labels/000002.label",
+      "bytes": 266464,
+      "sha256": "d199bc6a559e9694e54c7a4fb18fe9b9002137442fbbaa64a5d367463673b03e"
+    },
+    {
+      "path": "data/raw/semanticposs/dataset/sequences/00/velodyne/000003.bin",
+      "bytes": 1064512,
+      "sha256": "7bfb3d22654ebaf8313c965c22f757fd3d49c9f2b97fcef66b1346f41bd11dba"
+    },
+    {
+      "path": "data/raw/semanticposs/dataset/sequences/00/labels/000003.label",
+      "bytes": 266128,
+      "sha256": "1560a2ffd88f10c4e27b57677fb6b3d0256bc726606efa5507712064bb6515fa"
+    },
+    {
+      "path": "data/raw/semanticposs/dataset/sequences/00/velodyne/000004.bin",
+      "bytes": 1064736,
+      "sha256": "8d6b22280cf95a23020f535408b50711b9a8a5d79b155484986f3f2ea1c27648"
+    },
+    {
+      "path": "data/raw/semanticposs/dataset/sequences/00/labels/000004.label",
+      "bytes": 266184,
+      "sha256": "27cd16a6731875791c2373299e3aa334634e7e362be741192b0119fa07e78815"
+    },
+    {
+      "path": "data/raw/semanticposs/dataset/sequences/00/velodyne/000005.bin",
+      "bytes": 1064512,
+      "sha256": "89c91563684124c8d68716ceae173841bd364987f528f1e6c3a50d43343bebb1"
+    },
+    {
+      "path": "data/raw/semanticposs/dataset/sequences/00/labels/000005.label",
+      "bytes": 266128,
+      "sha256": "151ef82f281447dc7f461513f8918ab75024f0f364cf31236069595bbf9b9928"
+    },
+    {
+      "path": "data/raw/semanticposs/dataset/sequences/00/velodyne/000006.bin",
+      "bytes": 1065632,
+      "sha256": "7ef976c4eaa06655236674c59315a1332bf7dbe24d03926ce5efdc3f3e2f831a"
+    },
+    {
+      "path": "data/raw/semanticposs/dataset/sequences/00/labels/000006.label",
+      "bytes": 266408,
+      "sha256": "449e22d6efdf72420d4aad611745e4840e9890a4bb04f020816e9efbc4aa3bd0"
+    },
+    {
+      "path": "data/raw/semanticposs/dataset/sequences/00/velodyne/000007.bin",
+      "bytes": 1066672,
+      "sha256": "fdda0fe85e79850dc4b6fac4be67382b754051ed57a9ab70c7c91b5c6d83bec1"
+    },
+    {
+      "path": "data/raw/semanticposs/dataset/sequences/00/labels/000007.label",
+      "bytes": 266668,
+      "sha256": "1bb2e7f20dd9aecc6c680ae6d41b95c43f8e8f6b5b180a732444a7ec09927bf6"
+    },
+    {
+      "path": "data/raw/semanticposs/dataset/sequences/00/velodyne/000008.bin",
+      "bytes": 1065616,
+      "sha256": "87d581a8443968fb6f81bf55fcf0a930872f57aec0ee0c09d86777d3305c5f69"
+    },
+    {
+      "path": "data/raw/semanticposs/dataset/sequences/00/labels/000008.label",
+      "bytes": 266404,
+      "sha256": "ddc95cb61641896873b4ffee5f1c3fb9d7a1591950e88e6d6e8d92ac62d81386"
+    },
+    {
+      "path": "data/raw/semanticposs/dataset/sequences/00/velodyne/000009.bin",
+      "bytes": 1066336,
+      "sha256": "625fd70db4006732925221163df34ff71a0aebb9944ed704bdb3ec8aaca6b803"
+    },
+    {
+      "path": "data/raw/semanticposs/dataset/sequences/00/labels/000009.label",
+      "bytes": 266584,
+      "sha256": "1a249521084e7339240f9a4058ace5097ca6a084a640cf1702da6043a0265a79"
+    },
+    {
+      "path": "data/raw/semanticposs/dataset/sequences/00/velodyne/000010.bin",
+      "bytes": 1066752,
+      "sha256": "979a72d9e2661fd35cd5b9a5efb8927b611f22e1095c4005a55e10077da1e27b"
+    },
+    {
+      "path": "data/raw/semanticposs/dataset/sequences/00/labels/000010.label",
+      "bytes": 266688,
+      "sha256": "09bc29e4ff2e73e0e4fa1fad2d71ce40ed6e88d738c318460cdaa7e057082861"
+    },
+    {
+      "path": "data/raw/semanticposs/dataset/sequences/00/velodyne/000011.bin",
+      "bytes": 1066432,
+      "sha256": "4d24c4cc0c291f36ae0686746d3ca522be23eac164eaef4e93d31ce8c13f0f9d"
+    },
+    {
+      "path": "data/raw/semanticposs/dataset/sequences/00/labels/000011.label",
+      "bytes": 266608,
+      "sha256": "7f20525865f515605a8df23208f7de2a85b6049b5fa757f3e24fb3d71a5e09d4"
+    },
+    {
+      "path": "data/raw/semanticposs/dataset/sequences/00/velodyne/000012.bin",
+      "bytes": 1065200,
+      "sha256": "4ecb4eb5bfd7cbb336322b10470f97f9bc118d2d8c0219e2907a68a648909801"
+    },
+    {
+      "path": "data/raw/semanticposs/dataset/sequences/00/labels/000012.label",
+      "bytes": 266300,
+      "sha256": "ffe56df1fa22dda207d3570e193347f74f22539974df8bddd7046ae3233edcd5"
+    },
+    {
+      "path": "data/raw/semanticposs/dataset/sequences/00/velodyne/000013.bin",
+      "bytes": 1063584,
+      "sha256": "2dc37b9d8ad19154cbd27e736ce09c3c0309db658504a299ca44448f9d20eab4"
+    },
+    {
+      "path": "data/raw/semanticposs/dataset/sequences/00/labels/000013.label",
+      "bytes": 265896,
+      "sha256": "0266cac8cc5189a0b7ec676e82dc9142dbae60e1a5663505e6a1308fc3a272ec"
+    },
+    {
+      "path": "data/raw/semanticposs/dataset/sequences/00/velodyne/000014.bin",
+      "bytes": 1063248,
+      "sha256": "d762f8cfe8be8b7861ab501642e22cf688bf71583415ba768439f1454fb8902b"
+    },
+    {
+      "path": "data/raw/semanticposs/dataset/sequences/00/labels/000014.label",
+      "bytes": 265812,
+      "sha256": "007333efd91ce057e11cc900baeb3eee73cc14fbb70b5356df70a84092556a67"
+    },
+    {
+      "path": "data/raw/semanticposs/dataset/sequences/00/velodyne/000015.bin",
+      "bytes": 1062960,
+      "sha256": "c90ed664a431944fbde481cdcc2d2cd54f468a3d31a6f54176a29bd7e0d9d09a"
+    },
+    {
+      "path": "data/raw/semanticposs/dataset/sequences/00/labels/000015.label",
+      "bytes": 265740,
+      "sha256": "270b70b8e7d95ef2fab175607e588f5980eb7aa1d0700ba4e5d059c6802bdc50"
+    },
+    {
+      "path": "data/raw/semanticposs/dataset/sequences/00/velodyne/000016.bin",
+      "bytes": 1063040,
+      "sha256": "1bdd6a21bcf9de061fa42993a73c6517c3206d0a77379ea100268013b25b6e0e"
+    },
+    {
+      "path": "data/raw/semanticposs/dataset/sequences/00/labels/000016.label",
+      "bytes": 265760,
+      "sha256": "cdb6a204c1f6a72c0701782693e3ae011b26deda1c5f690b7f5a8fd944d11011"
+    },
+    {
+      "path": "data/raw/semanticposs/dataset/sequences/00/velodyne/000017.bin",
+      "bytes": 1061632,
+      "sha256": "9cb6fb4105f1a800d918410ddea59b8f2d08f308c80c4749da79226667dc6e19"
+    },
+    {
+      "path": "data/raw/semanticposs/dataset/sequences/00/labels/000017.label",
+      "bytes": 265408,
+      "sha256": "75e714f56d3103750cab3f02a0f8f9d1bea6f615612d6b254aa3f676b03d8658"
+    },
+    {
+      "path": "data/raw/semanticposs/dataset/sequences/00/velodyne/000018.bin",
+      "bytes": 1060816,
+      "sha256": "124a33e0132d29d537d8e4ca332c01daf9be62cab83c2c960435e899e260a653"
+    },
+    {
+      "path": "data/raw/semanticposs/dataset/sequences/00/labels/000018.label",
+      "bytes": 265204,
+      "sha256": "d74c441154aa0bafb930de82d722c115a05d793ff7dd7c07afc700fa7db16315"
+    },
+    {
+      "path": "data/raw/semanticposs/dataset/sequences/00/velodyne/000019.bin",
+      "bytes": 1060384,
+      "sha256": "56a15fefc3cab8cfb86e4fe999ef87289f3312be1047445cbdf699c4d7791370"
+    },
+    {
+      "path": "data/raw/semanticposs/dataset/sequences/00/labels/000019.label",
+      "bytes": 265096,
+      "sha256": "24d7d4f2db2e09c2fb36022b9e62c22585f94e0a30f11d364a1f8d04af4a08be"
+    },
+    {
+      "path": "data/raw/semanticposs/dataset/sequences/00/velodyne/000020.bin",
+      "bytes": 1059520,
+      "sha256": "933255159af3977a9d443f78bc25b4a7a78d57215520c87cb9603ca8d05cb934"
+    },
+    {
+      "path": "data/raw/semanticposs/dataset/sequences/00/labels/000020.label",
+      "bytes": 264880,
+      "sha256": "144b193bcca6d64171c002dc2f7190c15bc1771787c8c73ec09c9711d40f2096"
+    },
+    {
+      "path": "data/raw/semanticposs/dataset/sequences/00/velodyne/000021.bin",
+      "bytes": 1059536,
+      "sha256": "804018e1de736b31283a74cc4fafe79beb56a69593988e7c24e30a66dbef7290"
+    },
+    {
+      "path": "data/raw/semanticposs/dataset/sequences/00/labels/000021.label",
+      "bytes": 264884,
+      "sha256": "dc274df688c3c8e1a0f113c5dc52cd436a56c2923deb69fccf4904df29b04272"
+    },
+    {
+      "path": "data/raw/semanticposs/dataset/sequences/00/velodyne/000022.bin",
+      "bytes": 1060128,
+      "sha256": "371e2cfe359d4bc93c463e7994ebb660e992f0b53aad4ff416665e1aa250c36d"
+    },
+    {
+      "path": "data/raw/semanticposs/dataset/sequences/00/labels/000022.label",
+      "bytes": 265032,
+      "sha256": "7da2236fc58850f237267e4ae2927056b1e2e1537b5c6447a3dc990228009d9a"
+    },
+    {
+      "path": "data/raw/semanticposs/dataset/sequences/00/velodyne/000023.bin",
+      "bytes": 1059776,
+      "sha256": "f3373c04f701b3793c35132a1a7a4be7bb42145984d5e309dba44c7af8a37335"
+    },
+    {
+      "path": "data/raw/semanticposs/dataset/sequences/00/labels/000023.label",
+      "bytes": 264944,
+      "sha256": "945045885c476628b05f36434a749e0e258f3abb87e5700c5a23e24be4743dae"
+    },
+    {
+      "path": "data/raw/semanticposs/dataset/sequences/00/velodyne/000024.bin",
+      "bytes": 1057920,
+      "sha256": "e8113c5d2682573f332b0d89a2096e40f4b39e51158219c6640398a3f9de5a1c"
+    },
+    {
+      "path": "data/raw/semanticposs/dataset/sequences/00/labels/000024.label",
+      "bytes": 264480,
+      "sha256": "405bccd7011d542452bf7f412cf53ffcaea07278af9a533d4f17a6a89cfe9149"
+    },
+    {
+      "path": "data/raw/semanticposs/dataset/sequences/00/velodyne/000025.bin",
+      "bytes": 1059312,
+      "sha256": "16bfe3eeb297078f3361e1f6001a27697ecd71b5942049605d16bece99b7b76d"
+    },
+    {
+      "path": "data/raw/semanticposs/dataset/sequences/00/labels/000025.label",
+      "bytes": 264828,
+      "sha256": "a2933794654d85a7b882c3530ae78c8e65221868c85ee25feb0c4e14e468fc67"
+    },
+    {
+      "path": "data/raw/semanticposs/dataset/sequences/00/velodyne/000026.bin",
+      "bytes": 1056624,
+      "sha256": "91fbd3939c6398a68473f16df032801ffb5ea8b2f57a90e1774b6c354b0ff844"
+    },
+    {
+      "path": "data/raw/semanticposs/dataset/sequences/00/labels/000026.label",
+      "bytes": 264156,
+      "sha256": "08b60357df96c2d16229629fdfb6d09248a93631eacb4a4b0330725d1af637c7"
+    },
+    {
+      "path": "data/raw/semanticposs/dataset/sequences/00/velodyne/000027.bin",
+      "bytes": 1056112,
+      "sha256": "74c38d8f51061a1202717892e9f36ac8075378038c8269ab5f97614a5a57d27a"
+    },
+    {
+      "path": "data/raw/semanticposs/dataset/sequences/00/labels/000027.label",
+      "bytes": 264028,
+      "sha256": "4e27bd8df562f80236925487ae697caf480957c22c8a1dd9485738e1ea1ec547"
+    },
+    {
+      "path": "data/raw/semanticposs/dataset/sequences/00/velodyne/000028.bin",
+      "bytes": 1056768,
+      "sha256": "1ce7820d0e2a8741186419402e90209f7169bb704e6cc0f51489750889e31f6a"
+    },
+    {
+      "path": "data/raw/semanticposs/dataset/sequences/00/labels/000028.label",
+      "bytes": 264192,
+      "sha256": "795deaa9db9a6c943b2191807e8349b93d92e80cf6c8807ab1b9f8d9df9ba263"
+    },
+    {
+      "path": "data/raw/semanticposs/dataset/sequences/00/velodyne/000029.bin",
+      "bytes": 1056496,
+      "sha256": "3250cb9cc41e0d1eff111fc554a07705a1209dbd18fc77530faff27f4a634100"
+    },
+    {
+      "path": "data/raw/semanticposs/dataset/sequences/00/labels/000029.label",
+      "bytes": 264124,
+      "sha256": "ea3d22badab76d013cfb3a0d3e19888ade92e5b3afb9e7dc0d3eca922ee2f16e"
+    },
+    {
+      "path": "data/raw/semanticposs/dataset/sequences/00/poses.txt",
+      "bytes": 56580,
+      "sha256": "cf8fe919f7a721065f32b66bf3c2c00f4f54c8e2f0d31580a51515276bc75f57"
+    },
+    {
+      "path": "data/raw/semanticposs/dataset/sequences/00/calib.txt",
+      "bytes": 140,
+      "sha256": "cdaa17f3ad632a69c1ff4ddfe6679eef0ce2690ca5eedc9636b5e028e2784d93"
+    }
+  ],
+  "input_files_digest": "0b28c64d8a7b19aa41aac8116ba27c6011f6abe3693026a1cdc4289dbee37944",
+  "frozen_manifest_sha256": "183ef7c7a80d7fe10c06beb2b3387e301bb05744ccd7d6bd43235616f45172f4"
+}
