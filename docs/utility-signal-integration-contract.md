@@ -1,7 +1,8 @@
 # Production UtilityLOD diagnostics and perception handoff
 
-Scope: #57, on production `utility_lod`. This is observability, not a V2 import,
-policy retune, new default, or claim that UtilityLOD beats DistanceLOD.
+Scope: #57, on production `utility_lod`. This adds observability and the approved
+narrow perception-quality correction, not a V2 import, policy retune, new
+default, or claim that UtilityLOD beats DistanceLOD.
 
 ## What the mapper now reports
 
@@ -60,16 +61,22 @@ Production config has semantic weight `0.30` and split threshold `0.55`; semanti
 alone cannot pass this fused-score threshold. This is a reachability limitation,
 not proof that changing one weight would establish useful refinement.
 
-`PerceptionPipeline._quality` currently takes the minimum of semantic and terrain
-confidence for all points. Terrain confidence may legitimately be zero for a
-non-ground object; that must not automatically erase valid object confidence.
+The original `PerceptionPipeline._quality` took the minimum of semantic and
+terrain confidence for all points. Terrain confidence may legitimately be zero
+for a non-ground object; that must not automatically erase object confidence.
+The approved integration correction now uses the aligned ground-stage mask:
+ground remains `min(semantic_confidence, terrain_confidence)`, non-ground uses
+semantic confidence, and terrain-unavailable behavior remains unchanged.
+Terrain confidence, traversability, motion and semantic unknown are not modified.
 
-## Handoff to Samay: quality boundary
+## Approved quality-boundary integration
 
-Owner confirmed by Arjun: **Samay**. This branch does not edit
-`perception/pipeline.py` or `tests/test_perception_pipeline.py`.
+Originally reserved for **Samay**. After his PRs were reviewed and this fix was
+confirmed absent, Arjun explicitly authorized the narrow change in our #57 PR.
+This branch now edits `perception/pipeline.py` and its regression tests; preserve
+Samay's fail-closed model/status work during integration. The contract is:
 
-Please make the smallest correction in `_quality` and its call in `process`:
+The smallest correction in `_quality` and its call in `process`:
 
 1. Keep point ordering and all existing ObservationFrame fields/protocols.
 2. Supply the actual aligned ground mask (from the ground stage when available,
@@ -97,15 +104,19 @@ Required regression fixtures:
 - Terrain unavailable, unknown semantics, absent motion, and malformed shapes
   retain truthful behavior, with no unconditional skips/fallback success.
 
-Run perception-pipeline tests plus relevant protocol/runtime tests. Provide the
-commit SHA and agreed quality semantics before the map-side signal correction
-is based on this change. No provider/default/temporal behavior needs rewriting.
+Regression tests exercise the real pipeline composition, including high- and
+low-confidence non-ground support, conservative unsupported ground, unknown
+semantics, absent terrain, and unchanged unknown traversability/motion. The two
+quality-boundary assertions failed against the old code before implementation.
+No provider/default/temporal behavior was rewritten.
 
 ## Remaining merge gates
 
 1. Merge/review diagnostics independently of signal corrections.
-2. Integrate Samay's approved quality-boundary and relevant temporal work before
-   overlapping `engine.cpp` edits for measured support/class importance.
+2. The approved quality boundary is included here. Temporal PR #68 remains on
+   hold after real KITTI parked-support loss; do not merge it just to satisfy a
+   dependency. Coordinate later `engine.cpp` edits for measured support/class
+   importance with its separate persistent-session changes.
 3. Correct only defects demonstrated by diagnostics; preserve DistanceLOD,
    safety detail, hysteresis, and frozen challenge selections.
 4. Independently measure task benefit (#60). An equal-range resolution change is
