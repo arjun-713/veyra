@@ -5,31 +5,13 @@ import numpy as np
 # v3 display cell: 17 little-endian float32 per row (see pack_visualization).
 CELL_FLOATS = 17
 CELL_STRIDE = CELL_FLOATS * 4
+# v3 display point: 17 little-endian float32 per row.
+POINT_STRIDE = 17 * 4
 
 
-def pack_visualization(frame, cells, generation):
-    count = int(frame["shown"])
-    # Point section: XYZ/I, mapped+raw semantic IDs, ground, drivable,
-    # confidence, terrain evidence, motion, velocity, quality, terrain
-    # confidence. This is bounded display data and is independent of map cells.
-    points = np.empty((count, 17), dtype="<f4")
-    points[:, :3] = frame["points"]
-    points[:, 3] = frame["intensity"]
-    points[:, 4] = frame["semantic_labels"]
-    points[:, 5] = frame.get("raw_semantic_labels", frame["semantic_labels"])
-    points[:, 6] = frame["ground"]
-    drivable = np.asarray(frame["drivable"])
-    points[:, 7] = np.where(
-        drivable == "drivable", 1, np.where(drivable == "non_drivable", 2, 0)
-    )
-    points[:, 8] = frame["semantic_confidence"]
-    points[:, 9] = np.nan_to_num(frame["slope"], nan=-1.0)
-    points[:, 10] = np.nan_to_num(frame["roughness"], nan=-1.0)
-    points[:, 11] = np.nan_to_num(frame["height_complexity"], nan=-1.0)
-    points[:, 12] = frame["motion_probability"]
-    points[:, 13:15] = np.asarray(frame["velocity_xy"])
-    points[:, 15] = frame["observation_quality"]
-    points[:, 16] = frame["terrain_confidence"]
+def _cell_section(cells):
+    """The v3 cell rows as bytes: forwarded engine rows or packed JSON rows."""
+
     # Cell row layout (v3, 17 floats = 68-byte stride):
     # 0:x 1:y 2:z_mean 3:size 4:class 5:motion 6:quality 7:drivable_ev
     # 8:utility 9:sem_conf 10:ground_ev 11:terrain_conf 12:geom_complex
@@ -39,7 +21,9 @@ def pack_visualization(frame, cells, generation):
     # rows use exactly this layout and are forwarded unparsed.
     available = cells.get("status") == "available"
     binary = cells.get("cells_binary") if available else None
-    rows = [] if binary is not None or not available else cells.get("cells", [])
+    if binary is not None:
+        return binary
+    rows = cells.get("cells", []) if available else []
     mapped = np.empty((len(rows), CELL_FLOATS), dtype="<f4")
     for index, cell in enumerate(rows):
         size = 0.05 * 2 ** cell["l"]
@@ -68,9 +52,46 @@ def pack_visualization(frame, cells, generation):
             cell.get("zmax", float("nan")),
             cell.get("zvar", float("nan")),
         )
-    # The engine's binary rows already use this section's layout; forward them.
-    cell_bytes = binary if binary is not None else mapped.tobytes()
+    return mapped.tobytes()
+
+
+def pack_visualization(frame, cells, generation):
+    """Return ``(metadata, payload)``; payload is one ``bytearray``.
+
+    The point rows are written in place into the payload and the cell rows
+    copied once behind them, instead of building a points array, copying it
+    with ``tobytes()`` and concatenating a third frame-sized block.
+    """
+
+    count = int(frame["shown"])
+    cell_bytes = _cell_section(cells)
     cell_count = len(cell_bytes) // CELL_STRIDE
+    points_nbytes = count * POINT_STRIDE
+    payload = bytearray(points_nbytes + len(cell_bytes))
+    # Point section: XYZ/I, mapped+raw semantic IDs, ground, drivable,
+    # confidence, terrain evidence, motion, velocity, quality, terrain
+    # confidence. This is bounded display data and is independent of map cells.
+    points = np.frombuffer(payload, dtype="<f4", count=count * 17).reshape(count, 17)
+    points[:, :3] = frame["points"]
+    points[:, 3] = frame["intensity"]
+    points[:, 4] = frame["semantic_labels"]
+    points[:, 5] = frame.get("raw_semantic_labels", frame["semantic_labels"])
+    points[:, 6] = frame["ground"]
+    drivable = np.asarray(frame["drivable"])
+    points[:, 7] = np.where(
+        drivable == "drivable", 1, np.where(drivable == "non_drivable", 2, 0)
+    )
+    points[:, 8] = frame["semantic_confidence"]
+    points[:, 9] = np.nan_to_num(frame["slope"], nan=-1.0)
+    points[:, 10] = np.nan_to_num(frame["roughness"], nan=-1.0)
+    points[:, 11] = np.nan_to_num(frame["height_complexity"], nan=-1.0)
+    points[:, 12] = frame["motion_probability"]
+    points[:, 13:15] = np.asarray(frame["velocity_xy"])
+    points[:, 15] = frame["observation_quality"]
+    points[:, 16] = frame["terrain_confidence"]
+    del points  # release the export so the payload is an ordinary bytearray
+    # The engine's binary rows already use this section's layout; forward them.
+    payload[points_nbytes:] = cell_bytes
     status = frame["pipeline_status"]
     metadata = {
         "type": "visualization",
@@ -85,8 +106,8 @@ def pack_visualization(frame, cells, generation):
         "dataset": frame["dataset"],
         "sequence": frame["seq"],
         "frame_id": frame["id"],
-        "points": {"count": count, "offset": 0, "stride": 68},
-        "cells": {"count": cell_count, "offset": points.nbytes, "stride": CELL_STRIDE},
+        "points": {"count": count, "offset": 0, "stride": POINT_STRIDE},
+        "cells": {"count": cell_count, "offset": points_nbytes, "stride": CELL_STRIDE},
         "pose": np.asarray(frame["pose"]["matrix"]).reshape(-1).tolist(),
         "pose_available": frame["pose"]["available"],
         "provenance": dict(frame["pose"].get("provenance", {})),
@@ -101,4 +122,4 @@ def pack_visualization(frame, cells, generation):
         "n_points": frame["n_points"],
         "total_leaves": cells.get("total_leaves", 0),
     }
-    return metadata, points.tobytes() + cell_bytes
+    return metadata, payload

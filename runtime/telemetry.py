@@ -145,6 +145,32 @@ def processing_fps(completed, window_s=FPS_WINDOW_S):
     return (len(recent) - 1) / (recent[-1] - recent[0])
 
 
+_STRING_COUNT_VOCABULARY = 16
+
+
+def _string_counts(array):
+    """``np.unique(..., return_counts=True)`` as a dict, for small vocabularies.
+
+    Drivability and motion-state labels are unicode arrays with a handful of
+    distinct values; sorting every label (np.unique) cost ~2 ms per frame.
+    Peeling one value at a time is O(values x labels) and yields the same
+    sorted mapping. Unexpectedly diverse input falls back to np.unique.
+    """
+
+    flat = array.reshape(-1)
+    remaining = flat
+    found = {}
+    while remaining.size:
+        if len(found) == _STRING_COUNT_VOCABULARY:
+            unique, amounts = np.unique(flat, return_counts=True)
+            return {str(value): int(amount) for value, amount in zip(unique, amounts)}
+        value = remaining[0]
+        match = remaining == value
+        found[str(value)] = int(np.count_nonzero(match))
+        remaining = remaining[~match]
+    return dict(sorted(found.items()))
+
+
 class Telemetry:
     def __init__(self, capacity=600):
         self.latencies = deque(maxlen=capacity)
@@ -173,6 +199,8 @@ class Telemetry:
             array = np.asarray(values)
             if array.size == 0:
                 return {}
+            if array.dtype.kind == "U":
+                return _string_counts(array)
             unique, amounts = np.unique(array, return_counts=True)
             return {str(value): int(amount) for value, amount in zip(unique, amounts)}
 

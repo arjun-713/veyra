@@ -22,7 +22,7 @@ from typing import Any, Protocol
 
 import numpy as np
 
-from benchmarks.protocol import PROTOCOL_VERSION, frame_records
+from benchmarks.protocol import PROTOCOL_VERSION, BinaryFrameEncoder, frame_records
 from datasets.common.adapter import DatasetAdapter
 from perception.pipeline import PerceptionPipeline
 
@@ -130,6 +130,7 @@ class PersistentMapEngine:
         self._responses = queue.Queue(maxsize=2)
         self._stderr_tail = deque(maxlen=16)
         self._lock = threading.RLock()
+        self._frame_encoder = BinaryFrameEncoder()
 
     def _start(self) -> dict[str, Any] | None:
         if not self.executable.is_file():
@@ -293,6 +294,9 @@ class PersistentMapEngine:
         writer.start()
         writer.join(self.timeout_s)
         if writer.is_alive():
+            # The abandoned writer may still reference the reused frame
+            # buffer; give later frames a fresh encoder rather than overwrite it.
+            self._frame_encoder = BinaryFrameEncoder()
             self.close()
             return {"status": "unavailable", "reason": "map engine write timed out"}
         if error:
@@ -324,22 +328,25 @@ class PersistentMapEngine:
 
         with self._lock:
             if self.transport == "binary":
-                from benchmarks.protocol import binary_frame_bytes
-
-                command = binary_frame_bytes(frame)
+                # The record aliases the encoder's reused buffer; _exchange
+                # finishes (or abandons, see there) the write before returning.
+                command = self._frame_encoder.encode(frame)
+                known = self._frame_encoder.known_drivability_points
             else:
                 command = "".join(frame_records(frame))
+                known = None
             response = self._command(command)
         if response.get("status") == "unavailable":
             return response
-        known = np.isin(frame.drivable, ("drivable", "non_drivable"))
+        if known is None:
+            known = np.count_nonzero(
+                np.isin(frame.drivable, ("drivable", "non_drivable"))
+            )
         return {
             "status": "available",
             "source": "veyra_persistent_engine",
             "input_points": int(frame.points.shape[0]),
-            "unknown_traversability_points": int(
-                frame.points.shape[0] - np.count_nonzero(known)
-            ),
+            "unknown_traversability_points": int(frame.points.shape[0] - known),
             "input": response.get("input", {}),
             "snapshot": response.get("snapshot", {}),
             "metrics": _viewer_metrics(response.get("metrics", {})),
