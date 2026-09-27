@@ -168,6 +168,13 @@ class ObservationFrame:
     observation_quality: np.ndarray | None = None
     raw_semantic_class: np.ndarray | None = None
     instance_id: np.ndarray | None = None
+    # Genuine temporal tracker IDs per point, aligned with ``points``.
+    #
+    # None means tracker identity is unavailable (temporal stage disabled or
+    # unproven metadata) and must stay distinguishable from zero tracks.
+    # When present, -1 marks a point with no associated track; genuine IDs
+    # are the tracker's own monotonic IDs, never regenerated or reused.
+    track_id: np.ndarray | None = None
     # Height of each return above the locally fitted ground surface, metres.
     #
     # NaN means the ground stage had no model for that return. The map treats
@@ -265,6 +272,21 @@ class ObservationFrame:
             for array in optional_arrays.values()
         ):
             raise ValueError("all optional ObservationFrame fields must have length N")
+        track_ids: np.ndarray | None = None
+        if self.track_id is not None:
+            track_ids = np.asarray(self.track_id).reshape(-1)
+            if track_ids.ndim != 1 or track_ids.shape[0] != count:
+                raise ValueError(
+                    "all optional ObservationFrame fields must have length N"
+                )
+            if (
+                track_ids.dtype.kind not in "iuf"
+                or not np.isfinite(track_ids).all()
+                or np.any(track_ids != np.floor(track_ids))
+                or np.any(track_ids < -1)
+                or np.any(track_ids > np.iinfo(np.int32).max)
+            ):
+                raise ValueError("track_id must contain genuine IDs or -1")
         velocity = _as_array(self.velocity_xy, dtype=np.float32)
         if velocity.shape != (count, 2):
             raise ValueError("ObservationFrame.velocity_xy must have shape (N, 2)")
@@ -321,6 +343,10 @@ class ObservationFrame:
             object.__setattr__(self, name, _freeze(array))
         for name, array in optional_arrays.items():
             object.__setattr__(self, name, _freeze(array))
+        if track_ids is None:
+            object.__setattr__(self, "track_id", None)
+        else:
+            object.__setattr__(self, "track_id", _freeze(track_ids.astype(np.int32)))
 
 
 __all__ = [

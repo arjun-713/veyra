@@ -388,6 +388,8 @@ class PerceptionPipeline:
             self._require_size(
                 motion.motion_probability, points.shape[0], "motion result"
             )
+            if motion.track_id is not None:
+                self._require_size(motion.track_id, points.shape[0], "track result")
             temporal_status = "available"
         elif self.temporal_tracker is not None:
             diagnostics.append(
@@ -439,10 +441,13 @@ class PerceptionPipeline:
             ),
             step=terrain.step if terrain is not None else frame.step,
             motion_state=motion.state if motion is not None else frame.motion_state,
-            observation_quality=(self._quality(semantic.semantic_confidence, terrain)),
-            height_above_ground=(
-                hag if hag is not None else frame.height_above_ground
+            track_id=(
+                motion.track_id
+                if motion is not None and motion.track_id is not None
+                else frame.track_id
             ),
+            observation_quality=(self._quality(semantic.semantic_confidence, terrain)),
+            height_above_ground=(hag if hag is not None else frame.height_above_ground),
             ground_gradient_x=(
                 terrain.gradient_x
                 if terrain is not None and terrain.gradient_x is not None

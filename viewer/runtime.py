@@ -874,6 +874,17 @@ class RuntimeSession:
             "motion_state": frame.motion_state[sample]
             if binary
             else frame.motion_state[sample].tolist(),
+            # Genuine tracker identity, sampled with the frame. None stays
+            # None (unavailable) rather than becoming a fabricated zero.
+            "track_ids": (
+                None
+                if getattr(frame, "track_id", None) is None
+                else (
+                    frame.track_id[sample]
+                    if binary
+                    else frame.track_id[sample].tolist()
+                )
+            ),
             "terrain_confidence": frame.terrain_confidence[sample]
             if binary
             else frame.terrain_confidence[sample].astype(float).tolist(),

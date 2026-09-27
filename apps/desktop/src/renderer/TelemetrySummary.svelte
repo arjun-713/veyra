@@ -7,6 +7,7 @@
  const state=(value:unknown)=>typeof value==='string'&&value&&value!=='unavailable'?String(value).replaceAll('_',' '):'Unavailable';
  const count=(values:unknown,key:string)=>typeof values==='object'&&values!==null&&typeof (values as Json)[key]==='number'?String((values as Json)[key]):'—';
  const semanticClass=(values:unknown,key:string)=>count(values,key);
+ const trackLabel=(t:unknown)=>{if(t==null)return 'Unavailable';const n=typeof t==='number'?t:(typeof t==='object'?Object.keys(t as Json).length:NaN);if(typeof n!=='number'||!Number.isFinite(n))return '—';return n===0?'0 tracks':n===1?'1 track':`${n} tracks`;};
  const perception=()=>telemetry.perception??{};
  const totalRss=(value:Json)=>{const procs=value.processes??[];if(!procs.length||procs.some((p:Json)=>typeof p.rss_bytes!=='number'||!Number.isFinite(p.rss_bytes)))return null;return procs.reduce((s:number,p:Json)=>s+p.rss_bytes,0)/1048576;};
  const health=()=>telemetry.health??{};
@@ -25,7 +26,7 @@
   <div class="stage-item"><span>Unknown ratio</span><strong>{display(perception().unknown_ratio!=null?perception().unknown_ratio*100:null,'%')}</strong><small>{display(perception().points, ' points')}</small></div>
   <div class="stage-item"><span>Drivable / non / unknown</span><strong>{count(perception().drivable_counts,'drivable')} / {count(perception().drivable_counts,'non_drivable')} / {count(perception().drivable_counts,'unknown')}</strong><small>point evidence</small></div>
   <div class="stage-item"><span>Vehicles / people</span><strong>{semanticClass(perception().semantic_class_counts,'1')} / {semanticClass(perception().semantic_class_counts,'6')}</strong><small>taxonomy IDs</small></div>
-  <div class="stage-item"><span>Tracks</span><strong>{perception().track_counts==null?'Unavailable':'available'}</strong><small>no track data reported</small></div>
+  <div class="stage-item"><span>Tracks</span><strong>{trackLabel(perception().track_counts)}</strong><small>{perception().track_counts==null?'no track data reported':'per-track point counts'}</small></div>
  </div>
 </section>
 
