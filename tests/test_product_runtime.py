@@ -163,14 +163,14 @@ class ProductTelemetryTests(unittest.TestCase):
     def test_sample_ratios_use_sample_count_not_full_scan_size(self):
         from runtime.telemetry import Telemetry
 
-        state = dict(
-            state="paused",
-            index=0,
-            frames=10,
-            queue_depth=0,
-            dropped_frames=0,
-            visualization_dropped=0,
-        )
+        state = {
+            "state": "paused",
+            "index": 0,
+            "frames": 10,
+            "queue_depth": 0,
+            "dropped_frames": 0,
+            "visualization_dropped": 0,
+        }
         report = Telemetry().report(
             state,
             {
@@ -193,14 +193,14 @@ class ProductTelemetryTests(unittest.TestCase):
     def test_unavailable_ground_is_not_a_measured_zero_ratio(self):
         from runtime.telemetry import Telemetry
 
-        state = dict(
-            state="paused",
-            index=0,
-            frames=10,
-            queue_depth=0,
-            dropped_frames=0,
-            visualization_dropped=0,
-        )
+        state = {
+            "state": "paused",
+            "index": 0,
+            "frames": 10,
+            "queue_depth": 0,
+            "dropped_frames": 0,
+            "visualization_dropped": 0,
+        }
         report = Telemetry().report(
             state,
             {
@@ -586,8 +586,18 @@ class ProductServiceTests(unittest.TestCase):
             self.assertEqual(metadata["points"]["stride"], 68)
             self.assertEqual(metadata["cells"]["stride"], 68)
             self.assertEqual(
-                len(payload),
+                metadata["physical_layers"]["offset"],
                 metadata["points"]["count"] * 68 + metadata["cells"]["count"] * 68,
+            )
+            self.assertEqual(metadata["physical_layers"]["version"], 1)
+            self.assertEqual(
+                metadata["physical_layers"]["count"], metadata["cells"]["count"]
+            )
+            self.assertEqual(metadata["physical_layers"]["stride"], 60)
+            self.assertEqual(
+                len(payload),
+                metadata["physical_layers"]["offset"]
+                + metadata["physical_layers"]["count"] * 60,
             )
         finally:
             service.close()
@@ -603,7 +613,9 @@ class ProductServiceTests(unittest.TestCase):
             staged = root / "staged" / "bin" / "veyra_benchmark"
             staged.parent.mkdir(parents=True)
             staged.write_bytes(b"staged")
-            fallback = root / "repo" / "build" / "apps" / "benchmark" / "veyra_benchmark"
+            fallback = (
+                root / "repo" / "build" / "apps" / "benchmark" / "veyra_benchmark"
+            )
             fallback.parent.mkdir(parents=True)
             fallback.write_bytes(b"dev")
             service.repo = root / "staged"

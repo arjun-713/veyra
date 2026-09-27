@@ -1,0 +1,376 @@
+{
+  "dataset": "semanticposs",
+  "frame_range": {
+    "count": 30,
+    "end_exclusive": 30,
+    "sequence": "00",
+    "start": 0
+  },
+  "input_stream_digests": {
+    "distance_lod": "2bd026ae31459dfcf6190c8a62573b11f18b2459418cae46f8dec81566cb3293",
+    "uniform40": "2bd026ae31459dfcf6190c8a62573b11f18b2459418cae46f8dec81566cb3293",
+    "uniform5": "2bd026ae31459dfcf6190c8a62573b11f18b2459418cae46f8dec81566cb3293",
+    "utility_lod": "2bd026ae31459dfcf6190c8a62573b11f18b2459418cae46f8dec81566cb3293"
+  },
+  "latency_plot_metric": "map_update_p95_ms",
+  "measured_policy_count": 4,
+  "metric_definitions": {
+    "chamfer_distance_m": "mean of the two directed unsquared 3D nearest-neighbour distances in metres on matched common-support bins; lower is better",
+    "completion_fraction": "uniquely owned valid reference bins / all valid Uniform5 reference bins; higher is better",
+    "elevation_rmse_m": "root mean square vertical error in metres on matched common-support bins; lower is better",
+    "height_accuracy_10cm": "matched common 5cm XY bins with absolute elevation error <= 0.10m; higher is better",
+    "latency_frontier": "uses map-update p95 only when all four policies have at least 20 samples; otherwise uses map-update p50",
+    "logical_map_bytes": "logical map payload accounting, distinct from process RSS",
+    "map_update_p95_ms": "95th percentile C++ map-update call latency; excludes parsing, snapshots, and serialization",
+    "rss_bytes": "measured benchmark process peak RSS; includes non-map process memory",
+    "runtime_per_frame_ms": "median C++ frame_pipeline latency per processed frame; not perception or renderer latency"
+  },
+  "pareto": {
+    "joint_resource_quality": {
+      "dominated": {},
+      "frontier": [
+        "distance_lod",
+        "uniform40",
+        "uniform5",
+        "utility_lod"
+      ],
+      "objectives": [
+        {
+          "direction": "min",
+          "metric": "logical_map_bytes"
+        },
+        {
+          "direction": "min",
+          "metric": "map_update_p95_ms"
+        },
+        {
+          "direction": "max",
+          "metric": "height_accuracy_10cm"
+        },
+        {
+          "direction": "max",
+          "metric": "completion_fraction"
+        },
+        {
+          "direction": "min",
+          "metric": "symmetric_chamfer_m"
+        }
+      ],
+      "unavailable": [],
+      "weighted_score_used": false
+    },
+    "latency_vs_chamfer": {
+      "dominated": {
+        "distance_lod": [
+          "uniform5"
+        ],
+        "utility_lod": [
+          "uniform5"
+        ]
+      },
+      "frontier": [
+        "uniform40",
+        "uniform5"
+      ],
+      "unavailable": [],
+      "weighted_score_used": false,
+      "x_direction": "min",
+      "x_metric": "map_update_p95_ms",
+      "y_direction": "min",
+      "y_metric": "symmetric_chamfer_m"
+    },
+    "latency_vs_completion": {
+      "dominated": {
+        "distance_lod": [
+          "uniform40",
+          "uniform5"
+        ],
+        "uniform5": [
+          "uniform40"
+        ],
+        "utility_lod": [
+          "distance_lod",
+          "uniform40",
+          "uniform5"
+        ]
+      },
+      "frontier": [
+        "uniform40"
+      ],
+      "unavailable": [],
+      "weighted_score_used": false,
+      "x_direction": "min",
+      "x_metric": "map_update_p95_ms",
+      "y_direction": "max",
+      "y_metric": "completion_fraction"
+    },
+    "latency_vs_height_accuracy": {
+      "dominated": {
+        "distance_lod": [
+          "uniform5"
+        ],
+        "utility_lod": [
+          "uniform5"
+        ]
+      },
+      "frontier": [
+        "uniform40",
+        "uniform5"
+      ],
+      "unavailable": [],
+      "weighted_score_used": false,
+      "x_direction": "min",
+      "x_metric": "map_update_p95_ms",
+      "y_direction": "max",
+      "y_metric": "height_accuracy_10cm"
+    },
+    "memory_vs_chamfer": {
+      "dominated": {},
+      "frontier": [
+        "distance_lod",
+        "uniform40",
+        "uniform5",
+        "utility_lod"
+      ],
+      "unavailable": [],
+      "weighted_score_used": false,
+      "x_direction": "min",
+      "x_metric": "logical_map_bytes",
+      "y_direction": "min",
+      "y_metric": "symmetric_chamfer_m"
+    },
+    "memory_vs_completion": {
+      "dominated": {
+        "distance_lod": [
+          "uniform40"
+        ],
+        "uniform5": [
+          "uniform40"
+        ],
+        "utility_lod": [
+          "distance_lod",
+          "uniform40"
+        ]
+      },
+      "frontier": [
+        "uniform40"
+      ],
+      "unavailable": [],
+      "weighted_score_used": false,
+      "x_direction": "min",
+      "x_metric": "logical_map_bytes",
+      "y_direction": "max",
+      "y_metric": "completion_fraction"
+    },
+    "memory_vs_height_accuracy": {
+      "dominated": {},
+      "frontier": [
+        "distance_lod",
+        "uniform40",
+        "uniform5",
+        "utility_lod"
+      ],
+      "unavailable": [],
+      "weighted_score_used": false,
+      "x_direction": "min",
+      "x_metric": "logical_map_bytes",
+      "y_direction": "max",
+      "y_metric": "height_accuracy_10cm"
+    },
+    "rss_vs_chamfer": {
+      "dominated": {},
+      "frontier": [
+        "distance_lod",
+        "uniform40",
+        "uniform5",
+        "utility_lod"
+      ],
+      "unavailable": [],
+      "weighted_score_used": false,
+      "x_direction": "min",
+      "x_metric": "rss_bytes",
+      "y_direction": "min",
+      "y_metric": "symmetric_chamfer_m"
+    },
+    "rss_vs_completion": {
+      "dominated": {
+        "distance_lod": [
+          "uniform40"
+        ],
+        "uniform5": [
+          "uniform40"
+        ],
+        "utility_lod": [
+          "distance_lod",
+          "uniform40"
+        ]
+      },
+      "frontier": [
+        "uniform40"
+      ],
+      "unavailable": [],
+      "weighted_score_used": false,
+      "x_direction": "min",
+      "x_metric": "rss_bytes",
+      "y_direction": "max",
+      "y_metric": "completion_fraction"
+    },
+    "rss_vs_height_accuracy": {
+      "dominated": {},
+      "frontier": [
+        "distance_lod",
+        "uniform40",
+        "uniform5",
+        "utility_lod"
+      ],
+      "unavailable": [],
+      "weighted_score_used": false,
+      "x_direction": "min",
+      "x_metric": "rss_bytes",
+      "y_direction": "max",
+      "y_metric": "height_accuracy_10cm"
+    }
+  },
+  "policies": [
+    {
+      "active_cells": 630611,
+      "allocated_map_bytes": 174770016.0,
+      "chamfer_distance_m": 0.0,
+      "completion_fraction": 1.0,
+      "elevation_rmse_m": 0.0,
+      "height_accuracy_05cm": 1.0,
+      "height_accuracy_10cm": 1.0,
+      "height_accuracy_20cm": 1.0,
+      "logical_map_bytes": 121077312.0,
+      "map_update_p50_ms": 26.554398,
+      "map_update_p95_ms": 33.9367,
+      "map_update_p95_reliable": true,
+      "map_update_p99_ms": 38.725971,
+      "map_update_p99_reliable": false,
+      "map_update_sample_count": 56.0,
+      "matched_bins": 630611,
+      "pedestrian_retention_fraction": 0.9182114051223998,
+      "pole_retention_fraction": 0.9551282051282052,
+      "policy": "uniform5",
+      "processing_fps_p50": 6.662159961318262,
+      "reference": "observed Uniform5 representation from identical stream",
+      "reference_bins": 630611,
+      "reference_is_ground_truth": false,
+      "rss_bytes": 446332928.0,
+      "runtime_ms": 139.188314,
+      "runtime_per_frame_ms": 139.188314,
+      "semantic_retention_fraction": 0.9916428292864184,
+      "status": "measured",
+      "symmetric_chamfer_m": 0.0,
+      "vehicle_retention_fraction": 0.9814099880614602
+    },
+    {
+      "active_cells": 35962,
+      "allocated_map_bytes": 10936160.0,
+      "chamfer_distance_m": 0.09761724306236455,
+      "completion_fraction": 1.0,
+      "elevation_rmse_m": 0.5756854977175536,
+      "height_accuracy_05cm": 0.5104446322693388,
+      "height_accuracy_10cm": 0.6185350398264541,
+      "height_accuracy_20cm": 0.7195751422033552,
+      "logical_map_bytes": 6904704.0,
+      "map_update_p50_ms": 16.783592,
+      "map_update_p95_ms": 30.836993,
+      "map_update_p95_reliable": true,
+      "map_update_p99_ms": 39.914545,
+      "map_update_p99_reliable": false,
+      "map_update_sample_count": 56.0,
+      "matched_bins": 630611,
+      "pedestrian_retention_fraction": 0.5696901089571247,
+      "pole_retention_fraction": 0.9256410256410257,
+      "policy": "uniform40",
+      "processing_fps_p50": 29.24858097375629,
+      "reference": "observed Uniform5 representation from identical stream",
+      "reference_bins": 630611,
+      "reference_is_ground_truth": false,
+      "rss_bytes": 42946560.0,
+      "runtime_ms": 32.948848,
+      "runtime_per_frame_ms": 32.948848,
+      "semantic_retention_fraction": 0.9441895653367389,
+      "status": "measured",
+      "symmetric_chamfer_m": 0.09761724306236455,
+      "vehicle_retention_fraction": 0.9656883265888336
+    },
+    {
+      "active_cells": 247845,
+      "allocated_map_bytes": 71861344.0,
+      "chamfer_distance_m": 0.06425748409800422,
+      "completion_fraction": 0.9896370345585472,
+      "elevation_rmse_m": 0.46653111415813886,
+      "height_accuracy_05cm": 0.6206712003025272,
+      "height_accuracy_10cm": 0.7135044449714458,
+      "height_accuracy_20cm": 0.8004121292919452,
+      "logical_map_bytes": 49296000.0,
+      "map_update_p50_ms": 25.703186,
+      "map_update_p95_ms": 39.742037,
+      "map_update_p95_reliable": true,
+      "map_update_p99_ms": 56.859335,
+      "map_update_p99_reliable": false,
+      "map_update_sample_count": 56.0,
+      "matched_bins": 624076,
+      "pedestrian_retention_fraction": 0.7096363379085893,
+      "pole_retention_fraction": 0.9230769230769231,
+      "policy": "distance_lod",
+      "processing_fps_p50": 12.55848726354148,
+      "reference": "observed Uniform5 representation from identical stream",
+      "reference_bins": 630611,
+      "reference_is_ground_truth": false,
+      "rss_bytes": 177745920.0,
+      "runtime_ms": 78.215113,
+      "runtime_per_frame_ms": 78.215113,
+      "semantic_retention_fraction": 0.9617006248211151,
+      "status": "partial",
+      "symmetric_chamfer_m": 0.06425748409800422,
+      "vehicle_retention_fraction": 0.9509589593314418
+    },
+    {
+      "active_cells": 266578,
+      "allocated_map_bytes": 81394112.0,
+      "chamfer_distance_m": 0.06369907180186354,
+      "completion_fraction": 0.9767162323524328,
+      "elevation_rmse_m": 0.46856197016244944,
+      "height_accuracy_05cm": 0.626107272278578,
+      "height_accuracy_10cm": 0.7162363133353249,
+      "height_accuracy_20cm": 0.8011390941798392,
+      "logical_map_bytes": 53881152.0,
+      "map_update_p50_ms": 69.802655,
+      "map_update_p95_ms": 80.71865,
+      "map_update_p95_reliable": true,
+      "map_update_p99_ms": 85.050427,
+      "map_update_p99_reliable": false,
+      "map_update_sample_count": 56.0,
+      "matched_bins": 615928,
+      "pedestrian_retention_fraction": 0.6932220178293477,
+      "pole_retention_fraction": 0.9333333333333333,
+      "policy": "utility_lod",
+      "processing_fps_p50": 6.051795002069291,
+      "reference": "observed Uniform5 representation from identical stream",
+      "reference_bins": 630611,
+      "reference_is_ground_truth": false,
+      "rss_bytes": 209358848.0,
+      "runtime_ms": 155.565167,
+      "runtime_per_frame_ms": 155.565167,
+      "semantic_retention_fraction": 0.9494619642447665,
+      "status": "partial",
+      "symmetric_chamfer_m": 0.06369907180186354,
+      "vehicle_retention_fraction": 0.9201203156735972
+    }
+  ],
+  "reference": {
+    "definition": "Observed Uniform5 map support from the same dataset selection, poses, accepted observations, and world coordinate frame; not surveyed truth.",
+    "is_ground_truth": false,
+    "name": "Uniform5 high-resolution representation"
+  },
+  "same_input_for_all_policies": true,
+  "schema_version": 1,
+  "selection_digest": "2bd026ae31459dfcf6190c8a62573b11f18b2459418cae46f8dec81566cb3293",
+  "sequence": "00",
+  "status": "measured",
+  "unavailable_policies": [],
+  "weighted_score_used": false
+}

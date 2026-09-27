@@ -471,7 +471,11 @@ class PerceptionPipeline:
             ),
             step=terrain.step if terrain is not None else frame.step,
             motion_state=motion.state if motion is not None else frame.motion_state,
-            observation_quality=(self._quality(semantic.semantic_confidence, terrain)),
+            observation_quality=self._quality(
+                semantic.semantic_confidence,
+                terrain,
+                ground.mask if ground is not None else frame.ground,
+            ),
             height_above_ground=(hag if hag is not None else frame.height_above_ground),
             ground_gradient_x=(
                 terrain.gradient_x
@@ -544,12 +548,18 @@ class PerceptionPipeline:
             )
 
     @staticmethod
-    def _quality(semantic_confidence: np.ndarray, terrain: Any | None) -> np.ndarray:
+    def _quality(
+        semantic_confidence: np.ndarray, terrain: Any | None, ground: np.ndarray
+    ) -> np.ndarray:
+        semantic = np.asarray(semantic_confidence, dtype=np.float32)
         if terrain is None:
-            return np.asarray(semantic_confidence, dtype=np.float32)
-        return np.minimum(
-            np.asarray(semantic_confidence, dtype=np.float32),
-            np.asarray(terrain.confidence, dtype=np.float32),
+            return semantic
+        # Terrain support is meaningful for a ground surface, not for a pole,
+        # person or vehicle. The mapper independently gates local sample support.
+        return np.where(
+            ground,
+            np.minimum(semantic, np.asarray(terrain.confidence, dtype=np.float32)),
+            semantic,
         )
 
     @staticmethod

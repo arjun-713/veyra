@@ -7,6 +7,7 @@ CELL_FLOATS = 17
 CELL_STRIDE = CELL_FLOATS * 4
 # v3 display point: 17 little-endian float32 per row.
 POINT_STRIDE = 17 * 4
+PHYSICAL_LAYER_STRIDE = 15 * 4
 
 
 def _cell_section(cells):
@@ -52,7 +53,11 @@ def _cell_section(cells):
             cell.get("zmax", float("nan")),
             cell.get("zvar", float("nan")),
         )
-    return mapped.tobytes()
+    # The engine's binary rows already use this section's layout; forward them.
+    cell_bytes = binary if binary is not None else mapped.tobytes()
+    if len(cell_bytes) % CELL_STRIDE:
+        raise ValueError("map cell binary size is invalid")
+    return cell_bytes
 
 
 def pack_visualization(frame, cells, generation):
@@ -65,9 +70,31 @@ def pack_visualization(frame, cells, generation):
 
     count = int(frame["shown"])
     cell_bytes = _cell_section(cells)
+    if len(cell_bytes) % CELL_STRIDE:
+        raise ValueError("map cell binary size is invalid")
     cell_count = len(cell_bytes) // CELL_STRIDE
     points_nbytes = count * POINT_STRIDE
-    payload = bytearray(points_nbytes + len(cell_bytes))
+    available = cells.get("status") == "available"
+    binary = cells.get("cells_binary") if available else None
+    rows = [] if binary is not None or not available else cells.get("cells", [])
+    layer_bytes = cells.get("physical_layers_binary") if available else None
+    if layer_bytes is None and rows and any("physical_layers" in row for row in rows):
+        layer_rows = np.asarray(
+            [row.get("physical_layers", [float("nan")] * 15) for row in rows],
+            dtype="<f4",
+        )
+        if layer_rows.shape != (cell_count, 15):
+            raise ValueError("physical layer rows must contain fifteen values")
+        layer_bytes = layer_rows.tobytes()
+    if (
+        layer_bytes is not None
+        and len(layer_bytes) != cell_count * PHYSICAL_LAYER_STRIDE
+    ):
+        raise ValueError("physical layer binary size does not match cells")
+    has_physical_layers = layer_bytes is not None
+    if layer_bytes is None:
+        layer_bytes = b""
+    payload = bytearray(points_nbytes + len(cell_bytes) + len(layer_bytes))
     # Point section: XYZ/I, mapped+raw semantic IDs, ground, drivable,
     # confidence, terrain evidence, motion, velocity, quality, terrain
     # confidence. This is bounded display data and is independent of map cells.
@@ -90,8 +117,10 @@ def pack_visualization(frame, cells, generation):
     points[:, 15] = frame["observation_quality"]
     points[:, 16] = frame["terrain_confidence"]
     del points  # release the export so the payload is an ordinary bytearray
-    # The engine's binary rows already use this section's layout; forward them.
-    payload[points_nbytes:] = cell_bytes
+    # Cell and physical-layer rows preserve the engine's shared leaf order.
+    cell_end = points_nbytes + len(cell_bytes)
+    payload[points_nbytes:cell_end] = cell_bytes
+    payload[cell_end:] = layer_bytes
     status = frame["pipeline_status"]
     metadata = {
         "type": "visualization",
@@ -122,4 +151,11 @@ def pack_visualization(frame, cells, generation):
         "n_points": frame["n_points"],
         "total_leaves": cells.get("total_leaves", 0),
     }
+    if has_physical_layers:
+        metadata["physical_layers"] = {
+            "version": 1,
+            "count": cell_count,
+            "offset": cell_end,
+            "stride": PHYSICAL_LAYER_STRIDE,
+        }
     return metadata, payload

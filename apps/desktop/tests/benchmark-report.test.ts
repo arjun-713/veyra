@@ -32,6 +32,30 @@ test('canonical generated reports render every public policy from the producer t
   assert.equal(comparisonScope(accepted.report).latencyMetric, 'p50');
 });
 
+test('an imported p95 selector cannot override unreliable per-policy sample counts', () => {
+  const contradictory = clone(generic);
+  contradictory.quality_resource.latency_plot_metric = 'map_update_p95_ms';
+  for (const row of contradictory.quality_resource.policies) {
+    row.map_update_sample_count = 2;
+    row.map_update_p95_reliable = false;
+  }
+  const rows = qualityResourceRows(contradictory);
+  assert.ok(rows.every(row => row.mapSamples === 2 && !row.p95Reliable));
+  assert.equal(comparisonScope(contradictory).latencyMetric, 'p50');
+});
+
+test('identical input requires all four policy digests to match the producer claim', () => {
+  assert.equal(comparisonScope(semanticposs).sameInput, true);
+
+  const different = clone(semanticposs);
+  different.quality_resource.input_stream_digests.utility_lod = '0'.repeat(64);
+  assert.equal(comparisonScope(different).sameInput, false);
+
+  const incomplete = clone(semanticposs);
+  delete incomplete.quality_resource.input_stream_digests.utility_lod;
+  assert.equal(comparisonScope(incomplete).sameInput, null);
+});
+
 test('semantic mIoU reads semantic_quality.overall.miou as a fraction and flags ground truth', () => {
   const semantic = semanticQuality(acceptBenchmarkReport(semanticposs, 'loaded').report);
   assert.equal(semantic.status, 'measured');

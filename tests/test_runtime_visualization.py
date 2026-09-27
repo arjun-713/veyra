@@ -68,6 +68,23 @@ class RuntimeVisualizationTests(unittest.TestCase):
                     "ground_evidence": 0.6,
                     "terrain_confidence": 0.5,
                     "geometry_complexity": 0.3,
+                    "physical_layers": [
+                        1,
+                        0,
+                        0,
+                        0,
+                        0,
+                        1,
+                        0.3,
+                        0.3,
+                        0.3,
+                        0,
+                        1,
+                        3,
+                        3,
+                        3,
+                        0,
+                    ],
                 }
             ],
         }
@@ -88,9 +105,32 @@ class RuntimeVisualizationTests(unittest.TestCase):
         mapped = np.frombuffer(payload, dtype="<f4", offset=17 * 4, count=17)
         np.testing.assert_allclose(
             mapped,
-            [-0.15, 0.35, 4.5, 0.1, 9, 0.25, 0.8, -0.4, 0.7,
-             0.9, 0.6, 0.5, 0.3, 42, 4.1, 4.9, 0.04],
+            [
+                -0.15,
+                0.35,
+                4.5,
+                0.1,
+                9,
+                0.25,
+                0.8,
+                -0.4,
+                0.7,
+                0.9,
+                0.6,
+                0.5,
+                0.3,
+                42,
+                4.1,
+                4.9,
+                0.04,
+            ],
         )
+        self.assertEqual(
+            metadata.get("physical_layers"),
+            {"version": 1, "count": 1, "offset": 136, "stride": 60},
+        )
+        layers = np.frombuffer(payload, dtype="<f4", offset=136)
+        np.testing.assert_allclose(layers, cells["cells"][0]["physical_layers"])
 
     def test_visualization_cell_rows_use_nan_for_fields_an_older_engine_omits(self):
         frame = {
@@ -137,13 +177,21 @@ class RuntimeVisualizationTests(unittest.TestCase):
             "status": "available",
             "cells": [
                 {
-                    "l": 0, "ix": 0, "iy": 0, "z": 1.0, "c": 0,
-                    "m": 0.0, "q": 0.0, "d": 0.0, "u": 0.0,
+                    "l": 0,
+                    "ix": 0,
+                    "iy": 0,
+                    "z": 1.0,
+                    "c": 0,
+                    "m": 0.0,
+                    "q": 0.0,
+                    "d": 0.0,
+                    "u": 0.0,
                 }
             ],
         }
         metadata, payload = pack_visualization(frame, cells, 1)
         self.assertEqual(metadata["schema_version"], 3)
+        self.assertNotIn("physical_layers", metadata)
         mapped = np.frombuffer(payload, dtype="<f4", offset=0, count=17)
         # Legacy ``d`` alias is honored; absent evidence stays NaN (Unavailable).
         self.assertEqual(mapped[7], 0.0)

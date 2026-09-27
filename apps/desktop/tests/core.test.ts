@@ -53,3 +53,13 @@ test('visualization accepts v3 evidence cell rows while keeping v2 decodable', (
   validateVisualization({points:{count:1,offset:0,stride:68},cells:{count:1,offset:68,stride:36}},new Uint8Array(104));
   assert.throws(()=>validateVisualization({points:{count:1,offset:0,stride:68},cells:{count:1,offset:68,stride:40}},new Uint8Array(108)), /stride/);
 });
+
+test('optional physical layer sections must match cells and stay inside the payload', () => {
+  const base={points:{count:0,offset:0,stride:68},cells:{count:1,offset:0,stride:68}};
+  const section={version:1,count:1,offset:68,stride:60};
+  validateVisualization({...base,physical_layers:section},new Uint8Array(128));
+  for(const invalid of [{...section,count:2},{...section,offset:0},{...section,stride:64},{...section,version:2}]){
+    assert.throws(()=>validateVisualization({...base,physical_layers:invalid},new Uint8Array(128)));
+  }
+  assert.throws(()=>validateVisualization({...base,physical_layers:section},new Uint8Array(127)));
+});

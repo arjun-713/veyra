@@ -1,0 +1,206 @@
+{
+  "joint_resource_quality": {
+    "dominated": {},
+    "frontier": [
+      "distance_lod",
+      "uniform40",
+      "uniform5",
+      "utility_lod"
+    ],
+    "objectives": [
+      {
+        "direction": "min",
+        "metric": "logical_map_bytes"
+      },
+      {
+        "direction": "min",
+        "metric": "map_update_p95_ms"
+      },
+      {
+        "direction": "max",
+        "metric": "height_accuracy_10cm"
+      },
+      {
+        "direction": "max",
+        "metric": "completion_fraction"
+      },
+      {
+        "direction": "min",
+        "metric": "symmetric_chamfer_m"
+      }
+    ],
+    "unavailable": [],
+    "weighted_score_used": false
+  },
+  "latency_vs_chamfer": {
+    "dominated": {
+      "distance_lod": [
+        "uniform5"
+      ],
+      "utility_lod": [
+        "uniform5"
+      ]
+    },
+    "frontier": [
+      "uniform40",
+      "uniform5"
+    ],
+    "unavailable": [],
+    "weighted_score_used": false,
+    "x_direction": "min",
+    "x_metric": "map_update_p95_ms",
+    "y_direction": "min",
+    "y_metric": "symmetric_chamfer_m"
+  },
+  "latency_vs_completion": {
+    "dominated": {
+      "distance_lod": [
+        "uniform40",
+        "uniform5"
+      ],
+      "uniform5": [
+        "uniform40"
+      ],
+      "utility_lod": [
+        "distance_lod",
+        "uniform40",
+        "uniform5"
+      ]
+    },
+    "frontier": [
+      "uniform40"
+    ],
+    "unavailable": [],
+    "weighted_score_used": false,
+    "x_direction": "min",
+    "x_metric": "map_update_p95_ms",
+    "y_direction": "max",
+    "y_metric": "completion_fraction"
+  },
+  "latency_vs_height_accuracy": {
+    "dominated": {
+      "distance_lod": [
+        "uniform5"
+      ],
+      "utility_lod": [
+        "uniform5"
+      ]
+    },
+    "frontier": [
+      "uniform40",
+      "uniform5"
+    ],
+    "unavailable": [],
+    "weighted_score_used": false,
+    "x_direction": "min",
+    "x_metric": "map_update_p95_ms",
+    "y_direction": "max",
+    "y_metric": "height_accuracy_10cm"
+  },
+  "memory_vs_chamfer": {
+    "dominated": {},
+    "frontier": [
+      "distance_lod",
+      "uniform40",
+      "uniform5",
+      "utility_lod"
+    ],
+    "unavailable": [],
+    "weighted_score_used": false,
+    "x_direction": "min",
+    "x_metric": "logical_map_bytes",
+    "y_direction": "min",
+    "y_metric": "symmetric_chamfer_m"
+  },
+  "memory_vs_completion": {
+    "dominated": {
+      "distance_lod": [
+        "uniform40"
+      ],
+      "uniform5": [
+        "uniform40"
+      ],
+      "utility_lod": [
+        "distance_lod",
+        "uniform40"
+      ]
+    },
+    "frontier": [
+      "uniform40"
+    ],
+    "unavailable": [],
+    "weighted_score_used": false,
+    "x_direction": "min",
+    "x_metric": "logical_map_bytes",
+    "y_direction": "max",
+    "y_metric": "completion_fraction"
+  },
+  "memory_vs_height_accuracy": {
+    "dominated": {},
+    "frontier": [
+      "distance_lod",
+      "uniform40",
+      "uniform5",
+      "utility_lod"
+    ],
+    "unavailable": [],
+    "weighted_score_used": false,
+    "x_direction": "min",
+    "x_metric": "logical_map_bytes",
+    "y_direction": "max",
+    "y_metric": "height_accuracy_10cm"
+  },
+  "rss_vs_chamfer": {
+    "dominated": {},
+    "frontier": [
+      "distance_lod",
+      "uniform40",
+      "uniform5",
+      "utility_lod"
+    ],
+    "unavailable": [],
+    "weighted_score_used": false,
+    "x_direction": "min",
+    "x_metric": "rss_bytes",
+    "y_direction": "min",
+    "y_metric": "symmetric_chamfer_m"
+  },
+  "rss_vs_completion": {
+    "dominated": {
+      "distance_lod": [
+        "uniform40"
+      ],
+      "uniform5": [
+        "uniform40"
+      ],
+      "utility_lod": [
+        "distance_lod",
+        "uniform40"
+      ]
+    },
+    "frontier": [
+      "uniform40"
+    ],
+    "unavailable": [],
+    "weighted_score_used": false,
+    "x_direction": "min",
+    "x_metric": "rss_bytes",
+    "y_direction": "max",
+    "y_metric": "completion_fraction"
+  },
+  "rss_vs_height_accuracy": {
+    "dominated": {},
+    "frontier": [
+      "distance_lod",
+      "uniform40",
+      "uniform5",
+      "utility_lod"
+    ],
+    "unavailable": [],
+    "weighted_score_used": false,
+    "x_direction": "min",
+    "x_metric": "rss_bytes",
+    "y_direction": "max",
+    "y_metric": "height_accuracy_10cm"
+  }
+}

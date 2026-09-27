@@ -21,6 +21,7 @@
 #include <string>
 #include <string_view>
 #include <utility>
+#include <unordered_map>
 #include <variant>
 #include <vector>
 
@@ -161,17 +162,49 @@ class MapPolicyAdapter {
     return std::visit([x, y](const auto& map) { return map.accepts(x, y); }, map_);
   }
 
+  // Full-frame support before allocation: identical evidence regardless of
+  // point ordering. Only bounded counts survive until the next frame.
+  void prepare_frame(const std::vector<veyra::map::Observation>& observations) {
+    if (!utility_) return;
+    support_counts_.clear();
+    for (const auto& observation : observations) {
+      if (accepts(observation.x, observation.y)) add_support(policy_cell(observation.x, observation.y));
+    }
+    support_prepared_ = true;
+    // Resolve the complete scan before mutating topology. Otherwise a late
+    // critical return splits already-fused evidence into a non-spatial prior,
+    // or a later baseline request coarsens an earlier critical return.
+    for (const auto& observation : observations) {
+      if (!accepts(observation.x, observation.y)) continue;
+      const int level = requested_level(observation);
+      const auto found = support_counts_.find(policy_cell(observation.x, observation.y));
+      if (found != support_counts_.end())
+        found->second.level = std::min(found->second.level, level);
+    }
+  }
+
   void update(const veyra::map::Observation& observation) {
     if (kind_ != PolicyKind::kUtilityLod) {
       std::visit([&observation](auto& map) { map.update(observation); }, map_);
       return;
     }
     auto& map = std::get<veyra::map::Map>(map_);
+    const auto found = support_counts_.find(policy_cell(observation.x, observation.y));
+    const int level = support_prepared_ && found != support_counts_.end()
+                          ? found->second.level
+                          : requested_level(observation);
+    map.update_at_level(observation, level);
+  }
+
+ private:
+  int requested_level(const veyra::map::Observation& observation) {
+    auto& map = std::get<veyra::map::Map>(map_);
     const double offset_x = observation.x - center_x_;
     const double offset_y = observation.y - center_y_;
     const double range = std::hypot(offset_x, offset_y);
-    auto baseline_cell = map.cell_for(observation.x, observation.y);
-    while (baseline_cell.level < 3) baseline_cell = baseline_cell.parent();
+    const auto baseline_cell = policy_cell(observation.x, observation.y);
+    const auto count = support_prepared_ ? support_count(baseline_cell) : add_support(baseline_cell);
+    const auto& utility_config = utility_->utility_config();
     const auto active_level = map.level_for(observation.x, observation.y);
     const auto decision = utility_->decide({
         .range_m = range,
@@ -179,18 +212,18 @@ class MapPolicyAdapter {
         .state_cell = baseline_cell,
         .safety_critical = observation.drivable == 2,
         .geometry_complexity = static_cast<double>(observation.geometry_complexity),
-        .semantic_importance = observation.semantic_class == 0
-                                   ? 0.0
-                                   : static_cast<double>(observation.semantic_confidence),
+        .semantic_importance = veyra::policy::semantic_importance(
+            utility_config, observation.semantic_class, observation.semantic_confidence),
         .motion = static_cast<double>(observation.motion_probability),
         .traversability_risk =
             observation.drivable == 2 ? static_cast<double>(observation.terrain_confidence) : 0.0,
         .semantic_uncertainty = 1.0 - static_cast<double>(observation.semantic_confidence),
         .observation_quality = static_cast<double>(observation.observation_quality),
-        .point_density = 1.0,
+        .point_density = veyra::policy::normalized_point_density(utility_config, count, range),
         .range_rate_mps = veyra::policy::radial_range_rate_mps(
             static_cast<double>(observation.velocity_x),
             static_cast<double>(observation.velocity_y), offset_x, offset_y),
+        .semantic_class = observation.semantic_class,
     });
     int requested_level = decision.requested_level;
     if (governor_ && !governor_->status().allow_optional_splits && observation.drivable != 2) {
@@ -200,13 +233,16 @@ class MapPolicyAdapter {
     }
     if (utility_ && options_promotion_telemetry_ && requested_level > decision.requested_level)
       utility_->record_promotion_budget_effects(1, 0, 0);
-    map.update_at_level(observation, requested_level);
+    return requested_level;
   }
 
+ public:
   void set_window_center(double x, double y) {
     if (utility_) utility_->begin_frame(frame_id_++);
     center_x_ = x;
     center_y_ = y;
+    support_counts_.clear();
+    support_prepared_ = false;
     std::visit([x, y](auto& map) { map.set_window_center(x, y); }, map_);
   }
 
@@ -264,9 +300,12 @@ class MapPolicyAdapter {
       const double risk = leaf.stats.drivable_evidence() < 0.0F
                               ? static_cast<double>(leaf.stats.terrain_confidence())
                               : 0.0;
-      const double utility = 0.20 * leaf.stats.geometry_complexity() +
-                             0.30 * leaf.stats.semantic_confidence() +
-                             0.15 * leaf.stats.motion_evidence() + 0.25 * risk;
+      const auto& u = utility_->utility_config();
+      const double utility = u.geometry_weight * leaf.stats.geometry_complexity() +
+                             u.semantic_weight * veyra::policy::semantic_importance(
+                                 u, leaf.stats.semantic_class, leaf.stats.semantic_confidence()) +
+                             u.motion_weight * leaf.stats.motion_evidence() +
+                             u.traversability_risk_weight * risk;
       group.candidate.utility_score =
           std::max(group.candidate.utility_score, std::clamp(utility, 0.0, 1.0));
       group.candidate.safety_critical =
@@ -314,6 +353,22 @@ class MapPolicyAdapter {
   }
 
  private:
+  veyra::core::CellId policy_cell(double x, double y) const {
+    auto cell = std::get<veyra::map::Map>(map_).cell_for(x, y);
+    while (cell.level < 3) cell = cell.parent();
+    return cell;
+  }
+  std::size_t support_count(veyra::core::CellId cell) const {
+    const auto found = support_counts_.find(cell);
+    return found == support_counts_.end() ? 0 : found->second.count;
+  }
+  std::size_t add_support(veyra::core::CellId cell) {
+    const auto found = support_counts_.find(cell);
+    if (found != support_counts_.end()) return ++found->second.count;
+    if (support_counts_.size() >= utility_->utility_config().max_state_cells) return 0;
+    support_counts_.emplace(cell, FrameRegion{1, 3});
+    return 1;
+  }
   using Storage = std::variant<veyra::map::Uniform5Map, veyra::map::Uniform40Map,
                                veyra::map::DistanceLodMap, veyra::map::Map>;
   static Storage make_storage(PolicyKind kind, veyra::map::MapConfig config) {
@@ -338,6 +393,12 @@ class MapPolicyAdapter {
   double center_x_ = 0.0;
   double center_y_ = 0.0;
   bool options_promotion_telemetry_ = false;
+  struct FrameRegion {
+    std::size_t count = 0;
+    int level = 3;
+  };
+  std::unordered_map<veyra::core::CellId, FrameRegion, veyra::core::CellIdHash> support_counts_;
+  bool support_prepared_ = false;
 };
 
 // Stream ingestion shared by batch execution and the persistent engine.
@@ -792,6 +853,7 @@ Result run(const Options& options) {
   std::chrono::nanoseconds window_duration{0};
   std::chrono::nanoseconds update_duration{0};
   InputSummary input_summary;
+  std::vector<veyra::map::Observation> pending_points;
   std::string line;
 
   while (std::getline(std::cin, line)) {
@@ -879,6 +941,9 @@ Result run(const Options& options) {
       }
       result.late_frames += late ? 1 : 0;
       expected_points = uint_value(count, "frame point count");
+      if (options.policy == "utility_lod" && expected_points > 2'000'000)
+        throw std::invalid_argument("utility frame exceeds point limit");
+      pending_points.clear();
       points = 0;
       parse_duration = std::chrono::nanoseconds{duration_ns(started)};
       const auto window_started = Clock::now();
@@ -898,6 +963,12 @@ Result run(const Options& options) {
       auto observation = parse_observation_record(input, stream_version, input_summary);
       observation.timestamp = input_summary.timestamp_us.value_or(result.input_frames);
       parse_duration += std::chrono::nanoseconds{duration_ns(parse_started)};
+      if (options.policy == "utility_lod") {
+        if (points >= expected_points) throw std::invalid_argument("frame point count exceeded");
+        pending_points.push_back(observation);
+        ++points;
+        continue;
+      }
       const auto update_started = Clock::now();
       if (ingest_observation(map, observation, result.rejected_out_of_window)) {
         ++result.input_points;
@@ -915,6 +986,17 @@ Result run(const Options& options) {
         throw std::invalid_argument("frame point count mismatch");
       }
       parse_duration += std::chrono::nanoseconds{duration_ns(parse_started)};
+      if (options.policy == "utility_lod") {
+        const auto update_started = Clock::now();
+        map.prepare_frame(pending_points);
+        for (const auto& observation : pending_points) {
+          if (ingest_observation(map, observation, result.rejected_out_of_window)) {
+            ++result.input_points;
+            scan_image.insert(observation, sensor_pose);
+          }
+        }
+        update_duration += std::chrono::nanoseconds{duration_ns(update_started)};
+      }
       // Visibility clearing runs after the frame is integrated and before the
       // snapshot, so the published map reflects both what this scan added and
       // what it contradicted. Its cost is counted in update_duration, where
@@ -1299,8 +1381,11 @@ std::string render(const Result& result) {
     out << ",\"promotion_telemetry\":{\"decisions\":" << telemetry.decisions
         << ",\"gate_passed\":" << telemetry.gate_passed
         << ",\"gate_failed\":" << telemetry.gate_failed
+        << ",\"diagnostics_version\":1,\"quality_failed\":" << telemetry.quality_failed
+        << ",\"density_failed\":" << telemetry.density_failed
         << ",\"safety_decisions\":" << telemetry.safety_decisions
         << ",\"predictive_decisions\":" << telemetry.predictive_decisions
+        << ",\"critical_semantic_decisions\":" << telemetry.critical_semantic_decisions
         << ",\"budget_suppressed\":" << telemetry.budget_suppressed
         << ",\"governor_actions_requested\":" << telemetry.governor_actions_requested
         << ",\"governor_actions_applied\":" << telemetry.governor_actions_applied
@@ -1309,6 +1394,7 @@ std::string render(const Result& result) {
       if (i) out << ',';
       out << '\"' << signal_names[i] << "\":{\"raw_sum\":" << telemetry.signal_raw_sum[i]
           << ",\"weighted_sum\":" << telemetry.signal_weighted_sum[i]
+          << ",\"effective_weighted_sum\":" << telemetry.signal_effective_weighted_sum[i]
           << ",\"min\":" << telemetry.signal_min[i]
           << ",\"max\":" << telemetry.signal_max[i]
           << ",\"exact_zero_count\":" << telemetry.signal_exact_zero_count[i]
@@ -1350,6 +1436,28 @@ std::string render(const Result& result) {
           out << "{\"active\":" << active << ",\"requested\":" << requested
               << ",\"baseline\":" << baseline << ",\"count\":" << count << '}';
         }
+    out << "],\"decision_reasons\":{";
+    for (std::size_t i = 0; i < veyra::policy::kUtilityDecisionReasons.size(); ++i) {
+      if (i) out << ',';
+      out << '\"' << veyra::policy::kUtilityDecisionReasons[i] << "\":" << telemetry.decision_reasons[i];
+    }
+    out << "},\"support_histograms\":{";
+    constexpr std::array<std::string_view, 2> support_names{"observation_quality", "point_density"};
+    for (std::size_t i = 0; i < support_names.size(); ++i) {
+      if (i) out << ',';
+      out << '\"' << support_names[i] << "\":[";
+      for (std::size_t bin = 0; bin < 20; ++bin) {
+        if (bin) out << ',';
+        out << telemetry.support_histogram[i][bin];
+      }
+      out << ']';
+    }
+    out << "},\"classes\":[";
+    for (std::size_t i = 0; i < telemetry.class_decisions.size(); ++i) {
+      if (i) out << ',';
+      out << "{\"id\":" << i << ",\"decisions\":" << telemetry.class_decisions[i]
+          << ",\"gate_failed\":" << telemetry.class_gate_failed[i] << '}';
+    }
     out << "]}";
   }
   if (result.governor) {
@@ -1524,12 +1632,14 @@ class PersistentEngineSession {
     }
     parse_duration_ += std::chrono::nanoseconds{duration_ns(parse_started)};
     const auto update_started = Clock::now();
+    map_->prepare_frame(pending_);
     for (const auto& observation : pending_) {
       if (ingest_observation(*map_, observation, result_.rejected_out_of_window))
         ++result_.input_points;
       ++points_;
     }
     update_duration_ += std::chrono::nanoseconds{duration_ns(update_started)};
+    pending_integrated_ = true;
     std::istringstream end;
     end_frame(end);
   }
@@ -1574,6 +1684,10 @@ class PersistentEngineSession {
       previous_source_index_ = input_summary_.source_index;
     result_.late_frames += late ? 1 : 0;
     expected_points_ = uint_value(count, "frame point count");
+    if (options_.policy == "utility_lod" && expected_points_ > 2'000'000)
+      throw std::invalid_argument("utility frame exceeds point limit");
+    pending_.clear();
+    pending_integrated_ = false;
     points_ = 0;
     parse_duration_ = std::chrono::nanoseconds{duration_ns(started)};
     const auto window_started = Clock::now();
@@ -1591,6 +1705,12 @@ class PersistentEngineSession {
     auto observation = parse_observation_record(input, protocol_version_, input_summary_);
     observation.timestamp = input_summary_.timestamp_us.value_or(result_.input_frames);
     parse_duration_ += std::chrono::nanoseconds{duration_ns(parse_started)};
+    if (options_.policy == "utility_lod") {
+      if (points_ >= expected_points_) throw std::invalid_argument("frame point count exceeded");
+      pending_.push_back(observation);
+      ++points_;
+      return;
+    }
     const auto update_started = Clock::now();
     if (ingest_observation(*map_, observation, result_.rejected_out_of_window)) {
       ++result_.input_points;
@@ -1606,6 +1726,16 @@ class PersistentEngineSession {
       throw std::invalid_argument("frame point count mismatch");
     }
     parse_duration_ += std::chrono::nanoseconds{duration_ns(parse_started)};
+    if (options_.policy == "utility_lod" && !pending_integrated_) {
+      const auto update_started = Clock::now();
+      map_->prepare_frame(pending_);
+      for (const auto& observation : pending_) {
+        if (ingest_observation(*map_, observation, result_.rejected_out_of_window))
+          ++result_.input_points;
+      }
+      update_duration_ += std::chrono::nanoseconds{duration_ns(update_started)};
+      pending_integrated_ = true;
+    }
     const auto snapshot_started = Clock::now();
     // The live session snapshots every frame into the snapshot it already
     // owns, so steady-state frames refill existing leaf storage rather than
@@ -1728,6 +1858,7 @@ class PersistentEngineSession {
   InputSummary input_summary_;
   // Decoded rows of the current binary frame; reused so frames do not allocate.
   std::vector<veyra::map::Observation> pending_;
+  bool pending_integrated_ = false;
 };
 
 // Batch counterpart to run() for compact binary streams. It uses the same
@@ -1830,7 +1961,8 @@ double display_cell_utility(const veyra::map::Leaf& leaf,
                           ? static_cast<double>(leaf.stats.terrain_confidence())
                           : 0.0;
   const double semantic =
-      leaf.stats.semantic_class == 0 ? 0.0 : static_cast<double>(leaf.stats.semantic_confidence());
+      veyra::policy::semantic_importance(config, leaf.stats.semantic_class,
+                                         leaf.stats.semantic_confidence());
   const bool quality_gate = leaf.stats.observation_quality() >= config.min_observation_quality;
   return quality_gate
              ? std::clamp(
@@ -1854,10 +1986,13 @@ double display_cell_utility(const veyra::map::Leaf& leaf,
 // whole map update did.
 void write_cells_binary(std::ostream& out, const veyra::map::MapSnapshot& snapshot,
                         std::size_t budget, const veyra::policy::UtilityConfig& config,
-                        std::array<double, 2> center) {
+                        std::array<double, 2> center, bool with_layers = false) {
   const auto selected = select_display_cells(snapshot, budget, center);
   constexpr std::size_t kFloats = 17;
-  std::vector<unsigned char> rows(selected.size() * kFloats * sizeof(float));
+  constexpr std::size_t kLayerFloats = 15;
+  const auto cell_bytes = selected.size() * kFloats * sizeof(float);
+  const auto layer_bytes = with_layers ? selected.size() * kLayerFloats * sizeof(float) : 0;
+  std::vector<unsigned char> rows(cell_bytes + layer_bytes);
   unsigned char* cursor = rows.data();
   const auto put = [&cursor](double value) {
     const auto narrow = static_cast<float>(value);
@@ -1888,9 +2023,22 @@ void write_cells_binary(std::ostream& out, const veyra::map::MapSnapshot& snapsh
     put(leaf.stats.max_z());
     put(leaf.stats.variance_z());
   }
+  if (with_layers) {
+    for (const auto index : selected) {
+      const auto& stats = snapshot.leaves[index].stats;
+      for (const auto* layer : {&stats.ground, &stats.obstacle, &stats.overhead}) {
+        const auto absent = std::numeric_limits<double>::quiet_NaN();
+        put(layer->count);
+        put(layer->empty() ? absent : layer->mean_z);
+        put(layer->empty() ? absent : layer->min_z);
+        put(layer->empty() ? absent : layer->max_z);
+        put(layer->empty() ? absent : layer->variance_z());
+      }
+    }
+  }
   out << "{\"status\":\"available\",\"cell_count\":" << selected.size()
       << ",\"total_leaves\":" << snapshot.leaves.size() << ",\"binary_bytes\":" << rows.size()
-      << "}\n";
+      << (with_layers ? ",\"physical_layers_version\":1" : "") << "}\n";
   out.write(reinterpret_cast<const char*>(rows.data()), static_cast<std::streamsize>(rows.size()));
 }
 
@@ -1963,6 +2111,19 @@ std::string render_cells(const veyra::map::MapSnapshot& snapshot, std::size_t bu
     real(leaf.stats.drivable_evidence());
     out += ",\"u\":";
     real(utility);
+    out += ",\"physical_layers\":[";
+    bool first_layer = true;
+    for (const auto* layer : {&leaf.stats.ground, &leaf.stats.obstacle, &leaf.stats.overhead}) {
+      if (!std::exchange(first_layer, false)) out += ',';
+      integer(layer->count);
+      for (const auto value : {layer->mean_z, static_cast<double>(layer->min_z),
+                               static_cast<double>(layer->max_z), layer->variance_z()}) {
+        out += ',';
+        if (layer->empty()) out += "null";
+        else real(value);
+      }
+    }
+    out += ']';
     out += '}';
   }
   out += "]}";
@@ -1992,7 +2153,7 @@ int run_engine(const Options& options) {
         started = true;
         session_version = line.back() == '4' ? 4 : (line.back() == '3' ? 3 : 2);
         session.set_protocol_version(session_version);
-        std::cout << "{\"status\":\"ready\",\"protocol_version\":" << session_version << "}\n"
+        std::cout << "{\"status\":\"ready\",\"physical_layers_version\":1,\"protocol_version\":" << session_version << "}\n"
                   << std::flush;
         continue;
       }
@@ -2051,7 +2212,7 @@ int run_engine(const Options& options) {
         std::cout << report << std::flush;
         continue;
       }
-      if (line.rfind("MB ", 0) == 0) {
+      if (line.rfind("MB ", 0) == 0 || line.rfind("ML ", 0) == 0) {
         std::istringstream args(line.substr(3));
         std::uint64_t budget = 0;
         if (!(args >> budget) || budget == 0 || budget > 100000)
@@ -2062,7 +2223,7 @@ int run_engine(const Options& options) {
             input ? std::array<double, 2>{input->pose_translation[0], input->pose_translation[1]}
                   : std::array<double, 2>{};
         write_cells_binary(std::cout, session.result().snapshot, static_cast<std::size_t>(budget),
-                           session.display_utility(), center);
+                           session.display_utility(), center, line.rfind("ML ", 0) == 0);
         std::cout << std::flush;
         continue;
       }

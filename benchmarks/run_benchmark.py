@@ -238,6 +238,7 @@ def _git_source_state(repo: Path) -> dict[str, Any]:
     except (OSError, subprocess.CalledProcessError):
         return {
             "working_tree_dirty": None,
+            "execution_source_clean": None,
             "source_state_sha256": None,
             "untracked_source_files": [],
         }
@@ -246,13 +247,25 @@ def _git_source_state(repo: Path) -> dict[str, Any]:
         ".c",
         ".cc",
         ".cpp",
+        ".cmake",
+        ".cfg",
         ".h",
         ".hpp",
+        ".in",
+        ".ini",
+        ".js",
+        ".jsx",
         ".json",
+        ".lock",
         ".md",
         ".py",
+        ".rs",
         ".sh",
+        ".svelte",
         ".toml",
+        ".ts",
+        ".tsx",
+        ".txt",
         ".yml",
         ".yaml",
     }
@@ -277,6 +290,9 @@ def _git_source_state(repo: Path) -> dict[str, Any]:
         digest.update(source_path.read_bytes())
     return {
         "working_tree_dirty": bool(status),
+        # Do not hide whole-tree dirtiness or discard unrelated user files.
+        # This narrower gate identifies reproducible committed execution code.
+        "execution_source_clean": not tracked_diff and not untracked_source_files,
         "source_state_sha256": digest.hexdigest(),
         "untracked_source_files": untracked_source_files,
     }
@@ -2096,6 +2112,16 @@ def run(args: argparse.Namespace) -> dict[str, Any]:
         )
     if args.warmup_frames >= args.count:
         raise ValueError("warmup_frames must be smaller than count")
+    starting_source = _git_source_state(repo)
+    starting_git_sha = _git_sha(repo)
+    starting_binary_sha256 = (
+        _sha256_file(Path(args.binary)) if hasattr(args, "binary") else None
+    )
+    if (
+        getattr(args, "require_clean_source", False)
+        and not starting_source["execution_source_clean"]
+    ):
+        raise ValueError("benchmark requires clean committed source before execution")
     requested = [item.strip() for item in args.policies.split(",") if item.strip()]
     if not requested or len(set(requested)) != len(requested):
         raise ValueError("policies must be a non-empty, unique comma-separated list")
@@ -2310,6 +2336,17 @@ def run(args: argparse.Namespace) -> dict[str, Any]:
     )
     measured_frames_per_run = max(0, selection["frames"] - args.warmup_frames)
     source_state = _source_identity(repo)
+    final_git_state = _git_source_state(repo)
+    if getattr(args, "require_clean_source", False) and (
+        not final_git_state["execution_source_clean"]
+        or final_git_state["source_state_sha256"]
+        != starting_source["source_state_sha256"]
+        or _git_sha(repo) != starting_git_sha
+        or _sha256_file(Path(args.binary)) != starting_binary_sha256
+    ):
+        raise ValueError(
+            "benchmark requires clean committed source throughout execution"
+        )
     result_report = {
         "schema_version": SCHEMA_VERSION,
         "provenance": {
@@ -2322,6 +2359,15 @@ def run(args: argparse.Namespace) -> dict[str, Any]:
             if checkpoint and checkpoint.is_file()
             else None,
             **source_state,
+            "git_sha": source_state.get("git_sha")
+            if source_state.get("source_identity") == "backend_manifest"
+            else starting_git_sha,
+            "benchmark_binary_sha256": starting_binary_sha256,
+            "semantic_mode": "not_executed"
+            if args.skip_perception
+            else yaml.safe_load(perception_config_path.read_text())
+            .get("semantic", {})
+            .get("mode"),
             "pull_request_number": _pull_request_number(),
             "workflow_run_id": os.environ.get("GITHUB_RUN_ID"),
             "workflow_event": os.environ.get("GITHUB_EVENT_NAME"),
@@ -2606,6 +2652,11 @@ def main() -> int:
     parser.add_argument("--hardware-profile", default="auto")
     parser.add_argument("--output", type=Path)
     parser.add_argument("--csv-output", type=Path)
+    parser.add_argument(
+        "--require-clean-source",
+        action="store_true",
+        help="Reject tracked changes or untracked source before and after execution",
+    )
     parser.add_argument(
         "--quality-artifact-dir",
         type=Path,
