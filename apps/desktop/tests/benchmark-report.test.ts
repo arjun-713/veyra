@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
 import test from 'node:test';
 import {
-  acceptBenchmarkReport, benchmarkLifecycle, comparisonScope, millimetres, percent, qualityResourceRows,
+  acceptBenchmarkReport, benchmarkFrameCount, benchmarkLifecycle, comparisonScope, paretoFrontier, millimetres, percent, qualityResourceRows,
   referenceBaselines, reportProvenance, semanticQuality,
 } from '../src/renderer/benchmark-report.ts';
 import {qualityPlotPoints} from '../src/renderer/benchmark-quality.ts';
@@ -30,6 +30,30 @@ test('canonical generated reports render every public policy from the producer t
     assert.equal(row.p95Reliable, false, 'four samples cannot support a p95 claim');
   }
   assert.equal(comparisonScope(accepted.report).latencyMetric, 'p50');
+});
+
+test('an imported p95 selector cannot override unreliable per-policy sample counts', () => {
+  const contradictory = clone(generic);
+  contradictory.quality_resource.latency_plot_metric = 'map_update_p95_ms';
+  for (const row of contradictory.quality_resource.policies) {
+    row.map_update_sample_count = 2;
+    row.map_update_p95_reliable = false;
+  }
+  const rows = qualityResourceRows(contradictory);
+  assert.ok(rows.every(row => row.mapSamples === 2 && !row.p95Reliable));
+  assert.equal(comparisonScope(contradictory).latencyMetric, 'p50');
+});
+
+test('identical input requires all four policy digests to match the producer claim', () => {
+  assert.equal(comparisonScope(semanticposs).sameInput, true);
+
+  const different = clone(semanticposs);
+  different.quality_resource.input_stream_digests.utility_lod = '0'.repeat(64);
+  assert.equal(comparisonScope(different).sameInput, false);
+
+  const incomplete = clone(semanticposs);
+  delete incomplete.quality_resource.input_stream_digests.utility_lod;
+  assert.equal(comparisonScope(incomplete).sameInput, null);
 });
 
 test('semantic mIoU reads semantic_quality.overall.miou as a fraction and flags ground truth', () => {
@@ -140,4 +164,29 @@ test('benchmark failure states are normalized for display', () => {
   assert.equal(benchmarkLifecycle('error'), 'failed');
   assert.equal(benchmarkLifecycle('complete'), 'complete');
   assert.equal(benchmarkLifecycle(undefined), 'idle');
+});
+
+test('Pareto frontier is only offered for a fully measured, identical-input comparison', () => {
+  const frontier = paretoFrontier(semanticposs, 'memory', 'heightAccuracy');
+  assert.equal(frontier.available, true);
+  assert.deepEqual(frontier.frontier, semanticposs.quality_resource.pareto.memory_vs_height_accuracy.frontier);
+  const partial = clone(semanticposs);
+  partial.quality_resource.status = 'partial';
+  assert.deepEqual(paretoFrontier(partial, 'memory', 'heightAccuracy'), {available: false, frontier: [], reason: 'the comparison is partial'});
+  const differing = clone(semanticposs);
+  differing.quality_resource.same_input_for_all_policies = false;
+  assert.equal(paretoFrontier(differing, 'latency', 'completion').reason, 'policies did not consume identical input');
+  const gap = clone(semanticposs);
+  gap.quality_resource.pareto.memory_vs_chamfer.unavailable = ['utility_lod'];
+  assert.equal(paretoFrontier(gap, 'memory', 'surfaceChamfer').available, false);
+  assert.equal(paretoFrontier(generic, 'memory', 'heightAccuracy').available, generic.quality_resource.status === 'measured');
+});
+
+test('benchmark frames default to and never exceed the session frame count', () => {
+  assert.equal(benchmarkFrameCount(null, 30), 30, 'LowResource sessions cap at their frame limit');
+  assert.equal(benchmarkFrameCount(100, 30), 30);
+  assert.equal(benchmarkFrameCount(12.7, 30), 12);
+  assert.equal(benchmarkFrameCount(0, 30), 1);
+  assert.equal(benchmarkFrameCount(10, 0), null);
+  assert.equal(benchmarkFrameCount(10, undefined), null);
 });

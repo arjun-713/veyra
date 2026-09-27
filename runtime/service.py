@@ -559,7 +559,11 @@ class ProductRuntime:
             args.get("warmup_frames", 0), "warmup_frames", 0, count - 1, True
         )
         if count > self.status()["frames"] - start:
-            raise ValueError("benchmark frame range exceeds sequence")
+            raise ValueError(
+                f"benchmark requests {count} frames from frame {start}, but this "
+                f"session provides {self.status()['frames']} (the playback frame "
+                "limit applies unless full_sequence is enabled)"
+            )
         profile = args.get("hardware_profile", "auto")
         if not isinstance(profile, str) or len(profile) > 128:
             raise ValueError("invalid hardware profile")

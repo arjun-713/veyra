@@ -485,6 +485,68 @@ class ProductServiceTests(unittest.TestCase):
             finally:
                 service.close()
 
+    def test_benchmark_respects_the_session_frame_limit_and_announces_its_artifact(
+        self,
+    ):
+        import json
+
+        from runtime.service import ProductRuntime
+        from tests.test_runtime_player import _write_frame
+
+        mapper = require_binary(self, "VEYRA_BENCHMARK_BINARY", BENCHMARK_RELATIVE)
+        with tempfile.TemporaryDirectory() as raw:
+            root = Path(raw)
+            for index in range(5):
+                _write_frame(root, "00000", f"{index:06d}", index)
+            service = ProductRuntime(Path.cwd())
+            config = {
+                "dataset": "rellis3d",
+                "dataset_root": str(root),
+                "sequence": "00000",
+                "map": {"executable": str(mapper), "policy": "distance_lod"},
+                "pipeline": {"semantic": {"mode": "ground_truth"}},
+                "playback": {"frame_limit": 3, "full_sequence": False},
+            }
+            try:
+                configured = service.handle(
+                    {"id": "c", "command": "configure", "args": {"config": config}}
+                )
+                self.assertTrue(configured["ok"], configured)
+                self.assertEqual(service.status()["frames"], 3)
+                rejected = service.handle(
+                    {"id": "b", "command": "benchmark", "args": {"count": 5}}
+                )
+                self.assertFalse(rejected["ok"])
+                self.assertIn("provides 3", rejected["error"]["message"])
+                self.assertIn("frame limit", rejected["error"]["message"])
+
+                started = service.handle(
+                    {
+                        "id": "b",
+                        "command": "benchmark",
+                        "args": {"count": 3, "warmup_frames": 0},
+                    }
+                )
+                self.assertTrue(started["ok"], started)
+                deadline = time.monotonic() + 240
+                completion = None
+                while completion is None and time.monotonic() < deadline:
+                    event = service.outbox.take(timeout=0.5)
+                    if event and event[0].get("type") == "benchmark":
+                        completion = event[0]
+                self.assertIsNotNone(completion, "benchmark did not finish")
+                self.assertEqual(completion["state"], "complete", completion)
+                self.assertNotIn("report", completion)
+                artifact = Path(completion["artifact"])
+                self.assertEqual(artifact.stat().st_size, completion["artifact_bytes"])
+                report = json.loads(artifact.read_text())
+                self.assertEqual(report["provenance"]["frame_range"]["count"], 3)
+                self.assertEqual(
+                    report["quality_resource"]["same_input_for_all_policies"], True
+                )
+            finally:
+                service.close()
+
     def test_real_semanticposs_frame_emits_nonempty_v2_visualization(self):
         from runtime.service import ProductRuntime
 

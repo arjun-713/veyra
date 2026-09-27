@@ -15,6 +15,10 @@
   const number = (value: number | null, decimals = 0) => value === null ? '—' : value.toLocaleString(undefined, {maximumFractionDigits: decimals});
   const evidence = (row: QualityResourceRow) => row.source === 'absent' ? 'UNAVAILABLE' : row.status.toUpperCase();
   const tail = (value: number | null, reliable: boolean) => value === null ? '—' : reliable ? millis(value) : `${millis(value)} (descriptive)`;
+  const digests = $derived(Object.values(scope.inputDigests));
+  const inputIdentity = $derived(scope.sameInput === true && digests.length === 4 ? `identical input · stream ${digests[0].slice(0, 12)}` : scope.sameInput === false ? 'INPUTS DIFFER — not comparable' : 'shared input not verified');
+  const retention = (row: QualityResourceRow) => [['Ped', row.pedestrianRetention], ['Veh', row.vehicleRetention], ['Pole', row.poleRetention]]
+    .filter(([, value]) => value !== null).map(([label, value]) => `${label} ${percent(value as number, 0)}`).join(' · ') || '—';
   const identity = $derived(provenance.gitSha ? provenance.gitSha.slice(0, 12) + (provenance.workingTreeDirty ? ' · dirty tree' : provenance.workingTreeDirty === false ? ' · clean' : '') : 'Unavailable');
 </script>
 
@@ -34,20 +38,22 @@
 {/if}
 
 <section class="card comparison-evidence" aria-label="Policy comparison evidence">
-  <h3>Policy comparison<span>Measured · Analytical · Unavailable</span></h3>
-  <p class="hint">Map quality and resource cost belong together. Each row identifies its evidence; missing values remain unavailable.</p>
+  <h3>Policy comparison<span>{scope.dataset ?? '—'} · {scope.sequence ?? '—'} · {number(scope.frameCount)} frames · {inputIdentity}</span></h3>
+  <p class="hint">All four production policies replayed the same observations in one benchmark run. Map quality and resource cost belong together; each row identifies its evidence.</p>
+  {#if scope.sameInput === false}<p class="report-warning">The policies did not consume identical input streams, so these rows are not a like-for-like comparison.</p>{/if}
+  <p class="direction-legend"><span>↓ lower is better</span><span>↑ higher is better</span><span>— not measured in this report (never zero)</span><span>MEASURED · ANALYTICAL · UNAVAILABLE = evidence type</span></p>
   <div class="table-wrap"><table>
-    <thead><tr><th>Policy</th><th>Evidence</th><th>Logical map ↓</th><th>Peak RSS ↓</th><th>Map p50 ↓</th><th>Height accuracy ≤10 cm ↑</th><th>Completion ↑</th><th>Surface Chamfer ↓</th></tr></thead>
+    <thead><tr><th>Policy</th><th>Evidence</th><th>Logical map ↓</th><th>Mapper peak RSS ↓</th><th>Active cells ↓</th><th>Map update {scope.latencyMetric} ↓</th><th>Height accuracy ≤10 cm ↑</th><th>Completion ↑</th><th>Surface Chamfer ↓</th><th>Critical retention ↑</th></tr></thead>
     <tbody>
       {#each rows as row}
-        <tr><td><strong>{PUBLIC_POLICY_LABELS[row.policy]}</strong></td><td><span class="chip">{evidence(row)}</span></td><td>{mebibytes(row.logicalBytes)}</td><td>{mebibytes(row.rssBytes)}</td><td>{millis(row.mapP50Ms)}</td><td>{percent(row.heightAccuracy10)}</td><td>{percent(row.completion)}</td><td>{millimetres(row.chamferM)}</td></tr>
+        <tr><td><strong>{PUBLIC_POLICY_LABELS[row.policy]}</strong></td><td><span class="chip">{evidence(row)}</span></td><td>{mebibytes(row.logicalBytes)}</td><td>{mebibytes(row.rssBytes)}</td><td>{number(row.activeCells)}</td><td>{scope.latencyMetric === 'p95' ? millis(row.mapP95Ms) : millis(row.mapP50Ms)}</td><td>{percent(row.heightAccuracy10)}</td><td>{percent(row.completion)}</td><td>{millimetres(row.chamferM)}</td><td>{retention(row)}</td></tr>
       {/each}
       {#each baselines as baseline}
-        <tr><td><strong>{baseline.label}</strong></td><td><span class="chip">{baseline.kind.toUpperCase()}</span></td><td>{baseline.bytes === null ? '—' : (baseline.kind === 'analytical' ? 'est. ' : '') + mebibytes(baseline.bytes, 0)}</td><td colspan="5" class="baseline-detail">{baseline.detail}{baseline.cells !== null ? ` · ${number(baseline.cells)} ${baseline.key === 'uniform_5cm_2d' ? 'reference bins' : 'cells'}` : ''}</td></tr>
+        <tr><td><strong>{baseline.label}</strong></td><td><span class="chip">{baseline.kind.toUpperCase()}</span></td><td>{baseline.bytes === null ? '—' : (baseline.kind === 'analytical' ? 'est. ' : '') + mebibytes(baseline.bytes, 0)}</td><td colspan="7" class="baseline-detail">{baseline.detail}{baseline.cells !== null ? ` · ${number(baseline.cells)} ${baseline.key === 'uniform_5cm_2d' ? 'reference bins' : 'cells'}` : ''}</td></tr>
       {/each}
     </tbody>
   </table></div>
-  <p class="hint">Surface metrics compare with observed Uniform5 support in the same region and coordinate frame{scope.referenceIsGroundTruth === false ? ' — explicitly not surveyed ground truth' : ''}. Peak RSS is the benchmark process and includes non-map overhead; logical memory describes the map itself.</p>
+  <p class="hint">Surface metrics compare with observed Uniform5 support in the same region and coordinate frame{scope.referenceIsGroundTruth === false ? ' — explicitly not surveyed ground truth' : ''}. Mapper peak RSS is the C++ benchmark process and includes non-map overhead; logical memory describes the map itself. Map update uses p95 only when every policy has at least 20 samples, otherwise p50 ({number(rows[0]?.mapSamples ?? null)} samples per policy here). Critical retention is the fraction of pedestrian, vehicle and pole reference cells whose class survives in the map, shown only when measured (requires frame retention).</p>
   <details class="comparison-details"><summary>Reconstruction, retention and timing details</summary>
     <div class="table-wrap"><table><thead><tr><th>Policy</th><th>Input accuracy ↓</th><th>Input completion distance ↓</th><th>Input Chamfer ↓</th><th>Active cells</th><th>Elevation RMSE ↓</th><th>Semantic retention ↑</th><th>Vehicle retention ↑</th><th>FPS p50 ↑</th><th>Map p95 ↓</th><th>Map p99 ↓</th><th>Samples</th></tr></thead><tbody>
       {#each rows as row}

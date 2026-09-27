@@ -317,13 +317,24 @@ export function comparisonScope(report: Json | null): ComparisonScope {
     : {};
   const rows = qualityResourceRows(report);
   const allP95 = rows.every(row => row.p95Reliable);
+  const inputDigestValues = PUBLIC_POLICIES.map(policy => digests[policy]);
+  const allInputDigestsPresent = inputDigestValues.every(digest => typeof digest === 'string' && digest.length > 0);
+  const inputDigestsMatch = allInputDigestsPresent && inputDigestValues.every(digest => digest === inputDigestValues[0]);
+  const sameInputClaim = bool(table.same_input_for_all_policies);
+  const sameInput = sameInputClaim === false
+    ? false
+    : sameInputClaim === true && inputDigestsMatch
+      ? true
+      : sameInputClaim === true && allInputDigestsPresent
+        ? false
+        : null;
   return {
     status: table.status === 'measured' || table.status === 'partial' ? table.status : 'unavailable',
-    sameInput: bool(table.same_input_for_all_policies),
+    sameInput,
     inputDigests: digests,
     dataset: text(report?.dataset), sequence: text(report?.sequence),
     frameStart: provenance.frameStart ?? nonNegative(report?.start), frameCount: provenance.frameCount,
-    latencyMetric: table.latency_plot_metric === 'map_update_p95_ms' || (!table.latency_plot_metric && allP95) ? 'p95' : 'p50',
+    latencyMetric: allP95 && (table.latency_plot_metric === 'map_update_p95_ms' || !table.latency_plot_metric) ? 'p95' : 'p50',
     referenceIsGroundTruth: bool(table.reference?.is_ground_truth),
   };
 }
@@ -349,4 +360,39 @@ export function benchmarkLifecycle(state: unknown): 'idle' | 'running' | 'loadin
   if (state === 'running' || state === 'loading' || state === 'complete') return state;
   if (state === 'error' || state === 'failed') return 'failed';
   return 'idle';
+}
+
+export type TradeoffResource = 'memory' | 'latency';
+export type TradeoffMetric = 'heightAccuracy' | 'completion' | 'surfaceChamfer';
+export interface ParetoView {available: boolean; frontier: PublicPolicy[]; reason: string}
+const PARETO_METRIC = {heightAccuracy: 'height_accuracy', completion: 'completion', surfaceChamfer: 'chamfer'} as const;
+
+/**
+ * The producer's two-objective frontier for one plot. It is only offered when
+ * the comparison is fully measured on identical input, so an incomplete report
+ * never yields a manufactured frontier.
+ */
+export function paretoFrontier(report: Json | null, resource: TradeoffResource, metric: TradeoffMetric): ParetoView {
+  const scope = comparisonScope(report);
+  if (scope.status !== 'measured' || scope.sameInput !== true) {
+    return {available: false, frontier: [], reason: scope.sameInput === false ? 'policies did not consume identical input' : 'the comparison is partial'};
+  }
+  const entry = report?.quality_resource?.pareto?.[`${resource}_vs_${PARETO_METRIC[metric]}`];
+  if (!isObject(entry) || !Array.isArray(entry.frontier) || (Array.isArray(entry.unavailable) && entry.unavailable.length)) {
+    return {available: false, frontier: [], reason: 'the report has no complete frontier for this plot'};
+  }
+  const frontier = entry.frontier.filter((policy: unknown): policy is PublicPolicy => PUBLIC_POLICIES.includes(policy as PublicPolicy));
+  return {available: true, frontier, reason: ''};
+}
+
+/**
+ * Frames the four-policy benchmark may request: the session's frame count
+ * (already capped by the playback frame limit). A request above it is
+ * clamped; no session means no valid request.
+ */
+export function benchmarkFrameCount(requested: number | null, sessionFrames: unknown): number | null {
+  const frames = nonNegative(sessionFrames);
+  if (frames === null || frames < 1) return null;
+  const wanted = requested === null || !Number.isFinite(requested) ? frames : Math.floor(requested);
+  return Math.max(1, Math.min(Math.floor(frames), wanted));
 }

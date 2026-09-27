@@ -458,3 +458,7 @@ details[open] > summary { margin-bottom: 16px; }
 .report-warning { margin: 0 0 12px; padding: 10px 12px; border-radius: var(--radius-control); background: #fff5e0; color: #7a4f00; font-size: 12px; line-height: 1.6; }
 .baseline-detail { color: var(--secondary); }
 @media (max-width: 900px) { .provenance-grid { grid-template-columns: minmax(0, 1fr); } }
+.link-button { padding: 0; border: 0; background: none; color: var(--accent); font: inherit; cursor: pointer; text-decoration: underline; }
+.direction-legend { display: flex; flex-wrap: wrap; gap: 8px 20px; margin: 12px 0 0; font-size: 11px; color: var(--secondary); }
+.pareto-note { margin-top: 8px; }
+.benchmark-frames-hint { flex-basis: 100%; order: 1; margin: 0; }
