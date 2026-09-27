@@ -1104,6 +1104,14 @@ ClearingStats Map::clear_free_space(const DepthImage& image, const SensorPose& p
       for (StoredCell& entry : tile.leaves[level]) {
         if (entry.stats.obstacle.empty()) continue;
         ++stats.examined;
+        // Current obstacle evidence is stronger than any contradictory beam in
+        // this scan. Ground-only updates do not protect an old departed object.
+        // No timestamps/history are added to permanent cells.
+        if (image.scan_timestamp().has_value() &&
+            entry.stats.obstacle.last_seen == *image.scan_timestamp()) {
+          ++stats.occluded;
+          continue;
+        }
 
         // Cell centre, matching the geometry cell_intersects_window uses.
         const double resolution = core::resolution_m(entry.id.level);
@@ -1111,7 +1119,7 @@ ClearingStats Map::clear_free_space(const DepthImage& image, const SensorPose& p
         const double centre_y = (static_cast<double>(entry.id.iy) + 0.5) * resolution;
 
         switch (test_cell_against_scan(entry.stats, centre_x, centre_y, image, pose,
-                                       impl_->config.clearing_margin_m)) {
+                                       impl_->config.clearing_margin_m, resolution * 0.5)) {
           case ClearingOutcome::Cleared:
             // One step toward free, not a deletion. Clamped log-odds means a
             // wall needs repeated contradiction before it is released, so a

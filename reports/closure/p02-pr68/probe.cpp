@@ -27,8 +27,20 @@ int main(int argc, char** argv) {
         const auto& result = session.result();
         using Key = std::tuple<int, std::int64_t, std::int64_t>;
         std::map<Key, const veyra::map::CellStats*> index;
+        std::uint64_t current_timestamp = 0;
         for (const auto& leaf : result.snapshot.leaves)
+        {
           index.emplace(Key{leaf.id.level, leaf.id.ix, leaf.id.iy}, &leaf.stats);
+          current_timestamp = std::max(current_timestamp, leaf.stats.last_seen);
+        }
+        std::size_t current_obstacles = 0, current_nonoccupied = 0;
+        for (const auto& leaf : result.snapshot.leaves) {
+          if (leaf.stats.obstacle.empty() || leaf.stats.obstacle.last_seen != current_timestamp)
+            continue;
+          ++current_obstacles;
+          if (leaf.stats.occupancy() != veyra::map::OccupancyState::Occupied)
+            ++current_nonoccupied;
+        }
         std::map<std::string, std::array<std::size_t, 3>> counts;
         for (const auto& s : support) {
           auto& c = counts[s.region];
@@ -46,7 +58,9 @@ int main(int argc, char** argv) {
         std::string report = render(result);
         report.erase(report.find_last_not_of("\n") + 1);
         report.pop_back();
-        report += ",\"seed_support\":{";
+        report += ",\"current_obstacle_cells\":" + std::to_string(current_obstacles) +
+                  ",\"current_obstacle_nonoccupied\":" + std::to_string(current_nonoccupied) +
+                  ",\"seed_support\":{";
         bool first = true;
         for (const auto& [name, c] : counts) {
           if (!std::exchange(first, false)) report += ',';

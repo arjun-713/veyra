@@ -3,6 +3,7 @@
 #include <algorithm>
 #include <cmath>
 #include <numbers>
+#include <limits>
 #include <stdexcept>
 
 #include "veyra/map/map.hpp"
@@ -51,11 +52,14 @@ DepthImage::DepthImage(std::size_t azimuth_bins, std::size_t elevation_bins,
     throw std::invalid_argument("depth image elevation span must be finite and increasing");
   }
   nearest_range_.assign(azimuth_bins_ * elevation_bins_, -1.0F);
+  measured_elevation_.assign(nearest_range_.size(), 0.0F);
+  measured_azimuth_.assign(nearest_range_.size(), 0.0F);
 }
 
 void DepthImage::clear() {
   std::fill(nearest_range_.begin(), nearest_range_.end(), -1.0F);
   filled_ = 0;
+  scan_timestamp_.reset();
 }
 
 std::size_t DepthImage::index_of(double azimuth_rad, double elevation_rad, bool& in_range) const {
@@ -90,14 +94,33 @@ void DepthImage::insert(double x, double y, double z, const SensorPose& pose) {
   const auto range = static_cast<float>(bearing.range_m);
   if (slot < 0.0F) {
     slot = range;
+    measured_elevation_[index] = static_cast<float>(bearing.elevation_rad);
+    measured_azimuth_[index] = static_cast<float>(bearing.azimuth_rad);
     ++filled_;
     return;
   }
-  slot = std::min(slot, range);
+  if (range < slot) {
+    slot = range;
+    measured_elevation_[index] = static_cast<float>(bearing.elevation_rad);
+    measured_azimuth_[index] = static_cast<float>(bearing.azimuth_rad);
+  }
 }
 
 void DepthImage::insert(const Observation& observation, const SensorPose& pose) {
   insert(observation.x, observation.y, observation.z, pose);
+  scan_timestamp_ = std::max(scan_timestamp_.value_or(0), observation.timestamp);
+}
+
+double DepthImage::measured_elevation_at(double azimuth_rad, double elevation_rad) const {
+  bool in_range = false;
+  const auto index = index_of(azimuth_rad, elevation_rad, in_range);
+  return in_range ? measured_elevation_[index] : elevation_rad;
+}
+
+double DepthImage::measured_azimuth_at(double azimuth_rad, double elevation_rad) const {
+  bool in_range = false;
+  const auto index = index_of(azimuth_rad, elevation_rad, in_range);
+  return in_range ? measured_azimuth_[index] : azimuth_rad;
 }
 
 double DepthImage::elevation_of_row(std::size_t row) const noexcept {
@@ -121,7 +144,7 @@ bool DepthImage::sees_past(double azimuth_rad, double elevation_rad, double rang
 
 ClearingOutcome test_cell_against_scan(const CellStats& stats, double centre_x, double centre_y,
                                        const DepthImage& image, const SensorPose& pose,
-                                       double margin_m) {
+                                       double margin_m, double half_width_m) {
   if (stats.obstacle.empty()) return ClearingOutcome::NoObstacle;
 
   const double dx = centre_x - pose.x;
@@ -156,31 +179,52 @@ ClearingOutcome test_cell_against_scan(const CellStats& stats, double centre_x, 
 
   const std::size_t rows = image.elevation_bins();
   for (std::size_t row = 0; row < rows; ++row) {
-    const double elevation = image.elevation_of_row(row);
+    const double row_elevation = image.elevation_of_row(row);
+    const float measured = image.range_at(azimuth, row_elevation);
+    if (measured < 0.0F) continue;
+    const double elevation = image.measured_elevation_at(azimuth, row_elevation);
+    const double measured_azimuth = image.measured_azimuth_at(azimuth, row_elevation);
+    // A return elsewhere in the angular bin does not prove this cell free.
+    // Intersect the measured ray with the actual square footprint, and require
+    // a return past its EXIT (not merely past the centre).
+    double entry = 0.0;
+    double exit = std::numeric_limits<double>::infinity();
+    const auto intersect_axis = [&](double offset, double direction) {
+      if (std::abs(direction) < 1e-12) return std::abs(offset) <= half_width_m + 1e-9;
+      double a = (offset - half_width_m) / direction;
+      double b = (offset + half_width_m) / direction;
+      if (a > b) std::swap(a, b);
+      entry = std::max(entry, a);
+      exit = std::min(exit, b);
+      return entry <= exit + 1e-9;
+    };
+    if (!intersect_axis(dx, std::cos(measured_azimuth)) ||
+        !intersect_axis(dy, std::sin(measured_azimuth))) continue;
     const double cosine = std::cos(elevation);
     if (!(cosine > 1e-6)) continue;  // looking straight up or down: no column crossing
 
-    const float measured = image.range_at(azimuth, elevation);
-    if (measured < 0.0F) continue;  // this beam measured nothing; it tested nothing
-
-    const double crossing_range = horizontal / cosine;
+    const double crossing_range = exit / cosine;
     const bool reached_past = static_cast<double>(measured) > crossing_range + margin_m;
     if (reached_past) projection_would_clear = true;
 
     // Did this beam pass through the claimed extent, or over or under it?
-    const double crossing_height = pose.z + horizontal * std::tan(elevation);
-    if (crossing_height < claim_low || crossing_height > claim_high) continue;
+    const double entry_height = pose.z + entry * std::tan(elevation);
+    const double exit_height = pose.z + exit * std::tan(elevation);
+    if (std::max(entry_height, exit_height) < claim_low ||
+        std::min(entry_height, exit_height) > claim_high) continue;
     measured_beam_crossed_claim = true;
 
     if (reached_past) {
       traversed = true;
-      break;
+      continue;
     }
     blocked = true;
   }
 
-  if (traversed) return ClearingOutcome::Cleared;
+  // Contradictory beams may hit different parts of the same aggregated cell.
+  // Positive/occluding evidence wins; a single through-beam cannot clear it.
   if (blocked) return ClearingOutcome::Occluded;
+  if (traversed) return ClearingOutcome::Cleared;
   // Beams reached past this cell, but every one of them passed over or under
   // the claimed extent without testing it. A projected 2D sweep would have
   // cleared the cell here and erased whatever stands in it.

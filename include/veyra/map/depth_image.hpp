@@ -1,6 +1,7 @@
 #pragma once
 #include <cstddef>
 #include <cstdint>
+#include <optional>
 #include <vector>
 
 #include "veyra/map/sensor_model.hpp"
@@ -57,6 +58,12 @@ class DepthImage {
   // image actually has instead of inventing their own sampling and aliasing
   // against it.
   [[nodiscard]] double elevation_of_row(std::size_t row) const noexcept;
+  // Actual elevation of the nearest measured return, not the raster centre.
+  [[nodiscard]] double measured_elevation_at(double azimuth_rad, double elevation_rad) const;
+  [[nodiscard]] double measured_azimuth_at(double azimuth_rad, double elevation_rad) const;
+  [[nodiscard]] std::optional<std::uint64_t> scan_timestamp() const noexcept {
+    return scan_timestamp_;
+  }
 
   // Was a surface measured strictly beyond `range_m` along this bearing?
   //
@@ -79,6 +86,9 @@ class DepthImage {
   // Negative means empty. float is ample: this is a range in metres used for a
   // comparison with a centimetre-scale margin, never accumulated.
   std::vector<float> nearest_range_;
+  std::vector<float> measured_elevation_;
+  std::vector<float> measured_azimuth_;
+  std::optional<std::uint64_t> scan_timestamp_;
 };
 
 // Spherical coordinates of a world point relative to the sensor.
@@ -118,7 +128,9 @@ enum class ClearingOutcome : std::uint8_t {
 // Tests whether a scan contradicts the obstacle evidence in one cell.
 //
 // The cell's obstacle layer claims a surface occupying [min_z, max_z] at
-// (centre_x, centre_y). Those two heights give two bearings from the sensor,
+// (centre_x, centre_y), with a square footprint of half_width_m when supplied.
+// Measured angles, not quantized raster centres, test that physical footprint.
+// Those two heights give two bearings from the sensor,
 // and the claim is contradicted only when the scan measured something BEYOND
 // the cell along a bearing that actually passes through the claimed extent.
 //
@@ -130,6 +142,7 @@ enum class ClearingOutcome : std::uint8_t {
 // Pure: reads the cell, writes nothing. The caller applies the outcome.
 [[nodiscard]] ClearingOutcome test_cell_against_scan(const CellStats& stats, double centre_x,
                                                      double centre_y, const DepthImage& image,
-                                                     const SensorPose& pose, double margin_m);
+                                                     const SensorPose& pose, double margin_m,
+                                                     double half_width_m = 0.0);
 
 }  // namespace veyra::map
