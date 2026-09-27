@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
 import test from 'node:test';
 import {
-  acceptBenchmarkReport, benchmarkLifecycle, comparisonScope, millimetres, percent, qualityResourceRows,
+  acceptBenchmarkReport, benchmarkFrameCount, benchmarkLifecycle, comparisonScope, paretoFrontier, millimetres, percent, qualityResourceRows,
   referenceBaselines, reportProvenance, semanticQuality,
 } from '../src/renderer/benchmark-report.ts';
 import {qualityPlotPoints} from '../src/renderer/benchmark-quality.ts';
@@ -140,4 +140,29 @@ test('benchmark failure states are normalized for display', () => {
   assert.equal(benchmarkLifecycle('error'), 'failed');
   assert.equal(benchmarkLifecycle('complete'), 'complete');
   assert.equal(benchmarkLifecycle(undefined), 'idle');
+});
+
+test('Pareto frontier is only offered for a fully measured, identical-input comparison', () => {
+  const frontier = paretoFrontier(semanticposs, 'memory', 'heightAccuracy');
+  assert.equal(frontier.available, true);
+  assert.deepEqual(frontier.frontier, semanticposs.quality_resource.pareto.memory_vs_height_accuracy.frontier);
+  const partial = clone(semanticposs);
+  partial.quality_resource.status = 'partial';
+  assert.deepEqual(paretoFrontier(partial, 'memory', 'heightAccuracy'), {available: false, frontier: [], reason: 'the comparison is partial'});
+  const differing = clone(semanticposs);
+  differing.quality_resource.same_input_for_all_policies = false;
+  assert.equal(paretoFrontier(differing, 'latency', 'completion').reason, 'policies did not consume identical input');
+  const gap = clone(semanticposs);
+  gap.quality_resource.pareto.memory_vs_chamfer.unavailable = ['utility_lod'];
+  assert.equal(paretoFrontier(gap, 'memory', 'surfaceChamfer').available, false);
+  assert.equal(paretoFrontier(generic, 'memory', 'heightAccuracy').available, generic.quality_resource.status === 'measured');
+});
+
+test('benchmark frames default to and never exceed the session frame count', () => {
+  assert.equal(benchmarkFrameCount(null, 30), 30, 'LowResource sessions cap at their frame limit');
+  assert.equal(benchmarkFrameCount(100, 30), 30);
+  assert.equal(benchmarkFrameCount(12.7, 30), 12);
+  assert.equal(benchmarkFrameCount(0, 30), 1);
+  assert.equal(benchmarkFrameCount(10, 0), null);
+  assert.equal(benchmarkFrameCount(10, undefined), null);
 });

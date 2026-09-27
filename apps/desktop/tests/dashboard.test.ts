@@ -1,9 +1,20 @@
 import {test} from 'node:test';import assert from 'node:assert/strict';
 import {comparisonMetrics,datasetFormats,defaultSessionConfig, FIRST_CPU_SAMPLE_NOTE, clampRenderCounts, formatRenderAge, inputTargetFps,isRenderStale,layerUnavailable,mapActivity,MEMORY_DOMAIN_NOTE,perceptionStages,profileConfig,recordEvent, renderAgeMs,summarizeVisual, RENDER_CAPACITY,inspectorRows,lodLabel,resolutionLabel,datasetCapabilities,sessionPhase,GLOSSARY} from '../src/renderer/dashboard.ts';
 test('comparison requires measured matching policy reports and never fabricates reduction',()=>{
- assert.equal(comparisonMetrics(null).memoryReduction,null);
- assert.equal(comparisonMetrics({policies:{uniform5:{aggregate:{peak_rss_bytes:100}},utility_lod:{aggregate:{peak_rss_bytes:25}}}}).memoryReduction,75);
- assert.equal(comparisonMetrics({policies:{uniform5:{aggregate:{peak_rss_bytes:0}},utility_lod:{aggregate:{peak_rss_bytes:25}}}}).memoryReduction,null);
+ const reduction=(report:any,policy:string)=>comparisonMetrics(report).rows.find(row=>row.policy===policy)!.memoryReduction;
+ assert.ok(comparisonMetrics(null).rows.every(row=>row.memory===null&&row.memoryReduction===null));
+ const memory=(bytes:number)=>({runs:[{metrics:{memory:{logical_map_bytes:bytes}}}],aggregate:{peak_rss_bytes:bytes*100}});
+ assert.equal(reduction({schema_version:2,policies:{uniform5:memory(100),utility_lod:memory(25)}},'utility_lod'),75);
+ assert.equal(reduction({schema_version:2,policies:{uniform5:memory(0),utility_lod:memory(25)}},'utility_lod'),null);
+ assert.equal(reduction({schema_version:2,policies:{uniform5:memory(100)}},'uniform5'),null,'no reduction against itself');
+});
+test('overview comparison uses p95 only when every policy has enough samples',()=>{
+ const policy=(count:number)=>({aggregate:{stage_latency_ns:{map_update:{p50:1e6,p95:9e6,count}}}});
+ const all=(count:number)=>({schema_version:2,policies:{uniform5:policy(count),uniform40:policy(count),distance_lod:policy(count),utility_lod:policy(count)}});
+ assert.equal(comparisonMetrics(all(4)).latencyMetric,'p50');
+ assert.equal(comparisonMetrics(all(4)).rows[0].latency,1);
+ assert.equal(comparisonMetrics(all(20)).latencyMetric,'p95');
+ assert.equal(comparisonMetrics(all(20)).rows[0].latency,9);
 });
 test('event log is capped and records observable status transitions without repeated telemetry spam',()=>{
  let events:any[]=[];for(let i=0;i<205;i++)events=recordEvent(events,{type:'status',state:'paused',index:i},i);

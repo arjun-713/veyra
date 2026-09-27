@@ -1,5 +1,7 @@
 import type {Json,WireFrame} from '../core';
 import {defaultRuntimeConfig} from './runtime-config.ts';
+import {comparisonScope,qualityResourceRows} from './benchmark-report.ts';
+import {PUBLIC_POLICY_LABELS} from './benchmark-quality.ts';
 export const classNames=['Unknown','Car','Bicycle','Motorcycle','Truck','Other vehicle','Person','Bicyclist','Motorcyclist','Road','Parking','Sidewalk','Other ground','Building','Fence','Vegetation','Trunk','Terrain','Pole','Traffic sign'];
 export const datasetFormats=[['generic','Generic manifest'],['semanticposs','SemanticPOSS'],['semantickitti','SemanticKITTI'],['rellis3d','RELLIS-3D']] as const;
 export interface DashboardEvent {time:number;message:string;kind:string}
@@ -145,12 +147,15 @@ export function recordEvent(events:DashboardEvent[],event:Json,now=Date.now()):D
  if(events.at(-1)?.message===message)return events;
  return [...events,{time:now,message,kind:event.error?'error':event.type}].slice(-200);
 }
+// Compact four-policy summary for the Overview. Same canonical rows as the
+// Evaluation comparison: logical map bytes (not process RSS) and the map-update
+// percentile that is reliable for every policy (p95 at >=20 samples, else p50).
 export function comparisonMetrics(report:Json|null){
- const p=(report?.mapping??report)?.policies;
- const uniform=p?.uniform5?.aggregate,adaptive=(p?.utility_lod??p?.distance_lod)?.aggregate;
- const memoryUniform=uniform?.peak_rss_bytes??null,memoryAdaptive=adaptive?.peak_rss_bytes??null;
- const latencyUniform=uniform?.stage_latency_ns?.map_update?.p95,latencyAdaptive=adaptive?.stage_latency_ns?.map_update?.p95;
- return {memoryUniform,memoryAdaptive,memoryReduction:typeof memoryUniform==='number'&&memoryUniform>0&&typeof memoryAdaptive==='number'?(1-memoryAdaptive/memoryUniform)*100:null,latencyUniform:typeof latencyUniform==='number'?latencyUniform/1e6:null,latencyAdaptive:typeof latencyAdaptive==='number'?latencyAdaptive/1e6:null,adaptivePolicy:p?.utility_lod?'Utility LOD':'Distance LOD'};
+ const rows=qualityResourceRows(report),scope=comparisonScope(report);
+ const uniform=rows.find(row=>row.policy==='uniform5')?.logicalBytes??null;
+ const entries=rows.map(row=>({policy:row.policy,label:PUBLIC_POLICY_LABELS[row.policy],memory:row.logicalBytes,latency:scope.latencyMetric==='p95'?row.mapP95Ms:row.mapP50Ms,memoryReduction:uniform!==null&&uniform>0&&row.logicalBytes!==null&&row.policy!=='uniform5'?(1-row.logicalBytes/uniform)*100:null}));
+ const max=(values:(number|null)[])=>Math.max(0,...values.filter((value):value is number=>value!==null));
+ return {rows:entries,latencyMetric:scope.latencyMetric,memoryMax:max(entries.map(entry=>entry.memory)),latencyMax:max(entries.map(entry=>entry.latency)),sameInput:scope.sameInput};
 }
 export function summarizeVisual(frame:WireFrame|null){
  if(!frame||!evidenceAvailable(frame.metadata.layers?.semantic))return [];

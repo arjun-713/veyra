@@ -1,9 +1,10 @@
 <script lang="ts">
   import type {Json} from '../core';
-  import {latencyAxisLabel, PUBLIC_POLICY_LABELS, qualityPlotPoints, type QualityMetric} from './benchmark-quality';
+  import {latencyAxisLabel, POLICY_COLORS, PUBLIC_POLICY_LABELS, qualityPlotPoints, type QualityMetric} from './benchmark-quality';
   let {report} = $props<{report: Json | null}>();
+  import {paretoFrontier} from './benchmark-report';
   let metric = $state<QualityMetric>('heightAccuracy');
-  const colors: Record<string, string> = {uniform5: '#64748b', uniform40: '#a76b12', distance_lod: '#0069df', utility_lod: '#188252'};
+  const colors = POLICY_COLORS;
   const titles = {heightAccuracy: 'Height accuracy at 10 cm (%) ↑', completion: 'Completion (%) ↑', surfaceChamfer: 'Surface Chamfer (mm) ↓'};
   const displayY = (value: number) => value * (metric === 'surfaceChamfer' ? 1000 : 100);
   const format = (value: number) => value.toLocaleString(undefined, {maximumFractionDigits: 1});
@@ -14,6 +15,7 @@
   <div class="tradeoff-grid">
     {#each ['memory', 'latency'] as resource}
       {@const points = qualityPlotPoints(report, resource as 'memory' | 'latency', metric)}
+      {@const pareto = paretoFrontier(report, resource as 'memory' | 'latency', metric)}
       {@const maxX = Math.max(1, ...points.map(point => point.x)) * 1.2}
       {@const maxY = metric === 'surfaceChamfer' ? Math.max(1, ...points.map(point => displayY(point.y))) * 1.15 : 100}
       <div class="tradeoff-plot">
@@ -30,9 +32,12 @@
             <text x="65" y="25">{titles[metric]}</text>
             <text x="250" y="267" text-anchor="middle">{resource === 'memory' ? 'Logical map memory (MB) ↓' : latencyAxisLabel(report)}</text>
             {#each points as point, index}
-              <circle cx={65 + point.x / maxX * 379} cy={220 - displayY(point.y) / maxY * 170} r="5" fill={colors[point.policy]}><title>{PUBLIC_POLICY_LABELS[point.policy]}: {format(point.x)} {resource === 'memory' ? 'MB' : 'ms'}, {format(displayY(point.y))} {metric === 'surfaceChamfer' ? 'mm' : '%'}</title></circle>
+              {@const onFrontier = pareto.available && pareto.frontier.includes(point.policy as never)}
+              {#if onFrontier}<circle cx={65 + point.x / maxX * 379} cy={220 - displayY(point.y) / maxY * 170} r="9" fill="none" stroke={colors[point.policy]} stroke-width="1.5"/>{/if}
+              <circle cx={65 + point.x / maxX * 379} cy={220 - displayY(point.y) / maxY * 170} r="5" fill={colors[point.policy]}><title>{PUBLIC_POLICY_LABELS[point.policy]}: {format(point.x)} {resource === 'memory' ? 'MB' : 'ms'}, {format(displayY(point.y))} {metric === 'surfaceChamfer' ? 'mm' : '%'}{onFrontier ? ' · Pareto-optimal' : ''}</title></circle>
             {/each}
           </svg>
+          <p class="hint pareto-note">{pareto.available ? `Ringed: Pareto-optimal (${pareto.frontier.map(policy => PUBLIC_POLICY_LABELS[policy]).join(', ') || 'none'}). No weighted score.` : `No frontier drawn: ${pareto.reason}.`}</p>
         {:else}<div class="plot-unavailable">Unavailable in this report</div>{/if}
       </div>
     {/each}

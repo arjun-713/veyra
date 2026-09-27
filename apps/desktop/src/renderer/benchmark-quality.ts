@@ -5,6 +5,9 @@ export const PUBLIC_POLICY_LABELS: Record<string, string> = {
   uniform5: 'Uniform5', uniform40: 'Uniform40',
   distance_lod: 'DistanceLOD', utility_lod: 'UtilityLOD',
 };
+export const POLICY_COLORS: Record<string, string> = {
+  uniform5: '#64748b', uniform40: '#a76b12', distance_lod: '#0069df', utility_lod: '#188252',
+};
 
 function nonNegative(value: unknown): number | null {
   return typeof value === 'number' && Number.isFinite(value) && value >= 0 ? value : null;
