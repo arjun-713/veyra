@@ -12,10 +12,13 @@ A unit test cannot catch that. Only a test that crosses the protocol can.
 from __future__ import annotations
 
 import json
+import os
 import shutil
 import subprocess
+import tempfile
 import unittest
 from pathlib import Path
+from unittest.mock import patch
 
 import numpy as np
 
@@ -27,6 +30,10 @@ REPO = Path(__file__).resolve().parents[1]
 
 def _engine() -> Path | None:
     """The benchmark engine binary, wherever this checkout put it."""
+    override = os.environ.get("VEYRA_BENCHMARK_BINARY", "").strip()
+    if override:
+        candidate = Path(override).expanduser().resolve()
+        return candidate if candidate.is_file() else None
     for candidate in (
         REPO / "build" / "apps" / "benchmark" / "veyra_benchmark",
         REPO / "build" / "Release" / "apps" / "benchmark" / "veyra_benchmark",
@@ -36,6 +43,15 @@ def _engine() -> Path | None:
             return candidate
     found = shutil.which("veyra_benchmark")
     return Path(found) if found else None
+
+
+class EngineSelectionTests(unittest.TestCase):
+    def test_layer_tests_honor_fresh_binary_instead_of_stale_build(self):
+        with tempfile.TemporaryDirectory(prefix="veyra-layer-binary-") as directory:
+            fresh = Path(directory) / "veyra_benchmark"
+            fresh.touch()
+            with patch.dict(os.environ, {"VEYRA_BENCHMARK_BINARY": str(fresh)}):
+                self.assertEqual(_engine(), fresh)
 
 
 def _frame(

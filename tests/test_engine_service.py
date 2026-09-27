@@ -184,6 +184,62 @@ class EngineServiceTests(unittest.TestCase):
             self.assertEqual(report["metrics"]["frame_count"], 2)
             self.assertEqual(len(report["frame_metrics"]), 2)
 
+    def test_utility_text_and_binary_share_complete_frame_support(self):
+        from dataclasses import replace
+
+        import numpy as np
+
+        from benchmarks.protocol import binary_frame_bytes, frame_records
+        from benchmarks.test_runtime import frame as make_frame
+
+        frames = []
+        for index in range(3):
+            frames.append(
+                replace(
+                    make_frame(timestamp=1.0 + index, frame_id=f"{index:06d}"),
+                    points=np.array(
+                        [[45.05, 0.05, 1, 0.5], [45.15, 0.05, 1, 0.5]], dtype=np.float32
+                    ),
+                    semantic_class=np.array([6, 9]),
+                    semantic_confidence=np.ones(2),
+                    ground=np.zeros(2, dtype=bool),
+                    drivable=np.array(["unknown", "unknown"]),
+                    height_complexity=np.zeros(2),
+                    terrain_confidence=np.zeros(2),
+                    motion_probability=np.zeros(2),
+                    velocity_xy=np.zeros((2, 2)),
+                    observation_quality=np.ones(2),
+                )
+            )
+        reports = []
+        for encode in (
+            lambda f: "".join(frame_records(f)).encode(),
+            binary_frame_bytes,
+        ):
+            result = subprocess.run(
+                [str(self.binary), "--engine", "--policy", "utility_lod"],
+                input=b"VEYRA_ENGINE 4\nG disabled\n"
+                + b"".join(encode(f) for f in frames)
+                + b"M 100\nC\n",
+                capture_output=True,
+                timeout=10,
+                check=False,
+            )
+            self.assertEqual(result.returncode, 0, result.stderr.decode())
+            messages = [json.loads(line) for line in result.stdout.splitlines()]
+            self.assertEqual(messages[-3]["snapshot"]["point_count"], 6)
+            self.assertTrue(
+                messages[-3]["frame_metrics"][-1]["point_conservation"]["holds"]
+            )
+            cells = messages[-2]["cells"]
+            person = [
+                c for c in cells if c["l"] == 1 and c["ix"] == 450 and c["iy"] == 0
+            ]
+            self.assertEqual(len(person), 1, cells)
+            self.assertEqual(person[0]["c"], 6)
+            reports.append(cells)
+        self.assertEqual(reports[0], reports[1])
+
     def test_batch_binary_stream_reports_frame_scoped_conservation_after_eviction(self):
         from benchmarks.protocol import binary_stream_file
         from benchmarks.test_runtime import frame as make_frame
