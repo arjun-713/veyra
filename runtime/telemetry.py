@@ -176,6 +176,9 @@ class Telemetry:
         self.latencies = deque(maxlen=capacity)
         self.completed = deque(maxlen=capacity)
         self.cpu_previous = {}
+        # Monotonic origin for runtime plots. Wall time remains a separate
+        # provenance/freshness field and must never drive a chart x-axis.
+        self.started_at = time.monotonic()
 
     def record(self, elapsed_ms):
         self.latencies.append(elapsed_ms)
@@ -301,6 +304,7 @@ class Telemetry:
             "type": "telemetry",
             "schema_version": 1,
             "timestamp": time.time(),
+            "elapsed_ms": max(0.0, (now - self.started_at) * 1000.0),
             **{
                 key: state[key]
                 for key in (
@@ -330,6 +334,7 @@ class Telemetry:
                 "mapping_p95": latency.get("p95") / 1e6
                 if latency.get("p95") is not None
                 else None,
+                "mapping_samples": latency.get("count"),
                 "mapping_p99": latency.get("p99") / 1e6
                 if latency.get("p99") is not None
                 else None,
