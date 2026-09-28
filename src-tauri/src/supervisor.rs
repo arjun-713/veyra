@@ -562,7 +562,10 @@ mod tests {
         std::fs::create_dir_all(executable.parent().unwrap()).unwrap();
         std::fs::write(
             &executable,
-            b"#!/bin/sh\nprintf '%s' \"$PYTHONDONTWRITEBYTECODE\" > bytecode-env.txt\nexec sleep 10\n",
+            // Write then rename so the marker only appears once complete: a
+            // reader polling for the file must never observe it half-written.
+            b"#!/bin/sh\nprintf '%s' \"$PYTHONDONTWRITEBYTECODE\" > bytecode-env.tmp\n\
+              mv bytecode-env.tmp bytecode-env.txt\nexec sleep 10\n",
         )
         .unwrap();
         std::fs::set_permissions(&executable, std::fs::Permissions::from_mode(0o755)).unwrap();
@@ -570,10 +573,11 @@ mod tests {
         let supervisor = RuntimeSupervisor::new(&root);
         supervisor.start().unwrap();
         let marker = root.join("bytecode-env.txt");
-        for _ in 0..100 {
-            if marker.is_file() {
-                break;
-            }
+        // The first exec of a freshly written script can take well over a
+        // second on macOS (the system policy scan of a new executable), and
+        // longer under a loaded parallel test run; a 1 s budget was flaky.
+        let deadline = std::time::Instant::now() + Duration::from_secs(20);
+        while !marker.is_file() && std::time::Instant::now() < deadline {
             std::thread::sleep(Duration::from_millis(10));
         }
         let actual = std::fs::read_to_string(&marker).unwrap_or_default();
