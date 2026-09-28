@@ -18,7 +18,7 @@ export default function DownloadPage() {
         <PageHead
           trail="Download"
           title="Run it on your machine."
-          lede="Installers for Linux, Windows, and macOS — or a two-command source build. Packaged binaries ship with the first tagged release."
+          lede="Check published installers for Linux, Windows, or macOS, or build Veyra from source."
         />
         <Download />
       </main>

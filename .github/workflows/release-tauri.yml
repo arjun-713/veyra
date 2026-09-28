@@ -4,11 +4,15 @@ on:
   workflow_dispatch:
     inputs:
       version:
-        description: Release version (for example 0.2.0)
+        description: Release version (for example v0.2.0-rc.1)
         required: true
         type: string
+      prerelease:
+        description: Publish to the prerelease channel
+        type: boolean
+        default: true
   push:
-    tags: ["tauri-v*"]
+    tags: ["v*"]
 
 permissions:
   contents: read
@@ -173,25 +177,62 @@ jobs:
           PY
         env:
           VEYRA_BUNDLES: ${{ matrix.bundles }}
-      # Canonical provenance order: manifest FIRST, then checksums (mirrors
-      # release.yml's publish regen). SHA256SUMS is the covering artifact —
-      # it lists release-manifest.json — so the manifest itself does not
-      # list SHA256SUMS. Do not swap these two commands.
-      - name: Write release manifest
+      - name: Stage only native installer assets
+        shell: bash
+        run: |
+          python scripts/stage_tauri_release_assets.py \
+            src-tauri/target/release/bundle \
+            "$RUNNER_TEMP/veyra-release-assets" \
+            --bundles "${{ matrix.bundles }}"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: veyra-tauri-${{ matrix.platform }}-${{ matrix.arch }}
+          path: ${{ runner.temp }}/veyra-release-assets/
+          if-no-files-found: error
+          retention-days: 30
+
+  publish:
+    needs: package
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+      - uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+          merge-multiple: false
+      - name: Build aggregate release manifest and checksums
         shell: bash
         env:
           RELEASE_VERSION: ${{ inputs.version || github.ref_name }}
         run: |
-          python scripts/release_manifest.py src-tauri/target/release/bundle \
-            --output src-tauri/target/release/bundle/release-manifest.json \
-            --version "${VEYRA_BUNDLE_VERSION:-$RELEASE_VERSION}" \
-            --target "${{ matrix.platform }}-${{ matrix.arch }}"
-          python scripts/release_checksums.py src-tauri/target/release/bundle
-      - uses: actions/upload-artifact@v4
-        with:
-          name: veyra-tauri-${{ matrix.platform }}-${{ matrix.arch }}
-          path: src-tauri/target/release/bundle/
-          if-no-files-found: error
-          # CI-hardening: release bundles await the future publish job
-          # (survey §5.1); 30d keeps tagged releases verifiable meanwhile.
-          retention-days: 30
+          python scripts/build_tauri_release_manifest.py artifacts \
+            --version "$RELEASE_VERSION" \
+            --output "$RUNNER_TEMP/veyra-release-assets"
+          python scripts/release_checksums.py "$RUNNER_TEMP/veyra-release-assets"
+      - name: Publish installer files to GitHub Release
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_TAG: ${{ inputs.version || github.ref_name }}
+          PRERELEASE: ${{ github.event_name == 'workflow_dispatch' && inputs.prerelease || contains(inputs.version || github.ref_name, '-') }}
+        run: |
+          channel=stable
+          release_flags=()
+          if [ "$PRERELEASE" = true ]; then
+            channel=prerelease
+            release_flags=(--prerelease)
+          fi
+          printf 'Veyra native Tauri installers. Channel: %s. Verify files with SHA256SUMS; see release-manifest.json for platform, architecture, size, and SHA-256.\n' "$channel" > release-notes.md
+          mapfile -d '' assets < <(find "$RUNNER_TEMP/veyra-release-assets" -maxdepth 1 -type f -print0 | sort -z)
+          if gh release view "$RELEASE_TAG" >/dev/null 2>&1; then
+            gh release upload "$RELEASE_TAG" --clobber "${assets[@]}"
+            gh release edit "$RELEASE_TAG" --title "Veyra $RELEASE_TAG" --notes-file release-notes.md
+          else
+            gh release create "$RELEASE_TAG" --title "Veyra $RELEASE_TAG" --notes-file release-notes.md "${release_flags[@]}" "${assets[@]}"
+          fi
