@@ -1786,6 +1786,7 @@ def _command(
     governor_config: str | Path | None = None,
     *,
     promotion_telemetry: bool = False,
+    deterministic_governor: bool = True,
 ) -> list[str]:
     ranges = distance_config["ranges_m"]
     governor_path = (
@@ -1814,6 +1815,10 @@ def _command(
     ]
     if promotion_telemetry:
         command.append("--promotion-telemetry")
+    if deterministic_governor:
+        # Wall-clock frame time and RSS would otherwise feed the governor and
+        # make repeated runs of one stream produce different maps.
+        command.append("--deterministic-governor")
     return command
 
 
@@ -1868,6 +1873,9 @@ def _execute_policy_runs(
                             ),
                             promotion_telemetry=getattr(
                                 args, "promotion_telemetry", False
+                            ),
+                            deterministic_governor=not getattr(
+                                args, "wall_clock_governor", False
                             ),
                         ),
                         stdin=stream_input,
@@ -2389,6 +2397,12 @@ def run(args: argparse.Namespace) -> dict[str, Any]:
             ),
             "policy_execution_order": execution_order,
             "map_window_radius_m": window_radius_m,
+            "governor_feedback": (
+                "wall_clock: measured frame time and RSS feed the resource governor"
+                if getattr(args, "wall_clock_governor", False)
+                else "deterministic: governor sees active cells and logical bytes only; "
+                "frame time and RSS are measured and reported but not fed back"
+            ),
             "measurement_scope": {
                 "perception": "Python PerceptionPipeline processing, shared once before all policy runs"
                 if not args.skip_perception
@@ -2685,6 +2699,13 @@ def main() -> int:
         "--promotion-telemetry",
         action="store_true",
         help="Collect bounded UtilityLOD decision and signal aggregates in the C++ benchmark",
+    )
+    parser.add_argument(
+        "--wall-clock-governor",
+        action="store_true",
+        help="Feed measured frame time and RSS to the resource governor as the "
+        "live runtime does; makes repeated runs non-deterministic (default "
+        "withholds them so every repetition produces the same map)",
     )
     parser.add_argument("--dataset-sha256")
     parser.add_argument("--build-type", default="Release")
