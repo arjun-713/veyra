@@ -146,6 +146,38 @@ python -m benchmarks.tradeoff_plot results/*.json --output tradeoff.svg
 
 ## Desktop consumer contract
 
+### Performance versus Evaluation
+
+The Performance page is a live view, separate from completed benchmark
+comparisons. Runtime telemetry retains `timestamp` as Unix wall-clock seconds
+for freshness/provenance and `elapsed_ms` as monotonic milliseconds from the
+configured runtime session. Live charts plot elapsed time only, in a trailing
+60-second window; calendar time is never used for their x-axis. The frontend
+accepts telemetry samples only while the runtime state is `running`, so a
+paused chart freezes and resumes when new running samples arrive. History is
+bounded to 3,600 rows and resets on configure, sequence/policy reload, restart,
+or stop. The Python runtime emits one telemetry report after each processed
+frame; actual UI sample cadence therefore follows processed-frame throughput
+and any event coalescing in the desktop bridge. End-to-end and mapper p95
+series remain unavailable until the
+corresponding backend sample count reaches 20; p99 remains governed by the
+existing 100-sample reporting gate.
+
+The Evaluation page reads only completed schema-v2 benchmark reports through
+the same canonical quality/resource rows described below. Its plots compare
+measured process RSS, map-update latency, or active-cell count against
+available map-quality fields. The standard reconstruction metrics are in
+meters: Accuracy is map-to-reference nearest-neighbour distance, Completion
+is reference-to-map nearest-neighbour distance, and Chamfer-L1 is the mean of
+those directed mean distances. Lower values are better. The high-resolution
+surface metrics instead compare against observed Uniform5 support and report
+height accuracy/completion as fractions (higher is better) and surface
+Chamfer in metres (lower is better). Both reference types use identical
+world-frame input selection across policies, but neither is independent
+surveyed ground truth. Missing metrics remain unavailable and are omitted from
+the affected plot. Pareto points are outlined only if the report is measured
+and all four policy input digests match; no weighted score is computed.
+
 The desktop reads benchmark evidence only through
 `apps/desktop/src/renderer/benchmark-report.ts`, for runs it launched and for
 opened files alike, so both views agree.
