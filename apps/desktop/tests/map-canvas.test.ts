@@ -132,6 +132,8 @@ test('driver view chases the vehicle along its travel direction, then orbit is r
  for(let i=0;i<5;i++)await evaluate('canvasProbe.settle()');
  const still=(await evaluate('canvasProbe.snapshot')).camera as number[];
  assert.ok(Math.hypot(still[0]-orbit[0],still[1]-orbit[1],still[2]-orbit[2])<1e-3,'orbit view is no longer driven by the chase camera');
- assert.ok(Math.hypot(orbit[0]-chased[0],orbit[2]-chased[2])>20,'orbit view re-places the camera');
+ // Orbit fits the probe's few-cell map, so it sits at the minimum fit
+ // distance (12 m) up the orbit diagonal rather than the old fixed 54 m.
+ assert.ok(Math.hypot(orbit[0]-chased[0],orbit[2]-chased[2])>5,'orbit view re-places the camera');
  assert.deepEqual(errors,[]);
 });
