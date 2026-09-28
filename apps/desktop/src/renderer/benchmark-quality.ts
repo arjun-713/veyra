@@ -34,24 +34,47 @@ export function policyQuality(value: Json) {
   };
 }
 
-export type QualityMetric = 'heightAccuracy' | 'completion' | 'surfaceChamfer';
+export type QualityMetric = 'heightAccuracy' | 'completion' | 'surfaceChamfer' | 'inputAccuracy' | 'inputCompletion' | 'inputChamfer';
 
-const ROW_METRIC = {heightAccuracy: 'heightAccuracy10', completion: 'completion', surfaceChamfer: 'chamferM'} as const;
+const ROW_METRIC = {heightAccuracy: 'heightAccuracy10', completion: 'completion', surfaceChamfer: 'chamferM', inputAccuracy: 'inputAccuracyM', inputCompletion: 'inputCompletionM', inputChamfer: 'inputChamferM'} as const;
+const LOWER_IS_BETTER = new Set<QualityMetric>(['surfaceChamfer', 'inputAccuracy', 'inputCompletion', 'inputChamfer']);
+export const qualityMetricDirection = (metric: QualityMetric) => LOWER_IS_BETTER.has(metric) ? 'lower' : 'higher';
 
 /**
  * Plot points from the canonical quality/resource rows. Latency uses map-update
  * p95 only when every policy has at least 20 samples (the producer's frontier
  * rule); otherwise p50. Policies missing either coordinate are omitted.
  */
-export function qualityPlotPoints(report: Json | null, resource: 'memory' | 'latency', metric: QualityMetric) {
+export function qualityPlotPoints(report: Json | null, resource: 'memory' | 'rss' | 'latency' | 'activeCells', metric: QualityMetric) {
   const latencyMetric = comparisonScope(report).latencyMetric;
   return qualityResourceRows(report).flatMap(row => {
-    const x = resource === 'memory'
-      ? (row.logicalBytes === null ? null : row.logicalBytes / 1048576)
-      : latencyMetric === 'p95' ? row.mapP95Ms : row.mapP50Ms;
+    const x = resource === 'memory' ? (row.logicalBytes === null ? null : row.logicalBytes / 1048576)
+      : resource === 'rss' ? (row.rssBytes === null ? null : row.rssBytes / 1048576)
+        : resource === 'activeCells' ? row.activeCells
+          : latencyMetric === 'p95' ? row.mapP95Ms : row.mapP50Ms;
     const y = row[ROW_METRIC[metric]];
     return x === null || y === null ? [] : [{policy: row.policy, x, y}];
   });
+}
+
+/**
+ * Calculate an unweighted two-axis frontier for any recorded resource. Never
+ * call points Pareto-comparable unless the producer marks the run measured
+ * and all four public-policy input digests agree.
+ */
+export function qualityParetoPolicies(report: Json | null, resource: 'memory' | 'rss' | 'latency' | 'activeCells', metric: QualityMetric): string[] {
+  const scope = comparisonScope(report);
+  if (scope.status !== 'measured' || scope.sameInput !== true) return [];
+  const points = qualityPlotPoints(report, resource, metric);
+  if (points.length !== 4) return [];
+  const lowerQualityIsBetter = LOWER_IS_BETTER.has(metric);
+  return points.filter(candidate => !points.some(other => {
+    if (other.policy === candidate.policy) return false;
+    const noMoreResource = other.x <= candidate.x;
+    const noWorseQuality = lowerQualityIsBetter ? other.y <= candidate.y : other.y >= candidate.y;
+    const strictlyBetter = other.x < candidate.x || (lowerQualityIsBetter ? other.y < candidate.y : other.y > candidate.y);
+    return noMoreResource && noWorseQuality && strictlyBetter;
+  })).map(point => point.policy);
 }
 
 export function latencyAxisLabel(report: Json | null): string {
