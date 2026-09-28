@@ -26,6 +26,8 @@ evidence. Install with `uv pip install -r requirements.txt`; use a writable
 `UV_CACHE_DIR` in managed environments. Patchwork++ needs no model asset.
 ONNX inference still requires a compatible local semantic `.onnx` checkpoint;
 weights are not downloaded or replaced when that asset is absent.
+The packaged Python runtime is headless: the Tauri WebView is the desktop UI,
+so macOS staging omits unused Tcl/Tk frameworks and the `tkinter` binding.
 Terrain requires enabled ground, and temporal evidence requires both a dataset
 timestamp and world-frame provenance.
 

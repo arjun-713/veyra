@@ -204,6 +204,42 @@ class PackageBackendTests(unittest.TestCase):
                 (destination / "Frameworks/Tcl.framework/PrivateHeaders").exists()
             )
 
+    def test_darwin_python_bundle_omits_unused_tk_framework_and_module(self):
+        from scripts.package_backend import _copy_python_runtime
+
+        with tempfile.TemporaryDirectory() as raw:
+            root = Path(raw)
+            base = root / "python-base"
+            (base / "bin").mkdir(parents=True)
+            (base / "bin/python3").write_bytes(b"python")
+            (base / "Frameworks/Tcl.framework").mkdir(parents=True)
+            (base / "Frameworks/Tcl.framework/Tcl").write_bytes(b"Tcl framework")
+            (base / "Frameworks/Tk.framework").mkdir(parents=True)
+            (base / "Frameworks/Tk.framework/Tk").write_bytes(b"Tk framework")
+            dynload = base / "lib/python3.13/lib-dynload"
+            dynload.mkdir(parents=True)
+            (dynload / "_tkinter.cpython-313-darwin.so").write_bytes(b"tk module")
+            (dynload / "math.cpython-313-darwin.so").write_bytes(b"math module")
+            (base / "lib/python3.13/tkinter").mkdir()
+            (base / "lib/python3.13/tkinter/__init__.py").write_text("\n")
+
+            venv = root / "venv"
+            (venv / "bin").mkdir(parents=True)
+            (venv / "bin/python3").write_bytes(b"venv python")
+            (venv / "lib/python3.13/site-packages/numpy").mkdir(parents=True)
+            (venv / "lib/python3.13/site-packages/numpy/__init__.py").write_text("\n")
+            (venv / "pyvenv.cfg").write_text(f"home = {base / 'bin'}\nversion = 3.13.0\n")
+
+            destination = root / "staged-python"
+            _copy_python_runtime(venv, destination, "darwin")
+
+            self.assertTrue((destination / "lib/python3.13/lib-dynload/math.cpython-313-darwin.so").is_file())
+            self.assertTrue((destination / "lib/python3.13/site-packages/numpy/__init__.py").is_file())
+            self.assertFalse((destination / "Frameworks/Tcl.framework").exists())
+            self.assertFalse((destination / "Frameworks/Tk.framework").exists())
+            self.assertFalse((destination / "lib/python3.13/lib-dynload/_tkinter.cpython-313-darwin.so").exists())
+            self.assertFalse((destination / "lib/python3.13/tkinter").exists())
+
     def test_virtual_environment_is_flattened_with_its_base_interpreter(self):
         from scripts.package_backend import stage_backend
 

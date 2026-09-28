@@ -48,12 +48,18 @@ def _copy_tree(
     reject_assets: bool = False,
     materialize_internal_links: bool = False,
     skip_parts: frozenset[str] = frozenset(),
+    skip_prefixes: tuple[str, ...] = (),
 ) -> None:
     if not source.is_dir():
         raise ValueError(f"required backend source is missing: {source}")
     for item in sorted(source.rglob("*")):
         relative = item.relative_to(source)
-        if any(part in IGNORED_PARTS or part in skip_parts for part in relative.parts):
+        if any(
+            part in IGNORED_PARTS
+            or part in skip_parts
+            or part.startswith(skip_prefixes)
+            for part in relative.parts
+        ):
             continue
         if item.is_symlink():
             if not materialize_internal_links:
@@ -203,11 +209,20 @@ def _copy_python_runtime(runtime: Path, destination: Path, platform: str) -> Non
     # installed site-packages so the result has no dependency on that path.
     # The base's own site-packages is never visible to the isolated venv (and
     # Homebrew links it outside the prefix), so it is not copied.
+    skipped_python_parts = {"site-packages"}
+    skipped_python_prefixes: tuple[str, ...] = ()
+    if platform == "darwin":
+        # The packaged runtime is headless (Tauri owns the UI); Tk is unused.
+        # Excluding its optional frameworks also avoids signing the Tcl/Tk
+        # binaries, which are not valid runtime dependencies of Veyra.
+        skipped_python_parts.update({"Tcl.framework", "Tk.framework", "tkinter"})
+        skipped_python_prefixes = ("_tkinter.",)
     _copy_tree(
         base,
         destination,
         materialize_internal_links=True,
-        skip_parts=frozenset({"site-packages"}),
+        skip_parts=frozenset(skipped_python_parts),
+        skip_prefixes=skipped_python_prefixes,
     )
     site_packages = sorted(
         path for path in runtime.rglob("site-packages") if path.is_dir()

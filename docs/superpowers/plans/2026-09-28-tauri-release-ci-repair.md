@@ -35,6 +35,7 @@
 - [x] Add a test using `_copy_tree(..., materialize_internal_links=True)` with an optional dangling framework symlink; verify the test first fails on strict resolution.
 - [x] Omit dangling links from the flattened Python runtime; continue rejecting valid links that escape its root and validate required runtime files afterward.
 - [x] Add a mocked `otool` output test and ignore its `is not an object file` diagnostic instead of treating it as a library dependency.
+- [x] Exclude unused Tcl/Tk frameworks and tkinter from the headless macOS Python bundle so codesigning does not fail on optional framework binaries.
 - [x] Run focused package-backend tests.
 
 ### Task 3: Select dependencies available for each release architecture
