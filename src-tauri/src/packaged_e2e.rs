@@ -442,10 +442,10 @@ fn packaged_control_plane_serves_authenticated_fast_commands() {
         .expect("packaged client authenticates from the discovery record");
 
     let mut call = |command: &str, args: Value, host: &mut Option<ControlHost>| {
-        // Bounded tolerance for load-marginal timing only: the first command
-        // after a cold boot (~1.8 s) and the stop escalation both straddle
-        // ControlClient's fixed 2 s IO budget, so a transient timeout is
-        // retried. Every retry redoes the idempotent command and the final
+        // Bounded tolerance for load-marginal timing only: runtime-backed
+        // commands now get ControlClient's 120 s budget (the cold boot,
+        // ~1.8 s here, used to straddle a 2 s budget), so a retry should only
+        // fire for a transient connect/read error under heavy load. Every retry redoes the idempotent command and the final
         // shutdown + join still assert a live, cleanly stopped daemon, so a
         // genuinely dead backend cannot pass.
         let mut attempts = 0;
