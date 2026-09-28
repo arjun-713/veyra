@@ -59,3 +59,19 @@ test('the overview comparison uses the same four canonical rows', async () => {
   for (const label of ['Uniform5', 'Uniform40', 'DistanceLOD', 'UtilityLOD']) assert.ok(body.includes(`${label} · `), label);
   assert.ok(body.includes('identical input for all four policies'));
 });
+
+test('trade-off plots label every policy directly and use round, compact axis ticks', async () => {
+  const body = await html('QualityTradeoff', {report: semanticposs});
+  const svgs = body.match(/<svg[\s\S]*?<\/svg>/g) ?? [];
+  // This older fixture predates input reconstruction, so that plot is unavailable.
+  assert.equal(svgs.length, 3);
+  assert.ok(!/NaN|undefined|Infinity/.test(body));
+  for (const svg of svgs) {
+    const labels = [...svg.matchAll(/class="point-label"[^>]*>([^<]*)</g)].map(match => match[1]).sort();
+    assert.deepEqual(labels, ['DistanceLOD', 'Uniform40', 'Uniform5', 'UtilityLOD']);
+    const ticks = [...svg.matchAll(/class="tick-[xy]"[^>]*>([^<]*)</g)].map(match => match[1]);
+    for (const tick of ticks) assert.match(tick, /^\d+(\.\d)?[kM]?$/, `compact locale-free tick ${tick}`);
+  }
+  assert.ok(body.includes('Map-update p50 (ms) ↓</text>') || body.includes('Map-update p95 (ms) ↓</text>'), 'latency axis ends with its direction');
+  assert.ok(body.includes('Peak RSS memory (MB) ↓') && body.includes('Active map cells ↓'));
+});
