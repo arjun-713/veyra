@@ -17,9 +17,12 @@ and an explicit raw-ID mapping; the provider never downloads weights. To enable
 Patchwork++, explicitly install a binding with `Parameters`/`patchworkpp`, then
 set `ground.enabled: true`; its availability diagnostic is fail-closed.
 
-The pinned CPU runtime is Python 3.13 with `numpy==2.2.6`,
-`pypatchworkpp==1.4.1`, and `onnxruntime==1.22.0` (plus `pyyaml==6.0.2`).
-Install with `uv pip install -r requirements.txt`; use a writable
+The packaged CPU runtime uses Python 3.13 except Windows x64, which uses
+Python 3.12 to consume the published Patchwork++ wheel. Dependencies are
+selected by platform in `requirements.txt`. Intel macOS has no upstream
+`pypatchworkpp` wheel, so its package omits that optional binding and reports
+ground/terrain as unavailable rather than failing installation or fabricating
+evidence. Install with `uv pip install -r requirements.txt`; use a writable
 `UV_CACHE_DIR` in managed environments. Patchwork++ needs no model asset.
 ONNX inference still requires a compatible local semantic `.onnx` checkpoint;
 weights are not downloaded or replaced when that asset is absent.

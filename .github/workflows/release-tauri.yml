@@ -27,13 +27,13 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - {label: Linux x64, os: ubuntu-24.04, platform: linux, arch: x64, mapper: build/apps/runtime/veyra_runtime, bundles: "deb,rpm,appimage"}
-          - {label: Windows x64, os: windows-2025, platform: win32, arch: x64, mapper: build/apps/runtime/Release/veyra_runtime.exe, bundles: nsis}
-          - {label: macOS ARM64, os: macos-15, platform: darwin, arch: arm64, mapper: build/apps/runtime/veyra_runtime, bundles: dmg}
+          - {label: Linux x64, os: ubuntu-24.04, platform: linux, arch: x64, python-version: "3.13", mapper: build/apps/runtime/veyra_runtime, bundles: "deb,rpm,appimage"}
+          - {label: Windows x64, os: windows-2025, platform: win32, arch: x64, python-version: "3.12", mapper: build/apps/runtime/Release/veyra_runtime.exe, bundles: nsis}
+          - {label: macOS ARM64, os: macos-15, platform: darwin, arch: arm64, python-version: "3.13", mapper: build/apps/runtime/veyra_runtime, bundles: dmg}
           # macOS x64 kept in parity with release.yml (Electron) until an
           # explicit drop-Intel decision is recorded; revisit if GitHub
           # retires the macos-15-intel runner.
-          - {label: macOS x64, os: macos-15-intel, platform: darwin, arch: x64, mapper: build/apps/runtime/veyra_runtime, bundles: dmg}
+          - {label: macOS x64, os: macos-15-intel, platform: darwin, arch: x64, python-version: "3.13", mapper: build/apps/runtime/veyra_runtime, bundles: dmg}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -43,7 +43,7 @@ jobs:
           cache-dependency-path: apps/desktop/package-lock.json
       - uses: actions/setup-python@v5
         with:
-          python-version: "3.13"
+          python-version: ${{ matrix.python-version }}
           cache: pip
           cache-dependency-path: requirements.txt
       - uses: dtolnay/rust-toolchain@stable

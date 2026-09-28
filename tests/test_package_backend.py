@@ -29,6 +29,49 @@ class PackageBackendTests(unittest.TestCase):
         self.assertEqual(selected_version("darwin", "arm64"), "==1.30.0")
         self.assertEqual(selected_version("linux", "x86_64"), "==1.30.0")
 
+    def test_patchwork_requirement_avoids_unsupported_macos_intel_sdist(self):
+        from packaging.markers import default_environment
+        from packaging.requirements import Requirement
+
+        lines = (Path(__file__).resolve().parents[1] / "requirements.txt").read_text().splitlines()
+        requirements = [
+            Requirement(line.strip())
+            for line in lines
+            if line.strip().startswith("pypatchworkpp")
+        ]
+
+        def selected_count(platform: str, machine: str) -> int:
+            environment = default_environment()
+            environment.update(sys_platform=platform, platform_machine=machine)
+            return sum(
+                requirement.marker is None
+                or requirement.marker.evaluate(environment)
+                for requirement in requirements
+            )
+
+        self.assertEqual(selected_count("darwin", "x86_64"), 0)
+        self.assertEqual(selected_count("darwin", "arm64"), 1)
+        self.assertEqual(selected_count("linux", "x86_64"), 1)
+
+    def test_macho_dependency_parser_ignores_otool_non_object_diagnostics(self):
+        from unittest.mock import patch
+
+        from scripts.package_backend import _macho_dependencies
+
+        output = (
+            "/tmp/python:\n"
+            "/tmp/python (architecture arm64): is not an object file\n"
+            "/usr/lib/libSystem.B.dylib (compatibility version 1.0.0)\n"
+        )
+        with patch(
+            "scripts.package_backend.subprocess.check_output",
+            side_effect=["/tmp/python:\n", output],
+        ):
+            install_id, dependencies = _macho_dependencies(Path("/tmp/python"))
+
+        self.assertIsNone(install_id)
+        self.assertEqual(dependencies, ["/usr/lib/libSystem.B.dylib"])
+
     def _repo(self, root: Path) -> Path:
         repo = root / "repo"
         for name in ("runtime", "viewer", "benchmarks", "perception", "datasets"):

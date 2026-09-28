@@ -253,7 +253,9 @@ def _macho_dependencies(path: Path) -> tuple[str | None, list[str]]:
         return [
             line.strip().split(" (compatibility")[0]
             for line in lines.splitlines()
-            if line.strip() and not line.rstrip().endswith(":")
+            if line.strip()
+            and not line.rstrip().endswith(":")
+            and "is not an object file" not in line.lower()
         ]
 
     identity = entries("-D")

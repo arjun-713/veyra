@@ -1,6 +1,4 @@
-# Runtime deps — pin exact CPU-compatible versions for the supported Python
-# 3.13 environment (3.14 also accepted; numpy==2.2.6 ships no cp314 wheel
-# and stalls pip in metadata prep on Python 3.14 hosts).
+# Runtime deps — pin CPU-compatible versions for the release Python matrix.
 # Keep mapping-only builds dependency-free (see AGENTS.md).
 numpy>=2.5.3  # relaxed floor: allows a cp314-compatible wheel on Python 3.14
 scipy==1.18.1  # bounded spatial connectivity for temporal perception
@@ -8,7 +6,9 @@ pyyaml==6.0.3  # viewer server config (falls back to built-in parser if absent)
 
 # Real perception backends. Model weights remain local, explicitly supplied
 # assets; neither package downloads weights automatically.
-pypatchworkpp==1.4.1
+pypatchworkpp==1.4.1; sys_platform != "darwin" or platform_machine == "arm64"
+# No upstream Intel macOS wheel exists; do not build the broken source package
+# there. Ground status remains explicitly unavailable on that platform.
 onnxruntime==1.30.0; sys_platform != "darwin" or platform_machine == "arm64"
 # ONNX Runtime 1.30 has no macOS x86_64 wheel; retain real CPU inference on
 # Intel Macs with the compatible Python 3.13 wheel.
