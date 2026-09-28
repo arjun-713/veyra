@@ -142,14 +142,24 @@ def _map_table(report: dict[str, Any] | None) -> str:
     return "\n".join(lines)
 
 
-def _perception_table(report: dict[str, Any] | None) -> str:
+def _perception_table(
+    report: dict[str, Any] | None, mapping: dict[str, Any] | None = None
+) -> str:
     lines = ["| Stage | p50 | p95 | p99 |", "| --- | ---: | ---: | ---: |"]
     if not report:
         return "\n".join(lines + ["| unavailable | n/a | n/a | n/a |"])
+    mode = (mapping or {}).get("perception", {}).get("status", {}).get(
+        "semantic"
+    ) or report.get("config", {}).get("semantic", {}).get("mode")
+    semantic_label = {
+        "ground_truth": "Ground Truth",
+        "salsanext": "SalsaNext",
+        "cenet": "CENet",
+    }.get(mode, f"Semantic ({mode})" if mode else "Semantic")
     aliases = {
         "dataset_load": "Dataset load",
         "load": "Dataset load",
-        "semantic": "SalsaNext",
+        "semantic": semantic_label,
         "ground": "Patchwork++",
         "terrain": "Terrain",
         "temporal": "Temporal",
@@ -164,8 +174,12 @@ def _perception_table(report: dict[str, Any] | None) -> str:
     return "\n".join(lines)
 
 
-def _perception_status_summary(report: dict[str, Any] | None) -> str:
-    statuses = (report or {}).get("status", {})
+def _perception_status_summary(
+    report: dict[str, Any] | None, mapping: dict[str, Any] | None = None
+) -> str:
+    statuses = (report or {}).get("status") or (mapping or {}).get(
+        "perception", {}
+    ).get("status", {})
     if not statuses:
         return "Backend status: unavailable."
     return (
@@ -358,9 +372,9 @@ def render(
         "",
         "### Perception benchmark",
         "",
-        _perception_table(perception),
+        _perception_table(perception, mapping),
         "",
-        _perception_status_summary(perception),
+        _perception_status_summary(perception, mapping),
         "",
         "### Range-binned semantic quality",
         "",
