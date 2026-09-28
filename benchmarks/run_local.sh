@@ -22,6 +22,8 @@ build_type="Release"
 perception_config="configs/perception.yaml"
 perception_output=""
 skip_build="false"
+retain_frames="false"
+promotion_telemetry="false"
 python_bin="${VEYRA_PYTHON:-python3}"
 
 usage() {
@@ -50,6 +52,9 @@ Options:
   --output-dir PATH    JSON/CSV output directory
   --perception-output PATH  JSON report from the shared perception pass
   --skip-build          use an already configured and built benchmark binary
+  --retain-frames       keep the source selection in memory so semantic,
+                        hazard and task-class field retention are measured
+  --promotion-telemetry collect bounded UtilityLOD decision aggregates
   -h, --help           show this help
 
 Environment:
@@ -74,6 +79,8 @@ while (($#)); do
     --perception-config) perception_config="${2:?missing value for --perception-config}"; shift 2 ;;
     --perception-output) perception_output="${2:?missing value for --perception-output}"; shift 2 ;;
     --skip-build) skip_build="true"; shift ;;
+    --retain-frames) retain_frames="true"; shift ;;
+    --promotion-telemetry) promotion_telemetry="true"; shift ;;
     --python) python_bin="${2:?missing value for --python}"; shift 2 ;;
     --build-dir) build_dir="${2:?missing value for --build-dir}"; shift 2 ;;
     --output-dir) output_dir="${2:?missing value for --output-dir}"; shift 2 ;;
@@ -127,6 +134,12 @@ if [[ -n "$dataset_root" ]]; then
 fi
 if [[ "$skip_perception" == "true" ]]; then
   benchmark_args+=(--skip-perception)
+fi
+if [[ "$retain_frames" == "true" ]]; then
+  benchmark_args+=(--retain-frames)
+fi
+if [[ "$promotion_telemetry" == "true" ]]; then
+  benchmark_args+=(--promotion-telemetry)
 fi
 if [[ -n "${perception_output:-}" ]]; then
   benchmark_args+=(--perception-output "$perception_output")
