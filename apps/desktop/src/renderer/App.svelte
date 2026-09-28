@@ -81,26 +81,6 @@ function confirmSaved(ok:unknown,saved:string,cancelled:string){notice=ok?saved:
  });}
  async function openDirect(){await configure();}
  function applyPreset(){config=profileConfig(config,preset);governorOverride='automatic';refreshText();}
- async function captureDesktopScreenshot(){
-  if(!import.meta.env.DEV)return;
-  await action(async()=>{
-   const control=document.getElementById('dev-screenshot-capture');
-   try{
-    if(control){control.hidden=true;await new Promise<void>(resolve=>requestAnimationFrame(()=>resolve()));}
-    const {getScreenshotableWindows,getWindowScreenshot}=await import('tauri-plugin-screenshots-api');
-    const windows=await getScreenshotableWindows();
-    const target=windows.find(window=>window.title==='Veyra'||window.appName.toLowerCase().includes('veyra'));
-    if(!target)throw new Error('The Veyra window is not available to the screenshot plugin.');
-    const path=await getWindowScreenshot(target.id);
-    notice=`Window screenshot saved: ${path}`;
-   }finally{if(control)control.hidden=false;}
-  });
- }
- function onScreenshotShortcut(event:KeyboardEvent){
-  if(import.meta.env.DEV&&event.altKey&&event.shiftKey&&event.key.toLowerCase()==='s'){
-   event.preventDefault();void captureDesktopScreenshot();
-  }
- }
  onMount(()=>{
   refreshText();if(!window.veyra){error=nativeRuntimeUnavailableMessage;return;}
   void action(async()=>{info=await window.veyra.info();if(info.status)status=info.status;});
@@ -120,12 +100,6 @@ function confirmSaved(ok:unknown,saved:string,cancelled:string){notice=ok?saved:
   return()=>{off();offVisual();clearInterval(clock);window.removeEventListener('veyra-subscription-error',subscriptionError);};
  });
 </script>
-
-<svelte:window onkeydown={onScreenshotShortcut}/>
-
-{#if import.meta.env.DEV}
- <button id="dev-screenshot-capture" type="button" onclick={captureDesktopScreenshot} style="position:fixed;right:12px;bottom:12px;z-index:99999">Capture window screenshot</button>
-{/if}
 
 <div class="application">
  <aside class="rail">
