@@ -69,6 +69,8 @@ class DepthImage {
   // image actually has instead of inventing their own sampling and aliasing
   // against it.
   [[nodiscard]] double elevation_of_row(std::size_t row) const noexcept;
+  // Row holding `elevation_rad`, clamped into the raster.
+  [[nodiscard]] std::size_t row_of(double elevation_rad) const noexcept;
   // Actual elevation of the nearest measured return, not the raster centre.
   [[nodiscard]] double measured_elevation_at(double azimuth_rad, double elevation_rad) const;
   [[nodiscard]] double measured_azimuth_at(double azimuth_rad, double elevation_rad) const;

@@ -174,6 +174,21 @@ double DepthImage::measured_azimuth_at(double azimuth_rad, double elevation_rad)
   return in_range ? measured_azimuth_[index] : azimuth_rad;
 }
 
+std::size_t DepthImage::row_of(double elevation_rad) const noexcept {
+  if (!(elevation_rad > elevation_min_)) return 0;
+  if (!(elevation_rad < elevation_max_)) return elevation_bins_ - 1;
+  std::size_t row = 0;
+  if (row_edges_.empty()) {
+    const double step = (elevation_max_ - elevation_min_) / static_cast<double>(elevation_bins_);
+    row = static_cast<std::size_t>((elevation_rad - elevation_min_) / step);
+  } else {
+    const auto upper = std::upper_bound(row_edges_.begin(), row_edges_.end(), elevation_rad);
+    row = static_cast<std::size_t>(
+        std::max<std::ptrdiff_t>(0, std::distance(row_edges_.begin(), upper) - 1));
+  }
+  return std::min(row, elevation_bins_ - 1);
+}
+
 double DepthImage::elevation_of_row(std::size_t row) const noexcept {
   if (!row_edges_.empty()) {
     const std::size_t r = std::min(row, elevation_bins_ - 1);
@@ -252,66 +267,106 @@ ClearingOutcome test_cell_against_scan(const CellStats& stats, double centre_x, 
       std::ceil(half_span / azimuth_step), static_cast<double>(image.azimuth_bins() / 4)));
 
   const std::size_t rows = image.elevation_bins();
-  for (int bin = -side_bins; bin <= side_bins; ++bin) {
-    const double sample_azimuth = azimuth + static_cast<double>(bin) * azimuth_step;
-    for (std::size_t row = 0; row < rows; ++row) {
-      const double row_elevation = image.elevation_of_row(row);
-      const float measured = image.range_at(sample_azimuth, row_elevation);
-      if (measured < 0.0F) continue;
-      const double elevation = image.measured_elevation_at(sample_azimuth, row_elevation);
-      const double measured_azimuth = image.measured_azimuth_at(sample_azimuth, row_elevation);
-      // A return elsewhere in the angular bin does not prove this cell free.
-      // Intersect the measured ray with the actual square footprint, and require
-      // a return past its EXIT (not merely past the centre).
-      double entry = 0.0;
-      double exit = std::numeric_limits<double>::infinity();
-      const auto intersect_axis = [&](double offset, double direction) {
-        if (std::abs(direction) < 1e-12) return std::abs(offset) <= half_width_m + 1e-9;
-        double a = (offset - half_width_m) / direction;
-        double b = (offset + half_width_m) / direction;
-        if (a > b) std::swap(a, b);
-        entry = std::max(entry, a);
-        exit = std::min(exit, b);
-        return entry <= exit + 1e-9;
-      };
-      if (!intersect_axis(dx, std::cos(measured_azimuth)) ||
-          !intersect_axis(dy, std::sin(measured_azimuth))) continue;
-      const double cosine = std::cos(elevation);
-      if (!(cosine > 1e-6)) continue;  // looking straight up or down: no column crossing
+  // One measured beam, sampled at (sample_azimuth, row).
+  const auto examine = [&](double sample_azimuth, std::size_t row) {
+    const double row_elevation = image.elevation_of_row(row);
+    const float measured = image.range_at(sample_azimuth, row_elevation);
+    if (measured < 0.0F) return;
+    const double elevation = image.measured_elevation_at(sample_azimuth, row_elevation);
+    const double measured_azimuth = image.measured_azimuth_at(sample_azimuth, row_elevation);
+    // A return elsewhere in the angular bin does not prove this cell free.
+    // Intersect the measured ray with the actual square footprint, and require
+    // a return past its EXIT (not merely past the centre).
+    double entry = 0.0;
+    double exit = std::numeric_limits<double>::infinity();
+    const auto intersect_axis = [&](double offset, double direction) {
+      if (std::abs(direction) < 1e-12) return std::abs(offset) <= half_width_m + 1e-9;
+      double a = (offset - half_width_m) / direction;
+      double b = (offset + half_width_m) / direction;
+      if (a > b) std::swap(a, b);
+      entry = std::max(entry, a);
+      exit = std::min(exit, b);
+      return entry <= exit + 1e-9;
+    };
+    if (!intersect_axis(dx, std::cos(measured_azimuth)) ||
+        !intersect_axis(dy, std::sin(measured_azimuth))) return;
+    const double cosine = std::cos(elevation);
+    if (!(cosine > 1e-6)) return;  // looking straight up or down: no column crossing
 
-      const double crossing_range = exit / cosine;
-      const double sigma =
-          tolerance.noise == nullptr ? 0.0 : tolerance.noise->stddev_at(crossing_range);
-      const double range_margin = std::max(margin_m, tolerance.range_sigmas * sigma);
-      const double height_margin = tolerance.height_sigmas * sigma;
-      const bool reached_past = static_cast<double>(measured) > crossing_range + range_margin;
-      if (reached_past) projection_would_clear = true;
+    const double crossing_range = exit / cosine;
+    const double sigma =
+        tolerance.noise == nullptr ? 0.0 : tolerance.noise->stddev_at(crossing_range);
+    const double range_margin = std::max(margin_m, tolerance.range_sigmas * sigma);
+    const double height_margin = tolerance.height_sigmas * sigma;
+    const bool reached_past = static_cast<double>(measured) > crossing_range + range_margin;
+    if (reached_past) projection_would_clear = true;
 
-      // Did this beam pass through the claimed extent, or over or under it?
-      const double entry_height = pose.z + entry * std::tan(elevation);
-      const double exit_height = pose.z + exit * std::tan(elevation);
-      const double beam_low = std::min(entry_height, exit_height);
-      const double beam_high = std::max(entry_height, exit_height);
-      if (beam_high < claim_low || beam_low > claim_high) continue;
+    // Did this beam pass through the claimed extent, or over or under it?
+    const double entry_height = pose.z + entry * std::tan(elevation);
+    const double exit_height = pose.z + exit * std::tan(elevation);
+    const double beam_low = std::min(entry_height, exit_height);
+    const double beam_high = std::max(entry_height, exit_height);
+    if (beam_high < claim_low || beam_low > claim_high) return;
 
-      if (!reached_past) {
-        // Ends at or before the cell within its own noise: occluding or
-        // supporting evidence, tested against the full claimed extent.
-        measured_beam_crossed_claim = true;
-        blocked = true;
-        continue;
-      }
-      // A through-beam must pass the claim's interior; one that only grazes an
-      // edge within its own vertical uncertainty has not shown the column
-      // empty. The interior never vanishes: a claim thinner than 2*margin
-      // (a single return has zero span) keeps its mid-height, so thin ghosts
-      // still clear, just only by beams through their middle.
-      const double claim_mid = 0.5 * (claim_low + claim_high);
-      const double interior_low = std::min(claim_low + height_margin, claim_mid);
-      const double interior_high = std::max(claim_high - height_margin, claim_mid);
-      if (beam_high < interior_low || beam_low > interior_high) continue;
+    if (!reached_past) {
+      // Ends at or before the cell within its own noise: occluding or
+      // supporting evidence, tested against the full claimed extent.
       measured_beam_crossed_claim = true;
-      ++traversed;
+      blocked = true;
+      return;
+    }
+    // A through-beam must pass the claim's interior; one that only grazes an
+    // edge within its own vertical uncertainty has not shown the column
+    // empty. The interior never vanishes: a claim thinner than 2*margin
+    // (a single return has zero span) keeps its mid-height, so thin ghosts
+    // still clear, just only by beams through their middle.
+    const double claim_mid = 0.5 * (claim_low + claim_high);
+    const double interior_low = std::min(claim_low + height_margin, claim_mid);
+    const double interior_high = std::max(claim_high - height_margin, claim_mid);
+    if (beam_high < interior_low || beam_low > interior_high) return;
+    measured_beam_crossed_claim = true;
+    ++traversed;
+  };
+
+  // Only rows whose band can reach the claimed heights somewhere across the
+  // footprint can block or traverse it. The band is a superset: for a beam at
+  // elevation e the column height at horizontal distance d is z + d*tan(e),
+  // so tan(e) must lie in [(low - z)/d, (high - z)/d] for some d in
+  // [near, far]. Skipping the rest is exact and keeps the footprint sweep
+  // affordable (every cell x bins x all rows was a 2.6x map-update cost).
+  const double reach = half_width_m * std::numbers::sqrt2;
+  std::size_t first_row = 0;
+  std::size_t last_row = rows - 1;
+  if (horizontal > reach + 1e-6) {
+    const double near = horizontal - reach;
+    const double far = horizontal + reach;
+    const double low = claim_low - pose.z;
+    const double high = claim_high - pose.z;
+    const double tan_min = low < 0.0 ? low / near : low / far;
+    const double tan_max = high > 0.0 ? high / near : high / far;
+    first_row = image.row_of(std::atan(tan_min));
+    last_row = image.row_of(std::atan(tan_max));
+    // Measured elevations sit anywhere inside a row's band; one guard row
+    // each side absorbs a band edge landing exactly on the bound.
+    first_row = first_row == 0 ? 0 : first_row - 1;
+    last_row = std::min(last_row + 1, rows - 1);
+  }
+  // Blocked wins, so the first occluding beam settles the outcome.
+  for (int bin = -side_bins; bin <= side_bins && !blocked; ++bin) {
+    const double sample_azimuth = azimuth + static_cast<double>(bin) * azimuth_step;
+    for (std::size_t row = first_row; row <= last_row && !blocked; ++row) {
+      examine(sample_azimuth, row);
+    }
+  }
+  // Rows outside the band can only show a beam flying over or under the
+  // claim; they decide SparedByElevation versus NoEvidence, never clearing.
+  if (!blocked && traversed == 0 && !measured_beam_crossed_claim) {
+    for (int bin = -side_bins; bin <= side_bins && !projection_would_clear; ++bin) {
+      const double sample_azimuth = azimuth + static_cast<double>(bin) * azimuth_step;
+      for (std::size_t row = 0; row < rows && !projection_would_clear; ++row) {
+        if (row >= first_row && row <= last_row) continue;
+        examine(sample_azimuth, row);
+      }
     }
   }
 
