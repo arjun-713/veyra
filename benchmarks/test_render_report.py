@@ -5,7 +5,13 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from benchmarks.render_report import _field_retention_summary, _hard_failure, render
+from benchmarks.render_report import (
+    _field_retention_summary,
+    _hard_failure,
+    _perception_status_summary,
+    _perception_table,
+    render,
+)
 
 
 class RenderReportTests(unittest.TestCase):
@@ -111,6 +117,7 @@ class RenderReportTests(unittest.TestCase):
             perception = {
                 "reproducibility": {"git_sha": "abc"},
                 "status": {"semantic": "model", "ground": "patchworkpp"},
+                "config": {"semantic": {"mode": "salsanext"}},
                 "timings": {
                     "dataset_load": {"p50_ms": 4, "p95_ms": 5, "p99_ms": 6},
                     "semantic": {"mean_ms": 1, "p50_ms": 1, "p95_ms": 2, "p99_ms": 3},
@@ -134,6 +141,43 @@ class RenderReportTests(unittest.TestCase):
         self.assertIn("Elevation coverage", report)
         self.assertIn("100.0%", report)
         self.assertIn("Ablation matrix was not included", report)
+
+    def test_ground_truth_semantic_timing_uses_actual_provider(self):
+        report = _perception_table(
+            {
+                "config": {"semantic": {"mode": "ground_truth"}},
+                "timings": {
+                    "semantic": {"p50_ms": 0.09, "p95_ms": 0.10, "p99_ms": 0.11}
+                },
+            }
+        )
+        self.assertIn("Ground Truth | 0.09 ms", report)
+        self.assertNotIn("SalsaNext", report)
+
+    def test_semantic_timing_prefers_actual_provider_over_requested_mode(self):
+        report = _perception_table(
+            {
+                "config": {"semantic": {"mode": "cenet"}},
+                "timings": {
+                    "semantic": {"p50_ms": 0.09, "p95_ms": 0.10, "p99_ms": 0.11}
+                },
+            },
+            {"perception": {"status": {"semantic": "ground_truth"}}},
+        )
+        self.assertIn("Ground Truth | 0.09 ms", report)
+        self.assertNotIn("CENet |", report)
+
+    def test_backend_status_falls_back_to_map_artifact(self):
+        status = _perception_status_summary(
+            {"config": {"semantic": {"mode": "ground_truth"}}},
+            {
+                "perception": {
+                    "status": {"semantic": "ground_truth", "ground": "patchworkpp"}
+                }
+            },
+        )
+        self.assertIn("semantic=`ground_truth`", status)
+        self.assertIn("ground=`patchworkpp`", status)
 
     def test_report_renders_partial_ablation_without_breaking_old_baselines(self):
         with tempfile.TemporaryDirectory() as directory:

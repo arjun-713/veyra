@@ -54,6 +54,13 @@ VEYRA_CLASSES = 20
 RANGE_BINS = ((0.0, 10.0), (10.0, 30.0), (30.0, 60.0), (60.0, float("inf")))
 
 
+def _rss_to_mib(ru_maxrss: int, *, system: str | None = None) -> float:
+    # macOS reports bytes; Linux reports KiB.
+    if system is None:
+        system = platform.system()
+    return ru_maxrss / (1024.0 * 1024.0 if system == "Darwin" else 1024.0)
+
+
 def _sha256(path: Path) -> str:
     return hashlib.sha256(path.read_bytes()).hexdigest()
 
@@ -323,8 +330,8 @@ def main() -> int:
             "latency_ms_p95": float(np.percentile(lat_ms, 95)),
             "latency_ms_p99": float(np.percentile(lat_ms, 99)),
             "latency_ms_per_frame": [round(v, 1) for v in lat_ms],
-            "peak_rss_mb": round(rss_after / 1024.0, 1),
-            "rss_delta_mb": round((rss_after - rss_before) / 1024.0, 1),
+            "peak_rss_mb": round(_rss_to_mib(rss_after), 1),
+            "rss_delta_mb": round(_rss_to_mib(rss_after - rss_before), 1),
         },
         "per_frame": per_frame,
         "hardware": {
