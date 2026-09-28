@@ -145,6 +145,27 @@ def processing_fps(completed, window_s=FPS_WINDOW_S):
     return (len(recent) - 1) / (recent[-1] - recent[0])
 
 
+def _track_counts(track_ids):
+    """Per-track point counts from genuine tracker IDs, or None.
+
+    Unavailable identity (missing key/None) stays None. The -1 no-track
+    sentinel is excluded, so ``{}`` means zero live tracks in the frame.
+    Keys are stringified track IDs, matching the other count mappings.
+    """
+
+    if track_ids is None:
+        return None
+    array = np.asarray(track_ids)
+    if array.size == 0:
+        return {}
+    unique, amounts = np.unique(array, return_counts=True)
+    return {
+        str(int(value)): int(amount)
+        for value, amount in zip(unique, amounts)
+        if int(value) >= 0
+    }
+
+
 _STRING_COUNT_VOCABULARY = 16
 
 
@@ -408,7 +429,11 @@ class Telemetry:
                 "drivable_counts": counts(frame.get("drivable")),
                 "semantic_class_counts": semantic_counts,
                 "motion_point_counts": counts(frame.get("motion_state")),
-                "track_counts": None,
+                # Genuine per-track point counts from the tracker's own IDs.
+                # Missing track identity stays unavailable (None), never a
+                # fabricated zero; the -1 no-track sentinel is excluded, so
+                # an empty dict means zero tracks, distinct from unavailable.
+                "track_counts": _track_counts(frame.get("track_ids")),
             },
             "health": {
                 "runtime": state.get("state", "unavailable"),

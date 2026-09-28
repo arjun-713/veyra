@@ -9,9 +9,9 @@
 #include "veyra/core/types.hpp"
 #include "veyra/map/depth_image.hpp"
 #include "veyra/map/height_layer.hpp"
+#include "veyra/map/observation.hpp"
 #include "veyra/map/occupancy.hpp"
 #include "veyra/map/sensor_model.hpp"
-#include "veyra/map/observation.hpp"
 
 namespace veyra::map {
 
@@ -22,6 +22,16 @@ struct CellStats {
   std::uint64_t count = 0;
   std::uint64_t last_seen = 0;
   std::uint16_t semantic_class = 0;
+  // Consecutive contradictory frames (visibility-clearing "strikes").
+  //
+  // Incremented while a scan contradicts this cell's obstacle evidence but the
+  // arming threshold (logodds::kStrikesToDecrement) is not yet reached; during
+  // arming the log-odds accumulator is untouched, so a single flicker frame
+  // cannot demote an Occupied cell. Reset to 0 only on accepted obstacle-layer
+  // evidence (see Map::update_at_level); ground-only returns must NOT reset
+  // it, or road observed through a departed ghost would pin the ghost in
+  // place. Saturating at 255; merged as max, never summed.
+  std::uint8_t consecutive_misses = 0;
   // Evidence fields. These stay 32-bit floats, and that is a decision, not an
   // oversight: quantising them to one byte was implemented, measured and
   // reverted.

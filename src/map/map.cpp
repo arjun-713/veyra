@@ -1,7 +1,5 @@
 #include "veyra/map/map.hpp"
 
-#include "veyra/map/terrain_query.hpp"
-
 #include <algorithm>
 #include <array>
 #include <cmath>
@@ -11,6 +9,8 @@
 #include <stdexcept>
 #include <utility>
 #include <vector>
+
+#include "veyra/map/terrain_query.hpp"
 
 namespace veyra::map {
 namespace {
@@ -83,7 +83,8 @@ class CellTable {
       existing->stats.merge(stats);
       return;
     }
-    if ((cells_.size() + 1U) * 2U > slots_.size()) rehash(std::max<std::size_t>(8U, slots_.size() * 2U));
+    if ((cells_.size() + 1U) * 2U > slots_.size())
+      rehash(std::max<std::size_t>(8U, slots_.size() * 2U));
     slots_[free_slot_for(id)] = static_cast<std::uint32_t>(cells_.size() + 1U);
     cells_.push_back({id, stats});
   }
@@ -146,7 +147,8 @@ class CellTable {
     const std::size_t mask = slots_.size() - 1U;
     for (std::size_t next = (hole + 1U) & mask; slots_[next] != 0U; next = (next + 1U) & mask) {
       const std::size_t home = hash_cell(cells_[slots_[next] - 1U].id) & mask;
-      const bool stays = hole <= next ? (hole < home && home <= next) : (hole < home || home <= next);
+      const bool stays =
+          hole <= next ? (hole < home && home <= next) : (hole < home || home <= next);
       if (stays) continue;
       slots_[hole] = slots_[next];
       hole = next;
@@ -465,8 +467,10 @@ struct Map::Impl {
     if (!parent_stats.has_value()) return false;
 
     // A parent aggregate says nothing about how its observations partition
-    // across children. Retain it explicitly as a non-spatial prior.
+    // across children. Retain it explicitly as a non-spatial prior, streak
+    // included (CellStats::merge copies it whole into an empty prior slot).
     merge_prior(id, *parent_stats);
+    // Fresh children start with a zero streak: refinement is not contradiction.
     for (int dy = 0; dy < 2; ++dy) {
       for (int dx = 0; dx < 2; ++dx) merge_leaf(child_at(id, dx, dy), {});
     }
@@ -610,8 +614,7 @@ HeightLayer CellStats::*CellStats::route(const Observation& observation,
   return &CellStats::obstacle;
 }
 
-const HeightLayer& CellStats::layer_for(const Observation& observation,
-                                        double envelope_m) const {
+const HeightLayer& CellStats::layer_for(const Observation& observation, double envelope_m) const {
   const auto member = route(observation, envelope_m);
   return member == nullptr ? obstacle : this->*member;
 }
@@ -710,8 +713,8 @@ void CellStats::add(const Observation& observation, double envelope_m) {
     semantic_evidence_v = observation.semantic_confidence;
     semantic_confidence_v = observation.semantic_confidence;
     drivable_evidence_v = observation.drivable == 1   ? observation.terrain_confidence
-                                     : observation.drivable == 2 ? -observation.terrain_confidence
-                                                                 : 0.0F;
+                          : observation.drivable == 2 ? -observation.terrain_confidence
+                                                      : 0.0F;
     ground_evidence_v = observation.ground == 1 ? observation.terrain_confidence : 0.0F;
     terrain_confidence_v = observation.terrain_confidence;
     geometry_complexity_v = observation.geometry_complexity;
@@ -724,16 +727,15 @@ void CellStats::add(const Observation& observation, double envelope_m) {
     // is contractive: the error stays around one quantum instead of
     // accumulating over a cell's lifetime.
     const auto blend = [previous_count, next_count](float current, float sample) {
-      return static_cast<float>((static_cast<double>(current) * previous_count +
-                                 static_cast<double>(sample)) /
-                                next_count);
+      return static_cast<float>(
+          (static_cast<double>(current) * previous_count + static_cast<double>(sample)) /
+          next_count);
     };
     if (observation.semantic_confidence > semantic_evidence()) {
       semantic_class = observation.semantic_class;
       semantic_evidence_v = observation.semantic_confidence;
     }
-    semantic_confidence_v =
-        blend(semantic_confidence(), observation.semantic_confidence);
+    semantic_confidence_v = blend(semantic_confidence(), observation.semantic_confidence);
     const float drivable = observation.drivable == 1   ? observation.terrain_confidence
                            : observation.drivable == 2 ? -observation.terrain_confidence
                                                        : 0.0F;
@@ -806,16 +808,13 @@ void CellStats::merge(const CellStats& other) {
         (static_cast<double>(mine) * left_count + static_cast<double>(theirs) * right_count) /
         total);
   };
-  semantic_confidence_v =
-      weighted(semantic_confidence(), other.semantic_confidence());
+  semantic_confidence_v = weighted(semantic_confidence(), other.semantic_confidence());
   drivable_evidence_v = weighted(drivable_evidence(), other.drivable_evidence());
   ground_evidence_v = weighted(ground_evidence(), other.ground_evidence());
   terrain_confidence_v = weighted(terrain_confidence(), other.terrain_confidence());
-  geometry_complexity_v =
-      weighted(geometry_complexity(), other.geometry_complexity());
+  geometry_complexity_v = weighted(geometry_complexity(), other.geometry_complexity());
   motion_evidence_v = weighted(motion_evidence(), other.motion_evidence());
-  observation_quality_v =
-      weighted(observation_quality(), other.observation_quality());
+  observation_quality_v = weighted(observation_quality(), other.observation_quality());
   if (other.ground_gradient_count != 0) {
     if (ground_gradient_count == 0) {
       ground_gradient_x_v = other.ground_gradient_x_v;
@@ -825,18 +824,16 @@ void CellStats::merge(const CellStats& other) {
       const double left_gradient_count = static_cast<double>(ground_gradient_count);
       const double right_gradient_count = static_cast<double>(other.ground_gradient_count);
       const double gradient_total = left_gradient_count + right_gradient_count;
-      ground_gradient_x_v = static_cast<float>(
-          (ground_gradient_x_v * left_gradient_count +
-           other.ground_gradient_x_v * right_gradient_count) /
-          gradient_total);
-      ground_gradient_y_v = static_cast<float>(
-          (ground_gradient_y_v * left_gradient_count +
-           other.ground_gradient_y_v * right_gradient_count) /
-          gradient_total);
-      const std::uint64_t combined = static_cast<std::uint64_t>(ground_gradient_count) +
-                                     other.ground_gradient_count;
-      ground_gradient_count = static_cast<std::uint32_t>(std::min<std::uint64_t>(
-          combined, std::numeric_limits<std::uint32_t>::max()));
+      ground_gradient_x_v = static_cast<float>((ground_gradient_x_v * left_gradient_count +
+                                                other.ground_gradient_x_v * right_gradient_count) /
+                                               gradient_total);
+      ground_gradient_y_v = static_cast<float>((ground_gradient_y_v * left_gradient_count +
+                                                other.ground_gradient_y_v * right_gradient_count) /
+                                               gradient_total);
+      const std::uint64_t combined =
+          static_cast<std::uint64_t>(ground_gradient_count) + other.ground_gradient_count;
+      ground_gradient_count = static_cast<std::uint32_t>(
+          std::min<std::uint64_t>(combined, std::numeric_limits<std::uint32_t>::max()));
     }
   }
 
@@ -849,6 +846,10 @@ void CellStats::merge(const CellStats& other) {
   overhead.merge(other.overhead);
   unmodelled_returns += other.unmodelled_returns;
   free_observations += other.free_observations;
+  // Streaks merge as max, never summed: two briefly-contradicted siblings do
+  // not make a doubly-contradicted parent, and the copy path above (`count ==
+  // 0` takes `other` whole) already carries the prior's streak into splits.
+  consecutive_misses = std::max(consecutive_misses, other.consecutive_misses);
   rejected_outliers = static_cast<std::uint16_t>(
       std::min<std::uint32_t>(static_cast<std::uint32_t>(rejected_outliers) +
                                   static_cast<std::uint32_t>(other.rejected_outliers),
@@ -860,9 +861,9 @@ void CellStats::merge(const CellStats& other) {
   // asserted and would take four times as long to contradict. Averaging keeps
   // the parent inside the same bounded range as its children, so the "bounded
   // time to change its mind" property survives coarsening.
-  const double blended =
-      (static_cast<double>(occupancy_logodds) * left_count +
-       static_cast<double>(other.occupancy_logodds) * right_count) / total;
+  const double blended = (static_cast<double>(occupancy_logodds) * left_count +
+                          static_cast<double>(other.occupancy_logodds) * right_count) /
+                         total;
   occupancy_logodds = logodds::clamp(static_cast<int>(std::lround(blended)));
   if (sorted_envelope_m == 0.0F) sorted_envelope_m = other.sorted_envelope_m;
 }
@@ -882,10 +883,10 @@ std::size_t MapSnapshot::count_at_level(int level) const {
   core::validate_level(level);
   if (leaves_ordered_by_id) {
     // Level is the primary sort key, so each level is one contiguous run.
-    const auto first = std::partition_point(leaves.begin(), leaves.end(),
-                                            [level](const Leaf& leaf) { return leaf.id.level < level; });
-    const auto last = std::partition_point(first, leaves.end(),
-                                           [level](const Leaf& leaf) { return leaf.id.level == level; });
+    const auto first = std::partition_point(
+        leaves.begin(), leaves.end(), [level](const Leaf& leaf) { return leaf.id.level < level; });
+    const auto last = std::partition_point(
+        first, leaves.end(), [level](const Leaf& leaf) { return leaf.id.level == level; });
     return static_cast<std::size_t>(last - first);
   }
   return static_cast<std::size_t>(std::count_if(
@@ -960,7 +961,8 @@ bool MapSnapshot::has_no_parent_descendant_overlap() const {
       return false;
     std::array<LevelBitmap, kMaxLevel + 1> occupied;
     bool dense = true;
-    for (int level = 1; level <= kMaxLevel && dense; ++level) dense = occupied[level].build(leaves, level);
+    for (int level = 1; level <= kMaxLevel && dense; ++level)
+      dense = occupied[level].build(leaves, level);
     if (dense) {
       for (const Leaf& leaf : leaves) {
         for (int level = leaf.id.level + 1; level <= kMaxLevel; ++level) {
@@ -1042,14 +1044,23 @@ void Map::update_at_level(const Observation& observation, int level) {
   if (StoredCell* existing = impl_->find_leaf(id)) {
     CellStats one;
     one.add(observation, impl_->config.clearance_envelope_m);
+    // Only accepted obstacle-layer evidence breaks a contradiction streak: a
+    // surface was positively observed here again. Ground-only returns leave
+    // the streak alone, or road seen through a departed ghost would pin it.
+    const bool reobserved = one.obstacle.count > 0;
     existing->stats.merge(one);
+    if (reobserved) existing->stats.consecutive_misses = 0;
     return;
   }
   impl_->refine_ancestors(id);
   (void)impl_->coarsen_to(id);
   CellStats one;
   one.add(observation, impl_->config.clearance_envelope_m);
+  const bool reobserved = one.obstacle.count > 0;
   impl_->merge_leaf(id, one);
+  if (reobserved) {
+    if (StoredCell* created = impl_->find_leaf(id)) created->stats.consecutive_misses = 0;
+  }
 }
 
 void Map::set_window_center(double x, double y) {
@@ -1107,6 +1118,14 @@ ClearingStats Map::clear_free_space(const DepthImage& image, const SensorPose& p
       for (StoredCell& entry : tile.leaves[level]) {
         if (entry.stats.obstacle.empty()) continue;
         ++stats.examined;
+        // Current obstacle evidence is stronger than any contradictory beam in
+        // this scan. Ground-only updates do not protect an old departed object.
+        // No timestamps/history are added to permanent cells.
+        if (image.scan_timestamp().has_value() &&
+            entry.stats.obstacle.last_seen == *image.scan_timestamp()) {
+          ++stats.occluded;
+          continue;
+        }
 
         // Cell centre, matching the geometry cell_intersects_window uses.
         const double resolution = core::resolution_m(entry.id.level);
@@ -1114,11 +1133,22 @@ ClearingStats Map::clear_free_space(const DepthImage& image, const SensorPose& p
         const double centre_y = (static_cast<double>(entry.id.iy) + 0.5) * resolution;
 
         switch (test_cell_against_scan(entry.stats, centre_x, centre_y, image, pose,
-                                       impl_->config.clearing_margin_m)) {
+                                       impl_->config.clearing_margin_m, resolution * 0.5)) {
           case ClearingOutcome::Cleared:
-            // One step toward free, not a deletion. Clamped log-odds means a
-            // wall needs repeated contradiction before it is released, so a
-            // single bad frame cannot erase it.
+            // Armed first, decremented after. The first kStrikesToDecrement
+            // contradictory frames only raise the streak: a single flicker
+            // frame cannot demote an Occupied cell it cannot re-confirm, and
+            // a reacquired cell (streak reset by obstacle evidence above)
+            // absorbs one more flicker the same way. Past arming, exactly one
+            // clamped log-odds miss applies per frame, so genuine departures
+            // still clear in bounded time -- never a deletion, never a timer.
+            if (entry.stats.consecutive_misses < logodds::kStrikesToDecrement) {
+              if (entry.stats.consecutive_misses < std::numeric_limits<std::uint8_t>::max()) {
+                ++entry.stats.consecutive_misses;
+              }
+              ++stats.armed;
+              break;
+            }
             entry.stats.observe_free();
             ++stats.cleared;
             break;

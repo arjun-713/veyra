@@ -107,6 +107,7 @@ class PersistentMapEngine:
         transport: str = "text",
         utility_config: str | Path | None = None,
         governor_config: str | Path | None = None,
+        clear_free_space: bool = False,
     ) -> None:
         if not np.isfinite(window_radius_m) or window_radius_m <= 60.0:
             raise RuntimeConfigurationError(
@@ -124,6 +125,7 @@ class PersistentMapEngine:
         self.governor_config = (
             Path(governor_config) if governor_config is not None else None
         )
+        self.clear_free_space = bool(clear_free_space)
         self.timeout_s = float(timeout_s)
         if not np.isfinite(self.timeout_s) or self.timeout_s <= 0:
             raise RuntimeConfigurationError("timeout_s must be positive and finite")
@@ -153,6 +155,8 @@ class PersistentMapEngine:
                 command.extend(("--utility-config", str(self.utility_config)))
             if self.governor_config is not None:
                 command.extend(("--governor-config", str(self.governor_config)))
+            if self.clear_free_space:
+                command.append("--clear-free-space")
             self._process = subprocess.Popen(
                 command,
                 stdin=subprocess.PIPE,
@@ -590,6 +594,7 @@ def build_runtime_session(
             executable_path,
             policy=str(config.map.get("policy", "distance_lod")),
             window_radius_m=float(config.map.get("window_radius_m", default_window)),
+            clear_free_space=bool(config.map.get("clear_free_space", False)),
         )
     return RuntimeSession(
         adapter,
@@ -900,6 +905,17 @@ class RuntimeSession:
             "motion_state": frame.motion_state[sample]
             if binary
             else frame.motion_state[sample].tolist(),
+            # Genuine tracker identity, sampled with the frame. None stays
+            # None (unavailable) rather than becoming a fabricated zero.
+            "track_ids": (
+                None
+                if getattr(frame, "track_id", None) is None
+                else (
+                    frame.track_id[sample]
+                    if binary
+                    else frame.track_id[sample].tolist()
+                )
+            ),
             "terrain_confidence": frame.terrain_confidence[sample]
             if binary
             else frame.terrain_confidence[sample].astype(float).tolist(),

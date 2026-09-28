@@ -1,0 +1,2000 @@
+{
+  "git_sha": "bcf06f0a89b527242612365545e1afd87f6d55b4",
+  "dirty": "M runtime/service.py\n M tests/test_clearing_config.py\n?? :memory:.ses",
+  "dataset": "semantickitti",
+  "sequence": "08",
+  "frame_ids": [
+    43,
+    44,
+    45,
+    46,
+    47,
+    48,
+    49,
+    50,
+    51,
+    52,
+    53,
+    54
+  ],
+  "semantic_mode": "ground_truth_evaluation_only",
+  "pipeline_config": {
+    "semantic": {
+      "mode": "ground_truth"
+    },
+    "ground": {
+      "enabled": true,
+      "parameter_overrides": {
+        "min_range": 0.0,
+        "max_range": 100.0
+      }
+    },
+    "terrain": {
+      "enabled": true
+    },
+    "temporal": {
+      "enabled": true,
+      "exclude_classes": [
+        9,
+        10,
+        11,
+        12,
+        17
+      ]
+    },
+    "required_stages": [
+      "semantic",
+      "ground",
+      "terrain",
+      "temporal"
+    ]
+  },
+  "sensor_origin": "adapter pose is LiDAR origin; sensor-height override 0, not a second 1.8m offset",
+  "hardware": {
+    "system": "Linux",
+    "node": "mallik-fedora",
+    "release": "7.2.7-200.fc44.x86_64",
+    "version": "#1 SMP PREEMPT_DYNAMIC Mon Sep 21 18:25:57 UTC 2026",
+    "machine": "x86_64",
+    "processor": ""
+  },
+  "python": "3.13.15 (main, Aug 10 2026, 00:00:00) [GCC 16.1.1 20260515 (Red Hat 16.1.1-2)]",
+  "input_sha256": {
+    "data/raw/semantickitti/dataset/sequences/08/velodyne/000043.bin": "6ebfc3b31f814693eeae20e6fb0ffc1b65120ec737f0585ae7f2329dbe0d0e88",
+    "data/raw/semantickitti/dataset/sequences/08/labels/000043.label": "08435962f9d01a5f09f6f1e63e84f818814a1d5b2f7de3441f7d965c6cd6aa8a",
+    "data/raw/semantickitti/dataset/sequences/08/velodyne/000044.bin": "953f8b9226d3361bb025f49a6914d952e291673290d8402793c0cbe2c6c7421d",
+    "data/raw/semantickitti/dataset/sequences/08/labels/000044.label": "9ad61aa37bfa6474670c859e4a4ddc64ed4c5a9fa111946ddf6031f6d40fea96",
+    "data/raw/semantickitti/dataset/sequences/08/velodyne/000045.bin": "9b3fdf0f4d8abc492cdff914f8475c028df488677b2ee51da7e419fd4de4ba47",
+    "data/raw/semantickitti/dataset/sequences/08/labels/000045.label": "e686fef8d5977e2f90e420f82f98913d798b1a4350bece79551fa80c4fcb82e1",
+    "data/raw/semantickitti/dataset/sequences/08/velodyne/000046.bin": "fb5e331ece85977c78088d086a3b56beafa5d53b4654e8de794529d54f89de2c",
+    "data/raw/semantickitti/dataset/sequences/08/labels/000046.label": "68504b1254f91eb90838f74da9f521d0d5fde3aee1f2e71e1a24fe32b77b9e94",
+    "data/raw/semantickitti/dataset/sequences/08/velodyne/000047.bin": "72cb07b2ddd30759b720feec0f7bb283a0ee945caa2852b8c067c7bab490c646",
+    "data/raw/semantickitti/dataset/sequences/08/labels/000047.label": "d78f17726dadf75c52444d5e4b7c22a44896d6bf9b5c9875dd8d0f91db4fc3e1",
+    "data/raw/semantickitti/dataset/sequences/08/velodyne/000048.bin": "6b3c08eb1b21a0256faeb9204c1b32090f0b7fd0f925e175cdbbe53ba0e9d2b2",
+    "data/raw/semantickitti/dataset/sequences/08/labels/000048.label": "82fceec502675dfcb47d918d351875f6fe785c5370ba93331c4c7bc66e437b18",
+    "data/raw/semantickitti/dataset/sequences/08/velodyne/000049.bin": "ce405903553e73d4f3513a252dddff339b6814d1e167f07c963aec56d1daebd9",
+    "data/raw/semantickitti/dataset/sequences/08/labels/000049.label": "44c90c259c77f205cae0a1746dbfd76d18a61a0cff9d2793878785c751eb6d4a",
+    "data/raw/semantickitti/dataset/sequences/08/velodyne/000050.bin": "2c8b3bf3b702bc4782d1a38bb2667b75a7d11abf47896e3177e0b63dec96f2a5",
+    "data/raw/semantickitti/dataset/sequences/08/labels/000050.label": "bff1d5f8acc1dcbc0393f932a7239a069a2b093eb3207d2c95291539893daa4f",
+    "data/raw/semantickitti/dataset/sequences/08/velodyne/000051.bin": "7584b6c481f42e28ce9082e0f6afe7ab6d8da5ef5df7e4600e18bbc967faae82",
+    "data/raw/semantickitti/dataset/sequences/08/labels/000051.label": "144daa5d59efa3c8520cef8085353029fe3c26e02145c5ae168721b1bc212358",
+    "data/raw/semantickitti/dataset/sequences/08/velodyne/000052.bin": "a9af044e8e9daf7d43f89d22e0173b48d34e4dc3cc59a514e60cac7e27320ee1",
+    "data/raw/semantickitti/dataset/sequences/08/labels/000052.label": "7e7f4bea1369a1fcb178f2d29e888e62cf85acd366df43e3ef7d762d9dd11ce9",
+    "data/raw/semantickitti/dataset/sequences/08/velodyne/000053.bin": "d69eeb152141b7651ea546110b939305ff87613e3464c3955b33a4b0bb8a18aa",
+    "data/raw/semantickitti/dataset/sequences/08/labels/000053.label": "8179e7fc93fb427645f27523c2554006a71d12326532080ac18c725bfbdb5c66",
+    "data/raw/semantickitti/dataset/sequences/08/velodyne/000054.bin": "f5ab03a13a307ae21f59fb336003e9f0b0eab67ac5c4828a494621d19c51e195",
+    "data/raw/semantickitti/dataset/sequences/08/labels/000054.label": "58985746d27a732c435f0853eb0543e2776934d554adb2216b8973262512b1fb"
+  },
+  "seed_support_definition": "unique 5cm XY bins from first frame GT label; resident-leaf occupancy sampled at bin centers, not object IoU",
+  "no_orphans": true,
+  "records": [
+    {
+      "frame_id": "000043",
+      "timestamp": 4.470105,
+      "points": 121315,
+      "pipeline_status": {
+        "semantic": "ground_truth",
+        "ground": "pypatchworkpp.patchworkpp",
+        "terrain": "available",
+        "temporal": "available",
+        "diagnostics": [],
+        "semantic_execution": "bypassed",
+        "semantic_requested": "ground_truth",
+        "semantic_fallback_reason": null,
+        "semantic_model": null
+      },
+      "perception_timings_ms": {
+        "sensor_transform": 5.834060997585766,
+        "semantic": 1.1951950000366196,
+        "ground": 152.23029499975382,
+        "terrain": 103.22006700152997,
+        "temporal": 2113.423304999742,
+        "total": 2408.656087998679
+      },
+      "unique_track_ids": 1214,
+      "moving_car_seed_bins_still_observed": 1200,
+      "disabled": {
+        "seed_support": {
+          "moving_car_4": {
+            "bins": 1200,
+            "resident": 1200,
+            "occupied": 1200
+          },
+          "parked_cars": {
+            "bins": 664,
+            "resident": 664,
+            "occupied": 664
+          }
+        },
+        "snapshot": {
+          "active_leaf_count": 60547,
+          "tile_count": 164,
+          "point_count": 121315,
+          "logical_bytes": 11632896,
+          "memory": {
+            "logical_payload_bytes": 11625024,
+            "retained_prior_payload_bytes": 7872,
+            "allocated_cell_array_bytes": 17766528,
+            "allocated_tile_bytes": 62976,
+            "allocated_index_bytes": 843328,
+            "allocated_overhead_bytes": 843328,
+            "allocated_bytes": 18609856
+          },
+          "levels": {
+            "0": 23995,
+            "1": 26226,
+            "2": 8499,
+            "3": 1827
+          },
+          "nonspatial_prior_point_count": 123,
+          "split_count": 69,
+          "merge_count": 55,
+          "invariant_no_parent_descendant_overlap": true,
+          "layers": {
+            "ground_points": 75563,
+            "obstacle_points": 35063,
+            "overhead_points": 10566,
+            "unmodelled_returns": 2413,
+            "rejected_outliers": 0,
+            "cells_with_ground": 42255,
+            "occluded_ground_cells": 18182,
+            "occupied_cells": 60437,
+            "free_cells": 0
+          }
+        },
+        "map_latency_ns": {
+          "count": 1,
+          "mean": 196813097,
+          "min": 196813097,
+          "max": 196813097,
+          "p50": 196813097,
+          "p95": 196813097,
+          "p99": 196813097
+        },
+        "conservation": {
+          "holds": true,
+          "scope": "active_window_after_frame"
+        }
+      },
+      "enabled": {
+        "seed_support": {
+          "moving_car_4": {
+            "bins": 1200,
+            "resident": 1200,
+            "occupied": 1102
+          },
+          "parked_cars": {
+            "bins": 664,
+            "resident": 664,
+            "occupied": 641
+          }
+        },
+        "snapshot": {
+          "active_leaf_count": 60547,
+          "tile_count": 164,
+          "point_count": 121315,
+          "logical_bytes": 11632896,
+          "memory": {
+            "logical_payload_bytes": 11625024,
+            "retained_prior_payload_bytes": 7872,
+            "allocated_cell_array_bytes": 17766528,
+            "allocated_tile_bytes": 62976,
+            "allocated_index_bytes": 843328,
+            "allocated_overhead_bytes": 843328,
+            "allocated_bytes": 18609856
+          },
+          "levels": {
+            "0": 23995,
+            "1": 26226,
+            "2": 8499,
+            "3": 1827
+          },
+          "nonspatial_prior_point_count": 123,
+          "split_count": 69,
+          "merge_count": 55,
+          "invariant_no_parent_descendant_overlap": true,
+          "layers": {
+            "ground_points": 75563,
+            "obstacle_points": 35063,
+            "overhead_points": 10566,
+            "unmodelled_returns": 2413,
+            "rejected_outliers": 0,
+            "cells_with_ground": 42255,
+            "occluded_ground_cells": 18182,
+            "occupied_cells": 59768,
+            "free_cells": 0
+          },
+          "clearing": {
+            "examined": 14785,
+            "cleared": 669,
+            "occluded": 3587,
+            "no_evidence": 1539,
+            "spared_by_elevation": 8990
+          }
+        },
+        "map_latency_ns": {
+          "count": 1,
+          "mean": 218913755,
+          "min": 218913755,
+          "max": 218913755,
+          "p50": 218913755,
+          "p95": 218913755,
+          "p99": 218913755
+        },
+        "conservation": {
+          "holds": true,
+          "scope": "active_window_after_frame"
+        }
+      }
+    },
+    {
+      "frame_id": "000044",
+      "timestamp": 4.574104,
+      "points": 120556,
+      "pipeline_status": {
+        "semantic": "ground_truth",
+        "ground": "pypatchworkpp.patchworkpp",
+        "terrain": "available",
+        "temporal": "available",
+        "diagnostics": [],
+        "semantic_execution": "bypassed",
+        "semantic_requested": "ground_truth",
+        "semantic_fallback_reason": null,
+        "semantic_model": null
+      },
+      "perception_timings_ms": {
+        "sensor_transform": 7.655621000594692,
+        "semantic": 0.8823870011838153,
+        "ground": 111.75193500093883,
+        "terrain": 66.63330299852532,
+        "temporal": 7759.7868610027945,
+        "total": 7972.46178000205
+      },
+      "unique_track_ids": 1203,
+      "moving_car_seed_bins_still_observed": 489,
+      "disabled": {
+        "seed_support": {
+          "moving_car_4": {
+            "bins": 1200,
+            "resident": 1200,
+            "occupied": 1200
+          },
+          "parked_cars": {
+            "bins": 664,
+            "resident": 664,
+            "occupied": 664
+          }
+        },
+        "snapshot": {
+          "active_leaf_count": 97766,
+          "tile_count": 165,
+          "point_count": 241871,
+          "logical_bytes": 18785280,
+          "memory": {
+            "logical_payload_bytes": 18771072,
+            "retained_prior_payload_bytes": 14208,
+            "allocated_cell_array_bytes": 27344640,
+            "allocated_tile_bytes": 63360,
+            "allocated_index_bytes": 1242272,
+            "allocated_overhead_bytes": 1242272,
+            "allocated_bytes": 28586912
+          },
+          "levels": {
+            "0": 38628,
+            "1": 43339,
+            "2": 13196,
+            "3": 2603
+          },
+          "nonspatial_prior_point_count": 372,
+          "split_count": 145,
+          "merge_count": 159,
+          "invariant_no_parent_descendant_overlap": true,
+          "layers": {
+            "ground_points": 155096,
+            "obstacle_points": 65141,
+            "overhead_points": 21262,
+            "unmodelled_returns": 4839,
+            "rejected_outliers": 0,
+            "cells_with_ground": 74752,
+            "occluded_ground_cells": 22831,
+            "occupied_cells": 97583,
+            "free_cells": 0
+          }
+        },
+        "map_latency_ns": {
+          "count": 2,
+          "mean": 166475006.5,
+          "min": 136136916,
+          "max": 196813097,
+          "p50": 136136916,
+          "p95": 196813097,
+          "p99": 196813097
+        },
+        "conservation": {
+          "holds": true,
+          "scope": "active_window_after_frame"
+        }
+      },
+      "enabled": {
+        "seed_support": {
+          "moving_car_4": {
+            "bins": 1200,
+            "resident": 1200,
+            "occupied": 857
+          },
+          "parked_cars": {
+            "bins": 664,
+            "resident": 664,
+            "occupied": 601
+          }
+        },
+        "snapshot": {
+          "active_leaf_count": 97766,
+          "tile_count": 165,
+          "point_count": 241871,
+          "logical_bytes": 18785280,
+          "memory": {
+            "logical_payload_bytes": 18771072,
+            "retained_prior_payload_bytes": 14208,
+            "allocated_cell_array_bytes": 27344640,
+            "allocated_tile_bytes": 63360,
+            "allocated_index_bytes": 1242272,
+            "allocated_overhead_bytes": 1242272,
+            "allocated_bytes": 28586912
+          },
+          "levels": {
+            "0": 38628,
+            "1": 43339,
+            "2": 13196,
+            "3": 2603
+          },
+          "nonspatial_prior_point_count": 372,
+          "split_count": 145,
+          "merge_count": 159,
+          "invariant_no_parent_descendant_overlap": true,
+          "layers": {
+            "ground_points": 155096,
+            "obstacle_points": 65141,
+            "overhead_points": 21262,
+            "unmodelled_returns": 4839,
+            "rejected_outliers": 0,
+            "cells_with_ground": 74752,
+            "occluded_ground_cells": 22831,
+            "occupied_cells": 95794,
+            "free_cells": 0
+          },
+          "clearing": {
+            "examined": 20268,
+            "cleared": 1543,
+            "occluded": 5353,
+            "no_evidence": 1991,
+            "spared_by_elevation": 11381
+          }
+        },
+        "map_latency_ns": {
+          "count": 2,
+          "mean": 242703335.5,
+          "min": 218913755,
+          "max": 266492916,
+          "p50": 218913755,
+          "p95": 266492916,
+          "p99": 266492916
+        },
+        "conservation": {
+          "holds": true,
+          "scope": "active_window_after_frame"
+        }
+      }
+    },
+    {
+      "frame_id": "000045",
+      "timestamp": 4.677976,
+      "points": 119913,
+      "pipeline_status": {
+        "semantic": "ground_truth",
+        "ground": "pypatchworkpp.patchworkpp",
+        "terrain": "available",
+        "temporal": "available",
+        "diagnostics": [],
+        "semantic_execution": "bypassed",
+        "semantic_requested": "ground_truth",
+        "semantic_fallback_reason": null,
+        "semantic_model": null
+      },
+      "perception_timings_ms": {
+        "sensor_transform": 8.046792001550784,
+        "semantic": 1.4795079987379722,
+        "ground": 154.81732699845452,
+        "terrain": 63.31588800094323,
+        "temporal": 6749.2561640028725,
+        "total": 6996.22422000175
+      },
+      "unique_track_ids": 1137,
+      "moving_car_seed_bins_still_observed": 432,
+      "disabled": {
+        "seed_support": {
+          "moving_car_4": {
+            "bins": 1200,
+            "resident": 1200,
+            "occupied": 1200
+          },
+          "parked_cars": {
+            "bins": 664,
+            "resident": 664,
+            "occupied": 664
+          }
+        },
+        "snapshot": {
+          "active_leaf_count": 127888,
+          "tile_count": 168,
+          "point_count": 361784,
+          "logical_bytes": 24575616,
+          "memory": {
+            "logical_payload_bytes": 24554496,
+            "retained_prior_payload_bytes": 21120,
+            "allocated_cell_array_bytes": 34056000,
+            "allocated_tile_bytes": 64512,
+            "allocated_index_bytes": 1521920,
+            "allocated_overhead_bytes": 1521920,
+            "allocated_bytes": 35577920
+          },
+          "levels": {
+            "0": 49416,
+            "1": 58125,
+            "2": 17248,
+            "3": 3099
+          },
+          "nonspatial_prior_point_count": 582,
+          "split_count": 223,
+          "merge_count": 306,
+          "invariant_no_parent_descendant_overlap": true,
+          "layers": {
+            "ground_points": 234211,
+            "obstacle_points": 95030,
+            "overhead_points": 31961,
+            "unmodelled_returns": 7220,
+            "rejected_outliers": 0,
+            "cells_with_ground": 102350,
+            "occluded_ground_cells": 25285,
+            "occupied_cells": 127635,
+            "free_cells": 0
+          }
+        },
+        "map_latency_ns": {
+          "count": 3,
+          "mean": 139875667.66666666,
+          "min": 86676990,
+          "max": 196813097,
+          "p50": 136136916,
+          "p95": 196813097,
+          "p99": 196813097
+        },
+        "conservation": {
+          "holds": true,
+          "scope": "active_window_after_frame"
+        }
+      },
+      "enabled": {
+        "seed_support": {
+          "moving_car_4": {
+            "bins": 1200,
+            "resident": 1200,
+            "occupied": 624
+          },
+          "parked_cars": {
+            "bins": 664,
+            "resident": 664,
+            "occupied": 580
+          }
+        },
+        "snapshot": {
+          "active_leaf_count": 127888,
+          "tile_count": 168,
+          "point_count": 361784,
+          "logical_bytes": 24575616,
+          "memory": {
+            "logical_payload_bytes": 24554496,
+            "retained_prior_payload_bytes": 21120,
+            "allocated_cell_array_bytes": 34056000,
+            "allocated_tile_bytes": 64512,
+            "allocated_index_bytes": 1521920,
+            "allocated_overhead_bytes": 1521920,
+            "allocated_bytes": 35577920
+          },
+          "levels": {
+            "0": 49416,
+            "1": 58125,
+            "2": 17248,
+            "3": 3099
+          },
+          "nonspatial_prior_point_count": 582,
+          "split_count": 223,
+          "merge_count": 306,
+          "invariant_no_parent_descendant_overlap": true,
+          "layers": {
+            "ground_points": 234211,
+            "obstacle_points": 95030,
+            "overhead_points": 31961,
+            "unmodelled_returns": 7220,
+            "rejected_outliers": 0,
+            "cells_with_ground": 102350,
+            "occluded_ground_cells": 25285,
+            "occupied_cells": 124605,
+            "free_cells": 0
+          },
+          "clearing": {
+            "examined": 23981,
+            "cleared": 2348,
+            "occluded": 6670,
+            "no_evidence": 2352,
+            "spared_by_elevation": 12611
+          }
+        },
+        "map_latency_ns": {
+          "count": 3,
+          "mean": 210981520.33333334,
+          "min": 147537890,
+          "max": 266492916,
+          "p50": 218913755,
+          "p95": 266492916,
+          "p99": 266492916
+        },
+        "conservation": {
+          "holds": true,
+          "scope": "active_window_after_frame"
+        }
+      }
+    },
+    {
+      "frame_id": "000046",
+      "timestamp": 4.78173,
+      "points": 119869,
+      "pipeline_status": {
+        "semantic": "ground_truth",
+        "ground": "pypatchworkpp.patchworkpp",
+        "terrain": "available",
+        "temporal": "available",
+        "diagnostics": [],
+        "semantic_execution": "bypassed",
+        "semantic_requested": "ground_truth",
+        "semantic_fallback_reason": null,
+        "semantic_model": null
+      },
+      "perception_timings_ms": {
+        "sensor_transform": 4.575691000354709,
+        "semantic": 0.8453720001853071,
+        "ground": 114.96483700102544,
+        "terrain": 54.02485200102092,
+        "temporal": 7174.986240002909,
+        "total": 7371.970513999258
+      },
+      "unique_track_ids": 1224,
+      "moving_car_seed_bins_still_observed": 243,
+      "disabled": {
+        "seed_support": {
+          "moving_car_4": {
+            "bins": 1200,
+            "resident": 1200,
+            "occupied": 1200
+          },
+          "parked_cars": {
+            "bins": 664,
+            "resident": 664,
+            "occupied": 664
+          }
+        },
+        "snapshot": {
+          "active_leaf_count": 152383,
+          "tile_count": 169,
+          "point_count": 481653,
+          "logical_bytes": 29301888,
+          "memory": {
+            "logical_payload_bytes": 29257536,
+            "retained_prior_payload_bytes": 44352,
+            "allocated_cell_array_bytes": 40559232,
+            "allocated_tile_bytes": 64896,
+            "allocated_index_bytes": 1792864,
+            "allocated_overhead_bytes": 1792864,
+            "allocated_bytes": 42352096
+          },
+          "levels": {
+            "0": 58106,
+            "1": 70396,
+            "2": 20436,
+            "3": 3445
+          },
+          "nonspatial_prior_point_count": 1225,
+          "split_count": 395,
+          "merge_count": 523,
+          "invariant_no_parent_descendant_overlap": true,
+          "layers": {
+            "ground_points": 309979,
+            "obstacle_points": 128119,
+            "overhead_points": 42330,
+            "unmodelled_returns": 9982,
+            "rejected_outliers": 0,
+            "cells_with_ground": 124948,
+            "occluded_ground_cells": 26948,
+            "occupied_cells": 151896,
+            "free_cells": 0
+          }
+        },
+        "map_latency_ns": {
+          "count": 4,
+          "mean": 130330860.75,
+          "min": 86676990,
+          "max": 196813097,
+          "p50": 101696440,
+          "p95": 196813097,
+          "p99": 196813097
+        },
+        "conservation": {
+          "holds": true,
+          "scope": "active_window_after_frame"
+        }
+      },
+      "enabled": {
+        "seed_support": {
+          "moving_car_4": {
+            "bins": 1200,
+            "resident": 1200,
+            "occupied": 507
+          },
+          "parked_cars": {
+            "bins": 664,
+            "resident": 664,
+            "occupied": 556
+          }
+        },
+        "snapshot": {
+          "active_leaf_count": 152383,
+          "tile_count": 169,
+          "point_count": 481653,
+          "logical_bytes": 29301888,
+          "memory": {
+            "logical_payload_bytes": 29257536,
+            "retained_prior_payload_bytes": 44352,
+            "allocated_cell_array_bytes": 40559232,
+            "allocated_tile_bytes": 64896,
+            "allocated_index_bytes": 1792864,
+            "allocated_overhead_bytes": 1792864,
+            "allocated_bytes": 42352096
+          },
+          "levels": {
+            "0": 58106,
+            "1": 70396,
+            "2": 20436,
+            "3": 3445
+          },
+          "nonspatial_prior_point_count": 1225,
+          "split_count": 395,
+          "merge_count": 523,
+          "invariant_no_parent_descendant_overlap": true,
+          "layers": {
+            "ground_points": 309979,
+            "obstacle_points": 128119,
+            "overhead_points": 42330,
+            "unmodelled_returns": 9982,
+            "rejected_outliers": 0,
+            "cells_with_ground": 124948,
+            "occluded_ground_cells": 26948,
+            "occupied_cells": 147698,
+            "free_cells": 92
+          },
+          "clearing": {
+            "examined": 27209,
+            "cleared": 3046,
+            "occluded": 7808,
+            "no_evidence": 2699,
+            "spared_by_elevation": 13656
+          }
+        },
+        "map_latency_ns": {
+          "count": 4,
+          "mean": 213391817.25,
+          "min": 147537890,
+          "max": 266492916,
+          "p50": 218913755,
+          "p95": 266492916,
+          "p99": 266492916
+        },
+        "conservation": {
+          "holds": true,
+          "scope": "active_window_after_frame"
+        }
+      }
+    },
+    {
+      "frame_id": "000047",
+      "timestamp": 4.885477,
+      "points": 119593,
+      "pipeline_status": {
+        "semantic": "ground_truth",
+        "ground": "pypatchworkpp.patchworkpp",
+        "terrain": "available",
+        "temporal": "available",
+        "diagnostics": [],
+        "semantic_execution": "bypassed",
+        "semantic_requested": "ground_truth",
+        "semantic_fallback_reason": null,
+        "semantic_model": null
+      },
+      "perception_timings_ms": {
+        "sensor_transform": 8.388321999518666,
+        "semantic": 1.1717540000972804,
+        "ground": 116.92474899973604,
+        "terrain": 65.02713299778407,
+        "temporal": 8281.38949300046,
+        "total": 8490.238586997293
+      },
+      "unique_track_ids": 1207,
+      "moving_car_seed_bins_still_observed": 128,
+      "disabled": {
+        "seed_support": {
+          "moving_car_4": {
+            "bins": 1200,
+            "resident": 1200,
+            "occupied": 1200
+          },
+          "parked_cars": {
+            "bins": 664,
+            "resident": 664,
+            "occupied": 664
+          }
+        },
+        "snapshot": {
+          "active_leaf_count": 173803,
+          "tile_count": 171,
+          "point_count": 601246,
+          "logical_bytes": 33441216,
+          "memory": {
+            "logical_payload_bytes": 33370176,
+            "retained_prior_payload_bytes": 71040,
+            "allocated_cell_array_bytes": 49266048,
+            "allocated_tile_bytes": 65664,
+            "allocated_index_bytes": 2155616,
+            "allocated_overhead_bytes": 2155616,
+            "allocated_bytes": 51421664
+          },
+          "levels": {
+            "0": 65784,
+            "1": 81084,
+            "2": 23206,
+            "3": 3729
+          },
+          "nonspatial_prior_point_count": 1992,
+          "split_count": 596,
+          "merge_count": 833,
+          "invariant_no_parent_descendant_overlap": true,
+          "layers": {
+            "ground_points": 388159,
+            "obstacle_points": 158209,
+            "overhead_points": 52886,
+            "unmodelled_returns": 11928,
+            "rejected_outliers": 0,
+            "cells_with_ground": 144950,
+            "occluded_ground_cells": 28125,
+            "occupied_cells": 173075,
+            "free_cells": 0
+          }
+        },
+        "map_latency_ns": {
+          "count": 5,
+          "mean": 119989818.8,
+          "min": 78625651,
+          "max": 196813097,
+          "p50": 101696440,
+          "p95": 196813097,
+          "p99": 196813097
+        },
+        "conservation": {
+          "holds": true,
+          "scope": "active_window_after_frame"
+        }
+      },
+      "enabled": {
+        "seed_support": {
+          "moving_car_4": {
+            "bins": 1200,
+            "resident": 1200,
+            "occupied": 365
+          },
+          "parked_cars": {
+            "bins": 664,
+            "resident": 664,
+            "occupied": 542
+          }
+        },
+        "snapshot": {
+          "active_leaf_count": 173803,
+          "tile_count": 171,
+          "point_count": 601246,
+          "logical_bytes": 33441216,
+          "memory": {
+            "logical_payload_bytes": 33370176,
+            "retained_prior_payload_bytes": 71040,
+            "allocated_cell_array_bytes": 49266048,
+            "allocated_tile_bytes": 65664,
+            "allocated_index_bytes": 2155616,
+            "allocated_overhead_bytes": 2155616,
+            "allocated_bytes": 51421664
+          },
+          "levels": {
+            "0": 65784,
+            "1": 81084,
+            "2": 23206,
+            "3": 3729
+          },
+          "nonspatial_prior_point_count": 1992,
+          "split_count": 596,
+          "merge_count": 833,
+          "invariant_no_parent_descendant_overlap": true,
+          "layers": {
+            "ground_points": 388159,
+            "obstacle_points": 158209,
+            "overhead_points": 52886,
+            "unmodelled_returns": 11928,
+            "rejected_outliers": 0,
+            "cells_with_ground": 144950,
+            "occluded_ground_cells": 28125,
+            "occupied_cells": 167754,
+            "free_cells": 483
+          },
+          "clearing": {
+            "examined": 29677,
+            "cleared": 3733,
+            "occluded": 8599,
+            "no_evidence": 2972,
+            "spared_by_elevation": 14373
+          }
+        },
+        "map_latency_ns": {
+          "count": 5,
+          "mean": 199780987,
+          "min": 145337666,
+          "max": 266492916,
+          "p50": 218913755,
+          "p95": 266492916,
+          "p99": 266492916
+        },
+        "conservation": {
+          "holds": true,
+          "scope": "active_window_after_frame"
+        }
+      }
+    },
+    {
+      "frame_id": "000048",
+      "timestamp": 4.989228,
+      "points": 119813,
+      "pipeline_status": {
+        "semantic": "ground_truth",
+        "ground": "pypatchworkpp.patchworkpp",
+        "terrain": "available",
+        "temporal": "available",
+        "diagnostics": [],
+        "semantic_execution": "bypassed",
+        "semantic_requested": "ground_truth",
+        "semantic_fallback_reason": null,
+        "semantic_model": null
+      },
+      "perception_timings_ms": {
+        "sensor_transform": 4.628991002391558,
+        "semantic": 0.8421410020673648,
+        "ground": 109.29224199935561,
+        "terrain": 60.87758700232371,
+        "temporal": 8188.727902001119,
+        "total": 8402.846483000758
+      },
+      "unique_track_ids": 1180,
+      "moving_car_seed_bins_still_observed": 0,
+      "disabled": {
+        "seed_support": {
+          "moving_car_4": {
+            "bins": 1200,
+            "resident": 1200,
+            "occupied": 1200
+          },
+          "parked_cars": {
+            "bins": 664,
+            "resident": 664,
+            "occupied": 664
+          }
+        },
+        "snapshot": {
+          "active_leaf_count": 191376,
+          "tile_count": 173,
+          "point_count": 721059,
+          "logical_bytes": 36849600,
+          "memory": {
+            "logical_payload_bytes": 36744192,
+            "retained_prior_payload_bytes": 105408,
+            "allocated_cell_array_bytes": 56763264,
+            "allocated_tile_bytes": 66432,
+            "allocated_index_bytes": 2468000,
+            "allocated_overhead_bytes": 2468000,
+            "allocated_bytes": 59231264
+          },
+          "levels": {
+            "0": 72744,
+            "1": 89283,
+            "2": 25377,
+            "3": 3972
+          },
+          "nonspatial_prior_point_count": 3117,
+          "split_count": 828,
+          "merge_count": 1122,
+          "invariant_no_parent_descendant_overlap": true,
+          "layers": {
+            "ground_points": 461792,
+            "obstacle_points": 192778,
+            "overhead_points": 63372,
+            "unmodelled_returns": 14293,
+            "rejected_outliers": 0,
+            "cells_with_ground": 161436,
+            "occluded_ground_cells": 28903,
+            "occupied_cells": 190339,
+            "free_cells": 0
+          }
+        },
+        "map_latency_ns": {
+          "count": 6,
+          "mean": 116670608,
+          "min": 78625651,
+          "max": 196813097,
+          "p50": 100074554,
+          "p95": 196813097,
+          "p99": 196813097
+        },
+        "conservation": {
+          "holds": true,
+          "scope": "active_window_after_frame"
+        }
+      },
+      "enabled": {
+        "seed_support": {
+          "moving_car_4": {
+            "bins": 1200,
+            "resident": 1200,
+            "occupied": 306
+          },
+          "parked_cars": {
+            "bins": 664,
+            "resident": 664,
+            "occupied": 516
+          }
+        },
+        "snapshot": {
+          "active_leaf_count": 191376,
+          "tile_count": 173,
+          "point_count": 721059,
+          "logical_bytes": 36849600,
+          "memory": {
+            "logical_payload_bytes": 36744192,
+            "retained_prior_payload_bytes": 105408,
+            "allocated_cell_array_bytes": 56763264,
+            "allocated_tile_bytes": 66432,
+            "allocated_index_bytes": 2468000,
+            "allocated_overhead_bytes": 2468000,
+            "allocated_bytes": 59231264
+          },
+          "levels": {
+            "0": 72744,
+            "1": 89283,
+            "2": 25377,
+            "3": 3972
+          },
+          "nonspatial_prior_point_count": 3117,
+          "split_count": 828,
+          "merge_count": 1122,
+          "invariant_no_parent_descendant_overlap": true,
+          "layers": {
+            "ground_points": 461792,
+            "obstacle_points": 192778,
+            "overhead_points": 63372,
+            "unmodelled_returns": 14293,
+            "rejected_outliers": 0,
+            "cells_with_ground": 161436,
+            "occluded_ground_cells": 28903,
+            "occupied_cells": 183939,
+            "free_cells": 1128
+          },
+          "clearing": {
+            "examined": 32229,
+            "cleared": 4389,
+            "occluded": 9438,
+            "no_evidence": 3166,
+            "spared_by_elevation": 15236
+          }
+        },
+        "map_latency_ns": {
+          "count": 6,
+          "mean": 235183467.16666666,
+          "min": 145337666,
+          "max": 412195868,
+          "p50": 218913755,
+          "p95": 412195868,
+          "p99": 412195868
+        },
+        "conservation": {
+          "holds": true,
+          "scope": "active_window_after_frame"
+        }
+      }
+    },
+    {
+      "frame_id": "000049",
+      "timestamp": 5.092855,
+      "points": 120258,
+      "pipeline_status": {
+        "semantic": "ground_truth",
+        "ground": "pypatchworkpp.patchworkpp",
+        "terrain": "available",
+        "temporal": "available",
+        "diagnostics": [],
+        "semantic_execution": "bypassed",
+        "semantic_requested": "ground_truth",
+        "semantic_fallback_reason": null,
+        "semantic_model": null
+      },
+      "perception_timings_ms": {
+        "sensor_transform": 7.916393002233235,
+        "semantic": 1.191750998259522,
+        "ground": 158.91789799934486,
+        "terrain": 87.76126299926545,
+        "temporal": 11520.750477000547,
+        "total": 11818.781088000833
+      },
+      "unique_track_ids": 1195,
+      "moving_car_seed_bins_still_observed": 0,
+      "disabled": {
+        "seed_support": {
+          "moving_car_4": {
+            "bins": 1200,
+            "resident": 1200,
+            "occupied": 1200
+          },
+          "parked_cars": {
+            "bins": 664,
+            "resident": 664,
+            "occupied": 664
+          }
+        },
+        "snapshot": {
+          "active_leaf_count": 205492,
+          "tile_count": 176,
+          "point_count": 841317,
+          "logical_bytes": 39596928,
+          "memory": {
+            "logical_payload_bytes": 39454464,
+            "retained_prior_payload_bytes": 142464,
+            "allocated_cell_array_bytes": 59030208,
+            "allocated_tile_bytes": 67584,
+            "allocated_index_bytes": 2562528,
+            "allocated_overhead_bytes": 2562528,
+            "allocated_bytes": 61592736
+          },
+          "levels": {
+            "0": 78923,
+            "1": 94740,
+            "2": 27595,
+            "3": 4234
+          },
+          "nonspatial_prior_point_count": 4125,
+          "split_count": 1068,
+          "merge_count": 1394,
+          "invariant_no_parent_descendant_overlap": true,
+          "layers": {
+            "ground_points": 537779,
+            "obstacle_points": 225477,
+            "overhead_points": 73936,
+            "unmodelled_returns": 16297,
+            "rejected_outliers": 0,
+            "cells_with_ground": 174762,
+            "occluded_ground_cells": 29402,
+            "occupied_cells": 204164,
+            "free_cells": 0
+          }
+        },
+        "map_latency_ns": {
+          "count": 7,
+          "mean": 126871512.57142857,
+          "min": 78625651,
+          "max": 196813097,
+          "p50": 101696440,
+          "p95": 196813097,
+          "p99": 196813097
+        },
+        "conservation": {
+          "holds": true,
+          "scope": "active_window_after_frame"
+        }
+      },
+      "enabled": {
+        "seed_support": {
+          "moving_car_4": {
+            "bins": 1200,
+            "resident": 1200,
+            "occupied": 295
+          },
+          "parked_cars": {
+            "bins": 664,
+            "resident": 664,
+            "occupied": 502
+          }
+        },
+        "snapshot": {
+          "active_leaf_count": 205492,
+          "tile_count": 176,
+          "point_count": 841317,
+          "logical_bytes": 39596928,
+          "memory": {
+            "logical_payload_bytes": 39454464,
+            "retained_prior_payload_bytes": 142464,
+            "allocated_cell_array_bytes": 59030208,
+            "allocated_tile_bytes": 67584,
+            "allocated_index_bytes": 2562528,
+            "allocated_overhead_bytes": 2562528,
+            "allocated_bytes": 61592736
+          },
+          "levels": {
+            "0": 78923,
+            "1": 94740,
+            "2": 27595,
+            "3": 4234
+          },
+          "nonspatial_prior_point_count": 4125,
+          "split_count": 1068,
+          "merge_count": 1394,
+          "invariant_no_parent_descendant_overlap": true,
+          "layers": {
+            "ground_points": 537779,
+            "obstacle_points": 225477,
+            "overhead_points": 73936,
+            "unmodelled_returns": 16297,
+            "rejected_outliers": 0,
+            "cells_with_ground": 174762,
+            "occluded_ground_cells": 29402,
+            "occupied_cells": 196623,
+            "free_cells": 1864
+          },
+          "clearing": {
+            "examined": 34152,
+            "cleared": 5025,
+            "occluded": 10084,
+            "no_evidence": 3380,
+            "spared_by_elevation": 15663
+          }
+        },
+        "map_latency_ns": {
+          "count": 7,
+          "mean": 248836091.7142857,
+          "min": 145337666,
+          "max": 412195868,
+          "p50": 220622708,
+          "p95": 412195868,
+          "p99": 412195868
+        },
+        "conservation": {
+          "holds": true,
+          "scope": "active_window_after_frame"
+        }
+      }
+    },
+    {
+      "frame_id": "000050",
+      "timestamp": 5.196627,
+      "points": 120775,
+      "pipeline_status": {
+        "semantic": "ground_truth",
+        "ground": "pypatchworkpp.patchworkpp",
+        "terrain": "available",
+        "temporal": "available",
+        "diagnostics": [],
+        "semantic_execution": "bypassed",
+        "semantic_requested": "ground_truth",
+        "semantic_fallback_reason": null,
+        "semantic_model": null
+      },
+      "perception_timings_ms": {
+        "sensor_transform": 8.43308800176601,
+        "semantic": 1.8877900001825765,
+        "ground": 144.4028910009365,
+        "terrain": 61.64421599896741,
+        "temporal": 6241.489955998986,
+        "total": 6472.415160002129
+      },
+      "unique_track_ids": 1248,
+      "moving_car_seed_bins_still_observed": 0,
+      "disabled": {
+        "seed_support": {
+          "moving_car_4": {
+            "bins": 1200,
+            "resident": 1200,
+            "occupied": 1200
+          },
+          "parked_cars": {
+            "bins": 664,
+            "resident": 664,
+            "occupied": 664
+          }
+        },
+        "snapshot": {
+          "active_leaf_count": 219423,
+          "tile_count": 177,
+          "point_count": 962092,
+          "logical_bytes": 42320832,
+          "memory": {
+            "logical_payload_bytes": 42129216,
+            "retained_prior_payload_bytes": 191616,
+            "allocated_cell_array_bytes": 60589440,
+            "allocated_tile_bytes": 67968,
+            "allocated_index_bytes": 2627456,
+            "allocated_overhead_bytes": 2627456,
+            "allocated_bytes": 63216896
+          },
+          "levels": {
+            "0": 83981,
+            "1": 101071,
+            "2": 29859,
+            "3": 4512
+          },
+          "nonspatial_prior_point_count": 5729,
+          "split_count": 1369,
+          "merge_count": 1743,
+          "invariant_no_parent_descendant_overlap": true,
+          "layers": {
+            "ground_points": 615297,
+            "obstacle_points": 256542,
+            "overhead_points": 84524,
+            "unmodelled_returns": 18457,
+            "rejected_outliers": 0,
+            "cells_with_ground": 188008,
+            "occluded_ground_cells": 29674,
+            "occupied_cells": 217682,
+            "free_cells": 0
+          }
+        },
+        "map_latency_ns": {
+          "count": 8,
+          "mean": 118731872.125,
+          "min": 61754389,
+          "max": 196813097,
+          "p50": 100074554,
+          "p95": 196813097,
+          "p99": 196813097
+        },
+        "conservation": {
+          "holds": true,
+          "scope": "active_window_after_frame"
+        }
+      },
+      "enabled": {
+        "seed_support": {
+          "moving_car_4": {
+            "bins": 1200,
+            "resident": 1200,
+            "occupied": 276
+          },
+          "parked_cars": {
+            "bins": 664,
+            "resident": 664,
+            "occupied": 468
+          }
+        },
+        "snapshot": {
+          "active_leaf_count": 219423,
+          "tile_count": 177,
+          "point_count": 962092,
+          "logical_bytes": 42320832,
+          "memory": {
+            "logical_payload_bytes": 42129216,
+            "retained_prior_payload_bytes": 191616,
+            "allocated_cell_array_bytes": 60589440,
+            "allocated_tile_bytes": 67968,
+            "allocated_index_bytes": 2627456,
+            "allocated_overhead_bytes": 2627456,
+            "allocated_bytes": 63216896
+          },
+          "levels": {
+            "0": 83981,
+            "1": 101071,
+            "2": 29859,
+            "3": 4512
+          },
+          "nonspatial_prior_point_count": 5729,
+          "split_count": 1369,
+          "merge_count": 1743,
+          "invariant_no_parent_descendant_overlap": true,
+          "layers": {
+            "ground_points": 615297,
+            "obstacle_points": 256542,
+            "overhead_points": 84524,
+            "unmodelled_returns": 18457,
+            "rejected_outliers": 0,
+            "cells_with_ground": 188008,
+            "occluded_ground_cells": 29674,
+            "occupied_cells": 209045,
+            "free_cells": 2535
+          },
+          "clearing": {
+            "examined": 35781,
+            "cleared": 5632,
+            "occluded": 10584,
+            "no_evidence": 3693,
+            "spared_by_elevation": 15872
+          }
+        },
+        "map_latency_ns": {
+          "count": 8,
+          "mean": 235019991.75,
+          "min": 138307292,
+          "max": 412195868,
+          "p50": 218913755,
+          "p95": 412195868,
+          "p99": 412195868
+        },
+        "conservation": {
+          "holds": true,
+          "scope": "active_window_after_frame"
+        }
+      }
+    },
+    {
+      "frame_id": "000051",
+      "timestamp": 5.300239,
+      "points": 120925,
+      "pipeline_status": {
+        "semantic": "ground_truth",
+        "ground": "pypatchworkpp.patchworkpp",
+        "terrain": "available",
+        "temporal": "available",
+        "diagnostics": [],
+        "semantic_execution": "bypassed",
+        "semantic_requested": "ground_truth",
+        "semantic_fallback_reason": null,
+        "semantic_model": null
+      },
+      "perception_timings_ms": {
+        "sensor_transform": 4.810923001059564,
+        "semantic": 0.9929459993145429,
+        "ground": 112.58186399936676,
+        "terrain": 45.06984300314798,
+        "temporal": 5142.149443003291,
+        "total": 5319.708439001261
+      },
+      "unique_track_ids": 1244,
+      "moving_car_seed_bins_still_observed": 0,
+      "disabled": {
+        "seed_support": {
+          "moving_car_4": {
+            "bins": 1200,
+            "resident": 1200,
+            "occupied": 1200
+          },
+          "parked_cars": {
+            "bins": 664,
+            "resident": 664,
+            "occupied": 664
+          }
+        },
+        "snapshot": {
+          "active_leaf_count": 232501,
+          "tile_count": 178,
+          "point_count": 1083017,
+          "logical_bytes": 44897088,
+          "memory": {
+            "logical_payload_bytes": 44640192,
+            "retained_prior_payload_bytes": 256896,
+            "allocated_cell_array_bytes": 61678464,
+            "allocated_tile_bytes": 68352,
+            "allocated_index_bytes": 2672832,
+            "allocated_overhead_bytes": 2672832,
+            "allocated_bytes": 64351296
+          },
+          "levels": {
+            "0": 88275,
+            "1": 107218,
+            "2": 32222,
+            "3": 4786
+          },
+          "nonspatial_prior_point_count": 8491,
+          "split_count": 1775,
+          "merge_count": 2167,
+          "invariant_no_parent_descendant_overlap": true,
+          "layers": {
+            "ground_points": 694091,
+            "obstacle_points": 285519,
+            "overhead_points": 94916,
+            "unmodelled_returns": 20895,
+            "rejected_outliers": 0,
+            "cells_with_ground": 200364,
+            "occluded_ground_cells": 29803,
+            "occupied_cells": 230167,
+            "free_cells": 0
+          }
+        },
+        "map_latency_ns": {
+          "count": 9,
+          "mean": 111757153.77777778,
+          "min": 55959407,
+          "max": 196813097,
+          "p50": 100074554,
+          "p95": 196813097,
+          "p99": 196813097
+        },
+        "conservation": {
+          "holds": true,
+          "scope": "active_window_after_frame"
+        }
+      },
+      "enabled": {
+        "seed_support": {
+          "moving_car_4": {
+            "bins": 1200,
+            "resident": 1200,
+            "occupied": 270
+          },
+          "parked_cars": {
+            "bins": 664,
+            "resident": 664,
+            "occupied": 447
+          }
+        },
+        "snapshot": {
+          "active_leaf_count": 232501,
+          "tile_count": 178,
+          "point_count": 1083017,
+          "logical_bytes": 44897088,
+          "memory": {
+            "logical_payload_bytes": 44640192,
+            "retained_prior_payload_bytes": 256896,
+            "allocated_cell_array_bytes": 61678464,
+            "allocated_tile_bytes": 68352,
+            "allocated_index_bytes": 2672832,
+            "allocated_overhead_bytes": 2672832,
+            "allocated_bytes": 64351296
+          },
+          "levels": {
+            "0": 88275,
+            "1": 107218,
+            "2": 32222,
+            "3": 4786
+          },
+          "nonspatial_prior_point_count": 8491,
+          "split_count": 1775,
+          "merge_count": 2167,
+          "invariant_no_parent_descendant_overlap": true,
+          "layers": {
+            "ground_points": 694091,
+            "obstacle_points": 285519,
+            "overhead_points": 94916,
+            "unmodelled_returns": 20895,
+            "rejected_outliers": 0,
+            "cells_with_ground": 200364,
+            "occluded_ground_cells": 29803,
+            "occupied_cells": 220421,
+            "free_cells": 3104
+          },
+          "clearing": {
+            "examined": 37392,
+            "cleared": 6166,
+            "occluded": 10970,
+            "no_evidence": 3922,
+            "spared_by_elevation": 16334
+          }
+        },
+        "map_latency_ns": {
+          "count": 9,
+          "mean": 225513346.1111111,
+          "min": 138307292,
+          "max": 412195868,
+          "p50": 218913755,
+          "p95": 412195868,
+          "p99": 412195868
+        },
+        "conservation": {
+          "holds": true,
+          "scope": "active_window_after_frame"
+        }
+      }
+    },
+    {
+      "frame_id": "000052",
+      "timestamp": 5.403733,
+      "points": 120843,
+      "pipeline_status": {
+        "semantic": "ground_truth",
+        "ground": "pypatchworkpp.patchworkpp",
+        "terrain": "available",
+        "temporal": "available",
+        "diagnostics": [],
+        "semantic_execution": "bypassed",
+        "semantic_requested": "ground_truth",
+        "semantic_fallback_reason": null,
+        "semantic_model": null
+      },
+      "perception_timings_ms": {
+        "sensor_transform": 4.9652509987936355,
+        "semantic": 0.8470089996990282,
+        "ground": 99.58008900139248,
+        "terrain": 47.49971599812852,
+        "temporal": 4102.161424998485,
+        "total": 4269.4568789993355
+      },
+      "unique_track_ids": 1169,
+      "moving_car_seed_bins_still_observed": 0,
+      "disabled": {
+        "seed_support": {
+          "moving_car_4": {
+            "bins": 1200,
+            "resident": 1200,
+            "occupied": 1200
+          },
+          "parked_cars": {
+            "bins": 664,
+            "resident": 664,
+            "occupied": 664
+          }
+        },
+        "snapshot": {
+          "active_leaf_count": 243411,
+          "tile_count": 178,
+          "point_count": 1203860,
+          "logical_bytes": 47065152,
+          "memory": {
+            "logical_payload_bytes": 46734912,
+            "retained_prior_payload_bytes": 330240,
+            "allocated_cell_array_bytes": 63397824,
+            "allocated_tile_bytes": 68352,
+            "allocated_index_bytes": 2744384,
+            "allocated_overhead_bytes": 2744384,
+            "allocated_bytes": 66142208
+          },
+          "levels": {
+            "0": 92004,
+            "1": 112141,
+            "2": 34272,
+            "3": 4994
+          },
+          "nonspatial_prior_point_count": 9486,
+          "split_count": 2215,
+          "merge_count": 2581,
+          "invariant_no_parent_descendant_overlap": true,
+          "layers": {
+            "ground_points": 774705,
+            "obstacle_points": 314975,
+            "overhead_points": 104694,
+            "unmodelled_returns": 23599,
+            "rejected_outliers": 0,
+            "cells_with_ground": 210521,
+            "occluded_ground_cells": 29953,
+            "occupied_cells": 240474,
+            "free_cells": 0
+          }
+        },
+        "map_latency_ns": {
+          "count": 10,
+          "mean": 106391000.5,
+          "min": 55959407,
+          "max": 196813097,
+          "p50": 86676990,
+          "p95": 196813097,
+          "p99": 196813097
+        },
+        "conservation": {
+          "holds": true,
+          "scope": "active_window_after_frame"
+        }
+      },
+      "enabled": {
+        "seed_support": {
+          "moving_car_4": {
+            "bins": 1200,
+            "resident": 1200,
+            "occupied": 262
+          },
+          "parked_cars": {
+            "bins": 664,
+            "resident": 664,
+            "occupied": 411
+          }
+        },
+        "snapshot": {
+          "active_leaf_count": 243411,
+          "tile_count": 178,
+          "point_count": 1203860,
+          "logical_bytes": 47065152,
+          "memory": {
+            "logical_payload_bytes": 46734912,
+            "retained_prior_payload_bytes": 330240,
+            "allocated_cell_array_bytes": 63397824,
+            "allocated_tile_bytes": 68352,
+            "allocated_index_bytes": 2744384,
+            "allocated_overhead_bytes": 2744384,
+            "allocated_bytes": 66142208
+          },
+          "levels": {
+            "0": 92004,
+            "1": 112141,
+            "2": 34272,
+            "3": 4994
+          },
+          "nonspatial_prior_point_count": 9486,
+          "split_count": 2215,
+          "merge_count": 2581,
+          "invariant_no_parent_descendant_overlap": true,
+          "layers": {
+            "ground_points": 774705,
+            "obstacle_points": 314975,
+            "overhead_points": 104694,
+            "unmodelled_returns": 23599,
+            "rejected_outliers": 0,
+            "cells_with_ground": 210521,
+            "occluded_ground_cells": 29953,
+            "occupied_cells": 229711,
+            "free_cells": 3853
+          },
+          "clearing": {
+            "examined": 38889,
+            "cleared": 6669,
+            "occluded": 11445,
+            "no_evidence": 4200,
+            "spared_by_elevation": 16575
+          }
+        },
+        "map_latency_ns": {
+          "count": 10,
+          "mean": 216395113.4,
+          "min": 134331019,
+          "max": 412195868,
+          "p50": 149460181,
+          "p95": 412195868,
+          "p99": 412195868
+        },
+        "conservation": {
+          "holds": true,
+          "scope": "active_window_after_frame"
+        }
+      }
+    },
+    {
+      "frame_id": "000053",
+      "timestamp": 5.5075,
+      "points": 121068,
+      "pipeline_status": {
+        "semantic": "ground_truth",
+        "ground": "pypatchworkpp.patchworkpp",
+        "terrain": "available",
+        "temporal": "available",
+        "diagnostics": [],
+        "semantic_execution": "bypassed",
+        "semantic_requested": "ground_truth",
+        "semantic_fallback_reason": null,
+        "semantic_model": null
+      },
+      "perception_timings_ms": {
+        "sensor_transform": 4.93210700005875,
+        "semantic": 0.8662629988975823,
+        "ground": 146.70314799877815,
+        "terrain": 65.66675000067335,
+        "temporal": 9131.944017000933,
+        "total": 9376.609825001651
+      },
+      "unique_track_ids": 1220,
+      "moving_car_seed_bins_still_observed": 0,
+      "disabled": {
+        "seed_support": {
+          "moving_car_4": {
+            "bins": 1200,
+            "resident": 1200,
+            "occupied": 1200
+          },
+          "parked_cars": {
+            "bins": 664,
+            "resident": 664,
+            "occupied": 664
+          }
+        },
+        "snapshot": {
+          "active_leaf_count": 254069,
+          "tile_count": 178,
+          "point_count": 1324928,
+          "logical_bytes": 49200192,
+          "memory": {
+            "logical_payload_bytes": 48781248,
+            "retained_prior_payload_bytes": 418944,
+            "allocated_cell_array_bytes": 68686848,
+            "allocated_tile_bytes": 68352,
+            "allocated_index_bytes": 2964768,
+            "allocated_overhead_bytes": 2964768,
+            "allocated_bytes": 71651616
+          },
+          "levels": {
+            "0": 95525,
+            "1": 117119,
+            "2": 36158,
+            "3": 5267
+          },
+          "nonspatial_prior_point_count": 12241,
+          "split_count": 2722,
+          "merge_count": 3018,
+          "invariant_no_parent_descendant_overlap": true,
+          "layers": {
+            "ground_points": 853463,
+            "obstacle_points": 344120,
+            "overhead_points": 115104,
+            "unmodelled_returns": 26193,
+            "rejected_outliers": 0,
+            "cells_with_ground": 220042,
+            "occluded_ground_cells": 30426,
+            "occupied_cells": 250468,
+            "free_cells": 0
+          }
+        },
+        "map_latency_ns": {
+          "count": 11,
+          "mean": 108104289.36363636,
+          "min": 55959407,
+          "max": 196813097,
+          "p50": 100074554,
+          "p95": 196813097,
+          "p99": 196813097
+        },
+        "conservation": {
+          "holds": true,
+          "scope": "active_window_after_frame"
+        }
+      },
+      "enabled": {
+        "seed_support": {
+          "moving_car_4": {
+            "bins": 1200,
+            "resident": 1200,
+            "occupied": 250
+          },
+          "parked_cars": {
+            "bins": 664,
+            "resident": 664,
+            "occupied": 382
+          }
+        },
+        "snapshot": {
+          "active_leaf_count": 254069,
+          "tile_count": 178,
+          "point_count": 1324928,
+          "logical_bytes": 49200192,
+          "memory": {
+            "logical_payload_bytes": 48781248,
+            "retained_prior_payload_bytes": 418944,
+            "allocated_cell_array_bytes": 68686848,
+            "allocated_tile_bytes": 68352,
+            "allocated_index_bytes": 2964768,
+            "allocated_overhead_bytes": 2964768,
+            "allocated_bytes": 71651616
+          },
+          "levels": {
+            "0": 95525,
+            "1": 117119,
+            "2": 36158,
+            "3": 5267
+          },
+          "nonspatial_prior_point_count": 12241,
+          "split_count": 2722,
+          "merge_count": 3018,
+          "invariant_no_parent_descendant_overlap": true,
+          "layers": {
+            "ground_points": 853463,
+            "obstacle_points": 344120,
+            "overhead_points": 115104,
+            "unmodelled_returns": 26193,
+            "rejected_outliers": 0,
+            "cells_with_ground": 220042,
+            "occluded_ground_cells": 30426,
+            "occupied_cells": 238677,
+            "free_cells": 4517
+          },
+          "clearing": {
+            "examined": 41250,
+            "cleared": 7202,
+            "occluded": 11771,
+            "no_evidence": 4494,
+            "spared_by_elevation": 17783
+          }
+        },
+        "map_latency_ns": {
+          "count": 11,
+          "mean": 223717883.1818182,
+          "min": 134331019,
+          "max": 412195868,
+          "p50": 218913755,
+          "p95": 412195868,
+          "p99": 412195868
+        },
+        "conservation": {
+          "holds": true,
+          "scope": "active_window_after_frame"
+        }
+      }
+    },
+    {
+      "frame_id": "000054",
+      "timestamp": 5.611107,
+      "points": 121261,
+      "pipeline_status": {
+        "semantic": "ground_truth",
+        "ground": "pypatchworkpp.patchworkpp",
+        "terrain": "available",
+        "temporal": "available",
+        "diagnostics": [],
+        "semantic_execution": "bypassed",
+        "semantic_requested": "ground_truth",
+        "semantic_fallback_reason": null,
+        "semantic_model": null
+      },
+      "perception_timings_ms": {
+        "sensor_transform": 10.832244999619434,
+        "semantic": 1.2463019993447233,
+        "ground": 149.6941350014822,
+        "terrain": 86.66978800101788,
+        "temporal": 9410.104007001792,
+        "total": 9675.596160999703
+      },
+      "unique_track_ids": 1152,
+      "moving_car_seed_bins_still_observed": 0,
+      "disabled": {
+        "seed_support": {
+          "moving_car_4": {
+            "bins": 1200,
+            "resident": 1200,
+            "occupied": 1200
+          },
+          "parked_cars": {
+            "bins": 664,
+            "resident": 664,
+            "occupied": 664
+          }
+        },
+        "snapshot": {
+          "active_leaf_count": 263750,
+          "tile_count": 179,
+          "point_count": 1446189,
+          "logical_bytes": 51129216,
+          "memory": {
+            "logical_payload_bytes": 50640000,
+            "retained_prior_payload_bytes": 489216,
+            "allocated_cell_array_bytes": 69553536,
+            "allocated_tile_bytes": 68736,
+            "allocated_index_bytes": 3103360,
+            "allocated_overhead_bytes": 3103360,
+            "allocated_bytes": 72656896
+          },
+          "levels": {
+            "0": 97627,
+            "1": 122299,
+            "2": 38290,
+            "3": 5534
+          },
+          "nonspatial_prior_point_count": 14758,
+          "split_count": 3140,
+          "merge_count": 3607,
+          "invariant_no_parent_descendant_overlap": true,
+          "layers": {
+            "ground_points": 934771,
+            "obstacle_points": 371431,
+            "overhead_points": 125229,
+            "unmodelled_returns": 29083,
+            "rejected_outliers": 0,
+            "cells_with_ground": 229312,
+            "occluded_ground_cells": 30551,
+            "occupied_cells": 259863,
+            "free_cells": 0
+          }
+        },
+        "map_latency_ns": {
+          "count": 12,
+          "mean": 103865930.5,
+          "min": 55959407,
+          "max": 196813097,
+          "p50": 86676990,
+          "p95": 196813097,
+          "p99": 196813097
+        },
+        "conservation": {
+          "holds": true,
+          "scope": "active_window_after_frame"
+        }
+      },
+      "enabled": {
+        "seed_support": {
+          "moving_car_4": {
+            "bins": 1200,
+            "resident": 1200,
+            "occupied": 243
+          },
+          "parked_cars": {
+            "bins": 664,
+            "resident": 664,
+            "occupied": 368
+          }
+        },
+        "snapshot": {
+          "active_leaf_count": 263750,
+          "tile_count": 179,
+          "point_count": 1446189,
+          "logical_bytes": 51129216,
+          "memory": {
+            "logical_payload_bytes": 50640000,
+            "retained_prior_payload_bytes": 489216,
+            "allocated_cell_array_bytes": 69553536,
+            "allocated_tile_bytes": 68736,
+            "allocated_index_bytes": 3103360,
+            "allocated_overhead_bytes": 3103360,
+            "allocated_bytes": 72656896
+          },
+          "levels": {
+            "0": 97627,
+            "1": 122299,
+            "2": 38290,
+            "3": 5534
+          },
+          "nonspatial_prior_point_count": 14758,
+          "split_count": 3140,
+          "merge_count": 3607,
+          "invariant_no_parent_descendant_overlap": true,
+          "layers": {
+            "ground_points": 934771,
+            "obstacle_points": 371431,
+            "overhead_points": 125229,
+            "unmodelled_returns": 29083,
+            "rejected_outliers": 0,
+            "cells_with_ground": 229312,
+            "occluded_ground_cells": 30551,
+            "occupied_cells": 247023,
+            "free_cells": 5272
+          },
+          "clearing": {
+            "examined": 42582,
+            "cleared": 7971,
+            "occluded": 11873,
+            "no_evidence": 4790,
+            "spared_by_elevation": 17948
+          }
+        },
+        "map_latency_ns": {
+          "count": 12,
+          "mean": 218189311.66666666,
+          "min": 134331019,
+          "max": 412195868,
+          "p50": 157375025,
+          "p95": 412195868,
+          "p99": 412195868
+        },
+        "conservation": {
+          "holds": true,
+          "scope": "active_window_after_frame"
+        }
+      }
+    }
+  ]
+}

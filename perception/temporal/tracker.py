@@ -27,6 +27,12 @@ class MotionEvidence:
     velocity_xy: np.ndarray
     state: np.ndarray
     persistence: np.ndarray
+    # Genuine tracker IDs per point, aligned with the input frame. ``None``
+    # means the tracker did not report identity (legacy caller); ``-1`` marks
+    # a point with no associated track (e.g. an excluded class). Genuine IDs
+    # are the tracker's own monotonic IDs within a sequence, never
+    # regenerated or reused in-sequence; a sequence reset restarts IDs.
+    track_id: np.ndarray | None = None
 
     def __post_init__(self) -> None:
         probability = np.asarray(self.motion_probability, dtype=np.float32).reshape(-1)
@@ -48,12 +54,29 @@ class MotionEvidence:
             raise ValueError("motion state contains an invalid value")
         if np.any(persistence < 1):
             raise ValueError("persistence must be positive for reported points")
+        track_ids: np.ndarray | None = None
+        if self.track_id is not None:
+            track_ids = np.asarray(self.track_id).reshape(-1)
+            if track_ids.size != count:
+                raise ValueError("motion evidence fields must be aligned")
+            if (
+                track_ids.dtype.kind not in "iuf"
+                or not np.isfinite(track_ids).all()
+                or np.any(track_ids != np.floor(track_ids))
+                or np.any(track_ids < -1)
+                or np.any(track_ids > np.iinfo(np.int32).max)
+            ):
+                raise ValueError("track_id must contain genuine IDs or -1")
+            track_ids = track_ids.astype(np.int32, copy=False)
         for array in (probability, velocity, states, persistence):
             array.setflags(write=False)
         object.__setattr__(self, "motion_probability", probability)
         object.__setattr__(self, "velocity_xy", velocity)
         object.__setattr__(self, "state", states)
         object.__setattr__(self, "persistence", persistence)
+        if track_ids is not None:
+            track_ids.setflags(write=False)
+        object.__setattr__(self, "track_id", track_ids)
 
 
 @dataclass(frozen=True)
@@ -342,6 +365,13 @@ class TemporalTracker:
         velocity = np.zeros((points.shape[0], 2), dtype=np.float32)
         state = np.full(points.shape[0], "unknown", dtype="<U15")
         persistence = np.ones(points.shape[0], dtype=np.int32)
+        # Genuine tracker identity per point, independent of the motion
+        # verdict below: every clustered point carries its track's own
+        # monotonic ID, even before its first velocity estimate is valid.
+        # Points with no associated track (excluded classes) stay -1.
+        track_ids = np.full(points.shape[0], -1, dtype=np.int32)
+        for indices in clusters:
+            track_ids[indices] = assignments[id(indices)].track_id
         for indices in clusters:
             track = assignments[id(indices)]
             if not track.motion_valid:
@@ -353,7 +383,7 @@ class TemporalTracker:
                 self._state(speed) if track.confirmed else "possibly_moving"
             )
             persistence[indices] = track.persistence
-        return MotionEvidence(probability, velocity, state, persistence)
+        return MotionEvidence(probability, velocity, state, persistence, track_ids)
 
     def _clusters(self, world: np.ndarray, labels: np.ndarray) -> list[np.ndarray]:
         """Return deterministic exact radius-connected components per class."""

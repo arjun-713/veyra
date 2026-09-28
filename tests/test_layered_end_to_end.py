@@ -408,10 +408,12 @@ class VisibilityClearingEndToEnd(unittest.TestCase):
     def test_departed_obstacle_is_cleared_from_a_real_stream(self) -> None:
         frames = [_wall_scene(True, frame_id="0", timestamp=1.0)]
         # The person leaves; repeated frames supply the repeated contradiction
-        # that clamped log-odds requires before releasing a cell.
+        # that clamped log-odds requires before releasing a cell. The first
+        # two contradictions only arm the visibility streak (kStrikesToDecrement),
+        # so a saturated cell needs 2 + 10 applied misses = 12 frames to read Free.
         frames += [
             _wall_scene(False, frame_id=str(index), timestamp=1.0 + index)
-            for index in range(1, 12)
+            for index in range(1, 13)
         ]
         report = self._run(frames, clearing=True)
 
