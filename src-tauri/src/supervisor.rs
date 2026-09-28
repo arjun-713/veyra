@@ -109,6 +109,7 @@ impl RuntimeSupervisor {
         if self.repo.join("python").is_dir() {
             command.env("PYTHONHOME", self.repo.join("python"));
             command.env("PYTHONPATH", &self.repo);
+            command.env("PYTHONDONTWRITEBYTECODE", "1");
         }
         let mut child = command.spawn().map_err(|error| {
             SupervisorError::Process(format!("failed to start {}: {error}", python.display()))
@@ -548,6 +549,44 @@ mod tests {
 
         assert_eq!(python_executable(&root), executable);
         std::fs::remove_dir_all(root).unwrap();
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn packaged_python_cannot_write_bytecode_into_signed_bundle() {
+        use std::os::unix::fs::PermissionsExt;
+
+        let root =
+            std::env::temp_dir().join(format!("veyra-python-bytecode-test-{}", std::process::id()));
+        let executable = root.join("python/bin/python3");
+        std::fs::create_dir_all(executable.parent().unwrap()).unwrap();
+        std::fs::write(
+            &executable,
+            b"#!/bin/sh\nprintf '%s' \"$PYTHONDONTWRITEBYTECODE\" > bytecode-env.txt\nexec sleep 10\n",
+        )
+        .unwrap();
+        std::fs::set_permissions(&executable, std::fs::Permissions::from_mode(0o755)).unwrap();
+
+        let supervisor = RuntimeSupervisor::new(&root);
+        supervisor.start().unwrap();
+        let marker = root.join("bytecode-env.txt");
+        for _ in 0..100 {
+            if marker.is_file() {
+                break;
+            }
+            std::thread::sleep(Duration::from_millis(10));
+        }
+        let actual = std::fs::read_to_string(&marker).unwrap_or_default();
+        {
+            let mut shared = supervisor.shared.lock().unwrap();
+            shared.stdin.take();
+            if let Some(mut child) = shared.child.take() {
+                let _ = child.kill();
+                let _ = child.wait();
+            }
+        }
+        std::fs::remove_dir_all(root).unwrap();
+        assert_eq!(actual, "1");
     }
 
     fn test_repo() -> std::path::PathBuf {

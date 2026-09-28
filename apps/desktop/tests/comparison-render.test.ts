@@ -28,7 +28,11 @@ test('the comparison shows all four policies with shared input identity and dire
   assert.match(body, /semanticposs · 00 · 10 frames · identical input · stream [0-9a-f]{12}/);
   assert.ok(body.includes('Logical map ↓') && body.includes('Height accuracy ≤10 cm ↑') && body.includes('Critical retention ↑'));
   assert.ok(body.includes('— not measured in this report (never zero)'));
-  assert.ok(body.includes('Ringed: Pareto-optimal'));
+  assert.ok(body.includes('Ringed points are non-dominated'));
+  for (const label of ['Map quality vs measured RSS', 'Map quality vs mapper latency', 'Reconstruction Chamfer vs RSS', 'Map quality vs active cells']) {
+    assert.ok(body.includes(label), label);
+  }
+  assert.ok(body.includes('Reconstruction accuracy distance') && body.includes('Reconstruction completion distance'));
   assert.ok(body.includes('DATASET GROUND TRUTH'), 'ground-truth mIoU is labelled');
   assert.ok(body.includes('ANALYTICAL') && body.includes('est. '), 'dense 3D is an analytical estimate');
   assert.match(body, /Measured sparse 3D baseline<\/strong><\/td><td><span class="chip">UNAVAILABLE/);
@@ -42,8 +46,8 @@ test('an incomplete comparison says so and draws no frontier', async () => {
   const body = await html('ComparisonEvidence', {report: partial, meta: {...meta, complete: false, issues: ['Provenance is missing: commit, host and input identity are unavailable.']}});
   assert.ok(body.includes('INPUTS DIFFER — not comparable'));
   assert.ok(body.includes('not a like-for-like comparison'));
-  assert.ok(body.includes('No frontier drawn'));
-  assert.ok(!body.includes('Ringed: Pareto-optimal'));
+  assert.ok(body.includes('PARTIAL / UNVERIFIED') && body.includes('no Pareto claim'));
+  assert.ok(!body.includes('Ringed points are non-dominated'));
   assert.ok(body.includes('INCOMPLETE') && body.includes('Provenance is missing'));
   assert.ok(body.includes('Semantic quality<span>UNAVAILABLE'), 'generic reports have no semantic evaluation');
 });

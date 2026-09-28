@@ -167,8 +167,9 @@ jobs:
               --skip-build; then
               rc=0
               break
+            else
+              rc=$?
             fi
-            rc=$?
             if [[ "$rc" != 124 && "$rc" != 137 && "$rc" != 143 ]]; then
               echo "map benchmark failed with non-transient exit $rc" >&2
               exit "$rc"
