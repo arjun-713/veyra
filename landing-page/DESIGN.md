@@ -40,6 +40,7 @@ reduced motion.
 ## Honesty rules (structural)
 
 Benchmarks only in `lib/benchmark-data.ts` (FINAL fixed-benchmarks round:
-DistanceLOD headline, UtilityLOD experimental). Downloads only in
-`lib/releases.ts`, all cards linking the real GitHub releases page with
-ships-with-first-tag microcopy. Screenshots are labeled `.webp` placeholders.
+DistanceLOD headline, UtilityLOD experimental). Download-card metadata is in
+`lib/releases.ts`; only actual installer assets returned by `/api/releases`
+become direct download links. Missing assets link to GitHub Releases.
+Screenshots are labeled `.webp` placeholders.

@@ -1,26 +1,26 @@
 /**
- * Download manifest — single source of truth.
- * Pre-release, every card CTA links the GitHub releases page (muted,
- * with an explanatory tooltip); once an artifact's `url` points at a
- * real asset, `isArtifactLive()` flips that card to a direct download.
- * Fine print states release status honestly.
+ * Download-card metadata. Availability and URLs are resolved from the
+ * public GitHub Releases API; this file never claims an asset exists.
  */
 
 export type OSName = "Linux" | "Windows" | "macOS";
+export type ReleaseArtifactId =
+  | "linux-deb"
+  | "linux-rpm"
+  | "linux-appimage"
+  | "windows-nsis"
+  | "macos-arm"
+  | "macos-intel";
 
 export interface ReleaseArtifact {
-  id: string;
+  id: ReleaseArtifactId;
   os: OSName;
   title: string;
   detail: string;
   arch: string;
   format: string;
-  url: string;
-  availability: string;
-  /** Filename pattern the tagged release will publish (Tauri bundle naming). */
+  /** Expected Tauri filename, shown only while no matching asset is published. */
   filename: string;
-  /** Size placeholder shown until binaries ship. */
-  size: string;
   /** Install + run steps shown on the card. Rendered in order. */
   steps: string[];
   /** Short caution shown under the steps (gate / SmartScreen / chmod). */
@@ -29,17 +29,62 @@ export interface ReleaseArtifact {
   recommended?: boolean;
 }
 
+export interface PublishedReleaseAsset {
+  name: string;
+  browser_download_url: string;
+  size: number;
+}
+
+export type ReleaseLookupResponse =
+  | {
+      status: "available";
+      release: { tag_name: string; html_url: string; assets: PublishedReleaseAsset[] };
+    }
+  | { status: "empty" }
+  | { status: "error"; message: string };
+
+const ASSET_MATCHERS: Record<ReleaseArtifactId, RegExp> = {
+  "linux-deb": /^veyra.*_(amd64|x86_64)\.deb$/i,
+  "linux-rpm": /^veyra.*\.(x86_64|amd64)\.rpm$/i,
+  "linux-appimage": /^veyra.*_(amd64|x86_64)\.appimage$/i,
+  "windows-nsis": /^veyra.*[_-]x64-setup\.exe$/i,
+  "macos-arm": /^veyra.*_(aarch64|arm64)\.dmg$/i,
+  "macos-intel": /^veyra.*_(x64|x86_64)\.dmg$/i,
+};
+
+/** Match only native installers whose Tauri filename identifies the card's OS/architecture. */
+export function matchReleaseAssets(
+  assets: PublishedReleaseAsset[],
+): Partial<Record<ReleaseArtifactId, PublishedReleaseAsset>> {
+  const matches: Partial<Record<ReleaseArtifactId, PublishedReleaseAsset>> = {};
+  for (const artifact of RELEASES) {
+    const matcher = ASSET_MATCHERS[artifact.id];
+    const asset = assets.find(
+      (candidate) =>
+        matcher.test(candidate.name) &&
+        candidate.browser_download_url.startsWith("https://github.com/") &&
+        Number.isFinite(candidate.size) &&
+        candidate.size >= 0,
+    );
+    if (asset) matches[artifact.id] = asset;
+  }
+  return matches;
+}
+
+export function formatAssetSize(bytes: number): string {
+  if (bytes < 1024) return `${bytes} B`;
+  const units = ["KB", "MB", "GB", "TB"];
+  let value = bytes;
+  let unit = -1;
+  do {
+    value /= 1024;
+    unit += 1;
+  } while (value >= 1024 && unit < units.length - 1);
+  return `${value.toFixed(1)} ${units[unit]}`;
+}
+
 export const GITHUB_URL = "https://github.com/arjun-713/veyra";
 export const RELEASES_URL = "https://github.com/arjun-713/veyra/releases";
-
-/**
- * True once a tagged release publishes a real asset URL for this artifact.
- * Cards stay honestly disabled while `url` still points at the releases
- * index; flipping `url` to the asset is the only change needed to go live.
- */
-export function isArtifactLive(a: ReleaseArtifact): boolean {
-  return a.url !== RELEASES_URL;
-}
 
 export const RELEASES: ReleaseArtifact[] = [
   {
@@ -49,13 +94,10 @@ export const RELEASES: ReleaseArtifact[] = [
     detail: "Ubuntu 24.04 and derivatives",
     arch: "x64",
     format: ".deb",
-    url: RELEASES_URL,
-    availability: "Ships with the first tagged release",
-    filename: "veyra_*.amd64.deb",
-    size: "Size on first release",
+    filename: "Veyra_*_amd64.deb",
     steps: [
       "Download the .deb for your release tag",
-      "Install with: sudo apt install ./veyra_*.amd64.deb",
+      "Install with: sudo apt install ./Veyra_*_amd64.deb",
       "Launch with: veyra",
     ],
     note: "Uses the system package manager — upgrades come with apt.",
@@ -68,13 +110,10 @@ export const RELEASES: ReleaseArtifact[] = [
     detail: "Fedora 44 and derivatives",
     arch: "x64",
     format: ".rpm",
-    url: RELEASES_URL,
-    availability: "Ships with the first tagged release",
-    filename: "veyra-*.x86_64.rpm",
-    size: "Size on first release",
+    filename: "Veyra-*.x86_64.rpm",
     steps: [
       "Download the .rpm for your release tag",
-      "Install with: sudo dnf install ./veyra-*.x86_64.rpm",
+      "Install with: sudo dnf install ./Veyra-*.x86_64.rpm",
       "Launch with: veyra",
     ],
     note: "Uses the system package manager — upgrades come with dnf.",
@@ -86,14 +125,11 @@ export const RELEASES: ReleaseArtifact[] = [
     detail: "Any distro, no install",
     arch: "x64",
     format: ".AppImage",
-    url: RELEASES_URL,
-    availability: "Ships with the first tagged release",
-    filename: "veyra_*.amd64.AppImage",
-    size: "Size on first release",
+    filename: "Veyra_*_amd64.AppImage",
     steps: [
       "Download the .AppImage for your release tag",
-      "Make it executable: chmod +x ./veyra_*.AppImage",
-      "Run it: ./veyra_*.AppImage",
+      "Make it executable: chmod +x ./Veyra_*_amd64.AppImage",
+      "Run it: ./Veyra_*_amd64.AppImage",
     ],
     note: "No root needed. Stays where you put it — good for field laptops.",
   },
@@ -104,10 +140,7 @@ export const RELEASES: ReleaseArtifact[] = [
     detail: "Windows 10 / 11, 64-bit",
     arch: "x64",
     format: ".exe",
-    url: RELEASES_URL,
-    availability: "Ships with the first tagged release",
-    filename: "veyra_*-x64-setup.exe",
-    size: "Size on first release",
+    filename: "Veyra_*_x64-setup.exe",
     steps: [
       "Download the -setup.exe for your release tag",
       "Run it and follow the install wizard",
@@ -123,10 +156,7 @@ export const RELEASES: ReleaseArtifact[] = [
     detail: "macOS on ARM64",
     arch: "arm64",
     format: ".dmg",
-    url: RELEASES_URL,
-    availability: "Ships with the first tagged release",
-    filename: "veyra_*-aarch64.dmg",
-    size: "Size on first release",
+    filename: "Veyra_*_aarch64.dmg",
     steps: [
       "Download the aarch64 .dmg for your release tag",
       "Open it and drag Veyra into Applications",
@@ -142,10 +172,7 @@ export const RELEASES: ReleaseArtifact[] = [
     detail: "macOS on x64",
     arch: "x64",
     format: ".dmg",
-    url: RELEASES_URL,
-    availability: "Ships with the first tagged release",
-    filename: "veyra_*-x64.dmg",
-    size: "Size on first release",
+    filename: "Veyra_*_x64.dmg",
     steps: [
       "Download the x64 .dmg for your release tag",
       "Open it and drag Veyra into Applications",

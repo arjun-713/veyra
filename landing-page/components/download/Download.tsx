@@ -6,8 +6,12 @@ import {
   RELEASES,
   RELEASES_URL,
   SOURCE_BUILD,
-  isArtifactLive,
+  formatAssetSize,
+  matchReleaseAssets,
   type OSName,
+  type PublishedReleaseAsset,
+  type ReleaseArtifactId,
+  type ReleaseLookupResponse,
 } from "../../lib/releases";
 import "./Download.css";
 
@@ -62,6 +66,10 @@ function detectedLabel(d: Detected): string {
 export default function Download() {
   const [selected, setSelected] = useState<OSName>("Linux");
   const [detected, setDetected] = useState<Detected | null>(null);
+  const [releaseState, setReleaseState] = useState<"loading" | "available" | "empty" | "error">("loading");
+  const [releaseTag, setReleaseTag] = useState<string | null>(null);
+  const [releaseUrl, setReleaseUrl] = useState(RELEASES_URL);
+  const [releaseAssets, setReleaseAssets] = useState<Partial<Record<ReleaseArtifactId, PublishedReleaseAsset>>>({});
   const tabRefs = useRef<Array<HTMLButtonElement | null>>([]);
 
   useEffect(() => {
@@ -71,6 +79,30 @@ export default function Download() {
     // eslint-disable-next-line react-hooks/set-state-in-effect
     setDetected(d);
     setSelected(d.os);
+  }, []);
+
+  useEffect(() => {
+    const controller = new AbortController();
+    void fetch("/api/releases", { signal: controller.signal })
+      .then(async (response) => {
+        const body = (await response.json()) as ReleaseLookupResponse;
+        if (!response.ok || body.status === "error") {
+          throw new Error(body.status === "error" ? body.message : "Release lookup failed");
+        }
+        if (body.status === "empty") {
+          setReleaseState("empty");
+          return;
+        }
+        setReleaseTag(body.release.tag_name);
+        setReleaseUrl(body.release.html_url);
+        setReleaseAssets(matchReleaseAssets(body.release.assets));
+        setReleaseState("available");
+      })
+      .catch((error: unknown) => {
+        if (error instanceof DOMException && error.name === "AbortError") return;
+        setReleaseState("error");
+      });
+    return () => controller.abort();
   }, []);
 
   const onTabKeyDown = (e: React.KeyboardEvent, index: number) => {
@@ -135,14 +167,34 @@ export default function Download() {
               {selected} builds
             </h2>
             <p className="body-lead">{OS_BLURB[selected]}</p>
+            <p className="dl-release-status measure" aria-live="polite">
+              {releaseState === "loading" && "Checking published installers…"}
+              {releaseState === "available" && releaseTag && (
+                <>
+                  Latest desktop release: <a href={releaseUrl} target="_blank" rel="noreferrer">{releaseTag}</a>
+                </>
+              )}
+              {releaseState === "empty" && "No published desktop installers yet."}
+              {releaseState === "error" && "Release availability could not be checked."}
+            </p>
           </div>
         </Reveal>
 
         {/* Per-OS cards */}
         <div className="dl-grid">
           {cards.map((a) => {
-            const live = isArtifactLive(a);
+            const asset = releaseAssets[a.id];
+            const live = releaseState === "available" && Boolean(asset);
             const isRec = a.id === recommendedId;
+            const availability = releaseState === "loading"
+              ? "Checking published release assets"
+              : releaseState === "error"
+                ? "Could not check GitHub releases"
+                : releaseState === "empty"
+                  ? "No published installers yet"
+                  : asset
+                    ? `Available in ${releaseTag}`
+                    : "Not included in the latest release";
             return (
               <Reveal key={a.id}>
                 <article
@@ -162,7 +214,7 @@ export default function Download() {
                   <dl className="dl-meta measure">
                     <div>
                       <dt>File</dt>
-                      <dd>{a.filename}</dd>
+                      <dd>{asset?.name ?? a.filename}</dd>
                     </div>
                     <div>
                       <dt>Arch</dt>
@@ -170,7 +222,7 @@ export default function Download() {
                     </div>
                     <div>
                       <dt>Size</dt>
-                      <dd>{a.size}</dd>
+                      <dd>{asset ? formatAssetSize(asset.size) : "Unavailable"}</dd>
                     </div>
                   </dl>
 
@@ -184,33 +236,32 @@ export default function Download() {
 
                   <div className="dl-cta">
                     {live ? (
-                      <a className="dl-btn" href={a.url}>
+                      <a className="dl-btn" href={asset?.browser_download_url}>
                         Download {a.format}
                       </a>
                     ) : (
                       <a
-                        className="dl-btn is-disabled"
+                        className="dl-btn is-unavailable"
                         href={RELEASES_URL}
                         target="_blank"
                         rel="noreferrer"
-                        aria-disabled="true"
-                        title={`${a.availability}. Opens the GitHub releases page.`}
+                        title={`${availability}. Opens the GitHub releases page.`}
                       >
-                        Download {a.format}
+                        View releases
                       </a>
                     )}
                     <p className="dl-avail measure">
                       {live ? (
                         <>
                           <span className="dl-live-dot" aria-hidden="true" />
-                          Available now ·{" "}
-                          <a href={RELEASES_URL} target="_blank" rel="noreferrer">
+                          {availability} ·{" "}
+                          <a href={releaseUrl} target="_blank" rel="noreferrer">
                             All releases
                           </a>
                         </>
                       ) : (
                         <>
-                          {a.availability} ·{" "}
+                          {availability} ·{" "}
                           <a href={RELEASES_URL} target="_blank" rel="noreferrer">
                             GitHub releases
                           </a>

@@ -93,6 +93,23 @@
   margin-bottom: 14px;
 }
 
+.dl-release-status {
+  margin-top: 14px;
+  font-size: 12.5px;
+  color: var(--muted);
+}
+
+.dl-release-status a {
+  color: var(--teal-ink);
+  font-weight: 600;
+  text-decoration: none;
+}
+
+.dl-release-status a:hover {
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
 /* Cards */
 .dl-grid {
   display: grid;
@@ -248,19 +265,16 @@ a.dl-btn:active {
   transform: translateY(0);
 }
 
-/* Pre-release: muted, but still a real link to the releases page.
-   `help` cursor pairs with the title tooltip explaining the status;
-   tooltips are suppressed on disabled <button>s, which is why this is
-   an anchor with aria-disabled instead. */
-.dl-btn.is-disabled {
+/* Unavailable installers link to GitHub releases rather than a dead CTA. */
+.dl-btn.is-unavailable {
   background: var(--paper-soft);
   color: var(--muted);
   border: 1px solid var(--line);
   box-shadow: none;
-  cursor: help;
+  cursor: pointer;
 }
 
-a.dl-btn.is-disabled:hover {
+a.dl-btn.is-unavailable:hover {
   background: var(--paper-soft);
   border-color: var(--muted);
   transform: none;
