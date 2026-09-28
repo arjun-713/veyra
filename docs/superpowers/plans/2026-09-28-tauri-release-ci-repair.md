@@ -26,7 +26,7 @@
 - [x] Use the failing Windows release job as the regression: it reported `apps/player/main.cpp:6` could not include `unistd.h`, then exposed `-Wextra` passed to MSVC as `/Wextra`.
 - [x] Use `_execvp`/`python.exe` on Windows and `execvp`/`python3` elsewhere, retaining current argument and failure semantics.
 - [x] Centralize warning/assertion compile options so MSVC receives `/W4` and `/UNDEBUG`; other compilers retain `-Wall -Wextra -Wpedantic` and `-UNDEBUG`.
-- [x] Fix the follow-on MSVC entrypoint error by including standard I/O declarations and qualifying `stdin`/`stdout`.
+- [x] Fix the follow-on MSVC entrypoint error by including `<cstdio>`; keep `stdin`/`stdout` unqualified because MSVC exposes them as macros.
 - [ ] Require the corrected release matrix to compile all Windows targets.
 
 ### Task 2: Make macOS backend staging robust to framework diagnostics
