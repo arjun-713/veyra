@@ -1,10 +1,48 @@
 import os
 import unittest
+from unittest.mock import patch
 
 from runtime.telemetry import Telemetry, processing_fps, rss_bytes
 
 
 class RuntimeTelemetryTests(unittest.TestCase):
+    def test_report_exposes_monotonic_elapsed_time_separate_from_wall_clock(self):
+        telemetry = Telemetry()
+        telemetry.started_at = 100.0
+        with patch("runtime.telemetry.time.monotonic", return_value=102.5), patch(
+            "runtime.telemetry.time.time", return_value=1_800_000_000.0
+        ):
+            report = telemetry.report(
+                {
+                    "state": "running",
+                    "index": 0,
+                    "frames": 1,
+                    "queue_depth": 0,
+                    "dropped_frames": 0,
+                    "visualization_dropped": 0,
+                },
+                {"map": {"metrics": {}, "snapshot": {}}},
+                None,
+                None,
+            )
+
+        self.assertEqual(report["elapsed_ms"], 2500.0)
+        self.assertEqual(report["timestamp"], 1_800_000_000.0)
+
+    def test_report_preserves_mapper_latency_sample_count_for_percentile_gate(self):
+        report = Telemetry().report(
+            {"state": "running", "index": 18, "frames": 20, "queue_depth": 0,
+             "dropped_frames": 0, "visualization_dropped": 0},
+            {"map": {"metrics": {"map_update_latency_ns": {
+                "count": 20, "p50": 5_000_000, "p95": 9_000_000,
+            }}, "snapshot": {}}},
+            None,
+            None,
+        )
+        self.assertEqual(report["latency_ms"]["mapping_samples"], 20)
+        self.assertEqual(report["latency_ms"]["mapping_p50"], 5.0)
+        self.assertEqual(report["latency_ms"]["mapping_p95"], 9.0)
+
     def test_rss_measurement_reads_the_named_process(self):
         self.assertGreater(rss_bytes(os.getpid()), 0)
 
