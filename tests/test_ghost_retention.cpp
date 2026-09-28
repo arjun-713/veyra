@@ -390,15 +390,20 @@ int main() {
   CHECK(re_missed.logodds ==
         static_cast<std::int16_t>(veyra::map::logodds::kHit + 2 * veyra::map::logodds::kMiss));
   CHECK(re_missed.count == 9);
-  // The object returns: 9 fresh obstacle hits fold in by count-weighted
-  // average -- (37*9 + 847*9)/18 = 442 exactly -- and reset the streak.
-  // Recovery through ingestion is gradual by design (averaging); what the
-  // strike rule guarantees is that re-observation breaks the streak at once.
+  // The object returns. The scan's obstacle returns apply ONE clamped kHit to
+  // the pre-scan log-odds (37 + 847 = 884), floored at the Occupied threshold:
+  // a surface measured in this scan reads Occupied in this scan. (Before, the
+  // 9 hits were count-averaged in -- (37*9 + 847*9)/18 = 442 -- and the cell
+  // stayed Unknown while being hit, which is the defect measured on
+  // SemanticPOSS 00.) The streak resets at once.
+  constexpr std::int16_t kReacquired =
+      veyra::map::logodds::kHit + 2 * veyra::map::logodds::kMiss + veyra::map::logodds::kHit;
   run_frame(reacquire_session, 6000, 5, reacquire_frame0);
   const CellView re_back = find_cell(reacquire_session.result().snapshot, kPedX, kPedY);
   CHECK(re_back.found);
   CHECK(re_back.streak == 0);
-  CHECK(re_back.logodds == 442);
+  CHECK(re_back.logodds == kReacquired);
+  CHECK(veyra::map::logodds::state_of(re_back.logodds) == veyra::map::OccupancyState::Occupied);
   CHECK(re_back.free_obs == 2);  // clearing skipped this frame (same-scan hit)
   CHECK(re_back.count == re_missed.count + 9);
   // One follow-up contradiction re-arms without decrementing.
@@ -406,7 +411,7 @@ int main() {
   const CellView re_flicker = find_cell(reacquire_session.result().snapshot, kPedX, kPedY);
   CHECK(re_flicker.found);
   CHECK(re_flicker.streak == 1);
-  CHECK(re_flicker.logodds == 442);
+  CHECK(re_flicker.logodds == kReacquired);
   CHECK(re_flicker.free_obs == 2);
   CHECK(reacquire_session.result().clearing->cleared == 0);
   CHECK(reacquire_session.result().clearing->armed == 1);

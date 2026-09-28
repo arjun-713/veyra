@@ -264,6 +264,18 @@ struct MapConfig {
   // Range slack before a measured return counts as lying beyond a cell.
   // Without it, range noise on a surface lets that surface clear itself.
   double clearing_margin_m = 0.10;
+  // Measurement uncertainty visibility clearing must respect. sigma(r) comes
+  // from the same range-dependent SensorNoiseModel ingestion gating uses
+  // (defaults: 2 cm + 0.0017*r, order-of-magnitude, not a calibrated unit).
+  // A contradicting return must lie beyond the cell's footprint exit by
+  // max(clearing_margin_m, clearing_range_sigmas * sigma(r)), and cross the
+  // claimed extent at least clearing_height_sigmas * sigma(r) inside its
+  // edges. Measured on SemanticPOSS 00 (docs/p02-bounded-clearing-contract.md):
+  // without these, beams ending a few cm past a static surface, or grazing
+  // the top of a parked car, eroded it.
+  SensorNoiseModel clearing_noise{};
+  double clearing_range_sigmas = 3.0;
+  double clearing_height_sigmas = 1.0;
   // Height above the fitted ground at which a return stops being an obstacle
   // the vehicle strikes and becomes overhead structure it passes under. This
   // is a property of the platform the map is built for; classify() refuses

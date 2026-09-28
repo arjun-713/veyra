@@ -35,6 +35,17 @@ class DepthImage {
   // beams, which read as "nothing measured here" and suppress clearing.
   DepthImage(std::size_t azimuth_bins, std::size_t elevation_bins, double elevation_min_rad,
              double elevation_max_rad);
+  // Non-uniform rows: `row_edges_rad` is strictly increasing, and row i spans
+  // [row_edges_rad[i], row_edges_rad[i+1]). Needed for sensors whose beams are
+  // not evenly spaced (Hesai Pandora/Pandar40: 1 deg at the edges of its FOV,
+  // 0.33 deg in the middle), where a uniform grid folds two beams into one row
+  // -- nearest wins, so the other beam's evidence is silently discarded -- and
+  // leaves other rows permanently empty.
+  DepthImage(std::size_t azimuth_bins, std::vector<double> row_edges_rad);
+  // One row per beam, centred on each beam's elevation, with edges halfway
+  // between neighbouring beams. `beam_elevations_rad` need not be sorted.
+  [[nodiscard]] static DepthImage for_beams(std::size_t azimuth_bins,
+                                            std::vector<double> beam_elevations_rad);
 
   // Folds one world-frame return into the raster.
   void insert(double x, double y, double z, const SensorPose& pose);
@@ -58,6 +69,8 @@ class DepthImage {
   // image actually has instead of inventing their own sampling and aliasing
   // against it.
   [[nodiscard]] double elevation_of_row(std::size_t row) const noexcept;
+  // Row holding `elevation_rad`, clamped into the raster.
+  [[nodiscard]] std::size_t row_of(double elevation_rad) const noexcept;
   // Actual elevation of the nearest measured return, not the raster centre.
   [[nodiscard]] double measured_elevation_at(double azimuth_rad, double elevation_rad) const;
   [[nodiscard]] double measured_azimuth_at(double azimuth_rad, double elevation_rad) const;
@@ -82,6 +95,9 @@ class DepthImage {
   std::size_t elevation_bins_;
   double elevation_min_;
   double elevation_max_;
+  // Empty for a uniform raster (arithmetic indexing); otherwise the
+  // elevation_bins_ + 1 row edges.
+  std::vector<double> row_edges_;
   std::size_t filled_ = 0;
   // Negative means empty. float is ample: this is a range in metres used for a
   // comparison with a centimetre-scale margin, never accumulated.
@@ -120,6 +136,20 @@ struct ClearingStats {
   std::size_t spared_by_elevation = 0;
 };
 
+// How much measurement uncertainty a through-beam must clear before it counts
+// as contradicting a cell. Defaults reproduce the bare geometric test (fixed
+// margin only); Map passes its configured sensor noise model.
+struct ClearingTolerance {
+  // Range-dependent sensor noise; nullptr disables the noise terms.
+  const SensorNoiseModel* noise = nullptr;
+  // The return must lie beyond the footprint exit by max(margin_m,
+  // range_sigmas * sigma(r)).
+  double range_sigmas = 0.0;
+  // A beam traverses the claim only through [min_z + h, max_z - h] with
+  // h = height_sigmas * sigma(r); grazing the edges is not a traversal.
+  double height_sigmas = 0.0;
+};
+
 // Result of testing one cell's obstacle evidence against one scan.
 enum class ClearingOutcome : std::uint8_t {
   NoObstacle = 0,         // nothing claimed here to contradict
@@ -147,6 +177,7 @@ enum class ClearingOutcome : std::uint8_t {
 [[nodiscard]] ClearingOutcome test_cell_against_scan(const CellStats& stats, double centre_x,
                                                      double centre_y, const DepthImage& image,
                                                      const SensorPose& pose, double margin_m,
-                                                     double half_width_m = 0.0);
+                                                     double half_width_m = 0.0,
+                                                     const ClearingTolerance& tolerance = {});
 
 }  // namespace veyra::map
