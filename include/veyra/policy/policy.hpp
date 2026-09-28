@@ -188,6 +188,20 @@ class LodPolicy {
   std::optional<std::uint64_t> frame_id_;
   std::uint64_t implicit_frame_id_ = 0;
   std::unordered_map<core::CellId, AdaptationState, core::CellIdHash> states_;
+  // Lookup cache for the most recent region; cleared wherever states_ erases.
+  // Copying or moving a policy drops it, so it can never point into another
+  // policy's table.
+  struct StateCache {
+    core::CellId cell{3, 0, 0};
+    AdaptationState* state = nullptr;
+    StateCache() = default;
+    StateCache(const StateCache&) noexcept {}
+    StateCache& operator=(const StateCache&) noexcept {
+      state = nullptr;
+      return *this;
+    }
+  };
+  StateCache state_cache_;
   bool promotion_telemetry_enabled_ = false;
   PromotionTelemetry promotion_telemetry_{};
 };
