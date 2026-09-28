@@ -274,6 +274,10 @@ class Telemetry:
         )
         semantic_actual = pipeline_status.get("semantic", "unavailable")
         semantic_fallback_reason = pipeline_status.get("semantic_fallback_reason")
+        semantic_device_requested = pipeline_status.get("semantic_device_requested")
+        semantic_device_fallback_reason = pipeline_status.get(
+            "semantic_device_fallback_reason"
+        )
         # Fail-closed model identity (issue #53, review point 7): `model`
         # is the VERIFIED checkpoint identity from pipeline status only.
         # Static config (model/checkpoint) must never fill `model` -- on a
@@ -411,6 +415,8 @@ class Telemetry:
                 "semantic_requested": semantic_requested,
                 "semantic_actual": semantic_actual,
                 "semantic_fallback_reason": semantic_fallback_reason,
+                "semantic_device_requested": semantic_device_requested,
+                "semantic_device_fallback_reason": semantic_device_fallback_reason,
                 "points": point_count,
                 "sampled_points": len(semantic) if semantic is not None else None,
                 "ground_ratio": (

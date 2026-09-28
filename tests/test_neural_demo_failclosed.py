@@ -24,7 +24,7 @@ class FakeCENet:
 
     supported_datasets = frozenset({"semanticposs"})
 
-    def __init__(self, checkpoint_path, *, threads=4):
+    def __init__(self, checkpoint_path, *, threads=4, device="cpu"):
         self.checkpoint_path = Path(checkpoint_path)
         self.threads = threads
         self.inference_calls = 0

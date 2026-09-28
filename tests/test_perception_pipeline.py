@@ -496,7 +496,7 @@ class CenetModeTests(unittest.TestCase):
         class FakeCENet:
             supported_datasets = frozenset({"semanticposs"})
 
-            def __init__(self, checkpoint_path, *, threads=4):
+            def __init__(self, checkpoint_path, *, threads=4, device="cpu"):
                 self.checkpoint_path = Path(checkpoint_path)
                 self.threads = threads
 
@@ -554,6 +554,135 @@ class CenetModeTests(unittest.TestCase):
                     {"mode": "cenet", "checkpoint": "/mock/x.bin", "threads": 0}
                 )
             )
+
+    def test_cenet_mode_rejects_invalid_device(self):
+        for device in ("cuda", "gpu", 1, None):
+            with self.assertRaisesRegex(Exception, "device"):
+                PerceptionPipeline.from_config(
+                    self._config(
+                        {"mode": "cenet", "checkpoint": "/mock/x.bin", "device": device}
+                    )
+                )
+
+    def test_cenet_device_fallback_is_visible_and_not_a_ground_truth_fallback(self):
+        seen = {}
+
+        class FakeAutoCENet:
+            supported_datasets = frozenset({"semanticposs"})
+
+            def __init__(self, checkpoint_path, *, threads=4, device="cpu"):
+                seen["device"] = device
+                self.checkpoint_path = Path(checkpoint_path)
+                self.requested_device = device
+                self.device_fallback_reason = None
+
+            @property
+            def execution_device(self):
+                return "cpu" if self.device_fallback_reason else "mps:0"
+
+            def infer(self, points, labels=None):
+                del labels
+                count = np.asarray(points).shape[0]
+                return SemanticResult(
+                    np.zeros(count, dtype=np.int32),
+                    np.zeros(count, dtype=np.float32),
+                    "model",
+                )
+
+        with tempfile.TemporaryDirectory() as directory:
+            weights = Path(directory) / "mock-weights.bin"
+            weights.write_bytes(b"mock-cenet-weights")
+            with mock.patch(
+                "perception.semantic.cenet.CENetSemanticProvider", FakeAutoCENet
+            ):
+                pipeline = PerceptionPipeline.from_config(
+                    self._config(
+                        {"mode": "cenet", "checkpoint": str(weights), "device": "auto"}
+                    )
+                )
+        self.assertEqual(seen["device"], "auto")
+        frame = replace(_frame(), dataset="semanticposs")
+        accelerated = pipeline.process(frame).status
+        self.assertEqual(accelerated.semantic_execution, "mps:0")
+        self.assertEqual(accelerated.semantic_device_requested, "auto")
+        self.assertIsNone(accelerated.semantic_device_fallback_reason)
+
+        # A mid-run accelerator failure degrades to CPU: visible per frame,
+        # the model still runs, and it is never a ground_truth fallback.
+        pipeline.semantic_provider.device_fallback_reason = (
+            "auto: MPS inference failed (RuntimeError: x); running on cpu"
+        )
+        degraded = pipeline.process(frame).status
+        self.assertEqual(degraded.semantic, "model")
+        self.assertEqual(degraded.semantic_execution, "cpu")
+        self.assertIsNone(degraded.semantic_fallback_reason)
+        self.assertIn("MPS inference failed", degraded.semantic_device_fallback_reason)
+        self.assertTrue(
+            any("semantic device fallback" in d for d in degraded.diagnostics)
+        )
+
+        from runtime.telemetry import Telemetry
+
+        report = Telemetry().report(
+            {
+                "state": "paused",
+                "index": 0,
+                "frames": 1,
+                "queue_depth": 0,
+                "dropped_frames": 0,
+                "visualization_dropped": 0,
+            },
+            {
+                "n_points": 3,
+                "semantic_labels": [0, 0, 0],
+                "pipeline_status": {
+                    "semantic": degraded.semantic,
+                    "ground": degraded.ground,
+                    "terrain": degraded.terrain,
+                    "temporal": degraded.temporal,
+                    "diagnostics": list(degraded.diagnostics),
+                    "semantic_execution": degraded.semantic_execution,
+                    "semantic_requested": degraded.semantic_requested,
+                    "semantic_fallback_reason": degraded.semantic_fallback_reason,
+                    "semantic_device_requested": degraded.semantic_device_requested,
+                    "semantic_device_fallback_reason": (
+                        degraded.semantic_device_fallback_reason
+                    ),
+                },
+            },
+            None,
+            None,
+            {"mode": "cenet", "device": "auto"},
+        )
+        perception = report["perception"]
+        self.assertEqual(perception["execution_provider"], "cpu")
+        self.assertEqual(perception["semantic_actual"], "model")
+        self.assertIsNone(perception["semantic_fallback_reason"])
+        self.assertEqual(perception["semantic_device_requested"], "auto")
+        self.assertIn(
+            "MPS inference failed", perception["semantic_device_fallback_reason"]
+        )
+
+    def test_cenet_device_defaults_to_cpu(self):
+        seen = {}
+
+        class FakeCENet:
+            supported_datasets = frozenset({"semanticposs"})
+
+            def __init__(self, checkpoint_path, *, threads=4, device="cpu"):
+                seen["device"] = device
+                self.checkpoint_path = Path(checkpoint_path)
+
+        with tempfile.TemporaryDirectory() as directory:
+            weights = Path(directory) / "mock-weights.bin"
+            weights.write_bytes(b"mock-cenet-weights")
+            with mock.patch(
+                "perception.semantic.cenet.CENetSemanticProvider", FakeCENet
+            ):
+                PerceptionPipeline.from_config(
+                    self._config({"mode": "cenet", "checkpoint": str(weights)})
+                )
+        self.assertEqual(seen["device"], "cpu")
 
     def test_cenet_build_pipeline_keeps_blank_checkpoint_unresolved(self):
         from viewer.runtime import build_pipeline
