@@ -55,6 +55,12 @@ struct Options {
   // deliberately and on both sides rather than inherit it silently.
   bool clearing_enabled = false;
   double sensor_height_m = 1.8;
+  // Visibility-clearing raster geometry. The default (1440 x 64 uniform rows
+  // over [-25, +15] deg) approximates a 64-beam spinner; a sensor with a
+  // different beam layout should pass its own beam elevation table so each
+  // raster row holds exactly one beam (see DepthImage::for_beams).
+  std::size_t scan_azimuth_bins = 1440;
+  std::vector<double> scan_beam_elevations_deg;
   bool include_leaf_details = false;
   bool promotion_telemetry = false;
   std::string utility_config = VEYRA_SOURCE_DIR "/configs/utility_lod.yaml";
@@ -476,7 +482,8 @@ Options parse_options(int argc, char** argv) {
     const auto needs_value = arg == "--policy" || arg == "--output" || arg == "--window-radius" ||
                              arg == "--sensor-height" || arg == "--levels" ||
                              arg == "--distance-boundaries" || arg == "--warmup-frames" ||
-                             arg == "--utility-config" || arg == "--governor-config";
+                             arg == "--utility-config" || arg == "--governor-config" ||
+                             arg == "--scan-azimuth-bins" || arg == "--scan-beam-elevations";
     if (needs_value && index + 1 >= argc) {
       throw std::invalid_argument("missing option value");
     }
@@ -496,6 +503,32 @@ Options parse_options(int argc, char** argv) {
       options.binary_input = true;
     } else if (arg == "--clear-free-space") {
       options.clearing_enabled = true;
+    } else if (arg == "--scan-azimuth-bins") {
+      options.scan_azimuth_bins = uint_value(argv[++index], "scan azimuth bins");
+      if (options.scan_azimuth_bins == 0 || options.scan_azimuth_bins > 36000) {
+        throw std::invalid_argument("scan azimuth bins must be in [1, 36000]");
+      }
+    } else if (arg == "--scan-beam-elevations") {
+      // Comma-separated beam elevations in degrees, e.g. a Pandar40 table.
+      options.scan_beam_elevations_deg.clear();
+      std::string list = argv[++index];
+      std::size_t start = 0;
+      while (start <= list.size()) {
+        const auto comma = list.find(',', start);
+        const auto item = list.substr(start, comma == std::string::npos ? std::string::npos
+                                                                        : comma - start);
+        options.scan_beam_elevations_deg.push_back(real_value(item, "beam elevation"));
+        if (comma == std::string::npos) break;
+        start = comma + 1;
+      }
+      if (options.scan_beam_elevations_deg.size() < 2) {
+        throw std::invalid_argument("scan beam elevations need at least two beams");
+      }
+      for (const double value : options.scan_beam_elevations_deg) {
+        if (!(value > -90.0 && value < 90.0)) {
+          throw std::invalid_argument("scan beam elevation out of range");
+        }
+      }
     } else if (arg == "--include-leaf-details") {
       options.include_leaf_details = true;
     } else if (arg == "--promotion-telemetry") {
@@ -537,6 +570,18 @@ Options parse_options(int argc, char** argv) {
     }
   }
   return options;
+}
+
+// The visibility-clearing raster for this run's sensor geometry.
+veyra::map::DepthImage make_scan_image(const Options& options) {
+  constexpr double kDeg = std::numbers::pi / 180.0;
+  if (options.scan_beam_elevations_deg.empty()) {
+    return veyra::map::DepthImage{options.scan_azimuth_bins, 64, -25.0 * kDeg, 15.0 * kDeg};
+  }
+  std::vector<double> beams;
+  beams.reserve(options.scan_beam_elevations_deg.size());
+  for (const double degrees : options.scan_beam_elevations_deg) beams.push_back(degrees * kDeg);
+  return veyra::map::DepthImage::for_beams(options.scan_azimuth_bins, std::move(beams));
 }
 
 std::int64_t duration_ns(Clock::time_point started) {
@@ -845,8 +890,7 @@ Result run(const Options& options) {
   // elevation rows, close to a 64-beam spinning unit. Bins coarser than the
   // sensor's angular resolution would merge distinct beams; finer would leave
   // gaps between them that read as "nothing measured" and suppress clearing.
-  veyra::map::DepthImage scan_image{1440, 64, -25.0 * std::numbers::pi / 180.0,
-                                    15.0 * std::numbers::pi / 180.0};
+  veyra::map::DepthImage scan_image = make_scan_image(options);
   veyra::map::SensorPose sensor_pose{};
   // False until a frame supplies a finite sensor pose; clearing never runs on
   // a fabricated pose (mirrors PersistentEngineSession::pose_valid_).
@@ -1911,8 +1955,7 @@ class PersistentEngineSession {
   // Bins coarser than the sensor's angular resolution would merge distinct
   // beams; finer would leave gaps that read as "nothing measured" and suppress
   // clearing.
-  veyra::map::DepthImage scan_image_{1440, 64, -25.0 * std::numbers::pi / 180.0,
-                                     15.0 * std::numbers::pi / 180.0};
+  veyra::map::DepthImage scan_image_{make_scan_image(options_)};
   veyra::map::SensorPose sensor_pose_{};
   // False until a frame supplies a finite sensor pose; clearing never runs on
   // a fabricated pose.

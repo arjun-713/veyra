@@ -3,6 +3,7 @@
 #include <algorithm>
 #include <cmath>
 #include <numbers>
+#include <iterator>
 #include <limits>
 #include <stdexcept>
 
@@ -56,6 +57,50 @@ DepthImage::DepthImage(std::size_t azimuth_bins, std::size_t elevation_bins,
   measured_azimuth_.assign(nearest_range_.size(), 0.0F);
 }
 
+DepthImage::DepthImage(std::size_t azimuth_bins, std::vector<double> row_edges_rad)
+    : azimuth_bins_(azimuth_bins),
+      elevation_bins_(row_edges_rad.size() < 2 ? 0 : row_edges_rad.size() - 1),
+      elevation_min_(row_edges_rad.empty() ? 0.0 : row_edges_rad.front()),
+      elevation_max_(row_edges_rad.empty() ? 0.0 : row_edges_rad.back()),
+      row_edges_(std::move(row_edges_rad)) {
+  if (azimuth_bins_ == 0 || elevation_bins_ == 0) {
+    throw std::invalid_argument("depth image needs at least one bin per axis");
+  }
+  for (std::size_t i = 0; i < row_edges_.size(); ++i) {
+    if (!std::isfinite(row_edges_[i]) || (i > 0 && !(row_edges_[i] > row_edges_[i - 1]))) {
+      throw std::invalid_argument("depth image row edges must be finite and strictly increasing");
+    }
+  }
+  nearest_range_.assign(azimuth_bins_ * elevation_bins_, -1.0F);
+  measured_elevation_.assign(nearest_range_.size(), 0.0F);
+  measured_azimuth_.assign(nearest_range_.size(), 0.0F);
+}
+
+DepthImage DepthImage::for_beams(std::size_t azimuth_bins,
+                                 std::vector<double> beam_elevations_rad) {
+  std::sort(beam_elevations_rad.begin(), beam_elevations_rad.end());
+  if (beam_elevations_rad.size() < 2) {
+    throw std::invalid_argument("a beam table needs at least two beams");
+  }
+  for (std::size_t i = 0; i < beam_elevations_rad.size(); ++i) {
+    if (!std::isfinite(beam_elevations_rad[i]) ||
+        (i > 0 && !(beam_elevations_rad[i] > beam_elevations_rad[i - 1]))) {
+      throw std::invalid_argument("beam elevations must be finite and distinct");
+    }
+  }
+  const std::size_t n = beam_elevations_rad.size();
+  std::vector<double> edges;
+  edges.reserve(n + 1);
+  edges.push_back(beam_elevations_rad[0] -
+                  0.5 * (beam_elevations_rad[1] - beam_elevations_rad[0]));
+  for (std::size_t i = 1; i < n; ++i) {
+    edges.push_back(0.5 * (beam_elevations_rad[i - 1] + beam_elevations_rad[i]));
+  }
+  edges.push_back(beam_elevations_rad[n - 1] +
+                  0.5 * (beam_elevations_rad[n - 1] - beam_elevations_rad[n - 2]));
+  return DepthImage(azimuth_bins, std::move(edges));
+}
+
 void DepthImage::clear() {
   std::fill(nearest_range_.begin(), nearest_range_.end(), -1.0F);
   filled_ = 0;
@@ -75,8 +120,14 @@ std::size_t DepthImage::index_of(double azimuth_rad, double elevation_rad, bool&
       static_cast<std::size_t>(wrap_azimuth(azimuth_rad) / azimuth_step);
   // A value landing exactly on the upper edge would index one past the end.
   azimuth_index = std::min(azimuth_index, azimuth_bins_ - 1);
-  auto elevation_index =
-      static_cast<std::size_t>((elevation_rad - elevation_min_) / elevation_step);
+  std::size_t elevation_index = 0;
+  if (row_edges_.empty()) {
+    elevation_index = static_cast<std::size_t>((elevation_rad - elevation_min_) / elevation_step);
+  } else {
+    const auto upper = std::upper_bound(row_edges_.begin(), row_edges_.end(), elevation_rad);
+    elevation_index = static_cast<std::size_t>(std::max<std::ptrdiff_t>(
+        0, std::distance(row_edges_.begin(), upper) - 1));
+  }
   elevation_index = std::min(elevation_index, elevation_bins_ - 1);
 
   in_range = true;
@@ -124,6 +175,10 @@ double DepthImage::measured_azimuth_at(double azimuth_rad, double elevation_rad)
 }
 
 double DepthImage::elevation_of_row(std::size_t row) const noexcept {
+  if (!row_edges_.empty()) {
+    const std::size_t r = std::min(row, elevation_bins_ - 1);
+    return 0.5 * (row_edges_[r] + row_edges_[r + 1]);
+  }
   const double step = (elevation_max_ - elevation_min_) / static_cast<double>(elevation_bins_);
   return elevation_min_ + step * (static_cast<double>(row) + 0.5);
 }
@@ -144,7 +199,8 @@ bool DepthImage::sees_past(double azimuth_rad, double elevation_rad, double rang
 
 ClearingOutcome test_cell_against_scan(const CellStats& stats, double centre_x, double centre_y,
                                        const DepthImage& image, const SensorPose& pose,
-                                       double margin_m, double half_width_m) {
+                                       double margin_m, double half_width_m,
+                                       const ClearingTolerance& tolerance) {
   if (stats.obstacle.empty()) return ClearingOutcome::NoObstacle;
 
   const double dx = centre_x - pose.x;
@@ -167,7 +223,7 @@ ClearingOutcome test_cell_against_scan(const CellStats& stats, double centre_x, 
   // own base then read as lying beyond it and cleared the obstacle with its own
   // returns. The range a beam must exceed is the range at that beam's own
   // elevation, never a single number for the whole column.
-  bool traversed = false;
+  int traversed = 0;
   bool blocked = false;
   // A measured beam crossed the claimed extent. Rows that merely exist in the
   // raster do not count -- an unmeasured row tested nothing.
@@ -177,54 +233,92 @@ ClearingOutcome test_cell_against_scan(const CellStats& stats, double centre_x, 
   // its own it is not grounds to clear anything.
   bool projection_would_clear = false;
 
-  const std::size_t rows = image.elevation_bins();
-  for (std::size_t row = 0; row < rows; ++row) {
-    const double row_elevation = image.elevation_of_row(row);
-    const float measured = image.range_at(azimuth, row_elevation);
-    if (measured < 0.0F) continue;
-    const double elevation = image.measured_elevation_at(azimuth, row_elevation);
-    const double measured_azimuth = image.measured_azimuth_at(azimuth, row_elevation);
-    // A return elsewhere in the angular bin does not prove this cell free.
-    // Intersect the measured ray with the actual square footprint, and require
-    // a return past its EXIT (not merely past the centre).
-    double entry = 0.0;
-    double exit = std::numeric_limits<double>::infinity();
-    const auto intersect_axis = [&](double offset, double direction) {
-      if (std::abs(direction) < 1e-12) return std::abs(offset) <= half_width_m + 1e-9;
-      double a = (offset - half_width_m) / direction;
-      double b = (offset + half_width_m) / direction;
-      if (a > b) std::swap(a, b);
-      entry = std::max(entry, a);
-      exit = std::min(exit, b);
-      return entry <= exit + 1e-9;
-    };
-    if (!intersect_axis(dx, std::cos(measured_azimuth)) ||
-        !intersect_axis(dy, std::sin(measured_azimuth))) continue;
-    const double cosine = std::cos(elevation);
-    if (!(cosine > 1e-6)) continue;  // looking straight up or down: no column crossing
-
-    const double crossing_range = exit / cosine;
-    const bool reached_past = static_cast<double>(measured) > crossing_range + margin_m;
-    if (reached_past) projection_would_clear = true;
-
-    // Did this beam pass through the claimed extent, or over or under it?
-    const double entry_height = pose.z + entry * std::tan(elevation);
-    const double exit_height = pose.z + exit * std::tan(elevation);
-    if (std::max(entry_height, exit_height) < claim_low ||
-        std::min(entry_height, exit_height) > claim_high) continue;
-    measured_beam_crossed_claim = true;
-
-    if (reached_past) {
-      traversed = true;
-      continue;
+  // Every azimuth bin the footprint spans, not only the centre's: a 20 cm
+  // cell at 15 m covers three quarter-degree bins, and beams in the outer bins
+  // that cross the footprint are evidence (blocking evidence especially) that
+  // a centre-only test silently ignored.
+  const double azimuth_step = 2.0 * std::numbers::pi / static_cast<double>(image.azimuth_bins());
+  double half_span = 0.0;
+  if (half_width_m > 0.0) {
+    for (const double cx : {dx - half_width_m, dx + half_width_m}) {
+      for (const double cy : {dy - half_width_m, dy + half_width_m}) {
+        double delta = std::atan2(cy, cx) - azimuth;
+        delta = std::remainder(delta, 2.0 * std::numbers::pi);
+        half_span = std::max(half_span, std::abs(delta));
+      }
     }
-    blocked = true;
+  }
+  const auto side_bins = static_cast<int>(std::min<double>(
+      std::ceil(half_span / azimuth_step), static_cast<double>(image.azimuth_bins() / 4)));
+
+  const std::size_t rows = image.elevation_bins();
+  for (int bin = -side_bins; bin <= side_bins; ++bin) {
+    const double sample_azimuth = azimuth + static_cast<double>(bin) * azimuth_step;
+    for (std::size_t row = 0; row < rows; ++row) {
+      const double row_elevation = image.elevation_of_row(row);
+      const float measured = image.range_at(sample_azimuth, row_elevation);
+      if (measured < 0.0F) continue;
+      const double elevation = image.measured_elevation_at(sample_azimuth, row_elevation);
+      const double measured_azimuth = image.measured_azimuth_at(sample_azimuth, row_elevation);
+      // A return elsewhere in the angular bin does not prove this cell free.
+      // Intersect the measured ray with the actual square footprint, and require
+      // a return past its EXIT (not merely past the centre).
+      double entry = 0.0;
+      double exit = std::numeric_limits<double>::infinity();
+      const auto intersect_axis = [&](double offset, double direction) {
+        if (std::abs(direction) < 1e-12) return std::abs(offset) <= half_width_m + 1e-9;
+        double a = (offset - half_width_m) / direction;
+        double b = (offset + half_width_m) / direction;
+        if (a > b) std::swap(a, b);
+        entry = std::max(entry, a);
+        exit = std::min(exit, b);
+        return entry <= exit + 1e-9;
+      };
+      if (!intersect_axis(dx, std::cos(measured_azimuth)) ||
+          !intersect_axis(dy, std::sin(measured_azimuth))) continue;
+      const double cosine = std::cos(elevation);
+      if (!(cosine > 1e-6)) continue;  // looking straight up or down: no column crossing
+
+      const double crossing_range = exit / cosine;
+      const double sigma =
+          tolerance.noise == nullptr ? 0.0 : tolerance.noise->stddev_at(crossing_range);
+      const double range_margin = std::max(margin_m, tolerance.range_sigmas * sigma);
+      const double height_margin = tolerance.height_sigmas * sigma;
+      const bool reached_past = static_cast<double>(measured) > crossing_range + range_margin;
+      if (reached_past) projection_would_clear = true;
+
+      // Did this beam pass through the claimed extent, or over or under it?
+      const double entry_height = pose.z + entry * std::tan(elevation);
+      const double exit_height = pose.z + exit * std::tan(elevation);
+      const double beam_low = std::min(entry_height, exit_height);
+      const double beam_high = std::max(entry_height, exit_height);
+      if (beam_high < claim_low || beam_low > claim_high) continue;
+
+      if (!reached_past) {
+        // Ends at or before the cell within its own noise: occluding or
+        // supporting evidence, tested against the full claimed extent.
+        measured_beam_crossed_claim = true;
+        blocked = true;
+        continue;
+      }
+      // A through-beam must pass the claim's interior; one that only grazes an
+      // edge within its own vertical uncertainty has not shown the column
+      // empty. The interior never vanishes: a claim thinner than 2*margin
+      // (a single return has zero span) keeps its mid-height, so thin ghosts
+      // still clear, just only by beams through their middle.
+      const double claim_mid = 0.5 * (claim_low + claim_high);
+      const double interior_low = std::min(claim_low + height_margin, claim_mid);
+      const double interior_high = std::max(claim_high - height_margin, claim_mid);
+      if (beam_high < interior_low || beam_low > interior_high) continue;
+      measured_beam_crossed_claim = true;
+      ++traversed;
+    }
   }
 
   // Contradictory beams may hit different parts of the same aggregated cell.
   // Positive/occluding evidence wins; a single through-beam cannot clear it.
   if (blocked) return ClearingOutcome::Occluded;
-  if (traversed) return ClearingOutcome::Cleared;
+  if (traversed > 0) return ClearingOutcome::Cleared;
   // Beams reached past this cell, but every one of them passed over or under
   // the claimed extent without testing it. A projected 2D sweep would have
   // cleared the cell here and erased whatever stands in it.

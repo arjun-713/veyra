@@ -166,3 +166,9 @@ target_link_libraries(test_batch_clearing PRIVATE veyra_map veyra_policy veyra_m
 target_compile_definitions(test_batch_clearing PRIVATE VEYRA_SOURCE_DIR="${PROJECT_SOURCE_DIR}")
 target_compile_options(test_batch_clearing PRIVATE -Wall -Wextra -Wpedantic -UNDEBUG)
 add_test(NAME batch_clearing COMMAND test_batch_clearing)
+
+add_executable(test_clearing_static_erosion test_clearing_static_erosion.cpp)
+target_link_libraries(test_clearing_static_erosion PRIVATE veyra_map veyra_policy veyra_metrics)
+target_compile_definitions(test_clearing_static_erosion PRIVATE VEYRA_SOURCE_DIR="${PROJECT_SOURCE_DIR}")
+target_compile_options(test_clearing_static_erosion PRIVATE -Wall -Wextra -Wpedantic -UNDEBUG)
+add_test(NAME clearing_static_erosion COMMAND test_clearing_static_erosion)

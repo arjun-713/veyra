@@ -1006,6 +1006,46 @@ bool MapSnapshot::has_no_parent_descendant_overlap() const {
   return true;
 }
 
+namespace {
+// Occupancy state of a cell immediately before one return is folded in.
+struct ObstacleEvidenceBefore {
+  std::int16_t logodds = 0;
+  bool had_obstacle = false;
+  std::uint64_t obstacle_last_seen = 0;
+
+  static ObstacleEvidenceBefore of(const CellStats& stats) noexcept {
+    return {stats.occupancy_logodds, !stats.obstacle.empty(), stats.obstacle.last_seen};
+  }
+};
+
+// Accepted obstacle-layer evidence is a positive observation of a surface in
+// THIS scan, and the occupancy accumulator must say so.
+//
+// CellStats::merge blends log-odds by count, which is right for folding two
+// aggregates of the same cell together (coarsening) but wrong for one new
+// return: folding a single +kHit into a cell of n returns moves its log-odds
+// by ~kHit/n. A static car cell with hundreds of returns therefore sat
+// exactly at kHit forever (N identical hits average to one), one applied
+// kMiss demoted it, and once contradicted it could never be re-confirmed --
+// a cell hit by the current scan stayed Unknown or Free (SemanticPOSS 00:
+// 1172 of 15251 current-scan obstacle cells non-Occupied with clearing on).
+//
+// Instead, each scan that returns obstacle evidence into a cell applies one
+// clamped kHit to its PRE-return log-odds (symmetric with clear_free_space's
+// one kMiss per frame), and the result is floored at the Occupied threshold:
+// a surface measured in this scan is present in this scan, whatever older
+// contradictions said. Later returns of the same scan add nothing further.
+// No timers, no history: only the layer's existing last_seen is consulted.
+void apply_obstacle_reacquire(CellStats& stats, const ObstacleEvidenceBefore& before,
+                              std::uint64_t timestamp) noexcept {
+  const bool first_return_of_scan = !before.had_obstacle || before.obstacle_last_seen < timestamp;
+  const std::int16_t accumulated = first_return_of_scan ? logodds::hit(before.logodds)
+                                                        : before.logodds;
+  stats.occupancy_logodds = std::max(accumulated, logodds::kOccupiedThreshold);
+  stats.consecutive_misses = 0;
+}
+}  // namespace
+
 Map::Map(ResolutionPolicy policy, MapConfig config)
     : impl_(std::make_unique<Impl>(policy, config)) {}
 Map::~Map() = default;
@@ -1048,8 +1088,9 @@ void Map::update_at_level(const Observation& observation, int level) {
     // surface was positively observed here again. Ground-only returns leave
     // the streak alone, or road seen through a departed ghost would pin it.
     const bool reobserved = one.obstacle.count > 0;
+    const ObstacleEvidenceBefore before = ObstacleEvidenceBefore::of(existing->stats);
     existing->stats.merge(one);
-    if (reobserved) existing->stats.consecutive_misses = 0;
+    if (reobserved) apply_obstacle_reacquire(existing->stats, before, observation.timestamp);
     return;
   }
   impl_->refine_ancestors(id);
@@ -1057,9 +1098,14 @@ void Map::update_at_level(const Observation& observation, int level) {
   CellStats one;
   one.add(observation, impl_->config.clearance_envelope_m);
   const bool reobserved = one.obstacle.count > 0;
+  const StoredCell* absorbed = impl_->find_leaf(id);
+  const ObstacleEvidenceBefore before =
+      absorbed == nullptr ? ObstacleEvidenceBefore{} : ObstacleEvidenceBefore::of(absorbed->stats);
   impl_->merge_leaf(id, one);
   if (reobserved) {
-    if (StoredCell* created = impl_->find_leaf(id)) created->stats.consecutive_misses = 0;
+    if (StoredCell* created = impl_->find_leaf(id)) {
+      apply_obstacle_reacquire(created->stats, before, observation.timestamp);
+    }
   }
 }
 
@@ -1113,6 +1159,13 @@ void Map::merge_children(core::CellId parent) {
 
 ClearingStats Map::clear_free_space(const DepthImage& image, const SensorPose& pose) {
   ClearingStats stats;
+  // Range-dependent tolerance from the configured noise model: a through-beam
+  // must end beyond the footprint by more than its own range noise and pass
+  // the claim's interior rather than graze an edge within its beam spread.
+  ClearingTolerance tolerance;
+  tolerance.noise = &impl_->config.clearing_noise;
+  tolerance.range_sigmas = impl_->config.clearing_range_sigmas;
+  tolerance.height_sigmas = impl_->config.clearing_height_sigmas;
   impl_->tiles.for_each_tile([&](TileKey, Tile& tile) {
     for (int level = 0; level <= kMaxLevel; ++level) {
       for (StoredCell& entry : tile.leaves[level]) {
@@ -1133,7 +1186,8 @@ ClearingStats Map::clear_free_space(const DepthImage& image, const SensorPose& p
         const double centre_y = (static_cast<double>(entry.id.iy) + 0.5) * resolution;
 
         switch (test_cell_against_scan(entry.stats, centre_x, centre_y, image, pose,
-                                       impl_->config.clearing_margin_m, resolution * 0.5)) {
+                                       impl_->config.clearing_margin_m, resolution * 0.5,
+                                       tolerance)) {
           case ClearingOutcome::Cleared:
             // Armed first, decremented after. The first kStrikesToDecrement
             // contradictory frames only raise the streak: a single flicker
@@ -1153,6 +1207,14 @@ ClearingStats Map::clear_free_space(const DepthImage& image, const SensorPose& p
             ++stats.cleared;
             break;
           case ClearingOutcome::Occluded:
+            // A measured beam crossed the claimed extent and did NOT pass
+            // through it: this scan tested the claim and failed to contradict
+            // it, so the streak of CONSECUTIVE contradictory frames is broken.
+            // Without this, sparse flicker on a static surface (one grazing
+            // through-beam every few frames) accumulated strikes across
+            // non-contradicting frames and armed it permanently. NoEvidence
+            // and SparedByElevation tested nothing and leave the streak alone.
+            entry.stats.consecutive_misses = 0;
             ++stats.occluded;
             break;
           case ClearingOutcome::SparedByElevation:
