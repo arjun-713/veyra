@@ -38,6 +38,11 @@ class PipelineStatus:
     semantic_requested: str | None = None
     semantic_fallback_reason: str | None = None
     semantic_model: str | None = None
+    # Accelerator request and, when it is not honoured, why (e.g. CENet
+    # ``device: auto`` on a host without MPS). Distinct from
+    # ``semantic_fallback_reason``: a device fallback still runs the model.
+    semantic_device_requested: str | None = None
+    semantic_device_fallback_reason: str | None = None
 
 
 @dataclass(frozen=True)
@@ -231,6 +236,13 @@ class PerceptionPipeline:
             raise PerceptionConfigurationError(
                 "cenet threads must be a positive integer"
             )
+        # Default cpu keeps every recorded CPU artifact reproducible; the
+        # accelerated path is an explicit opt-in (auto|mps).
+        device = semantic_config.get("device", "cpu")
+        if device not in {"auto", "cpu", "mps"}:
+            raise PerceptionConfigurationError(
+                "cenet device must be one of auto, cpu, mps"
+            )
         expected_sha = semantic_config.get("checkpoint_sha256")
         if expected_sha is not None and not isinstance(expected_sha, str):
             raise PerceptionConfigurationError(
@@ -292,7 +304,7 @@ class PerceptionPipeline:
                 f"({error}); fell back to ground_truth"
             )
         try:
-            return CENetSemanticProvider(path, threads=threads), None
+            return CENetSemanticProvider(path, threads=threads, device=device), None
         except Exception as error:  # noqa: BLE001 -- backend ctor raises
             # release-specific exception types (torch/ONNX/CUDA); the fallback
             # contract is failure-safe by design (never crash, return
@@ -366,6 +378,9 @@ class PerceptionPipeline:
             diagnostics.append(
                 f"semantic fallback to ground_truth: {self.semantic_fallback_reason}"
             )
+        device_fallback_reason = self._provider_device_fallback_reason()
+        if device_fallback_reason is not None:
+            diagnostics.append(f"semantic device fallback: {device_fallback_reason}")
         stage_started = perf_counter()
         if self._ground_enabled is False:
             ground_status = "disabled"
@@ -510,6 +525,8 @@ class PerceptionPipeline:
                 semantic_requested=self.semantic_requested_mode,
                 semantic_fallback_reason=self.semantic_fallback_reason,
                 semantic_model=self.semantic_model_identity,
+                semantic_device_requested=self._provider_requested_device(),
+                semantic_device_fallback_reason=device_fallback_reason,
             ),
             timings_ms={**timings, "total": (perf_counter() - started) * 1000},
         )
@@ -520,6 +537,15 @@ class PerceptionPipeline:
         sniffing. Unknown providers stay unavailable rather than guessed."""
         device = getattr(self.semantic_provider, "execution_device", None)
         return device if isinstance(device, str) and device else "unavailable"
+
+    def _provider_requested_device(self) -> str | None:
+        device = getattr(self.semantic_provider, "requested_device", None)
+        return device if isinstance(device, str) and device else None
+
+    def _provider_device_fallback_reason(self) -> str | None:
+        """Read per frame: an ``auto`` provider may degrade mid-run."""
+        reason = getattr(self.semantic_provider, "device_fallback_reason", None)
+        return reason if isinstance(reason, str) and reason.strip() else None
 
     def _require_dataset_compatibility(self, frame: ObservationFrame) -> None:
         """Fail closed when a provider declares a dataset capability boundary."""

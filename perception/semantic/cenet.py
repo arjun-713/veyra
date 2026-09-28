@@ -1,4 +1,4 @@
-"""CENet native Pandora/SemanticPOSS semantic provider (CPU, torch).
+"""CENet native Pandora/SemanticPOSS semantic provider (torch; CPU or Apple MPS).
 
 Architecture vendored from CENet (Huixian Cheng et al., ICME 2022;
 https://github.com/huixiancheng/CENet, MIT license, source commit
@@ -9,7 +9,10 @@ SemanticPOSS weights (``res/SENet_valid_best``) load with a strict
 state-dict match. Adaptations versus upstream, all documented and measured
 in ``reports/closure/semantic-finetune/``:
 
-- CPU-only inference (upstream calls ``.cuda()`` unconditionally).
+- CPU inference by default (upstream calls ``.cuda()`` unconditionally);
+  ``device="mps"``/``"auto"`` optionally runs the unchanged fp32 graph on
+  the Apple-silicon Metal backend after a CPU-parity probe, with any CPU
+  fallback recorded in ``device_fallback_reason`` (never silent).
 - Tag-free analytic range projection: the dataset's ``.tag`` files are a
   training-pipeline input, not available to a point-in/point-out provider.
   The provider renders the ``40 x 1800`` image with nearest-return
@@ -51,6 +54,21 @@ CENET_STDS = (17.735949, 17.422485, 22.217215, 1.6433295, 14.0925865)
 
 #: res/data_cfg.yaml learning_map_inv: learning ID -> SemanticPOSS raw ID.
 CENET_LEARNING_TO_RAW = (0, 4, 6, 7, 8, 9, 10, 13, 14, 15, 16, 17, 21, 22)
+
+#: Accepted ``device`` values. ``cpu`` is the default (reproduces every
+#: recorded CPU artifact). ``mps`` requires the torch Metal backend and fails
+#: closed when it is absent or its parity probe fails. ``auto`` prefers MPS
+#: and falls back to CPU with the reason recorded for telemetry.
+CENET_DEVICES = ("auto", "cpu", "mps")
+
+#: Parity probe: fixed-seed ``1x5x40x64`` input run on CPU and on the
+#: accelerator before the accelerator is trusted. The measured fp32 MPS max
+#: abs probability difference on this probe is ~1e-5 (Apple M4 Pro, torch
+#: 2.14); the tolerance leaves two orders of margin while still catching a
+#: broken backend (wrong kernels produce O(0.1) differences).
+CENET_PROBE_SHAPE = (1, 5, CENET_IMAGE_HEIGHT, 64)
+CENET_PROBE_SEED = 20260928
+CENET_PROBE_MAX_ABS_DIFF = 1e-3
 
 #: Measured column offset between the analytic yaw projection and the
 #: dataset .tag layout: tag_col == (analytic_col + 675) % 1800 on seq-00
@@ -346,6 +364,15 @@ def _swap_leaky_relu_to_hardswish(module, torch_nn) -> None:
 _MEANS = np.array(CENET_MEANS, np.float32)[..., None, None]
 _STDS = np.array(CENET_STDS, np.float32)[..., None, None]
 _LEARNING_TO_RAW = np.array(CENET_LEARNING_TO_RAW, np.int32)
+#: Vectorised SEMANTIC_POSS_LABELS lookup over every raw ID the head can
+#: emit (unmapped raw IDs stay unknown/0, as with ``dict.get(raw, 0)``).
+_RAW_TO_VEYRA = np.array(
+    [
+        SEMANTIC_POSS_LABELS.get(raw_id, 0)
+        for raw_id in range(max(CENET_LEARNING_TO_RAW) + 1)
+    ],
+    np.int32,
+)
 
 
 def render_cenet_image(
@@ -398,16 +425,26 @@ def model_contract() -> dict[str, object]:
 
 
 class CENetSemanticProvider:
-    """Run the published CENet SemanticPOSS weights on CPU torch."""
+    """Run the published CENet SemanticPOSS weights on torch (CPU or MPS)."""
 
     # Trained and labelled for SemanticPOSS/Pandora. The pipeline dataset
     # gate uses this to accept POSS frames and refuse anything else.
     supported_datasets = frozenset({"semanticposs"})
 
-    def __init__(self, checkpoint_path: str | Path, *, threads: int = 4) -> None:
+    def __init__(
+        self,
+        checkpoint_path: str | Path,
+        *,
+        threads: int = 4,
+        device: str = "cpu",
+    ) -> None:
         torch = _require_torch()
         if isinstance(threads, bool) or not isinstance(threads, int) or threads < 1:
             raise ValueError("threads must be a positive integer")
+        if not isinstance(device, str) or device not in CENET_DEVICES:
+            raise ValueError(
+                f"CENet device must be one of {', '.join(CENET_DEVICES)}; got {device!r}"
+            )
         path = Path(checkpoint_path)
         if not path.is_file():
             raise ValueError(f"CENet checkpoint does not exist: {path}")
@@ -437,6 +474,63 @@ class CENetSemanticProvider:
         torch.set_num_threads(threads)
         self.threads = threads
         self.checkpoint_path = path
+        #: Device the caller asked for (``auto``/``cpu``/``mps``).
+        self.requested_device = device
+        #: Why a requested accelerator is not in use (``None`` when the
+        #: requested device runs). Surfaced by the pipeline as telemetry.
+        self.device_fallback_reason: str | None = None
+        #: CPU-vs-accelerator probe difference once an accelerator is trusted.
+        self.probe_max_abs_diff: float | None = None
+        if device != "cpu":
+            self._select_accelerator(device)
+
+    def _select_accelerator(self, requested: str) -> None:
+        """Move the model to MPS after a CPU-parity probe, or record why not.
+
+        ``mps`` fails closed (raises); ``auto`` keeps the CPU model and
+        records the reason. The CPU model is untouched until the probe passes.
+        """
+        torch = self._torch
+        backend = getattr(torch.backends, "mps", None)
+        available = bool(backend is not None and backend.is_available())
+        if not available:
+            reason = "torch MPS backend unavailable on this host"
+            if requested == "mps":
+                raise ValueError(f"CENet device 'mps' requested but {reason}")
+            self.device_fallback_reason = f"auto: {reason}; running on cpu"
+            return
+        try:
+            generator = torch.Generator().manual_seed(CENET_PROBE_SEED)
+            probe = torch.randn(*CENET_PROBE_SHAPE, generator=generator)
+            with torch.inference_mode():
+                reference = self._main_output(self._model(probe))
+            accelerated = self._model.to("mps")
+            with torch.inference_mode():
+                candidate = self._main_output(accelerated(probe.to("mps"))).cpu()
+            if candidate.shape != reference.shape or not bool(
+                torch.isfinite(candidate).all()
+            ):
+                raise RuntimeError("probe output is malformed or non-finite")
+            difference = float((candidate - reference).abs().max())
+            if difference > CENET_PROBE_MAX_ABS_DIFF:
+                raise RuntimeError(
+                    f"probe max abs probability difference {difference:.3g} "
+                    f"exceeds {CENET_PROBE_MAX_ABS_DIFF:g}"
+                )
+        except Exception as error:  # noqa: BLE001 - backend errors vary by release
+            self._model = self._model.to("cpu")
+            reason = f"MPS parity probe failed ({type(error).__name__}: {error})"
+            if requested == "mps":
+                raise ValueError(
+                    f"CENet device 'mps' requested but {reason}"
+                ) from error
+            self.device_fallback_reason = f"auto: {reason}; running on cpu"
+            return
+        self.probe_max_abs_diff = difference
+
+    @staticmethod
+    def _main_output(output):
+        return output[0] if isinstance(output, (list, tuple)) else output
 
     @property
     def execution_device(self) -> str:
@@ -445,6 +539,15 @@ class CENetSemanticProvider:
             return str(next(self._model.parameters()).device)
         except Exception:  # noqa: BLE001 - device query must not break inference
             return "unavailable"
+
+    def _forward(self, tensor: np.ndarray) -> np.ndarray:
+        """Run the network on the model's device; return host fp64 scores."""
+        torch = self._torch
+        device = next(self._model.parameters()).device
+        with torch.inference_mode():
+            output = self._model(torch.from_numpy(tensor).to(device))
+            main = self._main_output(output)
+            return np.asarray(main[0].cpu(), dtype=np.float64)
 
     def infer_raw(
         self, points: np.ndarray
@@ -471,10 +574,19 @@ class CENetSemanticProvider:
         tensor, rows, cols, valid = render_cenet_image(points_array)
         proba = np.zeros((count, CENET_N_LEARNING_CLASSES), np.float32)
         if valid.any():
-            with self._torch.no_grad():
-                output = self._model(self._torch.from_numpy(tensor))
-            main = output[0] if isinstance(output, (list, tuple)) else output
-            scores = np.asarray(main[0].detach().cpu(), dtype=np.float64)
+            try:
+                scores = self._forward(tensor)
+            except Exception as error:  # noqa: BLE001 - backend errors vary
+                if self.execution_device == "cpu" or self.requested_device != "auto":
+                    raise
+                # auto: an accelerator runtime failure degrades to CPU for
+                # this and every later frame, with the reason recorded.
+                self._model = self._model.to("cpu")
+                self.device_fallback_reason = (
+                    f"auto: MPS inference failed ({type(error).__name__}: "
+                    f"{error}); running on cpu"
+                )
+                scores = self._forward(tensor)
             if scores.shape != (
                 CENET_N_LEARNING_CLASSES,
                 CENET_IMAGE_HEIGHT,
@@ -509,14 +621,12 @@ class CENetSemanticProvider:
                 np.zeros(0, np.int32), np.zeros(0, np.float32), "model"
             )
         raw, confidence, _ = self.infer_raw(points_array)
-        mapped = np.array(
-            [SEMANTIC_POSS_LABELS.get(int(raw_id), 0) for raw_id in raw],
-            dtype=np.int32,
-        )
+        mapped = _RAW_TO_VEYRA[raw]
         return SemanticResult(mapped, confidence, "model")
 
 
 __all__ = [
+    "CENET_DEVICES",
     "CENET_IMAGE_HEIGHT",
     "CENET_IMAGE_WIDTH",
     "CENET_LEARNING_TO_RAW",

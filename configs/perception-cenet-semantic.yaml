@@ -1,4 +1,4 @@
-# Native Pandora / SemanticPOSS semantic provider (CENet checkpoint, CPU torch).
+# Native Pandora / SemanticPOSS semantic provider (CENet checkpoint, torch).
 #
 # Wired into PerceptionPipeline.from_config as `mode: cenet`: checkpoint
 # resolution is `VEYRA_CENET_CHECKPOINT` env (when set, wins) else this
@@ -18,6 +18,14 @@ semantic:
   checkpoint: data/cache/models/cenet-poss/SENet_valid_best
   checkpoint_sha256: 9c07ceadcd005a11bddc6c92b61d6f7724339f9519ef177afdebc3c59ffbb0ce
   threads: 4
+  # auto: Apple-silicon MPS when torch exposes it AND a CPU-parity probe
+  # passes, else CPU with the reason in pipeline_status /
+  # telemetry.perception.semantic_device_fallback_reason (the model still
+  # runs; this is never a ground_truth fallback). cpu (the default when the
+  # key is absent) reproduces the recorded CPU artifacts; mps fails closed
+  # when MPS is missing. fp32 either way; predictions matched CPU on 48
+  # SemanticPOSS seq-00 frames (benchmark-results/neural-accel-2026-09-28).
+  device: auto
   # Fail closed: never fall back to ground_truth unless explicitly allowed.
   # Opt-in fallback requires allow_fallback_to_ground_truth: true.
   allow_fallback_to_ground_truth: false

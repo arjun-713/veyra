@@ -945,6 +945,12 @@ class RuntimeSession:
                     "semantic_model",
                     getattr(status, "semantic_checkpoint", None),
                 ),
+                "semantic_device_requested": getattr(
+                    status, "semantic_device_requested", None
+                ),
+                "semantic_device_fallback_reason": getattr(
+                    status, "semantic_device_fallback_reason", None
+                ),
             },
             "perception_timings_ms": {
                 key: float(value) for key, value in output.timings_ms.items()
