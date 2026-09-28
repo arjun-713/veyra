@@ -51,7 +51,10 @@ class EngineSelectionTests(unittest.TestCase):
             fresh = Path(directory) / "veyra_benchmark"
             fresh.touch()
             with patch.dict(os.environ, {"VEYRA_BENCHMARK_BINARY": str(fresh)}):
-                self.assertEqual(_engine(), fresh)
+                # _engine() resolves the override; macOS temp dirs live
+                # behind the /var -> /private/var symlink, so compare the
+                # resolved path rather than the literal one.
+                self.assertEqual(_engine(), fresh.resolve())
 
 
 def _frame(
