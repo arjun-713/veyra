@@ -70,9 +70,16 @@ in map cells. Details: `docs/architecture.md` and
 ## Modes & guarantees
 
 Modes: **Uniform5** (fine reference), **Uniform40** (coarse reference),
-**DistanceLOD** (range-only baseline), and **UtilityLOD** (quality-gated
-local promotion). Policy comparisons should use the same input stream; the key
-adaptive comparison is DistanceLOD vs UtilityLOD.
+**DistanceLOD** (range-only baseline), and **UtilityLOD** (experimental
+quality-gated local promotion). Policy comparisons should use the same input
+stream; the key adaptive comparison is DistanceLOD vs UtilityLOD.
+
+DistanceLOD is the proven result. UtilityLOD is not yet shown to beat it:
+the frozen stress suite (`reports/utility-hardcore/CONCLUSION.md`)
+found zero critical-region promotion recall. With a relaxed governor
+budget it retains more pedestrian cells on SemanticPOSS seq 00, at extra
+memory and latency and with lower vehicle and hazard retention, so treat
+it as a trade-off mode until it wins at a matched memory and p95 budget.
 
 Guarantees: one point → one leaf; no parent/child overlap; exact 4:1
 merge-preserving hierarchy; stable rolling window; protected
