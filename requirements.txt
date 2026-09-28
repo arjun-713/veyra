@@ -9,4 +9,7 @@ pyyaml==6.0.3  # viewer server config (falls back to built-in parser if absent)
 # Real perception backends. Model weights remain local, explicitly supplied
 # assets; neither package downloads weights automatically.
 pypatchworkpp==1.4.1
-onnxruntime==1.30.0
+onnxruntime==1.30.0; sys_platform != "darwin" or platform_machine == "arm64"
+# ONNX Runtime 1.30 has no macOS x86_64 wheel; retain real CPU inference on
+# Intel Macs with the compatible Python 3.13 wheel.
+onnxruntime==1.23.2; sys_platform == "darwin" and platform_machine == "x86_64"

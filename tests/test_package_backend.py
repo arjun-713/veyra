@@ -7,6 +7,28 @@ from pathlib import Path
 
 
 class PackageBackendTests(unittest.TestCase):
+    def test_runtime_requirements_select_intel_compatible_onnxruntime(self):
+        from packaging.markers import default_environment
+        from packaging.requirements import Requirement
+
+        lines = (Path(__file__).resolve().parents[1] / "requirements.txt").read_text().splitlines()
+        requirements = [
+            Requirement(line.strip())
+            for line in lines
+            if line.strip().startswith("onnxruntime")
+        ]
+
+        def selected_version(platform: str, machine: str) -> str:
+            environment = default_environment()
+            environment.update(sys_platform=platform, platform_machine=machine)
+            selected = [item for item in requirements if item.marker.evaluate(environment)]
+            self.assertEqual(len(selected), 1)
+            return str(selected[0].specifier)
+
+        self.assertEqual(selected_version("darwin", "x86_64"), "==1.23.2")
+        self.assertEqual(selected_version("darwin", "arm64"), "==1.30.0")
+        self.assertEqual(selected_version("linux", "x86_64"), "==1.30.0")
+
     def _repo(self, root: Path) -> Path:
         repo = root / "repo"
         for name in ("runtime", "viewer", "benchmarks", "perception", "datasets"):
@@ -120,6 +142,24 @@ class PackageBackendTests(unittest.TestCase):
             (root / "outside").write_bytes(b"outside")
             with self.assertRaisesRegex(ValueError, "escapes"):
                 stage_backend(repo, root / "stage-2", mapper, python, "linux", "x64")
+
+    def test_python_runtime_staging_omits_dangling_framework_symlinks(self):
+        from scripts.package_backend import _copy_tree
+
+        with tempfile.TemporaryDirectory() as raw:
+            root = Path(raw)
+            source = root / "python"
+            destination = root / "staged-python"
+            source.mkdir()
+            dangling = source / "Frameworks/Tcl.framework/PrivateHeaders"
+            dangling.parent.mkdir(parents=True)
+            dangling.symlink_to(source / "missing-system-private-headers")
+
+            _copy_tree(source, destination, materialize_internal_links=True)
+
+            self.assertFalse(
+                (destination / "Frameworks/Tcl.framework/PrivateHeaders").exists()
+            )
 
     def test_virtual_environment_is_flattened_with_its_base_interpreter(self):
         from scripts.package_backend import stage_backend
@@ -326,5 +366,5 @@ class PackageBackendTests(unittest.TestCase):
 
             _, dependencies = _macho_dependencies(executable)
             self.assertIn("@loader_path/../lib/vendored/libdep.1.dylib", dependencies)
-            self.assertEqual(subprocess.run([str(executable)]).returncode, 42)
+            self.assertEqual(subprocess.run([str(executable)], check=False).returncode, 42)
             subprocess.check_call(["codesign", "--verify", str(executable)])

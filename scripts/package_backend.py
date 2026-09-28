@@ -58,7 +58,12 @@ def _copy_tree(
         if item.is_symlink():
             if not materialize_internal_links:
                 raise ValueError(f"backend inputs may not contain symlinks: {item}")
-            resolved = item.resolve(strict=True)
+            # Framework Python installations can contain dangling links to
+            # optional system SDK/private headers (for example Tcl headers).
+            # They are not usable runtime files and must not prevent staging.
+            resolved = item.resolve(strict=False)
+            if not resolved.exists():
+                continue
             if not _inside(resolved, source):
                 raise ValueError(f"Python runtime symlink escapes its root: {item}")
             if resolved.is_dir():

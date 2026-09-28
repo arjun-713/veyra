@@ -3,7 +3,13 @@
 #include <cstring>
 #include <vector>
 
+#if defined(_WIN32)
+#include <process.h>
+#define VEYRA_EXECVP _execvp
+#else
 #include <unistd.h>
+#define VEYRA_EXECVP execvp
+#endif
 
 int main(int argc, char** argv) {
   bool has_runtime_config = false;
@@ -20,14 +26,22 @@ int main(int argc, char** argv) {
     return 2;
   }
 
+#if defined(_WIN32)
+  std::vector<const char*> command;
+#else
   std::vector<char*> command;
+#endif
   command.reserve(static_cast<std::size_t>(argc) + 4U);
+#if defined(_WIN32)
+  command.push_back("python.exe");
+#else
   command.push_back(const_cast<char*>("python3"));
+#endif
   command.push_back(const_cast<char*>("-m"));
   command.push_back(const_cast<char*>("viewer.server"));
   for (int index = 1; index < argc; ++index) command.push_back(argv[index]);
   command.push_back(nullptr);
-  execvp(command.front(), command.data());
+  VEYRA_EXECVP(command.front(), command.data());
   std::fprintf(stderr, "veyra_player: cannot start Python viewer runtime: %s\n", std::strerror(errno));
   return 127;
 }
