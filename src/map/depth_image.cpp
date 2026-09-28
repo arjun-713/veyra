@@ -198,8 +198,19 @@ ClearingOutcome test_cell_against_scan(const CellStats& stats, double centre_x, 
       exit = std::min(exit, b);
       return entry <= exit + 1e-9;
     };
-    if (!intersect_axis(dx, std::cos(measured_azimuth)) ||
-        !intersect_axis(dy, std::sin(measured_azimuth))) continue;
+    if (half_width_m > 0.0) {
+      if (!intersect_axis(dx, std::cos(measured_azimuth)) ||
+          !intersect_axis(dy, std::sin(measured_azimuth)))
+        continue;
+    } else {
+      // No footprint supplied: a zero-width square only intersects a ray that
+      // passes exactly through the centre, which a float-stored measured
+      // azimuth almost never does off-axis. Fall back to the centre-column
+      // contract (crossing at the centre's horizontal distance) instead of
+      // silently reporting NoEvidence for every off-axis cell.
+      entry = horizontal;
+      exit = horizontal;
+    }
     const double cosine = std::cos(elevation);
     if (!(cosine > 1e-6)) continue;  // looking straight up or down: no column crossing
 
