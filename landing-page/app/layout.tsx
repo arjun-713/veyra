@@ -45,7 +45,7 @@ export const viewport: Viewport = {
 function DirectionContract() {
   const contract = `DIRECTION CONTRACT — Veyra landing (Persuade, established world).
 THESIS: the mapper that spends resolution where losing info matters; refuses the SaaS-hero template and the purple-AI gradient.
-OWN-WORLD: dark ops ground, hairline borders, tabular mono instrumentation, teal signal, Space Grotesk display / Inter UI / Plex Mono measure.
+OWN-WORLD: bright light instrument, near-white ground, hairline borders, tabular mono instrumentation, teal signal, Space Grotesk display / Inter UI / Plex Mono measure.
 STORY: visitor sees LiDAR become an adaptive 2.5D map in the hero, reads measured evidence, downloads or builds.
 FIRST VIEWPORT: left HTML headline + CTAs + annotations; right live LiDAR sweep crystallizing into L0-L3 cells around a UGV.
 FORM: cinematic instrument panel; seed: veyra-ops-01.

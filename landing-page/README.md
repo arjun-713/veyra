@@ -30,8 +30,8 @@ Import the repository, set **Root Directory** to `landing-page`, keep defaults
 
 - Logo: `public/veyra-logo.png` (official mark, do not redraw).
 - Screenshots: drop real captures into `public/screenshots/` using the exact
-  filenames referenced in `components/sections/Showcase.tsx`
-  (`map.png`, `performance.png`, `compare.png`, `validation.png`).
+  filenames referenced in `components/screenshots/Showcase.tsx`
+  (`map.webp`, `performance.webp`, `compare.webp`, `validation.webp`).
   Placeholders render until each file exists — no layout change needed.
 
 ## Data updates
@@ -40,5 +40,5 @@ Import the repository, set **Root Directory** to `landing-page`, keep defaults
   `MEASURED` / `ANALYTICAL` / `UNAVAILABLE` semantics; never market analytical
   dense-3D memory as measured RSS.
 - Downloads: edit `lib/releases.ts`. Insert real GitHub release URLs when the
-  `tauri-v*` release workflow publishes artifacts; `status: "coming-soon"`
-  renders a disabled card instead of a fake link.
+  `tauri-v*` release workflow publishes artifacts; `isArtifactLive()`
+  (`url !== RELEASES_URL`) renders a disabled card instead of a fake link.
