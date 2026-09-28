@@ -653,6 +653,143 @@ class CENetProviderTests(unittest.TestCase):
         self.assertGreater(accuracy, 0.80)
 
 
+def _random_cenet_checkpoint(directory: str) -> Path:
+    """Contract-valid CENet state dict with seeded random weights (no data)."""
+    torch = pytest_importorskip("torch")
+    from perception.semantic.cenet import (
+        CENET_N_LEARNING_CLASSES,
+        _network_types,
+        _swap_leaky_relu_to_hardswish,
+    )
+
+    torch.manual_seed(7)
+    _, _, net_type = _network_types()
+    model = net_type(CENET_N_LEARNING_CLASSES, True)
+    _swap_leaky_relu_to_hardswish(model, torch.nn)
+    path = Path(directory) / "random-cenet.pt"
+    torch.save({"state_dict": model.state_dict()}, path)
+    return path
+
+
+def _mps_available() -> bool:
+    try:
+        import torch
+    except ImportError:
+        return False
+    backend = getattr(torch.backends, "mps", None)
+    return bool(backend is not None and backend.is_available())
+
+
+class CENetDeviceTests(unittest.TestCase):
+    """``device: auto|cpu|mps`` selection, parity probe and visible fallback."""
+
+    def test_rejects_unknown_device(self):
+        pytest_importorskip("torch")
+        with tempfile.TemporaryDirectory() as directory:
+            checkpoint = _random_cenet_checkpoint(directory)
+            for device in ("cuda", "", None, "MPS"):
+                with self.assertRaisesRegex(ValueError, "device"):
+                    CENetSemanticProvider(checkpoint, threads=1, device=device)
+
+    def test_cpu_default_records_no_fallback(self):
+        pytest_importorskip("torch")
+        with tempfile.TemporaryDirectory() as directory:
+            provider = CENetSemanticProvider(
+                _random_cenet_checkpoint(directory), threads=1
+            )
+        self.assertEqual(provider.requested_device, "cpu")
+        self.assertEqual(provider.execution_device, "cpu")
+        self.assertIsNone(provider.device_fallback_reason)
+
+    def test_auto_without_mps_runs_cpu_with_visible_reason(self):
+        from unittest import mock
+
+        torch = pytest_importorskip("torch")
+        with tempfile.TemporaryDirectory() as directory:
+            checkpoint = _random_cenet_checkpoint(directory)
+            with mock.patch.object(
+                torch.backends.mps, "is_available", return_value=False
+            ):
+                provider = CENetSemanticProvider(checkpoint, threads=1, device="auto")
+                with self.assertRaisesRegex(ValueError, "mps.*unavailable"):
+                    CENetSemanticProvider(checkpoint, threads=1, device="mps")
+        self.assertEqual(provider.execution_device, "cpu")
+        self.assertIn("MPS backend unavailable", provider.device_fallback_reason)
+        self.assertIn("running on cpu", provider.device_fallback_reason)
+        points = np.array([[5.0, 0.0, 0.0, 10.0], [8.0, 1.0, -0.5, 30.0]], np.float32)
+        self.assertEqual(provider.infer(points).mode, "model")
+
+    @unittest.skipUnless(_mps_available(), "torch MPS backend absent")
+    def test_failed_parity_probe_falls_back_or_fails_closed(self):
+        from unittest import mock
+
+        import perception.semantic.cenet as cenet
+
+        with tempfile.TemporaryDirectory() as directory:
+            checkpoint = _random_cenet_checkpoint(directory)
+            with mock.patch.object(cenet, "CENET_PROBE_MAX_ABS_DIFF", -1.0):
+                provider = CENetSemanticProvider(checkpoint, threads=1, device="auto")
+                with self.assertRaisesRegex(ValueError, "parity probe failed"):
+                    CENetSemanticProvider(checkpoint, threads=1, device="mps")
+        self.assertEqual(provider.execution_device, "cpu")
+        self.assertIn("parity probe failed", provider.device_fallback_reason)
+
+    @unittest.skipUnless(_mps_available(), "torch MPS backend absent")
+    def test_auto_runtime_failure_degrades_to_cpu_once(self):
+        from unittest import mock
+
+        with tempfile.TemporaryDirectory() as directory:
+            provider = CENetSemanticProvider(
+                _random_cenet_checkpoint(directory), threads=1, device="auto"
+            )
+        self.assertTrue(provider.execution_device.startswith("mps"))
+        self.assertIsNone(provider.device_fallback_reason)
+        self.assertLessEqual(provider.probe_max_abs_diff, 1e-3)
+        real_forward = provider._forward
+        calls = []
+
+        def flaky(tensor):
+            calls.append(provider.execution_device)
+            if len(calls) == 1:
+                raise RuntimeError("simulated MPS kernel failure")
+            return real_forward(tensor)
+
+        points = np.array([[5.0, 0.0, 0.0, 10.0]], np.float32)
+        with mock.patch.object(provider, "_forward", side_effect=flaky):
+            result = provider.infer(points)
+        self.assertEqual(result.mode, "model")
+        self.assertEqual(provider.execution_device, "cpu")
+        self.assertEqual(calls[1], "cpu")
+        self.assertIn("simulated MPS kernel failure", provider.device_fallback_reason)
+
+    @unittest.skipUnless(_mps_available(), "torch MPS backend absent")
+    def test_explicit_mps_runtime_failure_is_not_swallowed(self):
+        from unittest import mock
+
+        with tempfile.TemporaryDirectory() as directory:
+            provider = CENetSemanticProvider(
+                _random_cenet_checkpoint(directory), threads=1, device="mps"
+            )
+        points = np.array([[5.0, 0.0, 0.0, 10.0]], np.float32)
+        with mock.patch.object(provider, "_forward", side_effect=RuntimeError("boom")):
+            with self.assertRaisesRegex(RuntimeError, "boom"):
+                provider.infer(points)
+
+    @unittest.skipUnless(_mps_available(), "torch MPS backend absent")
+    def test_real_checkpoint_mps_matches_cpu_on_poss_frame(self):
+        checkpoint = _cenet_checkpoint()
+        points, _ = _poss_frame()
+        cpu = CENetSemanticProvider(checkpoint, threads=2, device="cpu")
+        mps = CENetSemanticProvider(checkpoint, threads=2, device="mps")
+        self.assertTrue(mps.execution_device.startswith("mps"))
+        cpu_raw, cpu_conf, _ = cpu.infer_raw(points)
+        mps_raw, mps_conf, _ = mps.infer_raw(points)
+        # Measured: 0 of 3.17M points differ over 48 seq-00 frames (fp32).
+        agreement = float(np.mean(cpu_raw == mps_raw))
+        self.assertGreaterEqual(agreement, 0.9999)
+        np.testing.assert_allclose(mps_conf, cpu_conf, atol=1e-3)
+
+
 class _Session:
     def __init__(self, input_shape, output_shapes, outputs=None):
         self._input = _ValueInfo(input_shape)

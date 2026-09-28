@@ -227,6 +227,74 @@ class ProductBenchmarkTests(unittest.TestCase):
         )
         self.assertEqual(report, cached)
 
+    def test_field_retention_bands_by_mean_point_range(self):
+        from benchmarks.test_runtime import frame
+
+        near = frame()  # pose (1.5, -2): both returns are ~2.5 m away
+        # Pose (41.5, -2): two pole returns in 5 cm bin (9, 0), ~41 m away.
+        far = replace(
+            frame(pose_x=41.5),
+            points=np.array(
+                [[0.47, 0.01, 1.0, 0.5], [0.48, 0.02, 1.2, 0.5]], dtype=np.float32
+            ),
+            semantic_class=np.array([18, 18]),
+            drivable=np.array(["non_drivable", "non_drivable"]),
+        )
+        snapshot = {
+            "leaves": [
+                # Near bins keep their classes; the far pole bin is owned by a
+                # disjoint coarse 40 cm leaf whose dominant class is road.
+                {"level": 1, "ix": 0, "iy": 0, "count": 2, "mean_z": 1.0,
+                 "semantic_class": 1, "drivable_evidence": -1.0},
+                {"level": 1, "ix": -1, "iy": 0, "count": 2, "mean_z": 1.0,
+                 "semantic_class": 2, "drivable_evidence": -1.0},
+                {"level": 3, "ix": 1, "iy": 0, "count": 9, "mean_z": 0.0,
+                 "semantic_class": 9, "drivable_evidence": 1.0},
+            ]
+        }
+        report = field_retention_report([near, far], snapshot)
+        bands = {
+            (row["min_m"], row["max_m"]): row
+            for row in report["semantic"]["by_range"]
+        }
+        self.assertEqual(bands[(0.0, 10.0)]["reference_bins"], 2)
+        self.assertEqual(bands[(0.0, 10.0)]["retained_bins"], 2)
+        self.assertEqual(bands[(30.0, 60.0)]["reference_bins"], 1)
+        self.assertEqual(bands[(30.0, 60.0)]["covered_bins"], 1)
+        self.assertEqual(bands[(30.0, 60.0)]["retained_bins"], 0)
+        self.assertEqual(bands[(30.0, 60.0)]["retention_given_covered"], 0.0)
+        self.assertIsNone(bands[(60.0, 100.0)]["retention_fraction"])
+        self.assertEqual(
+            sum(row["reference_bins"] for row in bands.values()),
+            report["semantic"]["reference_bins"],
+        )
+        self.assertEqual(
+            sum(row["retained_bins"] for row in bands.values()),
+            report["semantic"]["retained_bins"],
+        )
+        hazard = {
+            (row["min_m"], row["max_m"]): row
+            for row in report["terrain_hazard"]["by_range"]
+        }
+        self.assertEqual(hazard[(0.0, 10.0)]["retained_bins"], 1)
+        self.assertEqual(hazard[(30.0, 60.0)]["reference_bins"], 1)
+        self.assertEqual(hazard[(30.0, 60.0)]["retained_bins"], 0)
+        pole = {
+            (row["min_m"], row["max_m"]): row
+            for row in report["task_classes"]["members"]["pole"]["by_range"]
+        }
+        self.assertEqual(pole[(30.0, 60.0)]["reference_bins"], 1)
+        self.assertEqual(pole[(30.0, 60.0)]["retained_bins"], 0)
+
+    def test_local_runner_forwards_field_retention_and_telemetry_flags(self):
+        repo = Path(__file__).resolve().parents[1]
+        content = (repo / "benchmarks/run_local.sh").read_text()
+        self.assertIn('--retain-frames) retain_frames="true"', content)
+        self.assertIn("benchmark_args+=(--retain-frames)", content)
+        self.assertIn('--promotion-telemetry) promotion_telemetry="true"', content)
+        self.assertIn("benchmark_args+=(--promotion-telemetry)", content)
+        self.assertIn('retain_frames="false"', content)
+
     def test_sih_validation_entrypoint_has_explicit_real_data_gate(self):
         repo = Path(__file__).resolve().parents[1]
         validator = repo / "scripts/validate_sih.sh"

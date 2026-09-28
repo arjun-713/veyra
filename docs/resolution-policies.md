@@ -91,6 +91,14 @@ the parent square, protecting groups that intersect the 10 m safety disk.
 Candidates are ranked by maximum sibling utility first, then distance,
 then cell ID for deterministic ties. Near-field radius below 10 m is invalid.
 
+Frame time and RSS are wall-clock/process measurements, so feeding them back
+makes two runs of one stream produce different maps. `veyra_benchmark
+--deterministic-governor` withholds both (frame time contributes no load; RSS
+is unavailable), leaving the cell and logical-byte budgets in force. The
+benchmark harness passes it by default and records `governor_feedback` in
+provenance; `run_benchmark.py --wall-clock-governor` restores live behavior.
+The live runtime keeps wall-clock feedback.
+
 Status exposes the state, optional-split permission, overload/recovery
 counts, intervention count, and requested/applied merge totals. These
 counters distinguish requested work from successful topology operations;

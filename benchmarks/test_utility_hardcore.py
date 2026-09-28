@@ -60,6 +60,28 @@ class UtilityChallengeTests(unittest.TestCase):
         )
         self.assertIn("--promotion-telemetry", command)
 
+    def test_benchmark_command_defaults_to_deterministic_governor(self):
+        from pathlib import Path
+        from benchmarks.run_benchmark import POLICY_ADAPTERS, _command
+
+        arguments = (
+            "/bin/veyra_benchmark",
+            POLICY_ADAPTERS["utility_lod"],
+            {
+                "ranges_m": [[0, 10], [10, 30], [30, 60], [60, 100]],
+                "levels": [0.05, 0.1, 0.2, 0.4],
+            },
+            100.0,
+            1,
+            Path("/tmp/veyra"),
+        )
+        # Wall-clock evidence must not steer benchmark maps unless asked for.
+        self.assertIn("--deterministic-governor", _command(*arguments))
+        self.assertNotIn(
+            "--deterministic-governor",
+            _command(*arguments, deterministic_governor=False),
+        )
+
     def test_window_never_crosses_missing_original_frame_ids(self):
         self.assertEqual(contiguous_window([0, 1, 2, 400, 401, 402], 401, 3), (3, 6))
         self.assertIsNone(contiguous_window([0, 1, 400, 401], 400, 3))

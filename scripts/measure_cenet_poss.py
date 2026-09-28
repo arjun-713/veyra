@@ -6,7 +6,7 @@ Run from the repository root::
         --checkpoint data/cache/models/cenet-poss/SENet_valid_best \
         --output reports/closure/semantic-finetune/cenet-poss-metrics.json
 
-Requires torch (explicit, CPU) and the published CENet SemanticPOSS weights
+Requires torch (explicit; `--device auto|mps` uses Apple MPS) and the published CENet SemanticPOSS weights
 at ``--checkpoint`` (never committed; provenance recorded in the artifact).
 Reads raw sensor-frame ``.bin``/``.label`` pairs directly so the i-th point
 aligns with the i-th label. Reports the Veyra projection (directly
@@ -150,6 +150,7 @@ def main() -> int:
         "--checkpoint", default="data/cache/models/cenet-poss/SENet_valid_best"
     )
     parser.add_argument("--threads", type=int, default=4)
+    parser.add_argument("--device", choices=("auto", "cpu", "mps"), default="cpu")
     parser.add_argument(
         "--output",
         default="reports/closure/semantic-finetune/cenet-poss-metrics.json",
@@ -164,7 +165,9 @@ def main() -> int:
     if not scans:
         raise FileNotFoundError(f"no scans in {scan_dir}")
 
-    provider = CENetSemanticProvider(checkpoint, threads=args.threads)
+    provider = CENetSemanticProvider(
+        checkpoint, threads=args.threads, device=args.device
+    )
     rss_before = resource.getrusage(resource.RUSAGE_SELF).ru_maxrss
 
     all_pred, all_gt, all_raw_pred, all_raw_gt = [], [], [], []
@@ -278,6 +281,9 @@ def main() -> int:
             "sha256": _sha256(checkpoint),
             "contract": model_contract(),
             "threads": args.threads,
+            "device_requested": args.device,
+            "execution_device": provider.execution_device,
+            "device_fallback_reason": provider.device_fallback_reason,
         },
         "sensor_evidence": {
             "beam_fov_fraction": float(np.mean(coverages)),

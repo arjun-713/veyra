@@ -273,7 +273,27 @@ void test_clearing_drives_occupancy_and_traversability() {
 
 }  // namespace
 
+// Callers that omit the footprint (half_width_m defaults to 0) must keep the
+// centre-column contract at every azimuth, not only along the x axis.
+void test_default_footprint_clears_off_axis() {
+  veyra::map::SensorPose pose{0.0, 0.0, 1.8};
+  for (const double degrees : {30.0, 45.0, 73.0, 200.0}) {
+    auto image = make_image();
+    const double c = std::cos(degrees * std::numbers::pi / 180.0);
+    const double s = std::sin(degrees * std::numbers::pi / 180.0);
+    for (double z = 0.0; z <= 2.0; z += 0.02) image.insert(20.0 * c, 20.0 * s, z, pose);
+    auto cell = obstacle_cell(10.0 * c, 10.0 * s, 0.2, 1.8);
+    check(veyra::map::test_cell_against_scan(cell, 10.0 * c, 10.0 * s, image, pose, 0.10) ==
+              veyra::map::ClearingOutcome::Cleared,
+          "default footprint clears a departed obstacle off the x axis");
+    check(veyra::map::test_cell_against_scan(cell, 10.0 * c, 10.0 * s, image, pose, 0.10, 0.025) ==
+              veyra::map::ClearingOutcome::Cleared,
+          "explicit footprint clears a departed obstacle off the x axis");
+  }
+}
+
 int main() {
+  test_default_footprint_clears_off_axis();
   test_departed_obstacle_is_cleared();
   test_beam_over_a_kerb_does_not_erase_it();
   test_surface_at_the_cell_is_occlusion_not_clearance();

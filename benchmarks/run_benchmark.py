@@ -702,16 +702,85 @@ def _field_reference(frames: list[Any]) -> dict[tuple[int, int], dict[str, Any]]
     for frame in frames:
         classes = np.asarray(frame.semantic_class)
         drivable = np.asarray(frame.drivable)
+        pose = np.asarray(frame.pose.matrix, dtype=np.float64)
+        origin_x, origin_y = float(pose[0, 3]), float(pose[1, 3])
         for point, semantic_value, terrain_value in zip(
             frame.points, classes, drivable, strict=True
         ):
-            key = (math.floor(float(point[0]) * 20), math.floor(float(point[1]) * 20))
-            item = fine.setdefault(key, {"classes": {}, "hazard": False})
+            x, y = float(point[0]), float(point[1])
+            key = (math.floor(x * 20), math.floor(y * 20))
+            item = fine.setdefault(
+                key, {"classes": {}, "hazard": False, "range_sum": 0.0, "points": 0}
+            )
             semantic = int(semantic_value)
             if semantic != 0:
                 item["classes"][semantic] = item["classes"].get(semantic, 0) + 1
             item["hazard"] = item["hazard"] or str(terrain_value) == "non_drivable"
+            # Mean horizontal sensor range of the bin's returns, the same
+            # banding convention as the elevation-by-range report.
+            item["range_sum"] += math.hypot(x - origin_x, y - origin_y)
+            item["points"] += 1
     return fine
+
+
+def _range_band(item: dict[str, Any]) -> tuple[float, float] | None:
+    points = int(item.get("points", 0))
+    if points <= 0:
+        return None
+    mean_range = float(item["range_sum"]) / points
+    for band in _RANGE_BANDS:
+        if band[0] <= mean_range < band[1]:
+            return band
+    return None
+
+
+def _retention_by_range(
+    fine: dict[tuple[int, int], dict[str, Any]],
+    owners: dict[tuple[int, int], list[dict[str, Any]]],
+    relevant: Any,
+    retained: Any,
+) -> list[dict[str, Any]]:
+    """Band one retention measure by each reference bin's mean point range.
+
+    ``relevant(item)`` selects reference bins and ``retained(item, owner)``
+    decides whether the single active owner preserves the field. Bins with no
+    or several owners count as reference but not covered/retained, exactly as
+    in the unbanded fraction, so bands sum to the overall totals.
+    """
+    rows = {
+        band: {"reference_bins": 0, "covered_bins": 0, "retained_bins": 0}
+        for band in _RANGE_BANDS
+    }
+    for key, item in fine.items():
+        if not relevant(item):
+            continue
+        band = _range_band(item)
+        if band is None:
+            continue
+        row = rows[band]
+        row["reference_bins"] += 1
+        if len(owners[key]) != 1:
+            continue
+        row["covered_bins"] += 1
+        row["retained_bins"] += int(bool(retained(item, owners[key][0])))
+    return [
+        {
+            "min_m": band[0],
+            "max_m": band[1],
+            **row,
+            "retention_fraction": row["retained_bins"] / row["reference_bins"]
+            if row["reference_bins"]
+            else None,
+            "retention_given_covered": row["retained_bins"] / row["covered_bins"]
+            if row["covered_bins"]
+            else None,
+        }
+        for band, row in rows.items()
+    ]
+
+
+def _dominant_class(item: dict[str, Any]) -> int:
+    return max(item["classes"], key=item["classes"].get)
 
 
 def field_retention_report(
@@ -755,6 +824,13 @@ def field_retention_report(
             "retained_bins": retained,
             "retention_fraction": retained / len(relevant) if relevant else None,
             "reference": "dominant nonzero semantic class per observed 5cm bin",
+            "by_range": _retention_by_range(
+                fine,
+                owners,
+                lambda item: bool(item["classes"]),
+                lambda item, owner: int(owner["semantic_class"])
+                == _dominant_class(item),
+            ),
         }
     if all("drivable_evidence" in leaf for leaf in snapshot.get("leaves", [])):
         relevant = [item for item in fine.values() if item["hazard"]]
@@ -772,6 +848,12 @@ def field_retention_report(
             "retained_bins": retained,
             "retention_fraction": retained / len(relevant) if relevant else None,
             "reference": "any non-drivable evidence per observed 5cm bin",
+            "by_range": _retention_by_range(
+                fine,
+                owners,
+                lambda item: bool(item["hazard"]),
+                lambda _item, owner: owner["drivable_evidence"] < 0,
+            ),
         }
     # Task-class retention isolates the small/thin classes UtilityLOD exists to
     # protect at range. Groups use Veyra SemanticKITTI-learning IDs: pole 18,
@@ -810,6 +892,14 @@ def field_retention_report(
                 if relevant_bins
                 else None,
                 "reference": "dominant nonzero semantic class per observed 5cm bin",
+                "by_range": _retention_by_range(
+                    fine,
+                    owners,
+                    lambda item, classes=classes: bool(item["classes"])
+                    and _dominant_class(item) in classes,
+                    lambda _item, owner, classes=classes: int(owner["semantic_class"])
+                    in classes,
+                ),
             }
         task_classes = {"status": "measured", "members": members}
     field_statuses = {semantic["status"], hazard["status"]}
@@ -1786,6 +1876,7 @@ def _command(
     governor_config: str | Path | None = None,
     *,
     promotion_telemetry: bool = False,
+    deterministic_governor: bool = True,
 ) -> list[str]:
     ranges = distance_config["ranges_m"]
     governor_path = (
@@ -1814,6 +1905,10 @@ def _command(
     ]
     if promotion_telemetry:
         command.append("--promotion-telemetry")
+    if deterministic_governor:
+        # Wall-clock frame time and RSS would otherwise feed the governor and
+        # make repeated runs of one stream produce different maps.
+        command.append("--deterministic-governor")
     return command
 
 
@@ -1868,6 +1963,9 @@ def _execute_policy_runs(
                             ),
                             promotion_telemetry=getattr(
                                 args, "promotion_telemetry", False
+                            ),
+                            deterministic_governor=not getattr(
+                                args, "wall_clock_governor", False
                             ),
                         ),
                         stdin=stream_input,
@@ -2389,6 +2487,12 @@ def run(args: argparse.Namespace) -> dict[str, Any]:
             ),
             "policy_execution_order": execution_order,
             "map_window_radius_m": window_radius_m,
+            "governor_feedback": (
+                "wall_clock: measured frame time and RSS feed the resource governor"
+                if getattr(args, "wall_clock_governor", False)
+                else "deterministic: governor sees active cells and logical bytes only; "
+                "frame time and RSS are measured and reported but not fed back"
+            ),
             "measurement_scope": {
                 "perception": "Python PerceptionPipeline processing, shared once before all policy runs"
                 if not args.skip_perception
@@ -2685,6 +2789,13 @@ def main() -> int:
         "--promotion-telemetry",
         action="store_true",
         help="Collect bounded UtilityLOD decision and signal aggregates in the C++ benchmark",
+    )
+    parser.add_argument(
+        "--wall-clock-governor",
+        action="store_true",
+        help="Feed measured frame time and RSS to the resource governor as the "
+        "live runtime does; makes repeated runs non-deterministic (default "
+        "withholds them so every repetition produces the same map)",
     )
     parser.add_argument("--dataset-sha256")
     parser.add_argument("--build-type", default="Release")

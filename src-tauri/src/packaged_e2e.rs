@@ -95,11 +95,7 @@ fn e2e_prerequisites() -> Option<(PathBuf, PathBuf)> {
         eprintln!("E2E SKIP: no Python runtime resolves for {repo:?}");
         return None;
     };
-    let probe = Command::new(&python)
-        .arg("-c")
-        .arg("import runtime.service, viewer.runtime")
-        .current_dir(&repo)
-        .output();
+    let probe = runtime_import_probe(&python, &repo).output();
     match probe {
         Ok(output) if output.status.success() => {
             eprintln!("E2E prerequisites: repo={repo:?} mapper={mapper:?} python={python:?}");
@@ -110,6 +106,77 @@ fn e2e_prerequisites() -> Option<(PathBuf, PathBuf)> {
             None
         }
     }
+}
+
+/// The import probe runs the interpreter the tests are about to exercise.
+/// Against a packaged bundle (`VEYRA_E2E_REPO=<app>/.../backend`) that is the
+/// signed Python inside the app, so a plain import would write `__pycache__`
+/// into the bundle and break `codesign --verify --deep --strict`, exactly as
+/// the runtime itself would without `PYTHONDONTWRITEBYTECODE`. The probe must
+/// be read-only.
+fn runtime_import_probe(python: &Path, repo: &Path) -> Command {
+    let mut command = Command::new(python);
+    command
+        .arg("-B")
+        .arg("-c")
+        .arg("import runtime.service, viewer.runtime")
+        .env("PYTHONDONTWRITEBYTECODE", "1")
+        .current_dir(repo);
+    command
+}
+
+#[test]
+fn prerequisite_probe_never_writes_bytecode_into_the_probed_runtime() {
+    let Some(python) = [
+        "/usr/bin/python3",
+        "/opt/homebrew/bin/python3",
+        "/usr/local/bin/python3",
+    ]
+    .into_iter()
+    .map(PathBuf::from)
+    .find(|candidate| candidate.is_file()) else {
+        eprintln!("SKIP: no system python3 for the bytecode probe test");
+        return;
+    };
+    let root = std::env::temp_dir().join(format!(
+        "veyra-probe-bytecode-{}-{}",
+        std::process::id(),
+        SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .expect("clock before epoch")
+            .as_nanos()
+    ));
+    for package in ["runtime", "viewer"] {
+        std::fs::create_dir_all(root.join(package)).unwrap();
+        std::fs::write(root.join(package).join("__init__.py"), b"").unwrap();
+    }
+    // Some interpreters (Xcode's) redirect bytecode to a user cache via
+    // `sys.pycache_prefix`, so assert the interpreter's own write flag too.
+    std::fs::write(
+        root.join("runtime/service.py"),
+        b"import pathlib, sys\n\
+          pathlib.Path(__file__).with_name('flag').write_text(str(sys.dont_write_bytecode))\n",
+    )
+    .unwrap();
+    std::fs::write(root.join("viewer/runtime.py"), b"VALUE = 2\n").unwrap();
+
+    let output = runtime_import_probe(&python, &root)
+        .env_remove("PYTHONPYCACHEPREFIX")
+        .output()
+        .expect("probe runs");
+    let caches: Vec<_> = ["runtime", "viewer"]
+        .iter()
+        .map(|package| root.join(package).join("__pycache__"))
+        .filter(|cache| cache.exists())
+        .collect();
+    let flag = std::fs::read_to_string(root.join("runtime/flag")).unwrap_or_default();
+    let _ = std::fs::remove_dir_all(&root);
+    assert!(
+        output.status.success(),
+        "probe must import the stub runtime"
+    );
+    assert!(caches.is_empty(), "probe wrote bytecode: {caches:?}");
+    assert_eq!(flag, "True", "probe interpreter may write bytecode");
 }
 
 fn timed<T>(label: &str, operation: impl FnOnce() -> T) -> T {

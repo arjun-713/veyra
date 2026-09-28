@@ -233,12 +233,14 @@ void LodPolicy::begin_frame(std::uint64_t frame_id) {
   if (frame_id_ && frame_id <= *frame_id_)
     throw std::invalid_argument("policy frame IDs must increase; reset before replay");
   frame_id_ = frame_id;
+  state_cache_.state = nullptr;
   std::erase_if(states_, [&](const auto& entry) {
     return frame_id - entry.second.last_frame > config_.utility.state_ttl_frames;
   });
 }
 
 void LodPolicy::reset() noexcept {
+  state_cache_.state = nullptr;
   states_.clear();
   frame_id_.reset();
   implicit_frame_id_ = 0;
@@ -386,8 +388,15 @@ PolicyDecision LodPolicy::decide(const DecisionInput& input) {
         }
       };
       const auto frame = frame_id_ ? *frame_id_ : ++implicit_frame_id_;
-      auto found = states_.find(input.state_cell);
-      if (found == states_.end() && states_.size() >= u.max_state_cells) {
+      // One-entry cache: consecutive returns usually share a region. Element
+      // references survive rehashing; begin_frame() and reset() drop the cache
+      // because they may erase. The capacity branch below never inserts, so a
+      // cached region is always a tracked one and the result is unchanged.
+      AdaptationState* cached = state_cache_.state != nullptr && state_cache_.cell == input.state_cell
+                                    ? state_cache_.state
+                                    : nullptr;
+      auto found = cached != nullptr ? states_.end() : states_.find(input.state_cell);
+      if (cached == nullptr && found == states_.end() && states_.size() >= u.max_state_cells) {
         const int target = input.safety_critical ? promotion_goal : baseline;
         record_evidence(target, false, UtilityDecisionReason::StateCapacity);
         return {.baseline_level = baseline,
@@ -396,7 +405,13 @@ PolicyDecision LodPolicy::decide(const DecisionInput& input) {
                 .utility_score = score,
                 .action = action_for(input.active_level, target)};
       }
-      auto& tracked = states_[input.state_cell];
+      if (cached == nullptr) {
+        if (found == states_.end()) found = states_.try_emplace(input.state_cell).first;
+        cached = &found->second;
+        state_cache_.cell = input.state_cell;
+        state_cache_.state = cached;
+      }
+      auto& tracked = *cached;
       if (!tracked.seen || tracked.last_frame != frame) {
         // Missing observations do not count as consecutive evidence.
         if (tracked.seen && frame - tracked.last_frame > 1) {

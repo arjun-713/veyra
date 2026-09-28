@@ -63,6 +63,12 @@ struct Options {
   std::vector<double> scan_beam_elevations_deg;
   bool include_leaf_details = false;
   bool promotion_telemetry = false;
+  // Withholds wall-clock evidence (frame time, process RSS) from the resource
+  // governor so its decisions -- and therefore the map -- depend only on the
+  // input stream. Cell and logical-byte budgets are still enforced; measured
+  // frame time is still reported, it just no longer feeds back into topology.
+  // Benchmarks use this so repeated runs produce identical maps.
+  bool deterministic_governor = false;
   std::string utility_config = VEYRA_SOURCE_DIR "/configs/utility_lod.yaml";
   std::string governor_config = VEYRA_SOURCE_DIR "/configs/resource_governor.yaml";
 };
@@ -141,6 +147,89 @@ struct Result {
   std::optional<veyra::map::ClearingStats> clearing;
   std::optional<veyra::policy::ResourceGovernorConfig> governor_config;
   std::optional<veyra::policy::PromotionTelemetry> promotion_telemetry;
+  bool governor_deterministic = false;
+};
+
+// Open-addressed CellId -> dense slot index for per-frame bookkeeping.
+//
+// The adapter looks a region up once per return, several times per return
+// before this existed, and std::unordered_map allocated a node per region per
+// frame. Clearing is O(1) by epoch, so the table (sized to the largest frame
+// seen, never beyond what the caller inserts) is reused without being wiped.
+// It carries no evidence: it only maps a cell to the position of its record in
+// a caller-owned dense vector, so iteration order never depends on it.
+class FlatCellIndex {
+ public:
+  static constexpr std::uint32_t kAbsent = std::numeric_limits<std::uint32_t>::max();
+
+  void clear() noexcept {
+    size_ = 0;
+    if (++epoch_ == 0) {
+      // Epoch wrapped: stale stamps could alias the new epoch.
+      for (auto& bucket : buckets_) bucket.epoch = 0;
+      epoch_ = 1;
+    }
+  }
+
+  [[nodiscard]] std::size_t size() const noexcept { return size_; }
+
+  [[nodiscard]] std::uint32_t find(veyra::core::CellId id) const noexcept {
+    if (buckets_.empty()) return kAbsent;
+    const std::size_t mask = buckets_.size() - 1;
+    for (std::size_t at = hash(id) & mask;; at = (at + 1) & mask) {
+      const Bucket& bucket = buckets_[at];
+      if (bucket.epoch != epoch_) return kAbsent;
+      if (bucket.id == id) return bucket.slot;
+    }
+  }
+
+  // Inserts `slot` for an id the caller has just checked is absent.
+  void insert(veyra::core::CellId id, std::uint32_t slot) {
+    if ((size_ + 1) * 2 > buckets_.size()) grow();
+    place(id, slot);
+    ++size_;
+  }
+
+ private:
+  struct Bucket {
+    veyra::core::CellId id{};
+    std::uint32_t slot = 0;
+    std::uint32_t epoch = 0;
+  };
+
+  static std::size_t hash(veyra::core::CellId id) noexcept {
+    std::uint64_t h = (static_cast<std::uint64_t>(static_cast<std::uint32_t>(id.ix)) << 32U) ^
+                      static_cast<std::uint32_t>(id.iy) ^
+                      (static_cast<std::uint64_t>(static_cast<std::uint32_t>(id.level)) << 61U);
+    h ^= h >> 33U;
+    h *= 0xff51afd7ed558ccdULL;
+    h ^= h >> 33U;
+    h *= 0xc4ceb9fe1a85ec53ULL;
+    h ^= h >> 33U;
+    return static_cast<std::size_t>(h);
+  }
+
+  void place(veyra::core::CellId id, std::uint32_t slot) noexcept {
+    const std::size_t mask = buckets_.size() - 1;
+    std::size_t at = hash(id) & mask;
+    while (buckets_[at].epoch == epoch_) at = (at + 1) & mask;
+    buckets_[at] = {id, slot, epoch_};
+  }
+
+  void grow() {
+    std::vector<Bucket> old;
+    old.swap(buckets_);
+    buckets_.assign(std::max<std::size_t>(1024, old.size() * 2), Bucket{});
+    const std::uint32_t live = epoch_;
+    epoch_ = 1;
+    for (const auto& bucket : old) {
+      if (bucket.epoch == live) place(bucket.id, bucket.slot);
+    }
+  }
+
+  std::vector<Bucket> buckets_;
+  std::size_t size_ = 0;
+  std::uint32_t epoch_ = 1;
 };
 
 enum class PolicyKind { kUniform5, kUniform40, kDistanceLod, kUtilityLod };
@@ -162,6 +251,7 @@ class MapPolicyAdapter {
                       options.governor_config)}
                 : std::nullopt) {
     options_promotion_telemetry_ = options.promotion_telemetry;
+    deterministic_governor_ = options.deterministic_governor;
     if (utility_) utility_->enable_promotion_telemetry(options.promotion_telemetry);
   }
 
@@ -171,22 +261,70 @@ class MapPolicyAdapter {
 
   // Full-frame support before allocation: identical evidence regardless of
   // point ordering. Only bounded counts survive until the next frame.
+  //
+  // Each return's 40 cm policy region is resolved once here and remembered by
+  // position, so the per-return work after this is an array read rather than
+  // repeated hashing. Decisions are still taken point by point in stream order,
+  // because LodPolicy::decide folds evidence incrementally and the order is
+  // part of its contract.
   void prepare_frame(const std::vector<veyra::map::Observation>& observations) {
     if (!utility_) return;
-    support_counts_.clear();
-    for (const auto& observation : observations) {
-      if (accepts(observation.x, observation.y)) add_support(policy_cell(observation.x, observation.y));
+    clear_frame_regions();
+    point_slots_.resize(observations.size());
+    for (std::size_t index = 0; index < observations.size(); ++index) {
+      const auto& observation = observations[index];
+      point_slots_[index] = accepts(observation.x, observation.y)
+                                ? add_support_slot(policy_cell(observation.x, observation.y))
+                                : kRejectedPoint;
     }
     support_prepared_ = true;
     // Resolve the complete scan before mutating topology. Otherwise a late
     // critical return splits already-fused evidence into a non-spatial prior,
     // or a later baseline request coarsens an earlier critical return.
-    for (const auto& observation : observations) {
-      if (!accepts(observation.x, observation.y)) continue;
-      const int level = requested_level(observation);
-      const auto found = support_counts_.find(policy_cell(observation.x, observation.y));
-      if (found != support_counts_.end())
-        found->second.level = std::min(found->second.level, level);
+    for (std::size_t index = 0; index < observations.size(); ++index) {
+      const std::uint32_t slot = point_slots_[index];
+      if (slot == kRejectedPoint) continue;
+      const auto& observation = observations[index];
+      if (slot == FlatCellIndex::kAbsent) {
+        (void)requested_level(observation, policy_cell(observation.x, observation.y), 0);
+        continue;
+      }
+      auto& region = regions_[slot];
+      region.level = std::min(region.level, requested_level(observation, region.cell, region.count));
+    }
+  }
+
+  // Integrates the frame most recently passed to prepare_frame(), in order.
+  // Equivalent to ingest_observation() per return, reusing the regions
+  // prepare_frame() resolved instead of recomputing them.
+  template <typename OnAccepted>
+  void integrate_prepared_frame(const std::vector<veyra::map::Observation>& observations,
+                                std::uint64_t& rejected_out_of_window, OnAccepted&& on_accepted) {
+    if (!utility_ || !support_prepared_ || point_slots_.size() != observations.size()) {
+      for (const auto& observation : observations) {
+        if (!accepts(observation.x, observation.y)) {
+          ++rejected_out_of_window;
+          continue;
+        }
+        update(observation);
+        on_accepted(observation);
+      }
+      return;
+    }
+    auto& map = std::get<veyra::map::Map>(map_);
+    for (std::size_t index = 0; index < observations.size(); ++index) {
+      const std::uint32_t slot = point_slots_[index];
+      if (slot == kRejectedPoint) {
+        ++rejected_out_of_window;
+        continue;
+      }
+      const auto& observation = observations[index];
+      const int level =
+          slot != FlatCellIndex::kAbsent
+              ? regions_[slot].level
+              : requested_level(observation, policy_cell(observation.x, observation.y), 0);
+      map.update_at_level(observation, level);
+      on_accepted(observation);
     }
   }
 
@@ -196,21 +334,28 @@ class MapPolicyAdapter {
       return;
     }
     auto& map = std::get<veyra::map::Map>(map_);
-    const auto found = support_counts_.find(policy_cell(observation.x, observation.y));
-    const int level = support_prepared_ && found != support_counts_.end()
-                          ? found->second.level
-                          : requested_level(observation);
+    const auto cell = policy_cell(observation.x, observation.y);
+    const std::uint32_t slot = region_index_.find(cell);
+    int level = 0;
+    if (support_prepared_ && slot != FlatCellIndex::kAbsent) {
+      level = regions_[slot].level;
+    } else {
+      const std::size_t count =
+          support_prepared_ ? support_count(slot) : add_support_count(cell, slot);
+      level = requested_level(observation, cell, count);
+    }
     map.update_at_level(observation, level);
   }
 
  private:
-  int requested_level(const veyra::map::Observation& observation) {
+  static constexpr std::uint32_t kRejectedPoint = FlatCellIndex::kAbsent - 1;
+
+  int requested_level(const veyra::map::Observation& observation,
+                      veyra::core::CellId baseline_cell, std::size_t count) {
     auto& map = std::get<veyra::map::Map>(map_);
     const double offset_x = observation.x - center_x_;
     const double offset_y = observation.y - center_y_;
     const double range = std::hypot(offset_x, offset_y);
-    const auto baseline_cell = policy_cell(observation.x, observation.y);
-    const auto count = support_prepared_ ? support_count(baseline_cell) : add_support(baseline_cell);
     const auto& utility_config = utility_->utility_config();
     const auto active_level = map.level_for(observation.x, observation.y);
     const auto decision = utility_->decide({
@@ -248,8 +393,7 @@ class MapPolicyAdapter {
     if (utility_) utility_->begin_frame(frame_id_++);
     center_x_ = x;
     center_y_ = y;
-    support_counts_.clear();
-    support_prepared_ = false;
+    clear_frame_regions();
     std::visit([x, y](auto& map) { map.set_window_center(x, y); }, map_);
   }
 
@@ -278,19 +422,28 @@ class MapPolicyAdapter {
   }
 
   [[nodiscard]] bool uses_stateful_policy() const noexcept { return utility_.has_value(); }
+  [[nodiscard]] bool deterministic_governor() const noexcept { return deterministic_governor_; }
 
   // Returns whether the map changed, so callers re-snapshot only when needed.
   bool apply_governor(const veyra::map::MapSnapshot& snapshot, double frame_time_ms) {
     if (!governor_.has_value()) return false;
-    struct SiblingGroup {
-      veyra::policy::GovernorCandidate candidate{};
-      std::size_t count = 0;
-    };
-    std::map<std::array<std::int64_t, 3>, SiblingGroup> groups;
+    // Groups live in a reused dense vector indexed by parent. Candidate order
+    // is irrelevant downstream: ResourceGovernor::decide ranks by a total order
+    // over distinct cells, so the chosen merges match the previous ordered-map
+    // grouping exactly while avoiding one tree node per group per frame.
+    auto& groups = governor_groups_;
+    groups.clear();
+    governor_group_index_.clear();
     for (const auto& leaf : snapshot.leaves) {
       if (leaf.id.level >= 3) continue;
       const auto parent = leaf.id.parent();
-      auto& group = groups[{parent.level, parent.ix, parent.iy}];
+      std::uint32_t slot = governor_group_index_.find(parent);
+      if (slot == FlatCellIndex::kAbsent) {
+        slot = static_cast<std::uint32_t>(groups.size());
+        governor_group_index_.insert(parent, slot);
+        groups.push_back(SiblingGroup{});
+      }
+      auto& group = groups[slot];
       if (group.count == 0) {
         const double resolution = veyra::core::resolution_m(parent.level);
         const double min_x = static_cast<double>(parent.ix) * resolution;
@@ -318,17 +471,21 @@ class MapPolicyAdapter {
       group.candidate.safety_critical =
           group.candidate.safety_critical || leaf.stats.drivable_evidence() < 0.0F;
     }
-    std::vector<veyra::policy::GovernorCandidate> candidates;
-    candidates.reserve(groups.size());
-    for (const auto& [key, group] : groups) {
-      static_cast<void>(key);
+    auto& candidates = governor_candidates_;
+    candidates.clear();
+    for (const auto& group : groups) {
       if (group.count == 4) candidates.push_back(group.candidate);
     }
-    const auto actions = governor_->decide({.active_cells = snapshot.active_leaf_count,
-                                            .logical_bytes = snapshot.logical_bytes,
-                                            .frame_time_ms = frame_time_ms,
-                                            .rss_bytes = veyra::metrics::read_process_rss_bytes()},
-                                           candidates);
+    // Deterministic mode: frame time and RSS are wall-clock/process evidence
+    // that differ between identical runs, so they are withheld (zero frame
+    // time contributes no load; absent RSS is unavailable, not zero).
+    const auto actions = governor_->decide(
+        {.active_cells = snapshot.active_leaf_count,
+         .logical_bytes = snapshot.logical_bytes,
+         .frame_time_ms = deterministic_governor_ ? 0.0 : frame_time_ms,
+         .rss_bytes = deterministic_governor_ ? std::nullopt
+                                              : veyra::metrics::read_process_rss_bytes()},
+        candidates);
     auto& map = std::get<veyra::map::Map>(map_);
     for (const auto& action : actions) {
       if (action.action == veyra::policy::ResolutionAction::Merge)
@@ -364,16 +521,36 @@ class MapPolicyAdapter {
     while (cell.level < 3) cell = cell.parent();
     return cell;
   }
-  std::size_t support_count(veyra::core::CellId cell) const {
-    const auto found = support_counts_.find(cell);
-    return found == support_counts_.end() ? 0 : found->second.count;
+  void clear_frame_regions() noexcept {
+    regions_.clear();
+    region_index_.clear();
+    point_slots_.clear();
+    support_prepared_ = false;
   }
-  std::size_t add_support(veyra::core::CellId cell) {
-    const auto found = support_counts_.find(cell);
-    if (found != support_counts_.end()) return ++found->second.count;
-    if (support_counts_.size() >= utility_->utility_config().max_state_cells) return 0;
-    support_counts_.emplace(cell, FrameRegion{1, 3});
+  [[nodiscard]] std::size_t support_count(std::uint32_t slot) const noexcept {
+    return slot == FlatCellIndex::kAbsent ? 0 : regions_[slot].count;
+  }
+  // Counts one more return in `cell`'s region and returns the new count, or 0
+  // when the region is untracked because the frame's region budget is full.
+  std::size_t add_support_count(veyra::core::CellId cell, std::uint32_t slot) {
+    if (slot != FlatCellIndex::kAbsent) return ++regions_[slot].count;
+    if (regions_.size() >= utility_->utility_config().max_state_cells) return 0;
+    region_index_.insert(cell, static_cast<std::uint32_t>(regions_.size()));
+    regions_.push_back(FrameRegion{cell, 1, 3});
     return 1;
+  }
+  // As add_support_count(), returning the region's slot (kAbsent if untracked).
+  std::uint32_t add_support_slot(veyra::core::CellId cell) {
+    const std::uint32_t slot = region_index_.find(cell);
+    if (slot != FlatCellIndex::kAbsent) {
+      ++regions_[slot].count;
+      return slot;
+    }
+    if (regions_.size() >= utility_->utility_config().max_state_cells) return FlatCellIndex::kAbsent;
+    const auto inserted = static_cast<std::uint32_t>(regions_.size());
+    region_index_.insert(cell, inserted);
+    regions_.push_back(FrameRegion{cell, 1, 3});
+    return inserted;
   }
   using Storage = std::variant<veyra::map::Uniform5Map, veyra::map::Uniform40Map,
                                veyra::map::DistanceLodMap, veyra::map::Map>;
@@ -390,6 +567,14 @@ class MapPolicyAdapter {
     }
     throw std::logic_error("unknown policy kind");
   }
+  struct SiblingGroup {
+    veyra::policy::GovernorCandidate candidate{};
+    std::size_t count = 0;
+  };
+  // Governor grouping scratch, reused every frame (bounded by active leaves).
+  std::vector<SiblingGroup> governor_groups_;
+  FlatCellIndex governor_group_index_;
+  std::vector<veyra::policy::GovernorCandidate> governor_candidates_;
   PolicyKind kind_;
   veyra::map::MapConfig config_;
   Storage map_;
@@ -399,11 +584,17 @@ class MapPolicyAdapter {
   double center_x_ = 0.0;
   double center_y_ = 0.0;
   bool options_promotion_telemetry_ = false;
+  bool deterministic_governor_ = false;
   struct FrameRegion {
+    veyra::core::CellId cell{3, 0, 0};
     std::size_t count = 0;
     int level = 3;
   };
-  std::unordered_map<veyra::core::CellId, FrameRegion, veyra::core::CellIdHash> support_counts_;
+  // Bounded by max_state_cells regions and one slot per return of the
+  // current frame; storage is reused across frames.
+  std::vector<FrameRegion> regions_;
+  FlatCellIndex region_index_;
+  std::vector<std::uint32_t> point_slots_;
   bool support_prepared_ = false;
 };
 
@@ -533,6 +724,8 @@ Options parse_options(int argc, char** argv) {
       options.include_leaf_details = true;
     } else if (arg == "--promotion-telemetry") {
       options.promotion_telemetry = true;
+    } else if (arg == "--deterministic-governor") {
+      options.deterministic_governor = true;
     } else if (arg == "--utility-config") {
       options.utility_config = argv[++index];
     } else if (arg == "--governor-config") {
@@ -880,6 +1073,7 @@ Result run(const Options& options) {
   Result result;
   result.policy = options.policy;
   result.governor_config = map.governor_config();
+  result.governor_deterministic = options.deterministic_governor;
   result.include_leaf_details = options.include_leaf_details;
   bool header = false;
   bool metadata = false;
@@ -1049,12 +1243,11 @@ Result run(const Options& options) {
       if (options.policy == "utility_lod") {
         const auto update_started = Clock::now();
         map.prepare_frame(pending_points);
-        for (const auto& observation : pending_points) {
-          if (ingest_observation(map, observation, result.rejected_out_of_window)) {
-            ++result.input_points;
-            scan_image.insert(observation, sensor_pose);
-          }
-        }
+        map.integrate_prepared_frame(pending_points, result.rejected_out_of_window,
+                                     [&](const veyra::map::Observation& observation) {
+                                       ++result.input_points;
+                                       scan_image.insert(observation, sensor_pose);
+                                     });
         update_duration += std::chrono::nanoseconds{duration_ns(update_started)};
       }
       // Visibility clearing runs after the frame is integrated and before the
@@ -1549,7 +1742,8 @@ std::string render(const Result& result) {
         << ",\"recovery_frames\":" << governor.recovery_frames
         << ",\"interventions\":" << governor.interventions
         << ",\"actions_requested\":" << governor.actions_requested
-        << ",\"actions_applied\":" << governor.actions_applied;
+        << ",\"actions_applied\":" << governor.actions_applied
+        << ",\"deterministic\":" << (result.governor_deterministic ? "true" : "false");
     if (result.governor_config) {
       const auto& budget = *result.governor_config;
       out << ",\"budget\":{\"max_active_cells\":" << budget.max_active_cells
@@ -1585,6 +1779,7 @@ class PersistentEngineSession {
     result_ = Result{};
     result_.policy = options_.policy;
     result_.governor_config = map_->governor_config();
+    result_.governor_deterministic = options_.deterministic_governor;
     result_.include_leaf_details = options_.include_leaf_details;
     result_.digest = "engine-session";
     result_.protocol_version = 2;
@@ -1698,13 +1893,12 @@ class PersistentEngineSession {
     parse_duration_ += std::chrono::nanoseconds{duration_ns(parse_started)};
     const auto update_started = Clock::now();
     map_->prepare_frame(pending_);
-    for (const auto& observation : pending_) {
-      if (ingest_observation(*map_, observation, result_.rejected_out_of_window)) {
-        ++result_.input_points;
-        if (pose_valid_) scan_image_.insert(observation, sensor_pose_);
-      }
-      ++points_;
-    }
+    map_->integrate_prepared_frame(pending_, result_.rejected_out_of_window,
+                                   [&](const veyra::map::Observation& observation) {
+                                     ++result_.input_points;
+                                     if (pose_valid_) scan_image_.insert(observation, sensor_pose_);
+                                   });
+    points_ += pending_.size();
     update_duration_ += std::chrono::nanoseconds{duration_ns(update_started)};
     pending_integrated_ = true;
     std::istringstream end;
@@ -1807,12 +2001,12 @@ class PersistentEngineSession {
     if (options_.policy == "utility_lod" && !pending_integrated_) {
       const auto update_started = Clock::now();
       map_->prepare_frame(pending_);
-      for (const auto& observation : pending_) {
-        if (ingest_observation(*map_, observation, result_.rejected_out_of_window)) {
-          ++result_.input_points;
-          if (pose_valid_) scan_image_.insert(observation, sensor_pose_);
-        }
-      }
+      map_->integrate_prepared_frame(
+          pending_, result_.rejected_out_of_window,
+          [&](const veyra::map::Observation& observation) {
+            ++result_.input_points;
+            if (pose_valid_) scan_image_.insert(observation, sensor_pose_);
+          });
       update_duration_ += std::chrono::nanoseconds{duration_ns(update_started)};
       pending_integrated_ = true;
     }

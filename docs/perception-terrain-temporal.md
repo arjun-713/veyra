@@ -12,6 +12,13 @@ mode. Implementations currently include `GroundTruthSemanticProvider`,
 `OnnxSemanticProvider`, and the SalsaNext adapter; the mapper consumes only the
 result fields and does not depend on a network-specific implementation.
 
+CENet (`mode: cenet`) takes `device: auto | cpu | mps` (default `cpu`).
+`auto` runs the unchanged fp32 graph on Apple-silicon MPS only after a
+fixed-seed CPU-parity probe passes; otherwise, or if MPS fails mid-run, it
+stays on CPU and records why in `pipeline_status.semantic_device_fallback_reason`
+(also in telemetry and diagnostics). `mps` fails closed. A device fallback
+still runs the model; it is never a `ground_truth` fallback.
+
 Mapper must not depend on one network. Candidates: SalsaNext, FRNet,
 Cylinder3D, compatible ONNX models. Pretrained first; custom LiDAR
 training is out of scope.
