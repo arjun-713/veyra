@@ -1,5 +1,5 @@
 use std::fmt;
-use std::io::{BufRead, BufReader, Write};
+use std::io::{self, BufRead, BufReader, Write};
 use std::net::{SocketAddr, TcpStream};
 use std::time::Duration;
 
@@ -130,27 +130,58 @@ impl ControlClient {
                 ControlClientError::Transport(format!("cannot configure control timeouts: {error}"))
             })?;
         stream.write_all(&frame).map_err(|error| {
-            ControlClientError::Transport(format!("cannot write control request: {error}"))
+            transport_error("write control request", command, io_timeout, &error)
         })?;
         stream.flush().map_err(|error| {
-            ControlClientError::Transport(format!("cannot flush control request: {error}"))
+            transport_error("flush control request", command, io_timeout, &error)
         })?;
 
         let mut reader = BufReader::new(stream);
-        let response = read_response(&mut reader)?;
+        let response = read_response(&mut reader).map_err(|error| match error {
+            ResponseError::Io(error) => {
+                transport_error("read control response", command, io_timeout, &error)
+            }
+            ResponseError::Client(error) => error,
+        })?;
         validate_response(&response, &id)
     }
 }
 
 fn request_timeout(command: &str) -> Duration {
-    // Every command below can require a runtime round trip, and the runtime
-    // answers between frames (a single frame can take several seconds), so
-    // even cheap reads get the long budget. Purely local validation stays
-    // out of this transport entirely.
+    // Every command below can require a runtime round trip: the daemon
+    // starts the Python runtime on first use (a cold start imports Torch and
+    // can take several seconds) and the runtime answers between frames (a
+    // single frame can take several seconds), so even cheap reads such as
+    // `config_validate` get the long budget. `stop`/`shutdown` wait for the
+    // runtime to exit. Only commands the daemon rejects without touching the
+    // runtime fall through to the short budget.
     match command {
-        "configure" | "open_dataset" | "benchmark" | "command" | "status" | "metrics"
-        | "diagnostics" | "datasets" | "stop" => LONG_OPERATION_TIMEOUT,
+        "configure" | "config_validate" | "open_dataset" | "benchmark" | "command" | "status"
+        | "metrics" | "diagnostics" | "datasets" | "stop" | "shutdown" => LONG_OPERATION_TIMEOUT,
         _ => IO_TIMEOUT,
+    }
+}
+
+/// Maps a socket read/write error to a transport error. An expired
+/// `SO_RCVTIMEO`/`SO_SNDTIMEO` surfaces as `WouldBlock` (EAGAIN; "os error
+/// 35" on macOS) on Unix and as `TimedOut` on Windows; both mean the budget
+/// ran out, so say that instead of "Resource temporarily unavailable".
+fn transport_error(
+    operation: &str,
+    command: &str,
+    timeout: Duration,
+    error: &io::Error,
+) -> ControlClientError {
+    if matches!(
+        error.kind(),
+        io::ErrorKind::WouldBlock | io::ErrorKind::TimedOut
+    ) {
+        ControlClientError::Transport(format!(
+            "cannot {operation}: control daemon did not answer `{command}` within {} s",
+            timeout.as_secs()
+        ))
+    } else {
+        ControlClientError::Transport(format!("cannot {operation}: {error}"))
     }
 }
 
@@ -208,26 +239,30 @@ fn validate_token(mut token: Vec<u8>) -> Result<String, ControlClientError> {
     })
 }
 
-fn read_response(reader: &mut impl BufRead) -> Result<Value, ControlClientError> {
+#[derive(Debug)]
+enum ResponseError {
+    Io(io::Error),
+    Client(ControlClientError),
+}
+
+fn read_response(reader: &mut impl BufRead) -> Result<Value, ResponseError> {
     let mut line = Vec::new();
     loop {
-        let available = reader.fill_buf().map_err(|error| {
-            ControlClientError::Transport(format!("cannot read control response: {error}"))
-        })?;
+        let available = reader.fill_buf().map_err(ResponseError::Io)?;
         if available.is_empty() {
             if line.is_empty() {
-                return Err(ControlClientError::Protocol(
+                return Err(ResponseError::Client(ControlClientError::Protocol(
                     "control response was empty".to_owned(),
-                ));
+                )));
             }
             break;
         }
         let newline = available.iter().position(|byte| *byte == b'\n');
         let amount = newline.map_or(available.len(), |index| index + 1);
         if line.len().saturating_add(amount) > MAX_FRAME_BYTES {
-            return Err(ControlClientError::Protocol(
+            return Err(ResponseError::Client(ControlClientError::Protocol(
                 "control response exceeds 64 KiB".to_owned(),
-            ));
+            )));
         }
         line.extend_from_slice(&available[..amount]);
         reader.consume(amount);
@@ -236,7 +271,9 @@ fn read_response(reader: &mut impl BufRead) -> Result<Value, ControlClientError>
         }
     }
     serde_json::from_slice::<Value>(&line).map_err(|error| {
-        ControlClientError::Protocol(format!("malformed control response: {error}"))
+        ResponseError::Client(ControlClientError::Protocol(format!(
+            "malformed control response: {error}"
+        )))
     })
 }
 
@@ -291,8 +328,9 @@ mod tests {
     use std::io::Cursor;
 
     use super::{
-        parse_endpoint, read_response, request_timeout, validate_response, validate_token,
-        ControlClient, ControlClientError, LONG_OPERATION_TIMEOUT, MAX_FRAME_BYTES,
+        parse_endpoint, read_response, request_timeout, transport_error, validate_response,
+        validate_token, ControlClient, ControlClientError, ResponseError, IO_TIMEOUT,
+        LONG_OPERATION_TIMEOUT, MAX_FRAME_BYTES,
     };
     use serde_json::json;
 
@@ -382,6 +420,40 @@ mod tests {
         assert_eq!(request_timeout("configure"), LONG_OPERATION_TIMEOUT);
         assert_eq!(request_timeout("benchmark"), LONG_OPERATION_TIMEOUT);
         assert_eq!(request_timeout("command"), LONG_OPERATION_TIMEOUT);
+        assert_eq!(request_timeout("config_validate"), LONG_OPERATION_TIMEOUT);
+        assert_eq!(request_timeout("shutdown"), LONG_OPERATION_TIMEOUT);
+        assert_eq!(request_timeout("not_a_daemon_command"), IO_TIMEOUT);
+    }
+
+    #[test]
+    fn expired_socket_timeouts_report_a_timeout_on_every_platform() {
+        // Unix reports an expired SO_RCVTIMEO as EAGAIN (WouldBlock; "os
+        // error 35" on macOS); Windows reports TimedOut.
+        for kind in [std::io::ErrorKind::WouldBlock, std::io::ErrorKind::TimedOut] {
+            let error = transport_error(
+                "read control response",
+                "config_validate",
+                LONG_OPERATION_TIMEOUT,
+                &std::io::Error::from(kind),
+            );
+            assert_eq!(
+                error,
+                ControlClientError::Transport(
+                    "cannot read control response: control daemon did not answer \
+                     `config_validate` within 120 s"
+                        .to_owned()
+                )
+            );
+        }
+        let reset = transport_error(
+            "read control response",
+            "status",
+            LONG_OPERATION_TIMEOUT,
+            &std::io::Error::from(std::io::ErrorKind::ConnectionReset),
+        );
+        assert!(
+            matches!(reset, ControlClientError::Transport(message) if message.starts_with("cannot read control response: ") && !message.contains("within"))
+        );
     }
 
     #[test]
@@ -417,12 +489,49 @@ mod tests {
         std::fs::remove_file(path).unwrap();
     }
 
+    /// Regression: on a fresh desktop launch "Open dataset & preview" first
+    /// sends `config_validate`, which makes the daemon spawn the Python
+    /// runtime and wait for its reply. That round trip routinely outlives
+    /// the 2 s short-IO budget, and on macOS an expired `SO_RCVTIMEO`
+    /// surfaces as `WouldBlock` ("os error 35"). The client must wait the
+    /// runtime-round-trip budget for every command the daemon forwards.
+    #[test]
+    fn config_validate_waits_for_a_cold_runtime_response() {
+        use std::io::{BufRead, BufReader, Write};
+        use std::net::TcpListener;
+
+        let listener = TcpListener::bind("127.0.0.1:0").unwrap();
+        let endpoint = listener.local_addr().unwrap();
+        let server = std::thread::spawn(move || {
+            let (stream, _) = listener.accept().unwrap();
+            let mut reader = BufReader::new(stream.try_clone().unwrap());
+            let mut line = String::new();
+            reader.read_line(&mut line).unwrap();
+            let request: serde_json::Value = serde_json::from_str(&line).unwrap();
+            assert_eq!(request["command"], "config_validate");
+            // Longer than the 2 s short-IO budget: a cold runtime start.
+            std::thread::sleep(std::time::Duration::from_millis(2_600));
+            let mut writer = stream;
+            let response = json!({"ok": true, "id": request["id"], "result": {"valid": true}});
+            writer
+                .write_all(format!("{response}\n").as_bytes())
+                .unwrap();
+        });
+
+        let mut client =
+            ControlClient::from_endpoint_and_token(endpoint, "12345678901234567890123456789012")
+                .unwrap();
+        let result = client.request("config_validate", json!({"config": {}}));
+        server.join().unwrap();
+        assert_eq!(result, Ok(json!({"valid": true})));
+    }
+
     #[test]
     fn oversized_response_is_rejected_before_json_parsing() {
         let response = vec![b'x'; MAX_FRAME_BYTES + 1];
         let error = read_response(&mut Cursor::new(response)).unwrap_err();
         assert!(
-            matches!(error, ControlClientError::Protocol(message) if message.contains("exceeds 64 KiB"))
+            matches!(error, ResponseError::Client(ControlClientError::Protocol(message)) if message.contains("exceeds 64 KiB"))
         );
     }
 }
