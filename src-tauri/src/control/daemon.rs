@@ -391,6 +391,9 @@ fn is_supported_controller_command(command: &str) -> bool {
             | "governor"
             | "benchmark"
             | "validation"
+            | "replay_open"
+            | "replay_close"
+            | "replay_status"
             | "stop"
     )
 }
@@ -628,6 +631,10 @@ mod tests {
             "speed",
             "governor",
             "benchmark",
+            "validation",
+            "replay_open",
+            "replay_close",
+            "replay_status",
         ] {
             assert!(
                 is_supported_controller_command(command),

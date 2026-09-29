@@ -36,6 +36,9 @@ COMMANDS = {
     "metrics": (),
     "shutdown": (),
     "governor": ("mode",),
+    "replay_open": ("path", "fps"),
+    "replay_close": (),
+    "replay_status": (),
     "benchmark": (
         "dataset",
         "sequence",
@@ -51,6 +54,16 @@ COMMANDS = {
 }
 BENCHMARK_ARTIFACT_LIMIT = 32 * 1024 * 1024
 BENCHMARK_REPORT_SCHEMA = 2
+# Smooth-replay presentation defaults. 30 cached snapshots/sec is a
+# PRESENTATION rate (dataset frames shown per second), never a processing
+# throughput claim; the 60 Hz renderer draws ~2 refreshes per snapshot.
+REPLAY_DEFAULT_FPS = 30.0
+REPLAY_MIN_FPS = 1.0
+REPLAY_MAX_FPS = 60.0
+# Byte-bounded look-ahead window for cached snapshots (ring buffer). 128 MiB
+# holds ~70 LowResource frames (~1.7 MB) or ~12 Quality frames (~10 MB).
+REPLAY_PREFETCH_BYTES = 128 * 1024 * 1024
+REPLAY_PREFETCH_FRAMES = 64
 
 
 def benchmark_completion_event(output: Path, csv: Path) -> dict:
@@ -119,25 +132,47 @@ class ProductRuntime:
         self._benchmark = None
         self._benchmark_thread = None
         self._artifacts = tempfile.TemporaryDirectory(prefix="veyra-session-")
+        # Smooth-replay state. When active, ticks serve precomputed cached
+        # snapshots with no perception/mapping work (see _publish_replay_frame).
+        self.replay_reader = None
+        self.replay_path: str | None = None
+        self.replay_position = -1
+        self.replay_fps = REPLAY_DEFAULT_FPS
+        self.replay_speed = 1.0
+        self.replay_underruns = 0
+        self.replay_hits = 0
+        self.replay_misses = 0
+        self._replay_cache: dict[int, tuple[dict, bytes]] = {}
+        self._replay_cached_bytes = 0
         self._publish_status()
 
     def _publish_status(self):
-        frames = self._frame_count() if self.session else 0
+        if self.replay_reader is not None:
+            frames = len(self.replay_reader)
+        elif self.session is not None:
+            frames = self._frame_count()
+        else:
+            frames = 0
         status = {
             "state": self.state,
             "dataset": self.config["dataset"] if self.config else None,
             "sequence": self.config["sequence"] if self.config else None,
-            "index": self.index,
+            "index": self.replay_position
+            if self.replay_reader is not None
+            else self.index,
             "frames": frames,
             "policy": self.config["map"]["policy"] if self.config else "distance_lod",
             "layer": self.layer,
-            "speed": self.config["playback"]["speed"] if self.config else 1,
+            "speed": (
+                self.config["playback"]["speed"] if self.config else self.replay_speed
+            ),
             "generation": self.generation,
             "queue_depth": self.commands.qsize(),
             "dropped_frames": self.dropped_frames,
             "visualization_dropped": self.outbox.visualization_dropped,
             "error": self.error,
             "config_digest": config_digest(self.config) if self.config else None,
+            "replay": self._replay_status(),
         }
         with self._status_lock:
             self._cached_status = status
@@ -158,6 +193,154 @@ class ProductRuntime:
         result["queue_depth"] = self.commands.qsize()
         result["visualization_dropped"] = self.outbox.visualization_dropped
         return result
+
+    # ---- Smooth replay (precomputed cache, no perception/mapping) ----
+
+    def _replay_status(self) -> dict:
+        if self.replay_reader is None:
+            return {"active": False}
+        header = self.replay_reader.header
+        return {
+            "active": True,
+            "path": self.replay_path,
+            "frames": len(self.replay_reader),
+            "position": self.replay_position,
+            "fps": self.replay_fps,
+            "dataset": header.get("dataset"),
+            "sequence": header.get("sequence"),
+            "policy": header.get("policy"),
+            "underruns": self.replay_underruns,
+            "prefetch_hits": self.replay_hits,
+            "prefetch_misses": self.replay_misses,
+            "prefetch_frames": len(self._replay_cache),
+            "prefetch_bytes": self._replay_cached_bytes,
+        }
+
+    def _replay_open(self, args) -> dict:
+        from .replay_cache import ReplayError, ReplayReader, check_compatible
+
+        raw_path = args.get("path")
+        if not isinstance(raw_path, str) or not raw_path or len(raw_path) > 4096:
+            raise ValueError("replay path must be a nonempty string")
+        fps = args.get("fps", REPLAY_DEFAULT_FPS)
+        fps = number(fps, "fps", REPLAY_MIN_FPS, REPLAY_MAX_FPS)
+        try:
+            reader = ReplayReader(raw_path)
+        except ReplayError as error:
+            raise ValueError(f"replay cache unavailable: {error}") from error
+        if self.config is not None:
+            mismatch = check_compatible(
+                reader.header,
+                policy=self.config["map"]["policy"],
+                config_digest=config_digest(self.config),
+            )
+            if mismatch:
+                reader.close()
+                raise ValueError(f"replay cache mismatch: {mismatch}")
+        self._replay_close_locked()
+        self.replay_reader = reader
+        self.replay_path = str(raw_path)
+        self.replay_fps = float(fps)
+        self.replay_position = -1
+        self.replay_underruns = 0
+        self.replay_hits = 0
+        self.replay_misses = 0
+        self.replay_speed = 1.0
+        self.state = "paused"
+        self.generation += 1
+        self._publish_status()
+        return self._replay_status()
+
+    def _replay_close_locked(self) -> None:
+        if self.replay_reader is not None:
+            self.replay_reader.close()
+        self.replay_reader = None
+        self.replay_path = None
+        self.replay_position = -1
+        self.replay_speed = 1.0
+        self._replay_cache = {}
+        self._replay_cached_bytes = 0
+
+    def _replay_prefetch(self, from_position: int) -> None:
+        """Fill the byte-bounded look-ahead window ahead of from_position."""
+        reader = self.replay_reader
+        if reader is None:
+            return
+        position = from_position + 1
+        while (
+            position < len(reader)
+            and len(self._replay_cache) < REPLAY_PREFETCH_FRAMES
+            and self._replay_cached_bytes < REPLAY_PREFETCH_BYTES
+        ):
+            if position in self._replay_cache:
+                position += 1
+                continue
+            try:
+                metadata, payload = reader.read_frame(position)
+            except Exception:  # noqa: BLE001 - stop prefetching, tick reports it.
+                break
+            self._replay_cache[position] = (metadata, payload)
+            self._replay_cached_bytes += len(payload) + len(
+                json.dumps(metadata, allow_nan=False).encode()
+            )
+            position += 1
+
+    def _replay_take(self, position: int) -> tuple[dict, bytes]:
+        """Serve one cached snapshot: prefetch hit or synchronous read."""
+        reader = self.replay_reader
+        assert reader is not None
+        cached = self._replay_cache.pop(position, None)
+        if cached is not None:
+            self.replay_hits += 1
+            self._replay_cached_bytes = max(
+                0, self._replay_cached_bytes - (len(cached[1]) + 1024)
+            )
+            return cached
+        self.replay_misses += 1
+        self.replay_underruns += 1
+        try:
+            return reader.read_frame(position)
+        except Exception as error:
+            from .replay_cache import ReplayError
+
+            raise ReplayError(f"cached frame {position} unreadable: {error}") from error
+
+    def _publish_replay_frame(self, position: int) -> None:
+        """Present a cached snapshot. Never touches perception or the mapper."""
+        started = time.perf_counter()
+        metadata, payload = self._replay_take(position)
+        # Stamp the live generation so stale live frames can never win over
+        # the replay (and vice versa after replay closes).
+        outgoing = dict(metadata)
+        outgoing["generation"] = self.generation
+        outgoing["replay"] = True
+        self.outbox.publish(outgoing, payload)
+        self.replay_position = position
+        self.last_visual = time.monotonic()
+        serve_ms = (time.perf_counter() - started) * 1000
+        recorded = metadata.get("recorded_telemetry") or {}
+        self.last_telemetry = {
+            "type": "telemetry",
+            "schema_version": 1,
+            "timestamp": time.time(),
+            "state": self.state,
+            "index": position,
+            "frames": len(self.replay_reader),
+            "replay": True,
+            # Processing throughput is NOT measured during replay; the
+            # historical values below were recorded when the cache was built.
+            "fps": None,
+            "fps_note": "N/A during replay — see recorded_telemetry",
+            "recorded_telemetry": recorded,
+            "replay_serve_ms": serve_ms,
+            "replay_fps": self.replay_fps,
+        }
+        self.outbox.publish(self.last_telemetry)
+        # Keep the window ahead warm; drop entries behind the playhead.
+        for key in [key for key in self._replay_cache if key <= position]:
+            self._replay_cache.pop(key, None)
+        self._replay_prefetch(position)
+        self._publish_status()
 
     def submit(self, request):
         try:
@@ -253,6 +436,7 @@ class ProductRuntime:
         previous, self.session = self.session, replacement
         if previous:
             previous.close()
+        self._replay_close_locked()
         self.config = config
         self.state, self.index, self.error = "ready", -1, None
         self.dropped_frames = 0
@@ -306,6 +490,56 @@ class ProductRuntime:
                 raise ValueError("unsupported layer")
             self.layer = layer
             return {"layer": self.layer}
+        # Smooth-replay commands work standalone (demo without a live
+        # session) and never touch perception or the mapper.
+        if command == "replay_open":
+            return {"replay": self._replay_open(args)}
+        if command == "replay_close":
+            self._replay_close_locked()
+            self._publish_status()
+            return {"replay": self._replay_status()}
+        if command == "replay_status":
+            return {"replay": self._replay_status()}
+        if self.replay_reader is not None:
+            if command == "start":
+                if self.state == "error":
+                    raise RuntimeError("reset the failed session before restarting")
+                if self.replay_position >= len(self.replay_reader) - 1:
+                    self.replay_position = -1
+                    self._replay_cache = {}
+                    self._replay_cached_bytes = 0
+                    self.generation += 1
+                self.state = "running"
+                self.next_frame = time.monotonic()
+                self._replay_prefetch(self.replay_position)
+                return {"replay": self._replay_status()}
+            if command == "pause":
+                self.state = "paused"
+                return None
+            if command == "speed":
+                value = number(args["speed"], "speed", 0.1, 8)
+                if self.config is not None:
+                    self.config["playback"]["speed"] = value
+                else:
+                    self.replay_speed = value
+                return None
+            if command in ("step", "seek"):
+                last = len(self.replay_reader) - 1
+                target = (
+                    min(self.replay_position + 1, last)
+                    if command == "step"
+                    else number(args["index"], "index", 0, last, True)
+                )
+                if target < self.replay_position:
+                    self.generation += 1
+                self.state = "paused"
+                self._process_replay(target, force_visual=True)
+                return {"replay": self._replay_status()}
+            if command in ("reset", "sequence", "policy"):
+                raise ValueError(
+                    "close the smooth replay before changing "
+                    f"{command}: the cache belongs to its recorded policy/config"
+                )
         if self.session is None:
             raise ValueError("configure a dataset before playback")
         if command == "benchmark":
@@ -419,6 +653,15 @@ class ProductRuntime:
         finally:
             self._frame_in_flight.release()
 
+    def _process_replay(self, target, force_visual=False):
+        """Serve a cached snapshot; the force flag is accepted for API parity."""
+        if not self._frame_in_flight.acquire(blocking=False):
+            raise RuntimeError("frame already in flight")
+        try:
+            self._publish_replay_frame(target)
+        finally:
+            self._frame_in_flight.release()
+
     def _should_publish_visual(self, *, force_visual):
         """Commands force their final visual; playback remains capped at 2 Hz."""
 
@@ -505,6 +748,18 @@ class ProductRuntime:
 
     def tick(self):
         if self.state != "running" or time.monotonic() < self.next_frame:
+            return
+        if self.replay_reader is not None:
+            if self.replay_position >= len(self.replay_reader) - 1:
+                self.state = "ended"
+                self._publish_status()
+                return
+            started = time.monotonic()
+            self._process_replay(self.replay_position + 1)
+            speed = (
+                self.config["playback"]["speed"] if self.config else self.replay_speed
+            )
+            self.next_frame = started + 1 / (self.replay_fps * speed)
             return
         if self.index >= self.status()["frames"] - 1:
             self.state = "ended"
@@ -646,6 +901,7 @@ class ProductRuntime:
 
     def close(self):
         self.stopping.set()
+        self._replay_close_locked()
         if self._benchmark is not None and self._benchmark.poll() is None:
             self._benchmark.terminate()
             try:
