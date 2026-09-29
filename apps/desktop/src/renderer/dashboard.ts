@@ -107,6 +107,7 @@ export function measurementDisplay(state:unknown):{label:string;sub:string}{
  if(state==='loading')return {label:'LOADING REPORT',sub:'benchmark finished; reading the complete artifact'};
  if(state==='complete')return {label:'COMPLETE',sub:'results below are the last valid measurement window'};
  if(state==='failed')return {label:'FAILED',sub:'see error banner; no valid measurement'};
+ if(state==='cancelled')return {label:'CANCELLED',sub:'benchmark was cancelled; no report was produced'};
  return {label:'IDLE',sub:'no measurement running'};
 }
 // Canonical rolling-percentile sample gates. p95/p99 match the benchmark

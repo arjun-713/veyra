@@ -497,7 +497,56 @@ class ProductServiceTests(unittest.TestCase):
             finally:
                 service.close()
 
-    def test_benchmark_respects_the_session_frame_limit_and_announces_its_artifact(
+    def test_benchmark_selection_is_bounded_by_the_sequence_not_frame_limit(self):
+        from runtime.service import benchmark_selection
+
+        self.assertEqual(benchmark_selection(500, {}), (0, 110, 10, 3))
+        self.assertEqual(benchmark_selection(40, {}), (0, 40, 10, 3))
+        self.assertEqual(benchmark_selection(5, {}), (0, 5, 4, 3))
+        self.assertEqual(
+            benchmark_selection(
+                200, {"start": 50, "count": 150, "warmup_frames": 0, "repetitions": 1}
+            ),
+            (50, 150, 0, 1),
+        )
+        with self.assertRaisesRegex(ValueError, "sequence provides 200 frames"):
+            benchmark_selection(200, {"start": 50, "count": 151})
+        with self.assertRaisesRegex(ValueError, "warmup_frames"):
+            benchmark_selection(200, {"count": 10, "warmup_frames": 10})
+        with self.assertRaisesRegex(ValueError, "repetitions"):
+            benchmark_selection(200, {"repetitions": 21})
+        with self.assertRaisesRegex(ValueError, "no frames"):
+            benchmark_selection(0, {})
+
+    def test_benchmark_progress_lines_are_parsed_from_the_log(self):
+        from runtime.service import parse_benchmark_progress
+
+        log = (
+            "warning: something\n"
+            'VEYRA_BENCHMARK_PROGRESS {"phase": "staging", "frame": 3}\n'
+            "VEYRA_BENCHMARK_PROGRESS {truncated\n"
+            'VEYRA_BENCHMARK_PROGRESS {"phase": "policy", "policy": "uniform5", '
+            '"repetition": 1, "repetitions": 3, "run": 1, "runs": 12}\n'
+        )
+        self.assertEqual(parse_benchmark_progress(log)["policy"], "uniform5")
+        self.assertIsNone(parse_benchmark_progress("no progress here\n"))
+
+    def test_benchmark_cancel_requires_a_running_benchmark(self):
+        from runtime.service import ProductRuntime
+
+        service = ProductRuntime(Path.cwd())
+        try:
+            service.session = object()  # command gate only; nothing is replayed
+            response = service.handle(
+                {"id": "x", "command": "benchmark_cancel", "args": {}}
+            )
+            self.assertFalse(response["ok"])
+            self.assertIn("no benchmark is running", response["error"]["message"])
+        finally:
+            service.session = None
+            service.close()
+
+    def test_benchmark_uses_the_whole_sequence_beyond_the_frame_limit_and_announces_its_artifact(
         self,
     ):
         import json
@@ -534,34 +583,55 @@ class ProductServiceTests(unittest.TestCase):
                 )
                 self.assertTrue(configured["ok"], configured)
                 self.assertEqual(service.status()["frames"], 3)
+                self.assertEqual(service.status()["sequence_frames"], 5)
                 rejected = service.handle(
-                    {"id": "b", "command": "benchmark", "args": {"count": 5}}
+                    {"id": "b", "command": "benchmark", "args": {"count": 6}}
                 )
                 self.assertFalse(rejected["ok"])
-                self.assertIn("provides 3", rejected["error"]["message"])
-                self.assertIn("frame limit", rejected["error"]["message"])
+                self.assertIn("sequence provides 5", rejected["error"]["message"])
 
                 started = service.handle(
                     {
                         "id": "b",
                         "command": "benchmark",
-                        "args": {"count": 3, "warmup_frames": 0},
+                        "args": {"count": 5, "warmup_frames": 1, "repetitions": 1},
                     }
                 )
                 self.assertTrue(started["ok"], started)
+                self.assertEqual(
+                    started["result"]["plan"]["measured_samples_per_policy"], 4
+                )
                 deadline = time.monotonic() + 240
                 completion = None
+                running = []
                 while completion is None and time.monotonic() < deadline:
                     event = service.outbox.take(timeout=0.5)
                     if event and event[0].get("type") == "benchmark":
-                        completion = event[0]
+                        if event[0]["state"] == "running":
+                            running.append(event[0])
+                        else:
+                            completion = event[0]
                 self.assertIsNotNone(completion, "benchmark did not finish")
                 self.assertEqual(completion["state"], "complete", completion)
                 self.assertNotIn("report", completion)
                 artifact = Path(completion["artifact"])
                 self.assertEqual(artifact.stat().st_size, completion["artifact_bytes"])
                 report = json.loads(artifact.read_text())
-                self.assertEqual(report["provenance"]["frame_range"]["count"], 3)
+                self.assertEqual(report["provenance"]["frame_range"]["count"], 5)
+                self.assertTrue(running, "no running benchmark event was published")
+                self.assertTrue(any(item.get("progress") for item in running), running)
+                log = (artifact.parent / "benchmark.log").read_text()
+                policies = [
+                    json.loads(line.split(" ", 1)[1])
+                    for line in log.splitlines()
+                    if line.startswith("VEYRA_BENCHMARK_PROGRESS ")
+                    and '"policy"' in line
+                    and '"phase": "policy"' in line
+                ]
+                self.assertEqual(
+                    sorted(item["policy"] for item in policies),
+                    ["distance_lod", "uniform40", "uniform5", "utility_lod"],
+                )
                 self.assertEqual(
                     report["quality_resource"]["same_input_for_all_policies"], True
                 )

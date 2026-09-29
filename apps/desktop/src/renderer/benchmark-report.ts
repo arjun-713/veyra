@@ -430,8 +430,8 @@ export function millimetres(metres: number | null, decimals = 1): string {
 }
 
 /** Normalize benchmark lifecycle states; the runtime reports failures as `error`. */
-export function benchmarkLifecycle(state: unknown): 'idle' | 'running' | 'loading' | 'complete' | 'failed' {
-  if (state === 'running' || state === 'loading' || state === 'complete') return state;
+export function benchmarkLifecycle(state: unknown): 'idle' | 'running' | 'loading' | 'complete' | 'failed' | 'cancelled' {
+  if (state === 'running' || state === 'loading' || state === 'complete' || state === 'cancelled') return state;
   if (state === 'error' || state === 'failed') return 'failed';
   return 'idle';
 }
@@ -459,16 +459,74 @@ export function paretoFrontier(report: Json | null, resource: TradeoffResource, 
   return {available: true, frontier, reason: ''};
 }
 
+export const BENCHMARK_DEFAULT_FRAMES = 110;
+export const BENCHMARK_DEFAULT_WARMUP = 10;
+export const BENCHMARK_DEFAULT_REPETITIONS = 3;
+export const BENCHMARK_MAX_REPETITIONS = 20;
+/** Nearest-rank tail gates shared with the harness: p95 >= 20, p99 >= 100. */
+export const TAIL_SAMPLE_GATES = {p95: 20, p99: 100} as const;
+
+export interface BenchmarkInput {frames: number | null; warmup: number | null; repetitions: number | null}
+export interface BenchmarkPlan {
+  count: number; warmup: number; repetitions: number; sequenceFrames: number;
+  measured: number; p95Reliable: boolean; p99Reliable: boolean; hint: string;
+}
+
 /**
- * Frames the four-policy benchmark may request: the session's frame count
- * (already capped by the playback frame limit). A request above it is
- * clamped; no session means no valid request.
+ * Frames the benchmark may select: the whole dataset sequence. The benchmark
+ * replays the dataset itself, so it is not bound by the playback preview
+ * frame limit. Older runtimes that do not report `sequence_frames` fall back
+ * to the session frame count.
  */
-export function benchmarkFrameCount(requested: number | null, sessionFrames: unknown): number | null {
-  const frames = nonNegative(sessionFrames);
-  if (frames === null || frames < 1) return null;
-  const wanted = requested === null || !Number.isFinite(requested) ? frames : Math.floor(requested);
-  return Math.max(1, Math.min(Math.floor(frames), wanted));
+export function benchmarkSequenceFrames(status: Json): number | null {
+  const frames = nonNegative(status?.sequence_frames) ?? nonNegative(status?.frames);
+  return frames === null || frames < 1 ? null : Math.floor(frames);
+}
+
+const whole = (value: number | null, fallback: number) => value === null || !Number.isFinite(value) ? fallback : Math.floor(value);
+
+/**
+ * The validated request the Evaluation controls send. Frames default to
+ * min(110, sequence), warm-up to 10 and repetitions to 3; each is clamped to
+ * what the runtime accepts (frames <= sequence, warm-up < frames,
+ * repetitions 1-20). Measured samples per policy = (frames - warm-up) x reps.
+ */
+export function benchmarkPlan(input: BenchmarkInput, sequenceFrames: number | null): BenchmarkPlan | null {
+  if (sequenceFrames === null || sequenceFrames < 1) return null;
+  const count = Math.max(1, Math.min(sequenceFrames, whole(input.frames, Math.min(BENCHMARK_DEFAULT_FRAMES, sequenceFrames))));
+  const warmup = Math.max(0, Math.min(count - 1, whole(input.warmup, BENCHMARK_DEFAULT_WARMUP)));
+  const repetitions = Math.max(1, Math.min(BENCHMARK_MAX_REPETITIONS, whole(input.repetitions, BENCHMARK_DEFAULT_REPETITIONS)));
+  const measured = (count - warmup) * repetitions;
+  const p95Reliable = measured >= TAIL_SAMPLE_GATES.p95, p99Reliable = measured >= TAIL_SAMPLE_GATES.p99;
+  const gate = p99Reliable ? 'p95 and p99 are reliable'
+    : p95Reliable ? `p99 stays descriptive (needs ${TAIL_SAMPLE_GATES.p99})`
+    : `p95 and p99 stay descriptive (need ${TAIL_SAMPLE_GATES.p95} / ${TAIL_SAMPLE_GATES.p99})`;
+  const hint = `(${count} − ${warmup}) × ${repetitions} = ${measured} measured samples per policy · ${gate}. `
+    + `p95 needs ≥${TAIL_SAMPLE_GATES.p95} and p99 ≥${TAIL_SAMPLE_GATES.p99} measured samples per policy. `
+    + `Frames 0–${count - 1} of ${sequenceFrames} in this sequence; every policy replays the same frames.`;
+  return {count, warmup, repetitions, sequenceFrames, measured, p95Reliable, p99Reliable, hint};
+}
+
+const PROGRESS_POLICY_LABELS: Record<PublicPolicy, string> = {uniform5: 'Uniform 5 cm', uniform40: 'Uniform 40 cm', distance_lod: 'Distance LOD', utility_lod: 'Utility LOD'};
+
+/** One-line description of a running benchmark from its runtime progress event. */
+export function benchmarkProgressText(event: Json | null): string {
+  const plan = event?.plan, progress = event?.progress;
+  const scope = isObject(plan) ? `${plan.count} frames × ${plan.repetitions} repetitions × ${plan.policies ?? 4} policies` : 'four policies';
+  if (!isObject(progress)) return `Starting · ${scope}`;
+  if (progress.phase === 'staging') return `Running perception and staging frames ${progress.frame ?? 0}/${progress.frames ?? '?'} · ${scope}`;
+  if (progress.phase === 'policy') {
+    const label = PROGRESS_POLICY_LABELS[progress.policy as PublicPolicy] ?? String(progress.policy);
+    return `${label} · repetition ${progress.repetition}/${progress.repetitions} · run ${progress.run}/${progress.runs} · ${scope}`;
+  }
+  if (progress.phase === 'report') return `Writing the report · ${scope}`;
+  return scope;
+}
+
+/** Elapsed wall time as m:ss. */
+export function elapsedText(seconds: number): string {
+  const total = Math.max(0, Math.floor(seconds));
+  return `${Math.floor(total / 60)}:${String(total % 60).padStart(2, '0')}`;
 }
 
 export interface BenchmarkCacheInfo {

@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
 import test from 'node:test';
 import {
-  acceptBenchmarkReport, benchmarkFrameCount, benchmarkLifecycle, comparisonScope, paretoFrontier, millimetres, percent, qualityResourceRows,
+  acceptBenchmarkReport, benchmarkLifecycle, benchmarkPlan, benchmarkProgressText, benchmarkSequenceFrames, elapsedText, comparisonScope, paretoFrontier, millimetres, percent, qualityResourceRows,
   referenceBaselines, reportProvenance, semanticQuality, storageComparison, timesSmaller,
 } from '../src/renderer/benchmark-report.ts';
 import {qualityPlotPoints} from '../src/renderer/benchmark-quality.ts';
@@ -182,13 +182,54 @@ test('Pareto frontier is only offered for a fully measured, identical-input comp
   assert.equal(paretoFrontier(generic, 'memory', 'heightAccuracy').available, generic.quality_resource.status === 'measured');
 });
 
-test('benchmark frames default to and never exceed the session frame count', () => {
-  assert.equal(benchmarkFrameCount(null, 30), 30, 'LowResource sessions cap at their frame limit');
-  assert.equal(benchmarkFrameCount(100, 30), 30);
-  assert.equal(benchmarkFrameCount(12.7, 30), 12);
-  assert.equal(benchmarkFrameCount(0, 30), 1);
-  assert.equal(benchmarkFrameCount(10, 0), null);
-  assert.equal(benchmarkFrameCount(10, undefined), null);
+test('benchmark selection spans the dataset sequence, not the playback frame limit', () => {
+  assert.equal(benchmarkSequenceFrames({frames: 30, sequence_frames: 500}), 500);
+  assert.equal(benchmarkSequenceFrames({frames: 30}), 30, 'older runtimes fall back to the session frame count');
+  assert.equal(benchmarkSequenceFrames({frames: 0}), null);
+  assert.equal(benchmarkSequenceFrames({}), null);
+});
+
+test('benchmark defaults give every policy p99-reliable samples when the sequence allows', () => {
+  const plan = benchmarkPlan({frames: null, warmup: null, repetitions: null}, 500)!;
+  assert.deepEqual([plan.count, plan.warmup, plan.repetitions, plan.measured], [110, 10, 3, 300]);
+  assert.equal(plan.p95Reliable, true);
+  assert.equal(plan.p99Reliable, true);
+  assert.match(plan.hint, /\(110 − 10\) × 3 = 300 measured samples per policy/);
+  assert.match(plan.hint, /p95 needs ≥20 and p99 ≥100/);
+  const short = benchmarkPlan({frames: null, warmup: null, repetitions: null}, 40)!;
+  assert.deepEqual([short.count, short.warmup, short.repetitions], [40, 10, 3], 'frames default to min(110, sequence)');
+});
+
+test('benchmark inputs are clamped to what the runtime accepts', () => {
+  const clamped = benchmarkPlan({frames: 9999, warmup: 9999, repetitions: 99}, 200)!;
+  assert.deepEqual([clamped.count, clamped.warmup, clamped.repetitions], [200, 199, 20], 'frames <= sequence, warm-up < frames, repetitions <= 20');
+  const low = benchmarkPlan({frames: 0, warmup: -4, repetitions: 0}, 200)!;
+  assert.deepEqual([low.count, low.warmup, low.repetitions], [1, 0, 1]);
+  assert.equal(benchmarkPlan({frames: 12.7, warmup: 2.9, repetitions: 1.5}, 200)!.count, 12);
+  assert.equal(benchmarkPlan({frames: 10, warmup: null, repetitions: null}, null), null);
+});
+
+test('sample-count hint names the gates a small run misses', () => {
+  const tiny = benchmarkPlan({frames: 10, warmup: 0, repetitions: 1}, 200)!;
+  assert.equal(tiny.measured, 10);
+  assert.equal(tiny.p95Reliable, false);
+  assert.match(tiny.hint, /p95 and p99 stay descriptive/);
+  const mid = benchmarkPlan({frames: 30, warmup: 5, repetitions: 1}, 200)!;
+  assert.equal(mid.measured, 25);
+  assert.equal(mid.p95Reliable, true);
+  assert.equal(mid.p99Reliable, false);
+  assert.match(mid.hint, /p99 stays descriptive/);
+});
+
+test('running benchmark progress names the policy and repetition', () => {
+  const plan = {count: 110, warmup_frames: 10, repetitions: 3, policies: 4};
+  assert.equal(benchmarkProgressText({plan}), 'Starting · 110 frames × 3 repetitions × 4 policies');
+  assert.match(benchmarkProgressText({plan, progress: {phase: 'staging', frame: 42, frames: 110}}), /staging frames 42\/110/);
+  assert.equal(benchmarkProgressText({plan, progress: {phase: 'policy', policy: 'utility_lod', repetition: 2, repetitions: 3, run: 8, runs: 12}}), 'Utility LOD · repetition 2/3 · run 8/12 · 110 frames × 3 repetitions × 4 policies');
+  assert.match(benchmarkProgressText({plan, progress: {phase: 'report'}}), /Writing the report/);
+  assert.equal(benchmarkLifecycle('cancelled'), 'cancelled');
+  assert.equal(elapsedText(0), '0:00');
+  assert.equal(elapsedText(125.9), '2:05');
 });
 
 function withStorage(report: any) {

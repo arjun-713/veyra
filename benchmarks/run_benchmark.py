@@ -1918,6 +1918,29 @@ def _command(
     return command
 
 
+PROGRESS_PREFIX = "VEYRA_BENCHMARK_PROGRESS "
+
+
+def _progress(args: argparse.Namespace, **event: Any) -> None:
+    """Emit one machine-readable progress line on stderr when requested.
+
+    The desktop runtime tails these lines to show which stage, policy and
+    repetition is running. They never enter the report, so enabling them
+    cannot change any measured value.
+    """
+    if not getattr(args, "progress", False):
+        return
+    print(
+        PROGRESS_PREFIX + json.dumps(event, sort_keys=True), file=sys.stderr, flush=True
+    )
+
+
+def _staging_progress(args: argparse.Namespace, frames: Any) -> Any:
+    for index, frame in enumerate(frames):
+        yield frame
+        _progress(args, phase="staging", frame=index + 1, frames=int(args.count))
+
+
 def _execute_policy_runs(
     args: argparse.Namespace,
     repo: Path,
@@ -1935,7 +1958,10 @@ def _execute_policy_runs(
     stream_directory = tempfile.TemporaryDirectory(prefix="veyra-benchmark-stream-")
     try:
         stream_path = Path(stream_directory.name) / "observations.stream"
-        digest = binary_stream_file(frame_iterator, stream_path)
+        _progress(args, phase="staging", frame=0, frames=int(args.count))
+        digest = binary_stream_file(
+            _staging_progress(args, frame_iterator), stream_path
+        )
         if selection["frames"] == 0:
             raise ValueError("frame selection is empty")
         window_radius_m = selection["window_radius_m"] + 0.001
@@ -1950,7 +1976,16 @@ def _execute_policy_runs(
                 + requested[: repetition % len(requested)]
             )
             execution_order.append(order)
-            for policy in order:
+            for position, policy in enumerate(order):
+                _progress(
+                    args,
+                    phase="policy",
+                    policy=policy,
+                    repetition=repetition + 1,
+                    repetitions=int(args.repetitions),
+                    run=repetition * len(order) + position + 1,
+                    runs=int(args.repetitions) * len(order),
+                )
                 adapter = POLICY_ADAPTERS[policy]
                 with stream_path.open("rb") as stream_input:
                     completed = subprocess.run(
@@ -2317,6 +2352,7 @@ def run(args: argparse.Namespace) -> dict[str, Any]:
             args, repo, requested, sparse_voxels.wrap(frame_iterator), selection
         )
     )
+    _progress(args, phase="report")
     planner_report = {
         "schema_version": 1,
         "status": "not_requested",
@@ -2820,6 +2856,12 @@ def main() -> int:
         help="Run the bounded evaluation-only costmap/A* ablation matrix on captured map snapshots",
     )
     parser.add_argument("--skip-perception", action="store_true")
+    parser.add_argument(
+        "--progress",
+        action="store_true",
+        help="Emit VEYRA_BENCHMARK_PROGRESS JSON lines on stderr (stage, "
+        "policy, repetition); never changes the report",
+    )
     parser.add_argument(
         "--retain-frames",
         action="store_true",
