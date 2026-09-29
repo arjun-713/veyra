@@ -2,14 +2,14 @@
  import {onMount,untrack} from 'svelte';
  import * as THREE from 'three';
  import {OrbitControls} from 'three/examples/jsm/controls/OrbitControls.js';
- import {pointColor,cellColor} from './colors';
+ import {pointColor,cellColor,displayPosition} from './colors';
  import {clampRenderCounts} from './dashboard';
  import {ScanHistory,colorInput,ACCUMULATION_POINT_CAPACITY,HISTORY_STRIDE} from './accumulation';
  import {decodePhysicalLayers,type WireFrame,type Json} from '../core';
- let {frame=null,mode='semantic',showPoints=true,showCells=true,boundaries=false,view='orbit',follow=false,accumulate=1,showRings=false,onStats=()=>{},onInspect=()=>{}}=$props<{frame:WireFrame|null;mode:string;showPoints:boolean;showCells:boolean;boundaries:boolean;view:string;follow:boolean;accumulate?:number;showRings?:boolean;onStats?:(value:Json)=>void;onInspect?:(value:Json)=>void}>();
+ let {frame=null,mode='semantic',showPoints=true,showCells=true,boundaries=false,view='orbit',follow=false,accumulate=1,showRings=false,selectedCell=null,onStats=()=>{},onInspect=()=>{}}=$props<{frame:WireFrame|null;mode:string;showPoints:boolean;showCells:boolean;boundaries:boolean;view:string;follow:boolean;accumulate?:number;showRings?:boolean;selectedCell?:{x:number;y:number;z:number;size:number}|null;onStats?:(value:Json)=>void;onInspect?:(value:Json)=>void}>();
  let host:HTMLDivElement,ready=$state(false),failure=$state('');
  let renderer:THREE.WebGLRenderer,scene:THREE.Scene,camera:THREE.PerspectiveCamera,controls:OrbitControls;
- let points:THREE.Points,mesh:THREE.InstancedMesh,pointGeo:THREE.BufferGeometry,rings:THREE.Group;
+ let points:THREE.Points,mesh:THREE.InstancedMesh,pointGeo:THREE.BufferGeometry,rings:THREE.Group,highlight:THREE.LineSegments;
  const capacity=100000;
  const pointCapacity=ACCUMULATION_POINT_CAPACITY;
  let position=new Float32Array(pointCapacity*3),colors=new Float32Array(pointCapacity*3),cellData=new Float32Array(capacity*17),cellDataCount=0,cellStride=17;
@@ -109,6 +109,18 @@
  }
  $effect(()=>{showPoints;showCells;boundaries;ready;untrack(applyVisibility);});
  $effect(()=>{frame;mode;follow;showRings;ready;untrack(update);});
+ $effect(()=>{selectedCell;ready;untrack(paintHighlight);});
+ // Selection marker only: a wire box around the inspected cell's world
+ // footprint. It marks XY + size, never invents cell contents.
+ function paintHighlight(){
+  if(!ready||!highlight)return;
+  if(!selectedCell||!Number.isFinite(selectedCell.x)||!Number.isFinite(selectedCell.y)||!Number.isFinite(selectedCell.size)||selectedCell.size<=0){highlight.visible=false;return;}
+  const z=Number.isFinite(selectedCell.z)?selectedCell.z:0;
+  const [hx,hy,hz]=displayPosition(selectedCell.x,selectedCell.y,z);
+  highlight.position.set(hx,hy,hz);
+  highlight.scale.set(selectedCell.size*1.04,0.6,selectedCell.size*1.04);
+  highlight.visible=true;
+ }
  $effect(()=>{const scans=Math.max(1,Math.round(accumulate));untrack(()=>{history.setWindow(scans);if(ready&&frame)paintPoints(true,frame.metadata.layers??{});});});
  $effect(()=>{if(!ready)return;const target=controls.target.clone();camera.up.set(0,1,0);if(view==='top'){camera.position.copy(target).add(new THREE.Vector3(0,100,.01));}else if(view==='driver'){camera.position.copy(target).add(new THREE.Vector3(0,3,8));}else camera.position.copy(target).add(new THREE.Vector3(-32,25,36));controls.update();});
  onMount(()=>{
@@ -127,6 +139,7 @@
     ring.rotation.x=-Math.PI/2;rings.add(ring);
    }
    rings.visible=false;scene.add(rings);
+   highlight=new THREE.LineSegments(new THREE.EdgesGeometry(new THREE.BoxGeometry(1,1,1)),new THREE.LineBasicMaterial({color:0xffffff}));highlight.visible=false;highlight.frustumCulled=false;scene.add(highlight);
    const resize=new ResizeObserver(()=>{const w=host.clientWidth,h=host.clientHeight;renderer.setSize(w,h);camera.aspect=w/h;camera.updateProjectionMatrix();});resize.observe(host);
    let animation=0,frames=0,last=performance.now(),duration=0;
    const draw=()=>{animation=requestAnimationFrame(draw);const start=performance.now();controls.update();renderer.render(scene,camera);duration+=performance.now()-start;frames++;if(start-last>1000){onStats({fps:frames*1000/(start-last),latency_ms:duration/frames,entities:mesh.count+pointGeo.drawRange.count});last=start;frames=0;duration=0;}};draw();
@@ -137,7 +150,7 @@
    renderer.domElement.addEventListener('webglcontextlost',lost,false);
    renderer.domElement.addEventListener('webglcontextrestored',restored,false);
    ready=true;onStats({status:'available'});
-   return()=>{cancelAnimationFrame(animation);resize.disconnect();host.removeEventListener('click',pick);renderer.domElement.removeEventListener('webglcontextlost',lost);renderer.domElement.removeEventListener('webglcontextrestored',restored);controls.dispose();scene.traverse(obj=>{if(obj instanceof THREE.Mesh||obj instanceof THREE.Points){obj.geometry.dispose();const materials=Array.isArray(obj.material)?obj.material:[obj.material];materials.forEach(m=>m.dispose());}});renderer.dispose();renderer.domElement.remove();};
+   return()=>{cancelAnimationFrame(animation);resize.disconnect();host.removeEventListener('click',pick);renderer.domElement.removeEventListener('webglcontextlost',lost);renderer.domElement.removeEventListener('webglcontextrestored',restored);controls.dispose();highlight.geometry.dispose();(highlight.material as THREE.Material).dispose();scene.traverse(obj=>{if(obj instanceof THREE.Mesh||obj instanceof THREE.Points){obj.geometry.dispose();const materials=Array.isArray(obj.material)?obj.material:[obj.material];materials.forEach(m=>m.dispose());}});renderer.dispose();renderer.domElement.remove();};
   }catch(error){failure=String(error);onStats({status:'unavailable',error:failure});}
  });
 </script>

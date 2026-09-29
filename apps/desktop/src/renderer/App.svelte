@@ -8,12 +8,48 @@
  import {acceptBenchmarkReport,benchmarkFrameCount,benchmarkLifecycle,millis,qualityResourceRows,type AcceptedReport} from './benchmark-report';
  import {acceptFrame,canPlayback,diagnosticMessage,formatTelemetryAge,telemetryFreshness,mergeSessionStatus,validationOutcome} from './session';
  import {resolveReplayFps} from './replay-clock';
+ import CellAnatomy from './CellAnatomy.svelte';
+ import {cellAnatomy} from './cell-anatomy';
+ import {cellRangeM,explainResolution,levelFromSize} from './cell-explain';
+ import {enterJudgeView,exitJudgeView,initialJudgeView} from './judge-view';
  let workspace=$state('Dashboard'),status=$state<Json>({state:'unconfigured',index:0,frames:0,policy:'distance_lod',speed:1}),telemetry=$state<Json>({}),desktop=$state<Json>({}),render=$state<Json>({}),info=$state<Json>({});
  let frame=$state.raw<WireFrame|null>(null),samples=$state<LiveTelemetrySample[]>([]),error=$state(''),notice=$state(''),busy=$state(false),catalog=$state<Json|null>(null),inspector=$state<Json|null>(null);
  const telemetryHistory=new LiveTelemetryHistory();
  let dataset=$state('generic'),sequence=$state(''),config=$state<Json>(defaultSessionConfig());
  let configText=$state(''),mode=$state('semantic'),showPoints=$state(true),showCells=$state(true),boundaries=$state(false),view=$state('orbit'),follow=$state(false),accumulate=$state(20),seekIndex=$state(0),preset=$state('LowResource'),viewMode=$state('both'),showRings=$state(false);
  function setViewMode(next:string){viewMode=next;showPoints=next!=='map';showCells=next!=='raw';}
+ // Judge / Foveation View: one-click preset over the live Viewer. Entering
+ // snapshots display state; exiting restores it, never corrupting normal use.
+ let judge=$state(initialJudgeView());
+ let selectedCell=$state<{x:number;y:number;z:number;size:number}|null>(null);
+ function displaySnapshot(){return {viewMode,view,follow,mode,boundaries,showRings};}
+ function applyDisplay(state:{viewMode:string;view:string;follow:boolean;mode:string;boundaries:boolean;showRings:boolean}){setViewMode(state.viewMode);view=state.view;follow=state.follow;setLayerSilent(state.mode);boundaries=state.boundaries;showRings=state.showRings;}
+ function toggleJudgeView(){if(judge.active){const next=exitJudgeView(judge,{viewMode:'both',view:'orbit',follow:false,mode:'semantic',boundaries:false,showRings:false});judge=next.session;applyDisplay(next.state);}else{const next=enterJudgeView(displaySnapshot(),judge);judge=next.session;applyDisplay(next.state);workspace='Map';}}
+ function setLayerSilent(layer:string){mode=layer;}
+ function clearSelection(){inspector=null;selectedCell=null;}
+ function handleInspect(value:Json|null){
+  inspector=value;
+  if(value&&typeof value.x==='number'&&typeof value.y==='number'&&typeof value.resolution==='number'&&Number.isFinite(value.x)&&Number.isFinite(value.y)&&Number.isFinite(value.resolution)&&value.resolution>0){
+   selectedCell={x:value.x,y:value.y,z:typeof value.elevation==='number'&&Number.isFinite(value.elevation)?value.elevation:0,size:value.resolution};
+  }else selectedCell=null;
+ }
+ // Live promotion telemetry does not exist in visualization frames, so the
+ // UI never claims a utility promotion — signals render as measured only.
+ const cellExplanation=$derived(!inspector?null:explainResolution({
+  policy:typeof status.policy==='string'?status.policy:null,
+  rangeM:cellRangeM(inspector.x,inspector.y,frame?.metadata.pose),
+  level:typeof inspector.lod_level==='number'?inspector.lod_level:levelFromSize(inspector.resolution),
+  sizeM:typeof inspector.resolution==='number'?inspector.resolution:null,
+  evidence:{utility:inspector.utility??null,quality:inspector.quality??null,geometryComplexity:inspector.geometry_complexity??null,semanticConfidence:inspector.semantic_confidence??null,semanticClass:inspector.semantic_class??null,motion:inspector.motion??null,drivableEvidence:inspector.drivable_evidence??null,groundEvidence:inspector.ground_evidence??null},
+  promotionProven:false,
+ }));
+ const cellAnatomyModel=$derived(!inspector?null:cellAnatomy({
+  physicalLayers:inspector.physical_layers??null,
+  pooled:{mean:inspector.elevation??null,zmin:inspector.height_min??null,zmax:inspector.height_max??null,variance:inspector.height_variance??null,count:inspector.point_count??null},
+  resolution:typeof inspector.resolution==='number'?`${Math.round(inspector.resolution*100)} cm`:null,
+  lod:typeof inspector.lod_level==='number'?inspector.lod_level:null,
+ }));
+ const distanceBands=$derived(status.policy==='distance_lod'||status.policy==='utility_lod');
  let report=$state<Json|null>(null),reportMeta=$state<(Omit<AcceptedReport,'report'>&{artifactSha256:string|null})|null>(null),previousReport=$state<Json|null>(null),benchmarkState=$state('idle'),benchmarkRequest=$state<number|null>(null),validationState=$state('idle'),validationResult=$state<Json|null>(null);
  let events=$state<DashboardEvent[]>([]);
  let now=$state(Date.now()),awaitingFrame=$state(false);
@@ -47,7 +83,6 @@
  const legendItems=classNames.map((name,id)=>({name,id})).filter(item=>item.id!==0);
  const legendCss=new Map<number,string>([...legendItems,{name:'Unknown',id:0}].map(item=>[item.id,cssRGB(semanticRGB(item.id))]));
  function handleStats(value:Json){render={...render,...value,updated_at:Date.now()};}
- function handleInspect(value:Json){inspector=value;}
  // Smooth-replay (demo) presentation state. Replay FPS is a presentation
  // rate (cached snapshots shown per second), never processing throughput.
  let playbackMode=$state<'live'|'replay'>('live');
@@ -82,8 +117,8 @@
   if(!replayPath)notice+=' Enter the *.veyra-replay path first.';
  }
  async function action(fn:()=>Promise<any>){if(busy)return;busy=true;error='';notice='';try{return await fn();}catch(e){error=e instanceof Error?e.message:String(e);awaitingFrame=false;}finally{busy=false;}}
- function clearSessionView(){frame=null;telemetry={};render={};telemetryHistory.reset();samples=[];inspector=null;}
- async function command(name:string,args:Json={}){return action(async()=>{const reload=['sequence','reset','policy'].includes(name);if(reload){clearSessionView();awaitingFrame=true;}const r=await window.veyra.command(name,args);if(r.status)status=mergeSessionStatus(status,r.status);if(reload){const preview=await window.veyra.command('step');if(preview.status)status=preview.status;}return r;});}
+ function clearSessionView(){frame=null;telemetry={};render={};telemetryHistory.reset();samples=[];inspector=null;selectedCell=null;}
+ async function command(name:string,args:Json={}){return action(async()=>{const reload=['sequence','reset','policy'].includes(name);if(reload){clearSessionView();awaitingFrame=true;}if(name==='seek')clearSelection();const r=await window.veyra.command(name,args);if(r.status)status=mergeSessionStatus(status,r.status);if(reload){const preview=await window.veyra.command('step');if(preview.status)status=preview.status;}return r;});}
 let governorOverride=$state('automatic');
 function syncGovernorOverride(value:unknown){if(value==='automatic'||value==='disabled'||value==='conserve')governorOverride=value;}
  async function setGovernor(mode:string){const previous=governorOverride;governorOverride=mode;const response=await command('governor',{mode});if(!response)governorOverride=previous;}
@@ -168,14 +203,18 @@ function confirmSaved(ok:unknown,saved:string,cancelled:string){notice=ok?saved:
       <button class="layer" class:selected={mode===value} onclick={()=>setLayer(value)} disabled={!playbackEnabled()} title={value==='lod'?'Cell size by level: L0 5 cm, L1 10 cm, L2 20 cm, L3 40 cm':value==='utility'?'Per-cell promotion signal 0–1 (quality-gated)':label}><span class="layer-dot" style:background={value==='lod'?'#45d3c9':undefined}></span>{label}{#if layerUnavailable(frame,value)}<small>n/a</small>{/if}</button>
      {/each}
      <div class="separator"></div><label class="toggle"><input type="checkbox" bind:checked={boundaries}/>Cell boundaries</label><label class="toggle"><input type="checkbox" bind:checked={follow}/>Follow robot</label><label class="toggle" title="DistanceLOD bands: 0–10 m → 5 cm, 10–30 m → 10 cm, 30–60 m → 20 cm, 60–100 m → 40 cm"><input type="checkbox" bind:checked={showRings}/>Range rings</label><p class="hint policy-hint">{POLICY_SWITCH_NOTE}</p>
-     <div class="panel-heading space-top" title={GLOSSARY['LOD']}>RESOLUTION <span title={GLOSSARY['LOD']}><Icon name="info" size={14}/></span></div>{#each ['5 cm','10 cm','20 cm','40 cm'] as level,i}<div class="legend-row"><i style:background={['#33d9f2','#4dd980','#ffb340','#d966d9'][i]}></i><span>L{i} · {level}</span><b>{format(telemetry.map?.cells_by_level?.[i],0)}</b></div>{/each}
+     <div class="panel-heading space-top" title={GLOSSARY['LOD']}>RESOLUTION <span title={GLOSSARY['LOD']}><Icon name="info" size={14}/></span></div>{#each ['5 cm','10 cm','20 cm','40 cm'] as level,i}<div class="legend-row"><i style:background={['#33d9f2','#4dd980','#ffb340','#d966d9'][i]}></i><span>L{i} · {level}{#if distanceBands}<small> · {['0–10 m','10–30 m','30–60 m','60–100 m'][i]}</small>{/if}</span><b>{format(telemetry.map?.cells_by_level?.[i],0)}</b></div>{/each}
      <div class="legend-row"><span>Splits / s</span><b>{format(telemetry.map?.splits_per_second,2)}</b></div><div class="legend-row"><span>Merges / s</span><b>{format(telemetry.map?.merges_per_second,2)}</b></div>
-     {#if inspector}<div class="inspector"><div class="panel-heading">CELL INSPECTOR <span>MEASURED</span></div>{#each inspectorRows(inspector) as row}<div title={row.hint}><span>{row.label}</span><b>{row.value}</b></div>{/each}<button onclick={()=>inspector=null}>Close</button></div>{:else}<p class="hint">Click a map cell to inspect its stored XY + height/statistics.</p>{/if}
+     {#if inspector}<div class="inspector"><div class="panel-heading">CELL INSPECTOR <span>MEASURED</span></div>{#each inspectorRows(inspector) as row}<div title={row.hint}><span>{row.label}</span><b>{row.value}</b></div>{/each}
+      {#if cellExplanation}<div class="explanation"><div class="panel-heading">WHY THIS RESOLUTION? <span>DERIVED</span></div><strong>{cellExplanation.headline}</strong><p>{cellExplanation.detail}</p>{#if cellExplanation.signals.length}<details><summary>Measured signals ({cellExplanation.signals.length})</summary>{#each cellExplanation.signals as signal}<div><span>{signal}</span></div>{/each}</details>{/if}{#if cellExplanation.unavailable.length}<p class="hint">Unavailable: {cellExplanation.unavailable.join(', ')} — shown as missing, never guessed.</p>{/if}</div>{/if}
+      {#if cellAnatomyModel}<CellAnatomy anatomy={cellAnatomyModel}/>{/if}
+      <button onclick={clearSelection}>Close</button></div>{:else}<p class="hint">Click a map cell to inspect its stored XY + height/statistics.</p>{/if}
     </aside>
     <section class="map-stage" aria-label="LiDAR and adaptive map">
      {#if showCells}<div class="representation-banner" title={GLOSSARY['2.5D']}><strong>Representation · Adaptive 2.5D Grid</strong><span>Rendered in 3D · Stored as XY cells + height/statistics</span><details><summary>What is 2.5D?</summary><p>Veyra stores one adaptive XY cell containing height and scene statistics rather than maintaining a dense XYZ voxel volume. (X,Y) → elevation + statistics.</p></details></div>{/if}
-     <MapCanvas {frame} {mode} {showPoints} {showCells} {boundaries} {view} {follow} {accumulate} {showRings} onStats={handleStats} onInspect={handleInspect}/>
-     <div class="map-toolbar"><div class="segmented">{#each ['orbit','top','driver'] as camera}<button class:active={view===camera} onclick={()=>view=camera}>{camera}</button>{/each}</div><span class="policy-badge" title="Active mapping policy driving the mapper — not just a dropdown state">Policy · {labels[status.policy]??status.policy??'—'}</span>
+     <MapCanvas {frame} {mode} {showPoints} {showCells} {boundaries} {view} {follow} {accumulate} {showRings} {selectedCell} onStats={handleStats} onInspect={handleInspect}/>
+     <div class="map-toolbar"><div class="segmented">{#each ['orbit','top','driver'] as camera}<button class:active={view===camera} onclick={()=>view=camera}>{camera}</button>{/each}</div><button class:active={judge.active} title="One click: map-focused top-down follow view with LOD layer, boundaries and range rings — live frames only" onclick={toggleJudgeView}>Judge View</button><span class="policy-badge" title="Active mapping policy driving the mapper — not just a dropdown state">Policy · {labels[status.policy]??status.policy??'—'}</span>
+      {#if judge.active}<div class="judge-strip" role="status" aria-label="Judge view live metrics"><span>Cells <b>{format(telemetry.map?.active_cells,0)}</b></span><span>Splits/s <b>{format(telemetry.map?.splits_per_second,2)}</b></span><span>Merges/s <b>{format(telemetry.map?.merges_per_second,2)}</b></span><span>Policy <b>{labels[status.policy]??status.policy??'—'}</b></span><span>Map update <b>{format(telemetry.latency_ms?.mapping,2)} ms</b></span><span>Map memory <b>{mb(telemetry.map?.logical_bytes)}</b></span></div>{/if}
      {#if frame&&(mode==='semantic')}<div class="map-legend" aria-label="Semantic legend"><span class="legend-title">Classes · {frame?.metadata.pipeline_status?.semantic==='ground_truth'?'dataset ground truth':'model inference'}{#if frame?.metadata.pipeline_status?.semantic==='ground_truth'} · DEBUG/EVAL{/if}</span>{#each legendItems as item}<span><i style:background={legendCss.get(item.id)}></i>{item.name}</span>{/each}<span><i style:background={legendCss.get(0)}></i>Unknown</span></div>{/if}
      {#if frame&&mode==='terrain'}<div class="map-legend" aria-label="Traversability legend"><span><i style:background="#33d980"></i>Drivable</span><span><i style:background="#f24d59"></i>Non-drivable</span><span><i style:background="#59616b"></i>Unknown — never drivable</span></div>{/if}
      {#if frame&&mode==='motion'}<div class="map-legend" aria-label="Motion legend"><span><i style:background="#336699"></i>STATIC</span><span><i style:background="#b35533"></i>MOVING</span><span><i style:background="#59616b"></i>UNKNOWN</span></div>{/if}<button disabled={!frame||busy} onclick={()=>action(async()=>{const saved=await window.veyra.screenshot();confirmSaved(saved,'Screenshot saved.','Screenshot cancelled — no file written.');})}><Icon name="camera" size={16}/>Screenshot</button></div>
