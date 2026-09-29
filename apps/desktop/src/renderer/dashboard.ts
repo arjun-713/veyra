@@ -173,6 +173,19 @@ export function clampRenderCounts(pointCount:unknown,cellCount:unknown,capacity=
  const points=clamp(pointCount),cells=clamp(cellCount);
  return {points, cells, truncated:points.truncated||cells.truncated};
 }
+// Sampling transparency: the engine sends the nearest-budget disc around
+// the vehicle (spatially coherent, snapshot-ordered — never random first-N),
+// and the renderer additionally clamps to GPU capacity. Both stages are
+// reported separately so a judge can see what was dropped where.
+export function samplingStatus(totalLeaves:unknown,wireCells:unknown,renderedCells:unknown){
+ const finite=(v:unknown)=>typeof v==='number'&&Number.isFinite(v)?v as number:null;
+ const total=finite(totalLeaves),wire=finite(wireCells),rendered=finite(renderedCells);
+ return {
+  total, wire, rendered,
+  engineSampled:total!==null&&wire!==null&&total>wire,
+  rendererClamped:wire!==null&&rendered!==null&&wire>rendered,
+ };
+}
 // ---- Judge-demo proof helpers (display only; never fabricate evidence) ----
 export const GLOSSARY:Record<string,string>={
  '2.5D':'One adaptive XY grid cell storing height + scene statistics — not a dense XYZ voxel volume.',
