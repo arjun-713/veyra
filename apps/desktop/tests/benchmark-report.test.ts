@@ -3,7 +3,7 @@ import {readFileSync} from 'node:fs';
 import test from 'node:test';
 import {
   acceptBenchmarkReport, benchmarkFrameCount, benchmarkLifecycle, comparisonScope, paretoFrontier, millimetres, percent, qualityResourceRows,
-  referenceBaselines, reportProvenance, semanticQuality,
+  referenceBaselines, reportProvenance, semanticQuality, storageComparison, timesSmaller,
 } from '../src/renderer/benchmark-report.ts';
 import {qualityPlotPoints} from '../src/renderer/benchmark-quality.ts';
 
@@ -189,4 +189,79 @@ test('benchmark frames default to and never exceed the session frame count', () 
   assert.equal(benchmarkFrameCount(0, 30), 1);
   assert.equal(benchmarkFrameCount(10, 0), null);
   assert.equal(benchmarkFrameCount(10, undefined), null);
+});
+
+function withStorage(report: any) {
+  const copy = clone(report);
+  const logical = (policy: string) => copy.policies[policy].runs.at(-1).metrics.memory.logical_map_bytes;
+  copy.reference_baselines.sparse_5cm_3d = {status: 'measured', comparison_basis: 'final_window', final_window: {occupied_voxels: 1000, logical_bytes: 16000, accounted_allocated_bytes: 32000}, cumulative: {occupied_voxels: 1200, logical_bytes: 19200, accounted_allocated_bytes: 38400}};
+  copy.reference_baselines.dense_5cm_3d_window = {status: 'analytical_only', window_radius_m: 100.001, dense_voxel_count: 1e9, estimated_dense_bytes: 16e9};
+  copy.storage_comparison = {
+    schema_version: 1,
+    sparse_3d: {evidence: 'measured', occupied_voxels: 1000, logical_bytes: 16000, accounted_allocated_bytes: 32000},
+    dense_3d: {evidence: 'analytical', dense_voxel_count: 1e9, estimated_dense_bytes: 16e9},
+    policies: Object.fromEntries(['uniform5', 'uniform40', 'distance_lod', 'utility_lod'].map(policy => [policy, {logical_map_bytes: logical(policy), allocated_map_bytes: logical(policy) * 2, active_cells: 10}])),
+  };
+  return copy;
+}
+
+test('storage comparison lists dense 3D, sparse 3D and four 2.5D policies with evidence and ratios', () => {
+  const report = withStorage(generic);
+  const rows = storageComparison(report);
+  assert.deepEqual(rows.map(row => row.key), ['dense_3d', 'sparse_3d', 'uniform5', 'uniform40', 'distance_lod', 'utility_lod']);
+  assert.deepEqual(rows.map(row => row.kind), ['analytical', 'measured', 'measured', 'measured', 'measured', 'measured']);
+  const dense = rows[0], sparse = rows[1], u5 = rows[2];
+  assert.equal(dense.bytes, 16e9);
+  assert.equal(dense.cells, 1e9);
+  assert.match(dense.detail, /100 m map window/);
+  assert.equal(sparse.bytes, 16000);
+  assert.equal(sparse.allocatedBytes, 32000);
+  assert.equal(sparse.timesSmallerThanDense, 1e6);
+  const logical = generic.policies.uniform5.runs.at(-1).metrics.memory.logical_map_bytes;
+  assert.equal(u5.bytes, logical);
+  assert.equal(u5.allocatedBytes, logical * 2);
+  assert.equal(u5.timesSmallerThanSparse, 16000 / logical);
+  assert.equal(u5.timesSmallerThanDense, 16e9 / logical);
+  const baselines = referenceBaselines(report);
+  assert.equal(baselines.find(row => row.key === 'sparse_5cm_3d')!.kind, 'measured');
+  assert.equal(baselines.find(row => row.key === 'sparse_5cm_3d')!.bytes, 16000);
+});
+
+test('storage values that are missing are unavailable, never zero', () => {
+  const report = withStorage(generic);
+  report.storage_comparison.sparse_3d.logical_bytes = null;
+  report.storage_comparison.dense_3d.estimated_dense_bytes = null;
+  report.storage_comparison.policies.uniform40.logical_map_bytes = null;
+  delete report.storage_comparison.policies.utility_lod;
+  const rows = storageComparison(report);
+  const byKey = Object.fromEntries(rows.map(row => [row.key, row]));
+  assert.equal(byKey.dense_3d.kind, 'unavailable');
+  assert.equal(byKey.dense_3d.bytes, null, 'no fallback to the stream-bounds estimate when the block exists');
+  assert.equal(byKey.sparse_3d.kind, 'unavailable');
+  assert.equal(byKey.uniform40.kind, 'unavailable');
+  assert.equal(byKey.uniform40.bytes, null);
+  // A policy absent from the block falls back to its measured quality/resource row.
+  assert.equal(byKey.utility_lod.kind, 'measured');
+  assert.equal(byKey.utility_lod.bytes, generic.policies.utility_lod.runs.at(-1).metrics.memory.logical_map_bytes);
+  assert.equal(byKey.uniform5.timesSmallerThanSparse, null);
+  assert.equal(timesSmaller(null), 'unavailable');
+  assert.equal(timesSmaller(12.34), '12.3× smaller');
+  assert.equal(timesSmaller(0.5), '2× larger');
+  assert.equal(timesSmaller(123456), `${(123456).toLocaleString()}× smaller`);
+});
+
+test('reports without storage_comparison fall back to the analytical stream-bounds grid', () => {
+  const rows = storageComparison(semanticposs);
+  assert.equal(rows[0].kind, 'analytical');
+  assert.equal(rows[0].bytes, semanticposs.reference_baselines.uniform_5cm_3d.estimated_dense_bytes);
+  assert.match(rows[0].detail, /stream XYZ bounds/);
+  assert.equal(rows[1].kind, 'unavailable');
+  assert.equal(rows[1].bytes, null);
+  for (const row of rows.slice(2)) {
+    assert.equal(row.kind, 'measured', row.key);
+    assert.ok(row.timesSmallerThanDense! > 1, row.key);
+    assert.equal(row.timesSmallerThanSparse, null, row.key);
+  }
+  const empty = storageComparison({schema_version: 2, policies: {}});
+  assert.ok(empty.every(row => row.kind === 'unavailable' && row.bytes === null));
 });

@@ -2,6 +2,7 @@
   import type {Json} from '../core';
   import {PUBLIC_POLICY_LABELS} from './benchmark-quality';
   import QualityTradeoff from './QualityTradeoff.svelte';
+  import StorageComparison from './StorageComparison.svelte';
   import {
     comparisonScope, mebibytes, millimetres, millis, percent, qualityResourceRows,
     referenceBaselines, reportProvenance, semanticQuality, type AcceptedReport, type QualityResourceRow,
@@ -65,6 +66,7 @@
 </section>
 
 {#if report}
+<StorageComparison {report}/>
 <section class="card semantic-quality" aria-label="Semantic segmentation quality">
   <h3>Semantic quality<span>{semantic.status === 'measured' ? 'MEASURED' : 'UNAVAILABLE'} · {semantic.groundTruth ? 'DATASET GROUND TRUTH' : semantic.source ? 'MODEL · ' + semantic.source.replaceAll('_', ' ').toUpperCase() : 'SOURCE UNRECORDED'}</span></h3>
   {#if semantic.status === 'measured' && semantic.groundTruth}<p class="report-warning">Semantic labels came from the dataset, not a neural model. These scores only confirm label plumbing and are not evidence of model accuracy.</p>{/if}

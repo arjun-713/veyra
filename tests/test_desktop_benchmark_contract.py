@@ -131,6 +131,7 @@ console.log(JSON.stringify({{
   rows: contract.qualityResourceRows(accepted.report),
   semantic: contract.semanticQuality(accepted.report),
   baselines: contract.referenceBaselines(accepted.report),
+  storage: contract.storageComparison(accepted.report),
   provenance: contract.reportProvenance(accepted.report),
   scope: contract.comparisonScope(accepted.report),
   exported: JSON.stringify(accepted.report) === JSON.stringify(raw),
@@ -196,7 +197,28 @@ class DesktopBenchmarkContractTests(unittest.TestCase):
         self.assertIsNone(parsed["semantic"]["miou"])
         kinds = {item["key"]: item["kind"] for item in parsed["baselines"]}
         self.assertEqual(kinds["uniform_5cm_3d"], "analytical")
-        self.assertEqual(kinds["measured_3d"], "unavailable")
+        # The measured sparse 3D reference is emitted by default now.
+        self.assertEqual(kinds["sparse_5cm_3d"], "measured")
+        storage = {item["key"]: item for item in parsed["storage"]}
+        self.assertEqual(
+            list(storage),
+            [
+                "dense_3d",
+                "sparse_3d",
+                "uniform5",
+                "uniform40",
+                "distance_lod",
+                "utility_lod",
+            ],
+        )
+        self.assertEqual(storage["dense_3d"]["kind"], "analytical")
+        self.assertEqual(storage["sparse_3d"]["kind"], "measured")
+        for key, item in storage.items():
+            self.assertGreater(item["bytes"], 0, key)
+            if key not in {"dense_3d", "sparse_3d"}:
+                self.assertEqual(item["kind"], "measured", key)
+                self.assertGreater(item["timesSmallerThanDense"], 1, key)
+                self.assertIsNotNone(item["timesSmallerThanSparse"], key)
         self.assertIsNotNone(parsed["provenance"]["gitSha"])
         self.assertFalse(parsed["provenance"]["perceptionExecuted"])
 

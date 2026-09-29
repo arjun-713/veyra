@@ -175,9 +175,13 @@ export function referenceBaselines(report: Json | null): ReferenceBaseline[] {
     .find(([, policy]) => isObject(policy) && policy.adapter?.suite === 'reference');
   const rows: ReferenceBaseline[] = [];
   rows.push(dense && dense.status === 'analytical_only'
-    ? {key: 'uniform_5cm_3d', label: 'Dense 5 cm 3D grid', kind: 'analytical', detail: text(dense.warning) ?? 'memory estimate only; not allocated or timed', bytes: nonNegative(dense.estimated_dense_bytes), cells: nonNegative(dense.dense_voxel_count)}
+    ? {key: 'uniform_5cm_3d', label: 'Dense 5 cm 3D grid (stream bounds)', kind: 'analytical', detail: text(dense.warning) ?? 'memory estimate only; not allocated or timed', bytes: nonNegative(dense.estimated_dense_bytes), cells: nonNegative(dense.dense_voxel_count)}
     : {key: 'uniform_5cm_3d', label: 'Dense 5 cm 3D grid', kind: 'unavailable', detail: 'not recorded in this report', bytes: null, cells: null});
-  if (measured3d) {
+  const sparse = isObject(baselines.sparse_5cm_3d) && baselines.sparse_5cm_3d.status === 'measured' ? baselines.sparse_5cm_3d : null;
+  if (sparse) {
+    const basis = isObject(sparse[sparse.comparison_basis]) ? sparse[sparse.comparison_basis] : sparse.final_window;
+    rows.push({key: 'sparse_5cm_3d', label: 'Measured sparse 3D baseline', kind: 'measured', detail: 'occupied 5 cm voxels on the same stream; bytes accounted per voxel', bytes: nonNegative(basis?.logical_bytes), cells: nonNegative(basis?.occupied_voxels)});
+  } else if (measured3d) {
     const [key, policy] = measured3d;
     const run = Array.isArray(policy.runs) ? policy.runs.at(-1) : null;
     rows.push({key, label: 'Measured sparse 3D baseline', kind: 'measured', detail: 'executed on the same selection', bytes: nonNegative(run?.metrics?.memory?.logical_map_bytes ?? policy.aggregate?.logical_map_bytes), cells: null});
@@ -188,6 +192,76 @@ export function referenceBaselines(report: Json | null): ReferenceBaseline[] {
     rows.push({key: 'uniform_5cm_2d', label: 'Uniform5 quality reference', kind: 'measured', detail: 'observed 5 cm support from the identical stream; not surveyed ground truth', bytes: null, cells: nonNegative(fine.reference_bins)});
   }
   return rows;
+}
+
+export type StorageKey = 'dense_3d' | 'sparse_3d' | PublicPolicy;
+export interface StorageRow {
+  key: StorageKey;
+  label: string;
+  kind: EvidenceKind;
+  /** Bytes compared across rows (logical payload; the dense grid is an estimate). */
+  bytes: number | null;
+  allocatedBytes: number | null;
+  cells: number | null;
+  detail: string;
+  /** 3D bytes / this row's bytes: above 1 means this 2.5D map is that many times smaller. */
+  timesSmallerThanSparse: number | null;
+  timesSmallerThanDense: number | null;
+}
+
+const ratio = (numerator: number | null, denominator: number | null) =>
+  numerator !== null && denominator !== null && denominator > 0 && numerator > 0 ? numerator / denominator : null;
+
+/**
+ * Storage of a high-resolution 3D map beside each policy's 2.5D map, all on
+ * the same accepted input (`storage_comparison`, docs/benchmark-contract.md).
+ * Reports that predate the block fall back to the analytical stream-bounds
+ * dense estimate and show the sparse 3D row as unavailable.
+ */
+export function storageComparison(report: Json | null): StorageRow[] {
+  const storage = isObject(report?.storage_comparison) ? report!.storage_comparison : null;
+  const baselines = isObject(report?.reference_baselines) ? report!.reference_baselines : {};
+  const denseSource = isObject(storage?.dense_3d) ? storage!.dense_3d : null;
+  const legacyDense = isObject(baselines.uniform_5cm_3d) && baselines.uniform_5cm_3d.status === 'analytical_only' ? baselines.uniform_5cm_3d : null;
+  const windowDense = isObject(baselines.dense_5cm_3d_window) ? baselines.dense_5cm_3d_window : null;
+  const denseBytes = nonNegative(denseSource?.estimated_dense_bytes) ?? (storage ? null : nonNegative(legacyDense?.estimated_dense_bytes));
+  const denseCells = nonNegative(denseSource?.dense_voxel_count) ?? (storage ? null : nonNegative(legacyDense?.dense_voxel_count));
+  const denseDetail = denseBytes === null ? 'not recorded in this report'
+    : storage ? `estimate over the ${finite(windowDense?.window_radius_m) !== null ? `${Math.round(windowDense!.window_radius_m)} m ` : ''}map window footprint × measured height span at 16 B/voxel; never allocated`
+      : 'estimate over the stream XYZ bounds at 16 B/voxel; never allocated';
+  const sparseSource = isObject(storage?.sparse_3d) ? storage!.sparse_3d : null;
+  const sparseBytes = nonNegative(sparseSource?.logical_bytes);
+  const rows: StorageRow[] = [
+    {key: 'dense_3d', label: 'Dense 5 cm 3D grid', kind: denseBytes === null ? 'unavailable' : 'analytical', bytes: denseBytes, allocatedBytes: null, cells: denseCells, detail: denseDetail, timesSmallerThanSparse: null, timesSmallerThanDense: null},
+    {key: 'sparse_3d', label: 'Sparse 5 cm 3D voxel hash', kind: sparseBytes === null ? 'unavailable' : 'measured',
+      bytes: sparseBytes, allocatedBytes: nonNegative(sparseSource?.accounted_allocated_bytes), cells: nonNegative(sparseSource?.occupied_voxels),
+      detail: sparseBytes === null ? 'not executed by this benchmark run' : 'measured occupied voxels in the final map window; bytes accounted per voxel (occupancy only, no height/class)',
+      timesSmallerThanSparse: null, timesSmallerThanDense: ratio(denseBytes, sparseBytes)},
+  ];
+  const policyRows = qualityResourceRows(report);
+  const storagePolicies = isObject(storage?.policies) ? storage!.policies : {};
+  for (const policy of PUBLIC_POLICIES) {
+    const stored = isObject(storagePolicies[policy]) ? storagePolicies[policy] : null;
+    const fallback = policyRows.find(row => row.policy === policy);
+    const bytes = stored ? nonNegative(stored.logical_map_bytes) : fallback?.logicalBytes ?? null;
+    rows.push({
+      key: policy, label: POLICY_LABELS[policy], kind: bytes === null ? 'unavailable' : 'measured', bytes,
+      allocatedBytes: stored ? nonNegative(stored.allocated_map_bytes) : fallback?.allocatedBytes ?? null,
+      cells: stored ? nonNegative(stored.active_cells) : fallback?.activeCells ?? null,
+      detail: bytes === null ? 'not measured in this report' : '2.5D map, final state',
+      timesSmallerThanSparse: ratio(sparseBytes, bytes), timesSmallerThanDense: ratio(denseBytes, bytes),
+    });
+  }
+  return rows;
+}
+
+const POLICY_LABELS: Record<PublicPolicy, string> = {uniform5: 'Uniform5', uniform40: 'Uniform40', distance_lod: 'DistanceLOD', utility_lod: 'UtilityLOD'};
+
+/** "12.3× smaller" / "1.4× larger"; unavailable ratios read as unavailable. */
+export function timesSmaller(value: number | null): string {
+  if (value === null) return 'unavailable';
+  if (value >= 1) return `${value.toLocaleString(undefined, {maximumFractionDigits: value >= 100 ? 0 : 1})}× smaller`;
+  return `${(1 / value).toLocaleString(undefined, {maximumFractionDigits: 2})}× larger`;
 }
 
 export interface QualityResourceRow {
