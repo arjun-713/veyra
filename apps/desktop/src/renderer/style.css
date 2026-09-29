@@ -318,6 +318,15 @@ details[open] > summary { margin-bottom: 16px; }
 .inspector > div:not(.panel-heading) { display: flex; justify-content: space-between; gap: 10px; padding: 6px 0; }
 .inspector b { font: 10px var(--font-mono); overflow-wrap: anywhere; }
 .inspector button { margin-top: 12px; }
+.explanation { display: block !important; margin-top: 12px; padding: 10px; border: 1px solid var(--line); border-radius: 8px; background: var(--canvas); }
+.explanation strong { display: block; font-size: 12px; margin: 6px 0 4px; }
+.inspector .anatomy { display: block !important; margin-top: 12px; padding: 10px; border: 1px solid var(--line); border-radius: 8px; background: var(--canvas); }
+.explanation p { font-size: 11px; margin: 0 0 6px; }
+.explanation details { font-size: 11px; }
+.explanation summary { cursor: pointer; }
+.legend-row small { color: var(--secondary); font-weight: 400; }
+.judge-strip { display: flex; gap: 14px; align-items: center; padding: 7px 12px; border-radius: 8px; background: #172634ee; color: #c8d8e5; font-size: 11px; pointer-events: auto; }
+.judge-strip b { font-variant-numeric: tabular-nums; }
 .map-stage { position: relative; flex: 1; min-width: 0; background: #091118; }
 .map-toolbar { position: absolute; top: 16px; left: 16px; right: 16px; display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; pointer-events: none; flex-wrap: wrap; z-index: 2; }
 .map-toolbar > * { pointer-events: auto; }

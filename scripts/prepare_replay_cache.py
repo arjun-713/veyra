@@ -186,10 +186,32 @@ def main(argv=None) -> int:
                     "mapper: " + cells.get("reason", "map visualization unavailable")
                 )
             metadata, payload = pack_visualization(frame, cells, runtime.generation)
+            # Display-ready recorded measurements for replay UI. Every value
+            # was measured while building this cache and must be labeled
+            # RECORDED at display time — never current live processing.
+            # Rates the builder cannot measure honestly (processing FPS,
+            # splits/s, merges/s) are omitted so replay shows N/A instead.
+            map_payload = frame.get("map", {})
+            snapshot = map_payload.get("snapshot", {})
+            viewer_metrics = map_payload.get("metrics", {})
+            latency_ns = viewer_metrics.get("map_update_latency_ns")
+            # Viewer metrics carry a summary dict; p50 matches the live
+            # "Map update" display semantics (labeled RECORDED at replay).
+            if isinstance(latency_ns, dict):
+                latency_ns = latency_ns.get("p50", latency_ns.get("mean"))
             recorded = {
                 "recorded_during_cache_build": True,
                 "perception_timings_ms": frame.get("perception_timings_ms", {}),
-                "map_metrics": (frame.get("map", {}).get("metrics", {})),
+                "map_metrics": viewer_metrics,
+                "active_cells": snapshot.get("active_leaf_count"),
+                "cells_by_level": [
+                    (snapshot.get("levels", {}) or {}).get(str(level))
+                    for level in range(4)
+                ],
+                "map_update_ms": (
+                    latency_ns / 1e6 if isinstance(latency_ns, (int, float)) else None
+                ),
+                "logical_bytes": viewer_metrics.get("logical_map_bytes"),
             }
             writer.add_frame(target, metadata, payload, telemetry=recorded)
             elapsed = time.monotonic() - started
