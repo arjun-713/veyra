@@ -40,6 +40,12 @@ from benchmarks.reconstruction import (
     reconstruction_report,
     reference_cloud,
 )
+from benchmarks.storage_3d import (
+    SparseVoxelAccumulator,
+    dense_3d_window_estimate,
+    sparse_3d_report,
+    storage_comparison_report,
+)
 from datasets.generic import ManifestDataset
 from datasets.rellis import Rellis3DDataset
 from datasets.semantickitti import SemanticKITTIDataset
@@ -2303,8 +2309,13 @@ def run(args: argparse.Namespace) -> dict[str, Any]:
             dataset_root=getattr(args, "dataset_root", None),
             perception_config=perception_config_path,
         )
+    # Voxelize the exact frames written to the staged stream (the input every
+    # policy consumes) for the measured sparse 3D storage comparator.
+    sparse_voxels = SparseVoxelAccumulator()
     digest, window_radius_m, runs_by_policy, bridge_samples_ns, execution_order = (
-        _execute_policy_runs(args, repo, requested, frame_iterator, selection)
+        _execute_policy_runs(
+            args, repo, requested, sparse_voxels.wrap(frame_iterator), selection
+        )
     )
     planner_report = {
         "schema_version": 1,
@@ -2326,6 +2337,14 @@ def run(args: argparse.Namespace) -> dict[str, Any]:
         planner_report = planner_evaluation_report(planner_snapshots)
     three_d_reference = analytical_3d_reference_bounds(
         selection["min_xyz"], selection["max_xyz"]
+    )
+    sparse_3d_reference = sparse_3d_report(
+        sparse_voxels, window_radius_m=window_radius_m, selection_digest=digest
+    )
+    dense_3d_window = dense_3d_window_estimate(
+        window_radius_m,
+        float(selection["min_xyz"][2]),
+        float(selection["max_xyz"][2]),
     )
     fine_reference = _finalize_policy_runs(
         runs_by_policy,
@@ -2517,6 +2536,8 @@ def run(args: argparse.Namespace) -> dict[str, Any]:
         "semantic_quality": semantic_quality,
         "reference_baselines": {
             "uniform_5cm_3d": three_d_reference,
+            "sparse_5cm_3d": sparse_3d_reference,
+            "dense_5cm_3d_window": dense_3d_window,
             "uniform_5cm_2d": {
                 "status": "executed_as_fine_reference",
                 "reference_bins": len(fine_reference["mean_z_by_cell"]),
@@ -2531,6 +2552,9 @@ def run(args: argparse.Namespace) -> dict[str, Any]:
         "utility_ablation": utility_ablation_report(results),
         "planner_evaluation": planner_report,
         "policies": results,
+        "storage_comparison": storage_comparison_report(
+            results, sparse_3d_reference, dense_3d_window, three_d_reference
+        ),
     }
     result_report["quality_resource"] = build_quality_resource_report(result_report)
     return result_report
@@ -2553,6 +2577,24 @@ def _reconstruction_csv(quality: dict[str, Any]) -> dict[str, Any]:
         "reconstruction_completion_m": rec["completion"]["mean_m"],
         "reconstruction_chamfer_l1_m": rec["chamfer_l1_m"],
         "reconstruction_fscore_10cm": tenth,
+    }
+
+
+def _storage_csv(result: dict[str, Any], policy: str) -> dict[str, Any]:
+    storage = result.get("storage_comparison") or {}
+    row = (storage.get("policies") or {}).get(policy) or {}
+    return {
+        "sparse_3d_occupied_voxels": (storage.get("sparse_3d") or {}).get(
+            "occupied_voxels"
+        ),
+        "sparse_3d_logical_bytes": (storage.get("sparse_3d") or {}).get(
+            "logical_bytes"
+        ),
+        "dense_3d_window_estimated_bytes": (storage.get("dense_3d") or {}).get(
+            "estimated_dense_bytes"
+        ),
+        "logical_over_sparse_3d_logical": row.get("logical_over_sparse_3d_logical"),
+        "logical_over_dense_3d": row.get("logical_over_dense_3d"),
     }
 
 
@@ -2610,6 +2652,11 @@ def _write_csv(path: Path, result: dict[str, Any]) -> None:
         "semantic_miou_60_100m",
         "analytical_3d_dense_voxels",
         "analytical_3d_estimated_bytes",
+        "sparse_3d_occupied_voxels",
+        "sparse_3d_logical_bytes",
+        "dense_3d_window_estimated_bytes",
+        "logical_over_sparse_3d_logical",
+        "logical_over_dense_3d",
         "runtime_ms",
         "rss_bytes",
         "height_accuracy_05cm",
@@ -2707,6 +2754,7 @@ def _write_csv(path: Path, result: dict[str, Any]) -> None:
                     "analytical_3d_estimated_bytes": result["reference_baselines"][
                         "uniform_5cm_3d"
                     ]["estimated_dense_bytes"],
+                    **_storage_csv(result, policy),
                     "runtime_ms": quality_rows.get(policy, {}).get("runtime_ms"),
                     "rss_bytes": quality_rows.get(policy, {}).get("rss_bytes"),
                     "height_accuracy_05cm": quality_rows.get(policy, {}).get(

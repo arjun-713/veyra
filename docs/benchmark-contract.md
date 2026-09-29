@@ -202,7 +202,8 @@ opened files alike, so both views agree.
   | Semantic source (`ground_truth` is labelled as not being a model score) | `perception.status.semantic` |
   | Analytical dense 3D estimate | `reference_baselines.uniform_5cm_3d` |
   | Uniform5 quality reference | `reference_baselines.uniform_5cm_2d` |
-  | Measured sparse 3D leg (a policy with `adapter.suite = "reference"`) | `policies.*`; shown as unavailable when absent |
+  | Measured sparse 3D leg | `reference_baselines.sparse_5cm_3d` (older reports: a policy with `adapter.suite = "reference"`); shown as unavailable when absent |
+  | Storage: 3D vs 2.5D (dense 3D, sparse 3D, four policies, ratios) | `storage_comparison`; reports without it fall back to `uniform_5cm_3d` and show sparse 3D as unavailable |
   | Commit, tree state, host, build, frame range, sample adequacy | `provenance` |
 - **Units and tails.** Bytes are shown in MiB and latencies in ms. p95 and p99
   are labelled descriptive below 20 and 100 samples. The latency trade-off
@@ -269,12 +270,40 @@ nice -n 19 python3 benchmarks/baseline_3d.py --dataset semanticposs \
 python3 -m pytest benchmarks/test_baseline_3d.py -q
 ```
 
-First-class leg integration (proposed, not yet wired): `run_benchmark.py`
-gains an opt-in flag that imports `run_baseline` from `baseline_3d` and
-attaches its summary under `policies.measured_3d` with
-`adapter.suite = "reference"`, reusing the existing per-policy `runs` /
-`aggregate` shape for the map_update-equivalent stage only. Until that hook
-lands, the cross-leg comparison table (Uniform5 / Uniform40 / DistanceLOD /
-UtilityLOD from the schema-v2 matrix plus measured-3D) is published in
-`reports/closure/baseline-3d/RERUN-2ND-PARTY.json`, which also records the
-second-party reproduction proof.
+## Storage: 3D vs 2.5D (always emitted)
+
+Every `run_benchmark.py` run (CLI, `run_local.sh`, and the desktop's
+in-app benchmark through `runtime/service.py`) adds, with no extra flag and
+without changing `schema_version`:
+
+- `reference_baselines.sparse_5cm_3d` — MEASURED occupied-voxel count. The
+  harness voxelizes, at 5 cm, every point it writes to the staged binary
+  stream (the float32 XYZ every policy consumed; `input.selection_digest`
+  equals `provenance.selection_digest`). `cumulative` counts every voxel ever
+  touched; `final_window` counts voxels whose centre lies in the mapper's
+  final circular window and is the comparison basis
+  (`comparison_basis`), matching the policies' final map. Bytes are
+  *accounted* from the measured count, not malloc-hooked:
+  `logical_bytes = voxels x 16 B` (8 B key + 8 B occupancy/count),
+  `accounted_allocated_bytes = voxels x 32 B` (+16 B hash-slot overhead).
+  The set is occupancy-only, so it is a lower bound for a feature-equivalent
+  3D map. `rss.status = "not_isolated"`: the voxel set lives in the Python
+  harness beside perception, so no RSS is attributed to it (use
+  `benchmarks/baseline_3d.py` for a standalone process peak RSS).
+- `reference_baselines.dense_5cm_3d_window` — ANALYTICAL dense 5 cm grid over
+  the window footprint (`2R x 2R`, `R = provenance.map_window_radius_m`) and
+  the stream's measured z span at 16 B/voxel. Never allocated or timed. The
+  older `uniform_5cm_3d` (stream XYZ bounds) is unchanged.
+- `storage_comparison` — `sparse_3d`, `dense_3d`, `dense_3d_stream_bounds`
+  and, per requested policy, `logical_map_bytes`, `allocated_map_bytes`,
+  `active_cells` (last repetition's final map) with
+  `logical_over_sparse_3d_logical`, `allocated_over_sparse_3d_allocated`,
+  `logical_over_dense_3d`, `allocated_over_dense_3d`. Ratios are
+  policy / 3D (below 1 = the 2.5D map is smaller); unavailable inputs are
+  `null`, never 0. The CSV gains `sparse_3d_occupied_voxels`,
+  `sparse_3d_logical_bytes`, `dense_3d_window_estimated_bytes`,
+  `logical_over_sparse_3d_logical` and `logical_over_dense_3d`.
+
+The desktop Evaluation screen renders this block as "Storage: 3D vs 2.5D"
+(logical MiB, labelled "MB" like the rest of the app, with "x smaller"
+ratios); `render_report.py` renders the same table.
