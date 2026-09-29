@@ -155,7 +155,7 @@ def download(
     workers: int = 8,
 ) -> None:
     entries = read_central_directory(url)
-    available = set(e.name.split("/")[1] for e in entries if e.name.count("/") >= 2)
+    available = {e.name.split("/")[1] for e in entries if e.name.count("/") >= 2}
     missing = [s for s in sequences if s not in available]
     if missing:
         raise SystemExit(f"unknown PandaSet sequences: {', '.join(missing)}")

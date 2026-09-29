@@ -11,6 +11,7 @@ from __future__ import annotations
 import hashlib
 import json
 import math
+from itertools import pairwise
 from typing import Any
 
 import numpy as np
@@ -73,14 +74,14 @@ def select_semantic_candidate(
         # a fixed spatial patch is the honest unit; do not call it an object.
         cell = np.floor(xyz[eligible, :2] / 2.0).astype(np.int64)
         unique, counts = np.unique(cell, axis=0, return_counts=True)
-        rank = sorted(
+        rank = min(
             range(len(unique)),
             key=lambda index: (
                 -int(counts[index]),
                 int(unique[index, 0]),
                 int(unique[index, 1]),
             ),
-        )[0]
+        )
         count, selected_id = int(counts[rank]), 0
         chosen = eligible & np.all(
             np.floor(xyz[:, :2] / 2.0).astype(np.int64) == unique[rank], axis=1
@@ -157,7 +158,7 @@ def select_geometry_candidates(
     ]
     hazards: list[dict[str, Any]] = []
     flats: list[dict[str, Any]] = []
-    for left, right in zip(boundaries[:-1], boundaries[1:], strict=True):
+    for left, right in pairwise(boundaries):
         if right - left < min_points:
             continue
         subset = selected[order[left:right]]
