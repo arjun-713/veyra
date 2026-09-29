@@ -40,7 +40,8 @@
      {/if}
     {/each}
     <text x={4} y={PAD + 2} fill="#8a94a6" font-size="8">↑ z</text>
-    <text x={4} y={PAD + 2} fill="none" font-size="8">.</text>
+    <text x={W - PAD} y={PAD + 2} text-anchor="end" fill="#8a94a6" font-size="8">{fmt(range.hi)} m</text>
+    <text x={W - PAD} y={H - 2} text-anchor="end" fill="#8a94a6" font-size="8">{fmt(range.lo)} m</text>
    </svg>
    <div class="anatomy-numbers">
     {#each anatomy.layers as l}
@@ -53,6 +54,16 @@
      </div>
     {/each}
     <div><span>pooled z</span><b>{fmt(anatomy.pooled.mean)} m</b><small>min {fmt(anatomy.pooled.zmin)} · max {fmt(anatomy.pooled.zmax)} m · var {fmt(anatomy.pooled.variance, 4)} m² · n={anatomy.pooled.count ?? '—'}</small></div>
+    <details><summary>Surface</summary><div><span>slope</span><b>Not stored per cell</b><small>pooled variance is the roughness signal</small></div></details>
+    <details><summary>Perception</summary>
+     <div><span>semantic</span><b>{anatomy.context.semantic ?? 'Unavailable'}</b>{#if anatomy.context.semanticConfidence !== null}<small>confidence {fmt(anatomy.context.semanticConfidence)}</small>{/if}</div>
+     <div><span>motion</span><b>{anatomy.context.motion ?? 'Unavailable'}</b></div>
+    </details>
+    <details><summary>State</summary>
+     <div><span>traversability</span><b>{anatomy.context.traversability ?? 'Unavailable'}</b></div>
+     <div><span>observations</span><b>{anatomy.context.observations ?? anatomy.pooled.count ?? 'Unavailable'}</b>{#if anatomy.context.quality !== null}<small>quality {fmt(anatomy.context.quality)}</small>{/if}</div>
+     <div><span>visibility</span><b>Unknown</b><small>per-cell occupancy is not exposed in visualization frames — unknown, never free</small></div>
+    </details>
    </div>
   </div>
  {/if}
@@ -68,6 +79,9 @@
  .anatomy-numbers b{display:block;font-size:11px;font-variant-numeric:tabular-nums}
  .anatomy-numbers small{display:block;font-size:10px;color:var(--secondary)}
  .anatomy-numbers .empty b{color:var(--secondary);font-weight:400}
+ .anatomy-numbers details{margin-bottom:8px;font-size:11px}
+ .anatomy-numbers summary{cursor:pointer;font-size:9px;color:var(--secondary);text-transform:uppercase}
+ .anatomy-numbers details div{margin-top:4px}
  .anatomy-note{color:var(--secondary)}
  svg{background:#0b1219;border-radius:6px}
 </style>

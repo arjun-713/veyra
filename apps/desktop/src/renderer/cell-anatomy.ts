@@ -19,15 +19,31 @@ export interface AnatomyPooled {
   count: number | null;
 }
 
+export interface AnatomyContext {
+  // Human-readable labels resolved by the caller from the single taxonomy
+  // source; null renders as unavailable, never a bare ID or a guess.
+  semantic: string | null;
+  semanticConfidence: number | null;
+  motion: string | null;
+  traversability: string | null;
+  quality: number | null;
+  observations: number | null;
+}
+
 export interface CellAnatomy {
   available: boolean;
   layers: LayerAnatomy[];
   pooled: AnatomyPooled;
   resolution: string | null;
   lod: number | null;
-  // Obstacle/overhead evidence with no ground support means the ground is
-  // occluded: unknown, never drivable, never free.
-  occluded: boolean;
+  context: AnatomyContext;
+  // Ground layer holds no returns while obstacle/overhead do. That alone
+  // proves nothing about visibility: the floor may be occluded, or it may
+  // simply never have been observed. Only "ground unobserved" is claimed —
+  // unknown, never drivable, never free. The word "occluded" is reserved
+  // for backend visibility evidence, which visualization frames do not
+  // carry per cell.
+  groundUnobserved: boolean;
   notes: string[];
 }
 
@@ -40,7 +56,10 @@ export interface AnatomyInput {
   pooled: {mean: number | null; zmin: number | null; zmax: number | null; variance: number | null; count: number | null};
   resolution: string | null;
   lod: number | null;
+  context?: Partial<AnatomyContext>;
 }
+
+const EMPTY_CONTEXT: AnatomyContext = {semantic: null, semanticConfidence: null, motion: null, traversability: null, quality: null, observations: null};
 
 function layer(name: LayerAnatomy['name'], raw: AnatomyInput['physicalLayers']): LayerAnatomy {
   const entry = raw?.[name];
@@ -61,17 +80,18 @@ export function cellAnatomy(input: AnatomyInput): CellAnatomy {
       pooled: input.pooled,
       resolution: input.resolution,
       lod: input.lod,
-      occluded: false,
+      context: {...EMPTY_CONTEXT, ...input.context},
+      groundUnobserved: false,
       notes: ['This frame carries no physical-layer section (older schema) — vertical anatomy is unavailable, not empty.'],
     };
   }
   const layers = (['ground', 'obstacle', 'overhead'] as const).map(name => layer(name, input.physicalLayers));
   const [ground, obstacle, overhead] = layers;
-  const occluded = ground.state === 'empty' && (obstacle.state === 'present' || overhead.state === 'present');
-  if (occluded) notes.push('Ground is occluded here: unknown, never drivable, never marked free without visibility evidence.');
+  const groundUnobserved = ground.state === 'empty' && (obstacle.state === 'present' || overhead.state === 'present');
+  if (groundUnobserved) notes.push('Ground unobserved here: unknown, never drivable, never marked free without visibility evidence. No occlusion is inferred from the missing layer alone.');
   if (layers.every(l => l.state === 'empty')) notes.push('No layer holds evidence — absence of evidence clears nothing.');
   notes.push('Pooled elevation is a summary, not a surface.');
-  return {available: true, layers, pooled: input.pooled, resolution: input.resolution, lod: input.lod, occluded, notes};
+  return {available: true, layers, pooled: input.pooled, resolution: input.resolution, lod: input.lod, context: {...EMPTY_CONTEXT, ...input.context}, groundUnobserved, notes};
 }
 
 // Vertical scale for the mini cross-section: min/max over every measured
