@@ -253,7 +253,7 @@ void checkBoundaryFuzz() {
       const std::array<std::pair<double, double>, 4> corners{
           std::pair{e.min_x, e.min_y}, std::pair{e.max_x, e.min_y}, std::pair{e.min_x, e.max_y},
           std::pair{e.max_x, e.max_y}};
-      for (const auto [cx, cy] : corners) {
+      for (const auto& [cx, cy] : corners) {
         for (double d : deltas) {
           const double x = cx + d;
           const double y = cy + d * 0.5;
@@ -411,7 +411,7 @@ void checkRepeatedTopologyChurn() {
   std::uint64_t ts = 0;
   const std::array<std::pair<double, double>, 3> centres{
       std::pair{-0.62, -0.58}, std::pair{0.22, 0.18}, std::pair{1.02, -0.98}};
-  for (const auto [x, y] : centres) {
+  for (const auto& [x, y] : centres) {
     map.update(enriched(x, y, -8.0, ++ts, rng));
     map.update(enriched(x + 0.01, y + 0.01, 3.0, ++ts, rng));
     map.update(enriched(x + 0.02, y + 0.02, 14.0, ++ts, rng));

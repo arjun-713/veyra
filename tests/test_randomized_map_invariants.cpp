@@ -97,7 +97,7 @@ void checkRandomizedMixedResolutionChurn() {
 
   // Deterministic half-open-boundary probes anchor the randomized run on both
   // sides of the origin. These are public Map updates, not direct grid setup.
-  for (const auto [x, y] : std::array<std::pair<double, double>, 6>{
+  for (const auto& [x, y] : std::array<std::pair<double, double>, 6>{
            std::pair{-1.6, -1.2}, std::pair{-0.4, 0.0}, std::pair{0.0, 0.4},
            std::pair{0.4, -0.4}, std::pair{1.2, 0.8}, std::pair{-0.8, 1.6}}) {
     map.update(Observation{.x = x, .y = y, .z = height(rng), .timestamp = ++accepted});

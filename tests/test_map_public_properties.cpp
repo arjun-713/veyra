@@ -69,7 +69,7 @@ void checkBoundaryAndSignedOwnership() {
   std::vector<CellId> expected_ids;
   for (const std::int32_t ix : {-11, -1, 0, 1, 10}) {
     const CellExtent extent = veyra::core::extentOf(CellId{0, ix, ix});
-    for (const auto [x, y] : std::array<std::pair<double, double>, 2>{
+    for (const auto& [x, y] : std::array<std::pair<double, double>, 2>{
              std::pair{extent.min_x, extent.min_y}, std::pair{extent.max_x, extent.max_y}}) {
       const CellId expected = map.cell_for(x, y);
       const std::uint64_t next_timestamp = ++timestamp;
@@ -174,7 +174,7 @@ void checkRepeatedPublicSplitMergePreservesEvidence() {
   const std::array<std::pair<double, double>, 3> centres{{{-0.62, -0.58}, {0.22, 0.18},
                                                            {1.02, -0.98}}};
   std::uint64_t timestamp = 0;
-  for (const auto [x, y] : centres) {
+  for (const auto& [x, y] : centres) {
     map.update(point(x, y, -8.0, ++timestamp));
     map.update(point(x + 0.01, y + 0.01, 3.0, ++timestamp));
     map.update(point(x + 0.02, y + 0.02, 14.0, ++timestamp));
