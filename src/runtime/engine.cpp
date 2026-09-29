@@ -148,6 +148,11 @@ struct Result {
   std::optional<veyra::policy::ResourceGovernorConfig> governor_config;
   std::optional<veyra::policy::PromotionTelemetry> promotion_telemetry;
   bool governor_deterministic = false;
+  // Compact description of the ACTIVE mapping configuration, emitted with
+  // every frame report so visualization consumers never hardcode bands or
+  // resolutions. Built once per reset from the options and configs that
+  // actually constructed the map and policy.
+  std::string policy_descriptor = "{}";
 };
 
 // Open-addressed CellId -> dense slot index for per-frame bookkeeping.
@@ -1061,6 +1066,12 @@ veyra::map::Observation parse_observation_record(std::istringstream& input, int 
           .ground_gradient_y = std::numeric_limits<float>::quiet_NaN()};
 }
 
+// Built once per session/reset from the options and configs that actually
+// constructed the map and policy; emitted with every frame report.
+std::string render_policy_descriptor(
+    const Options& options,
+    const std::optional<veyra::policy::ResourceGovernorConfig>& governor_config);
+
 Result run(const Options& options) {
   const veyra::map::MapConfig config{
       .window_radius_m = options.window_radius,
@@ -1073,6 +1084,7 @@ Result run(const Options& options) {
   Result result;
   result.policy = options.policy;
   result.governor_config = map.governor_config();
+  result.policy_descriptor = render_policy_descriptor(options, result.governor_config);
   result.governor_deterministic = options.deterministic_governor;
   result.include_leaf_details = options.include_leaf_details;
   bool header = false;
@@ -1449,13 +1461,39 @@ void write_input_summary(std::ostringstream& out, const InputSummary& input) {
   out << "}}";
 }
 
+std::string render_policy_descriptor(
+    const Options& options,
+    const std::optional<veyra::policy::ResourceGovernorConfig>& governor_config) {
+  std::ostringstream out;
+  out << std::setprecision(17);
+  out << "{\"name\":\"" << escape(options.policy) << "\",\"levels\":[";
+  for (std::size_t level = 0; level < options.levels.size(); ++level) {
+    if (level > 0) out << ',';
+    out << "{\"level\":" << level << ",\"resolution_m\":" << options.levels[level] << '}';
+  }
+  out << "],\"distance_boundaries_m\":[";
+  for (std::size_t index = 0; index < options.boundaries.size(); ++index) {
+    if (index > 0) out << ',';
+    out << options.boundaries[index];
+  }
+  out << "],\"window_radius_m\":" << options.window_radius;
+  out << ",\"near_field_radius_m\":";
+  if (governor_config)
+    out << governor_config->near_field_radius_m;
+  else
+    out << "null";
+  out << '}';
+  return out.str();
+}
+
 std::string render(const Result& result) {
   const auto& snapshot = result.snapshot;
   const auto& metrics = result.metrics;
   std::ostringstream out;
   out << std::setprecision(17);
   out << "{\"schema_version\":2,\"protocol_version\":" << result.protocol_version
-      << ",\"policy\":\"" << escape(result.policy) << "\",\"stream_digest\":\""
+      << ",\"policy\":\"" << escape(result.policy) << "\",\"policy_descriptor\":"
+      << result.policy_descriptor << ",\"stream_digest\":\""
       << escape(result.digest) << "\",\"input_frames\":" << result.input_frames
       << ",\"warmup_frames\":" << result.warmup_frames
       << ",\"measured_frames\":" << metrics.frame_count << ",\"frames\":" << metrics.frame_count
@@ -1779,6 +1817,7 @@ class PersistentEngineSession {
     result_ = Result{};
     result_.policy = options_.policy;
     result_.governor_config = map_->governor_config();
+    result_.policy_descriptor = render_policy_descriptor(options_, result_.governor_config);
     result_.governor_deterministic = options_.deterministic_governor;
     result_.include_leaf_details = options_.include_leaf_details;
     result_.digest = "engine-session";

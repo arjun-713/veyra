@@ -150,6 +150,14 @@ def pack_visualization(frame, cells, generation):
         "pipeline_status": status,
         "n_points": frame["n_points"],
         "total_leaves": cells.get("total_leaves", 0),
+        # Active mapping configuration as reported by the mapper for this
+        # frame (policy name, level ladder, distance bands, radii). The
+        # viewer derives range-band explanations from this descriptor;
+        # frames that predate it (older caches) carry {} and the viewer
+        # must say "Policy configuration unavailable", never assume bands.
+        "policy_descriptor": dict(
+            (frame.get("map") or {}).get("policy_descriptor") or {}
+        ),
     }
     if has_physical_layers:
         metadata["physical_layers"] = {

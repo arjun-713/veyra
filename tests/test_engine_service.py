@@ -45,6 +45,32 @@ class EngineServiceTests(unittest.TestCase):
     def setUp(self):
         self.binary = require_binary(self, "VEYRA_RUNTIME_BINARY", RUNTIME_RELATIVE)
 
+    def test_frame_reports_active_policy_descriptor(self):
+        import numpy as np
+
+        from tests.test_layered_end_to_end import _frame
+        from viewer.runtime import PersistentMapEngine
+
+        frame = _frame(
+            np.array([[0.5, 0.01, 0.5]], dtype=np.float32),
+            np.ones(1, dtype=bool),
+            np.zeros(1, dtype=np.float32),
+        )
+        for policy in ("distance_lod", "uniform5", "utility_lod"):
+            engine = PersistentMapEngine(self.binary, policy=policy)
+            try:
+                descriptor = engine.process_frame(frame)["policy_descriptor"]
+                self.assertEqual(descriptor["name"], policy)
+                self.assertEqual(
+                    [entry["resolution_m"] for entry in descriptor["levels"]],
+                    [0.05, 0.10, 0.20, 0.40],
+                )
+                self.assertEqual(descriptor["distance_boundaries_m"], [10, 30, 60])
+                self.assertGreater(descriptor["window_radius_m"], 60)
+                self.assertIn("near_field_radius_m", descriptor)
+            finally:
+                engine.close()
+
     def test_sampled_physical_layers_keep_the_same_cell_order(self):
         import numpy as np
 

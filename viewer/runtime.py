@@ -358,6 +358,11 @@ class PersistentMapEngine:
             "snapshot": response.get("snapshot", {}),
             "metrics": _viewer_metrics(response.get("metrics", {})),
             "governor": response.get("governor"),
+            # Active mapping configuration as reported by the mapper itself
+            # (policy name, level ladder, distance bands, radii). Copied
+            # verbatim into visualization metadata so the viewer never
+            # hardcodes bands that can drift from the mapper config.
+            "policy_descriptor": response.get("policy_descriptor", {}),
         }
 
     def reset(self) -> dict[str, Any]:
@@ -445,6 +450,7 @@ class PersistentMapEngine:
             "snapshot": response.get("snapshot", {}),
             "metrics": _viewer_metrics(response.get("metrics", {})),
             "governor": response.get("governor"),
+            "policy_descriptor": response.get("policy_descriptor", {}),
         }
 
     def close(self) -> None:
