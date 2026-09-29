@@ -69,6 +69,21 @@ REPLAY_PREFETCH_BYTES = 128 * 1024 * 1024
 REPLAY_PREFETCH_FRAMES = 64
 
 
+def frames_processed(current: int, target: int) -> int:
+    """Observations the session maps to reach ``target`` from ``current``.
+
+    Mirrors ``RuntimeSession._payload_locked``: the same index re-serializes
+    (0), forward targets replay each intermediate frame, and backward targets
+    reset and replay from frame 0.
+    """
+
+    if target == current:
+        return 0
+    if target > current:
+        return target - current
+    return target + 1
+
+
 def benchmark_completion_event(output: Path, csv: Path) -> dict:
     """Announce a finished benchmark artifact without truncating its evidence.
 
@@ -782,6 +797,7 @@ class ProductRuntime:
 
     def _process_locked(self, target, force_visual=False):
         started = time.perf_counter()
+        processed = frames_processed(self.index, target)
         try:
             frame = self.session.frame_payload(
                 target, budget=self.config["visualization"]["point_budget"], binary=True
@@ -828,7 +844,10 @@ class ProductRuntime:
                 self.outbox.publish(metadata, payload)
                 visual_ms = (time.perf_counter() - visual_start) * 1000
                 self.last_visual = time.monotonic()
-            self.telemetry.record((time.perf_counter() - started) * 1000)
+            # A seek replays every intermediate frame in one call; its duration
+            # is not a per-frame latency and would swamp the rolling p95/p99.
+            if processed == 1:
+                self.telemetry.record((time.perf_counter() - started) * 1000)
             self._publish_status()
             self.last_telemetry = self.telemetry.report(
                 self.status(),

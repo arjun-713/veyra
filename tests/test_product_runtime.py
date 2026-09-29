@@ -307,6 +307,15 @@ if __name__ == "__main__":
 
 
 class ReplayRegressionTests(unittest.TestCase):
+    def test_frames_processed_mirrors_session_catch_up(self):
+        from runtime.service import frames_processed
+
+        self.assertEqual(frames_processed(-1, 0), 1)
+        self.assertEqual(frames_processed(4, 5), 1)
+        self.assertEqual(frames_processed(20, 74), 54)
+        self.assertEqual(frames_processed(74, 74), 0)
+        self.assertEqual(frames_processed(74, 3), 4)
+
     def test_seek_maps_each_intermediate_observation(self):
         from tests.test_runtime_player import RuntimePlayerTests, _write_frame
 
@@ -458,6 +467,8 @@ class ProductServiceTests(unittest.TestCase):
                 )
                 call("seek", index=2)
                 self.assertEqual(service.status()["index"], 2)
+                # A three-frame catch-up is not one frame's latency.
+                self.assertEqual(len(service.telemetry.latencies), 0)
                 events = []
                 while (event := service.outbox.take(timeout=0)) is not None:
                     events.append(event)
@@ -476,6 +487,7 @@ class ProductServiceTests(unittest.TestCase):
                 self.assertEqual(governor["state"], "disabled")
                 call("step")
                 self.assertEqual(service.status()["index"], 0)
+                self.assertEqual(len(service.telemetry.latencies), 1)
                 call("reset")
                 self.assertEqual(service.status()["index"], -1)
                 call("start")
