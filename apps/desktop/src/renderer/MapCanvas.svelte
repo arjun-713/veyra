@@ -6,10 +6,11 @@
  import {clampRenderCounts} from './dashboard';
  import {ScanHistory,colorInput,ACCUMULATION_POINT_CAPACITY,HISTORY_STRIDE} from './accumulation';
  import {decodePhysicalLayers,type WireFrame,type Json} from '../core';
+ import {inspectorFromRow} from './cell-lookup';
  let {frame=null,mode='semantic',showPoints=true,showCells=true,boundaries=false,view='orbit',follow=false,accumulate=1,showRings=false,selectedCell=null,onStats=()=>{},onInspect=()=>{}}=$props<{frame:WireFrame|null;mode:string;showPoints:boolean;showCells:boolean;boundaries:boolean;view:string;follow:boolean;accumulate?:number;showRings?:boolean;selectedCell?:{x:number;y:number;z:number;size:number}|null;onStats?:(value:Json)=>void;onInspect?:(value:Json)=>void}>();
  let host:HTMLDivElement,ready=$state(false),failure=$state('');
  let renderer:THREE.WebGLRenderer,scene:THREE.Scene,camera:THREE.PerspectiveCamera,controls:OrbitControls;
- let points:THREE.Points,mesh:THREE.InstancedMesh,pointGeo:THREE.BufferGeometry,rings:THREE.Group,highlight:THREE.LineSegments;
+ let points:THREE.Points,mesh:THREE.InstancedMesh,pointGeo:THREE.BufferGeometry,rings:THREE.Group,highlight:THREE.Group;
  const capacity=100000;
  const pointCapacity=ACCUMULATION_POINT_CAPACITY;
  let position=new Float32Array(pointCapacity*3),colors=new Float32Array(pointCapacity*3),cellData=new Float32Array(capacity*17),cellDataCount=0,cellStride=17;
@@ -69,7 +70,7 @@
   mesh.instanceColor!.clearUpdateRanges();mesh.instanceColor!.addUpdateRange(0,cellCount*3);mesh.instanceColor!.needsUpdate=true;
   // Bounds are only needed to raycast a click; Three recomputes them lazily.
   mesh.boundingSphere=null;
-  onStats({status:'available',source_points:meta.n_points??meta.points.count,source_cells:meta.total_leaves??meta.cells.count,rendered_points:history.pointCount,accumulated_scans:history.frameCount,rendered_cells:cellCount,sampling_active:clamped.truncated||(meta.n_points??0)>pointCount||(meta.total_leaves??0)>cellCount});
+  onStats({status:'available',source_points:meta.n_points??meta.points.count,source_cells:meta.total_leaves??meta.cells.count,wire_cells:meta.cells.count,rendered_points:history.pointCount,accumulated_scans:history.frameCount,rendered_cells:cellCount,sampling_active:clamped.truncated||(meta.n_points??0)>pointCount||(meta.total_leaves??0)>cellCount});
   if(follow&&meta.pose?.length===16){followTarget.set(meta.pose[3],meta.pose[11],-meta.pose[7]);followDelta.subVectors(followTarget,controls.target);camera.position.add(followDelta);controls.target.copy(followTarget);}
   // Range rings sit on the vehicle, through the same world->display mapping.
   if(rings){rings.visible=!!showRings;if(meta.pose?.length===16){rings.position.set(meta.pose[3],meta.pose[11]+0.05,-meta.pose[7]);}}
@@ -110,15 +111,22 @@
  $effect(()=>{showPoints;showCells;boundaries;ready;untrack(applyVisibility);});
  $effect(()=>{frame;mode;follow;showRings;ready;untrack(update);});
  $effect(()=>{selectedCell;ready;untrack(paintHighlight);});
- // Selection marker only: a wire box around the inspected cell's world
- // footprint. It marks XY + size, never invents cell contents.
+ // Selection marker: the inspected cell's flat XY footprint outline plus a
+ // short vertical locator line. It marks location only and never implies
+ // the 2.5D cell occupies a fabricated volume.
  function paintHighlight(){
   if(!ready||!highlight)return;
   if(!selectedCell||!Number.isFinite(selectedCell.x)||!Number.isFinite(selectedCell.y)||!Number.isFinite(selectedCell.size)||selectedCell.size<=0){highlight.visible=false;return;}
   const z=Number.isFinite(selectedCell.z)?selectedCell.z:0;
   const [hx,hy,hz]=displayPosition(selectedCell.x,selectedCell.y,z);
+  const half=selectedCell.size*1.04/2;
+  const outline=highlight.children[0] as THREE.LineLoop;
+  const positions=outline.geometry.getAttribute('position') as THREE.BufferAttribute;
+  positions.setXYZ(0,-half,0,-half);positions.setXYZ(1,half,0,-half);positions.setXYZ(2,half,0,half);positions.setXYZ(3,-half,0,half);positions.needsUpdate=true;
+  const locator=highlight.children[1] as THREE.Line;
+  const lpos=locator.geometry.getAttribute('position') as THREE.BufferAttribute;
+  lpos.setXYZ(0,0,0,0);lpos.setXYZ(1,0,2,0);lpos.needsUpdate=true;
   highlight.position.set(hx,hy,hz);
-  highlight.scale.set(selectedCell.size*1.04,0.6,selectedCell.size*1.04);
   highlight.visible=true;
  }
  $effect(()=>{const scans=Math.max(1,Math.round(accumulate));untrack(()=>{history.setWindow(scans);if(ready&&frame)paintPoints(true,frame.metadata.layers??{});});});
@@ -139,18 +147,27 @@
     ring.rotation.x=-Math.PI/2;rings.add(ring);
    }
    rings.visible=false;scene.add(rings);
-   highlight=new THREE.LineSegments(new THREE.EdgesGeometry(new THREE.BoxGeometry(1,1,1)),new THREE.LineBasicMaterial({color:0xffffff}));highlight.visible=false;highlight.frustumCulled=false;scene.add(highlight);
+   highlight=new THREE.Group();
+   const outlineGeo=new THREE.BufferGeometry();
+   outlineGeo.setAttribute('position',new THREE.BufferAttribute(new Float32Array(12),3));
+   const outline=new THREE.LineLoop(outlineGeo,new THREE.LineBasicMaterial({color:0xffffff}));
+   outline.frustumCulled=false;highlight.add(outline);
+   const locatorGeo=new THREE.BufferGeometry();
+   locatorGeo.setAttribute('position',new THREE.BufferAttribute(new Float32Array(6),3));
+   const locator=new THREE.Line(locatorGeo,new THREE.LineBasicMaterial({color:0xffffff,transparent:true,opacity:0.7}));
+   locator.frustumCulled=false;highlight.add(locator);
+   highlight.visible=false;highlight.frustumCulled=false;scene.add(highlight);
    const resize=new ResizeObserver(()=>{const w=host.clientWidth,h=host.clientHeight;renderer.setSize(w,h);camera.aspect=w/h;camera.updateProjectionMatrix();});resize.observe(host);
    let animation=0,frames=0,last=performance.now(),duration=0;
    const draw=()=>{animation=requestAnimationFrame(draw);const start=performance.now();controls.update();renderer.render(scene,camera);duration+=performance.now()-start;frames++;if(start-last>1000){onStats({fps:frames*1000/(start-last),latency_ms:duration/frames,entities:mesh.count+pointGeo.drawRange.count});last=start;frames=0;duration=0;}};draw();
-   const pick=(event:MouseEvent)=>{const rect=host.getBoundingClientRect();const ray=new THREE.Raycaster();ray.setFromCamera(new THREE.Vector2((event.clientX-rect.left)/rect.width*2-1,-(event.clientY-rect.top)/rect.height*2+1),camera);const hit=ray.intersectObject(mesh)[0];if(hit?.instanceId!==undefined&&hit.instanceId<cellDataCount){const r=cellData.subarray(hit.instanceId*17,hit.instanceId*17+17);const num=(i:number)=>Number.isFinite(r[i])?r[i]:null;const size=num(3);const level=size!=null?Math.max(0,Math.min(3,Math.round(Math.log2(size/0.05)))):null;onInspect({x:num(0),y:num(1),elevation:num(2),resolution:size,lod_level:level,semantic_class:num(4),motion:num(5),quality:num(6),drivable_evidence:num(7),utility:num(8),semantic_confidence:num(9),ground_evidence:num(10),terrain_confidence:num(11),geometry_complexity:num(12),point_count:num(13),height_min:num(14),height_max:num(15),height_variance:num(16),physical_layers:inspectionFrame?decodePhysicalLayers(inspectionFrame,hit.instanceId):null});}};
+   const pick=(event:MouseEvent)=>{const rect=host.getBoundingClientRect();const ray=new THREE.Raycaster();ray.setFromCamera(new THREE.Vector2((event.clientX-rect.left)/rect.width*2-1,-(event.clientY-rect.top)/rect.height*2+1),camera);const hit=ray.intersectObject(mesh)[0];if(hit?.instanceId!==undefined&&hit.instanceId<cellDataCount){const inspected=inspectorFromRow(cellData.subarray(hit.instanceId*17,hit.instanceId*17+17));onInspect({...inspected,physical_layers:inspectionFrame?decodePhysicalLayers(inspectionFrame,hit.instanceId):null});}};
    host.addEventListener('click',pick);
    const lost=(event:Event)=>{event.preventDefault();failure='WebGL context lost. Switch workspace and back, or reload the window to restore rendering — mapping continues in the backend.';onStats({status:'context_lost'});};
    const restored=()=>{failure='';lastGeneration=-1;lastIndex=-1;update();onStats({status:'available'});};
    renderer.domElement.addEventListener('webglcontextlost',lost,false);
    renderer.domElement.addEventListener('webglcontextrestored',restored,false);
    ready=true;onStats({status:'available'});
-   return()=>{cancelAnimationFrame(animation);resize.disconnect();host.removeEventListener('click',pick);renderer.domElement.removeEventListener('webglcontextlost',lost);renderer.domElement.removeEventListener('webglcontextrestored',restored);controls.dispose();highlight.geometry.dispose();(highlight.material as THREE.Material).dispose();scene.traverse(obj=>{if(obj instanceof THREE.Mesh||obj instanceof THREE.Points){obj.geometry.dispose();const materials=Array.isArray(obj.material)?obj.material:[obj.material];materials.forEach(m=>m.dispose());}});renderer.dispose();renderer.domElement.remove();};
+   return()=>{cancelAnimationFrame(animation);resize.disconnect();host.removeEventListener('click',pick);renderer.domElement.removeEventListener('webglcontextlost',lost);renderer.domElement.removeEventListener('webglcontextrestored',restored);controls.dispose();highlight.traverse(obj=>{if(obj instanceof THREE.Line||obj instanceof THREE.LineLoop){obj.geometry.dispose();(obj.material as THREE.Material).dispose();}});scene.traverse(obj=>{if(obj instanceof THREE.Mesh||obj instanceof THREE.Points){obj.geometry.dispose();const materials=Array.isArray(obj.material)?obj.material:[obj.material];materials.forEach(m=>m.dispose());}});renderer.dispose();renderer.domElement.remove();};
   }catch(error){failure=String(error);onStats({status:'unavailable',error:failure});}
  });
 </script>
