@@ -395,6 +395,7 @@ fn is_supported_controller_command(command: &str) -> bool {
             | "replay_close"
             | "replay_status"
             | "replay_rate"
+            | "metrics"
             | "stop"
     )
 }
@@ -637,6 +638,7 @@ mod tests {
             "replay_close",
             "replay_status",
             "replay_rate",
+            "metrics",
         ] {
             assert!(
                 is_supported_controller_command(command),
