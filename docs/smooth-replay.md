@@ -30,6 +30,10 @@ precomputed real visualization snapshot → lightweight decode → GPU buffers �
 - Dataset presentation rate: default **30 snapshots/sec** (~33.333 ms each).
   At 60 Hz that is roughly two render refreshes per LiDAR frame.
 - 488 SemanticPOSS-00 frames at 30 FPS ≈ **16.3 s** of demo playback.
+- The session configuration carries a **Playback rate** option (10 / 15 /
+  30 / **60 FPS**). When it is 15/30/60, Smooth Replay presents cached
+  snapshots at that rate (the cache itself is rate-independent); 60 FPS is
+  the optional speed mode, 30 FPS stays the demo default.
 - **Replay FPS is a presentation rate, NOT processing throughput.** The UI
   labels it `REPLAY · CACHED · 30 FPS`, processing reads `N/A DURING REPLAY`
   (`RECORDED` where historical values are shown), and each cached frame

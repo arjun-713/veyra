@@ -1,6 +1,6 @@
 import {test} from 'node:test';
 import assert from 'node:assert/strict';
-import {ReplayClock, PrefetchWindow, REPLAY_DEFAULT_FPS, percentile} from '../src/renderer/replay-clock.ts';
+import {ReplayClock, PrefetchWindow, REPLAY_DEFAULT_FPS, percentile, resolveReplayFps} from '../src/renderer/replay-clock.ts';
 import {validateCommand} from '../src/core.ts';
 
 // 488 SemanticPOSS frames at 30 FPS present as ~16.3 s of demo playback.
@@ -105,4 +105,22 @@ test('cached playback issues no processing commands',()=>{
  const allowed=new Set(['start','pause','step','seek','speed','status','replay_open','replay_close','replay_status','layer']);
  const forbidden=['benchmark','validation','configure','policy','sequence','reset','governor'];
  for(const command of forbidden)assert.ok(!allowed.has(command),`${command} must not run during cached replay`);
+});
+
+test('session configuration supplies the replay rate, including 60 FPS',()=>{
+ assert.equal(resolveReplayFps(60,30),60);
+ assert.equal(resolveReplayFps(30,15),30);
+ assert.equal(resolveReplayFps(15,30),15);
+ // Non-replay rates (e.g. the live 10 FPS default) fall back to selection.
+ assert.equal(resolveReplayFps(10,30),30);
+ assert.equal(resolveReplayFps(undefined,30),30);
+ assert.equal(resolveReplayFps('60',30),30);
+});
+
+test('60 FPS presentation clock advances every 16.667 ms',()=>{
+ const clock=new ReplayClock(488,60);clock.start();
+ assert.equal(clock.frameIntervalMs,1000/60);
+ const sample=clock.advance(1000/60,10,1000);
+ assert.equal(sample?.presentedIndex,1);
+ assert.ok(Math.abs(new ReplayClock(488,60).durationMs/1000-8.133)<0.01);
 });

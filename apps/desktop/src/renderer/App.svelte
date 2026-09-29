@@ -7,6 +7,7 @@
  import {policies,type Json,type WireFrame} from '../core';import {nativeRuntimeUnavailableMessage} from '../api';
  import {acceptBenchmarkReport,benchmarkFrameCount,benchmarkLifecycle,millis,qualityResourceRows,type AcceptedReport} from './benchmark-report';
  import {acceptFrame,canPlayback,diagnosticMessage,formatTelemetryAge,telemetryFreshness,mergeSessionStatus,validationOutcome} from './session';
+ import {resolveReplayFps} from './replay-clock';
  let workspace=$state('Dashboard'),status=$state<Json>({state:'unconfigured',index:0,frames:0,policy:'distance_lod',speed:1}),telemetry=$state<Json>({}),desktop=$state<Json>({}),render=$state<Json>({}),info=$state<Json>({});
  let frame=$state.raw<WireFrame|null>(null),samples=$state<LiveTelemetrySample[]>([]),error=$state(''),notice=$state(''),busy=$state(false),catalog=$state<Json|null>(null),inspector=$state<Json|null>(null);
  const telemetryHistory=new LiveTelemetryHistory();
@@ -55,6 +56,9 @@
  async function openReplay(){
   if(replayBusy)return;replayBusy=true;error='';notice='';
   try{
+   // The session configuration is the source of the replay rate when it
+   // carries 15/30/60 FPS (cache is rate-independent); else the selection.
+   replayFps=resolveReplayFps(config.playback?.fps,replayFps);
    const r=await window.veyra.command('replay_open',{path:replayPath,fps:replayFps});
    if(r.status)status=mergeSessionStatus(status,r.status);
    playbackMode='replay';seekIndex=0;

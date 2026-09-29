@@ -17,6 +17,16 @@ export const REPLAY_DEFAULT_FPS = 30;
 export const REPLAY_FPS_OPTIONS = [15, 30, 60] as const;
 export const REPLAY_SPEED_OPTIONS = [0.5, 1, 2] as const;
 
+// Session configuration may carry a playback rate; when it is a supported
+// replay presentation rate (15/30/60) the replay uses it, otherwise the
+// explicit replay selection wins. The cache itself is rate-independent.
+export const REPLAY_CONFIG_RATES = [15, 30, 60] as const;
+
+export function resolveReplayFps(configFps: unknown, selected: number): number {
+  if (typeof configFps === 'number' && (REPLAY_CONFIG_RATES as readonly number[]).includes(configFps)) return configFps;
+  return selected;
+}
+
 export interface ReplayClockSample {
   presentedIndex: number;
   atMs: number;
