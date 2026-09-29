@@ -147,8 +147,11 @@ class ProductRuntime:
         self._publish_status()
 
     def _publish_status(self):
-        if self.replay_reader is not None:
-            frames = len(self.replay_reader)
+        # Test doubles may construct ProductRuntime via __new__ without the
+        # replay fields; treat a missing reader as "replay inactive".
+        reader = getattr(self, "replay_reader", None)
+        if reader is not None:
+            frames = len(reader)
         elif self.session is not None:
             frames = self._frame_count()
         else:
@@ -157,14 +160,14 @@ class ProductRuntime:
             "state": self.state,
             "dataset": self.config["dataset"] if self.config else None,
             "sequence": self.config["sequence"] if self.config else None,
-            "index": self.replay_position
-            if self.replay_reader is not None
-            else self.index,
+            "index": self.replay_position if reader is not None else self.index,
             "frames": frames,
             "policy": self.config["map"]["policy"] if self.config else "distance_lod",
             "layer": self.layer,
             "speed": (
-                self.config["playback"]["speed"] if self.config else self.replay_speed
+                self.config["playback"]["speed"]
+                if self.config
+                else getattr(self, "replay_speed", 1)
             ),
             "generation": self.generation,
             "queue_depth": self.commands.qsize(),
@@ -197,13 +200,14 @@ class ProductRuntime:
     # ---- Smooth replay (precomputed cache, no perception/mapping) ----
 
     def _replay_status(self) -> dict:
-        if self.replay_reader is None:
+        reader = getattr(self, "replay_reader", None)
+        if reader is None:
             return {"active": False}
-        header = self.replay_reader.header
+        header = reader.header
         return {
             "active": True,
             "path": self.replay_path,
-            "frames": len(self.replay_reader),
+            "frames": len(reader),
             "position": self.replay_position,
             "fps": self.replay_fps,
             "dataset": header.get("dataset"),

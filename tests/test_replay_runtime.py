@@ -265,3 +265,32 @@ class ReplayRuntimeTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class ReplayBackwardsCompatTests(unittest.TestCase):
+    def test_publish_status_survives_foreign_constructed_runtime(self):
+        """Guards CI: tests build ProductRuntime via __new__ without replay fields."""
+        import queue
+        import threading
+
+        from runtime.protocol import Outbox
+        from runtime.telemetry import Telemetry
+
+        runtime = ProductRuntime.__new__(ProductRuntime)
+        runtime.session = None
+        runtime.config = None
+        runtime.state = "ready"
+        runtime.layer = "semantic"
+        runtime.index = 3
+        runtime.generation = 0
+        runtime.error = None
+        runtime.dropped_frames = 0
+        runtime.telemetry = Telemetry()
+        runtime.last_visual = 0.0
+        runtime.outbox = Outbox()
+        runtime.commands = queue.Queue()
+        runtime._status_lock = threading.Lock()
+        runtime._cached_status = {}
+        runtime._publish_status()
+        status = runtime.status()
+        self.assertEqual(status["replay"], {"active": False})
