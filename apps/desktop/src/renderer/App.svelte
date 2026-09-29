@@ -1,19 +1,21 @@
 <script lang="ts">
  import {onMount} from 'svelte';
- import MapCanvas from './MapCanvas.svelte';import Chart from './Chart.svelte';import Dashboard from './Dashboard.svelte';import TelemetrySummary from './TelemetrySummary.svelte';import ComparisonEvidence from './ComparisonEvidence.svelte';import Icon from './Icon.svelte';import SessionSetup from './SessionSetup.svelte';import {errorRecovery,runtimeLabel,sessionActive} from './setup';import {defaultSessionConfig, FIRST_CPU_SAMPLE_NOTE, formatRenderAge, gateStatistic, inputTargetFps,measurementDisplay,isRenderStale,layerUnavailable,mapActivity,MEMORY_DOMAIN_NOTE,MIN_SAMPLES,perceptionStages,processingDisplay,lastMeasuredPrefix,profileConfig,recordEvent,telemetryConfiguredHz,GLOSSARY,inspectorRows,semanticName,traversabilityLabel,classNames,semanticDisplay,type DashboardEvent} from './dashboard';
+ import MapCanvas from './MapCanvas.svelte';import Chart from './Chart.svelte';import Dashboard from './Dashboard.svelte';import TelemetrySummary from './TelemetrySummary.svelte';import ComparisonEvidence from './ComparisonEvidence.svelte';import Icon from './Icon.svelte';import SessionSetup from './SessionSetup.svelte';import {errorRecovery,runtimeLabel,sessionActive} from './setup';import {defaultSessionConfig, FIRST_CPU_SAMPLE_NOTE, formatRenderAge, gateStatistic, inputTargetFps,measurementDisplay,isRenderStale,layerUnavailable,mapActivity,MEMORY_DOMAIN_NOTE,MIN_SAMPLES,perceptionStages,processingDisplay,lastMeasuredPrefix,profileConfig,recordEvent,telemetryConfiguredHz,GLOSSARY,inspectorRows,semanticName,traversabilityLabel,motionLabel,classNames,semanticDisplay,type DashboardEvent} from './dashboard';
  import {semanticRGB,cssRGB} from './colors';
  import {LiveTelemetryHistory,telemetryChartSample,type LiveTelemetrySample} from './live-telemetry';
  import veyraLogo from '../assets/veyra-logo.png';
- import {policies,type Json,type WireFrame} from '../core';import {nativeRuntimeUnavailableMessage} from '../api';
+ import {policies,decodePhysicalLayers,type Json,type WireFrame} from '../core';import {nativeRuntimeUnavailableMessage} from '../api';
  import {acceptBenchmarkReport,benchmarkFrameCount,benchmarkLifecycle,millis,qualityResourceRows,type AcceptedReport} from './benchmark-report';
  import {acceptFrame,canPlayback,diagnosticMessage,formatTelemetryAge,telemetryFreshness,mergeSessionStatus,validationOutcome} from './session';
  import {resolveReplayFps} from './replay-clock';
  import CellAnatomy from './CellAnatomy.svelte';
  import {cellAnatomy} from './cell-anatomy';
- import {cellRangeM,explainResolution,levelFromSize} from './cell-explain';
+ import {bandLabels,cellRangeM,explainResolution,levelFromSize,parsePolicyDescriptor} from './cell-explain';
+import {findCellInPayload,inspectorFromRow,readCellRow} from './cell-lookup';
+import {formatRecorded,replayPolicyName} from './replay-metrics';
  import {enterJudgeView,exitJudgeView,initialJudgeView} from './judge-view';
  let workspace=$state('Dashboard'),status=$state<Json>({state:'unconfigured',index:0,frames:0,policy:'distance_lod',speed:1}),telemetry=$state<Json>({}),desktop=$state<Json>({}),render=$state<Json>({}),info=$state<Json>({});
- let frame=$state.raw<WireFrame|null>(null),samples=$state<LiveTelemetrySample[]>([]),error=$state(''),notice=$state(''),busy=$state(false),catalog=$state<Json|null>(null),inspector=$state<Json|null>(null);
+ let frame=$state.raw<WireFrame|null>(null),samples=$state<LiveTelemetrySample[]>([]),error=$state(''),notice=$state(''),busy=$state(false),catalog=$state<Json|null>(null),inspector=$state<Json|null>(null),replayTelemetry=$state<Json|null>(null);
  const telemetryHistory=new LiveTelemetryHistory();
  let dataset=$state('generic'),sequence=$state(''),config=$state<Json>(defaultSessionConfig());
  let configText=$state(''),mode=$state('semantic'),showPoints=$state(true),showCells=$state(true),boundaries=$state(false),view=$state('orbit'),follow=$state(false),accumulate=$state(20),seekIndex=$state(0),preset=$state('LowResource'),viewMode=$state('both'),showRings=$state(false);
@@ -27,34 +29,67 @@
  function toggleJudgeView(){if(judge.active){const next=exitJudgeView(judge,{viewMode:'both',view:'orbit',follow:false,mode:'semantic',boundaries:false,showRings:false});judge=next.session;applyDisplay(next.state);}else{const next=enterJudgeView(displaySnapshot(),judge);judge=next.session;applyDisplay(next.state);workspace='Map';}}
  function setLayerSilent(layer:string){mode=layer;}
  function clearSelection(){inspector=null;selectedCell=null;}
+ // Keep a live selection synchronized with playback: re-resolve the same
+ // world cell in each new frame from current payload data. If the cell is
+ // gone (evicted, merged away, expired budget) the selection clears with
+ // an explicit message — stale evidence never lingers on screen.
+ function refreshSelection(){
+  if(!inspector||!selectedCell||!frame)return;
+  const meta=frame.metadata;
+  const index=findCellInPayload(frame.payload,meta.cells,selectedCell.x,selectedCell.y,selectedCell.size);
+  if(index===null){clearSelection();notice='Selected cell is no longer active.';return;}
+  const row=readCellRow(frame.payload,meta.cells,index);
+  if(!row){clearSelection();notice='Selected cell is no longer active.';return;}
+  const inspected=inspectorFromRow(row);
+  handleInspect({...inspected,physical_layers:decodePhysicalLayers(frame,index)});
+ }
  function handleInspect(value:Json|null){
   inspector=value;
   if(value&&typeof value.x==='number'&&typeof value.y==='number'&&typeof value.resolution==='number'&&Number.isFinite(value.x)&&Number.isFinite(value.y)&&Number.isFinite(value.resolution)&&value.resolution>0){
    selectedCell={x:value.x,y:value.y,z:typeof value.elevation==='number'&&Number.isFinite(value.elevation)?value.elevation:0,size:value.resolution};
   }else selectedCell=null;
  }
- // Live promotion telemetry does not exist in visualization frames, so the
- // UI never claims a utility promotion — signals render as measured only.
+ // The mapper reports its own active configuration per frame; the viewer
+ // derives every range-band claim from it. Older frames/caches predate the
+ // descriptor and explain as "Policy configuration unavailable".
+ const policyDescriptor=$derived(parsePolicyDescriptor(frame?.metadata.policy_descriptor));
+ const rangeBandLabels=$derived(bandLabels(policyDescriptor));
+ // Recorded cache measurements for the current frame (replay). Displayed
+ // as RECORDED only; absent fields render N/A, never live values.
+ const recorded=$derived(frame?.metadata.recorded_telemetry ?? null);
+ // Live visualization carries no per-cell decision attribution, so the UI
+ // never claims a utility promotion — signals render as measured only.
  const cellExplanation=$derived(!inspector?null:explainResolution({
-  policy:typeof status.policy==='string'?status.policy:null,
+  descriptor:policyDescriptor,
+  policyName:typeof status.policy==='string'?status.policy:null,
   rangeM:cellRangeM(inspector.x,inspector.y,frame?.metadata.pose),
   level:typeof inspector.lod_level==='number'?inspector.lod_level:levelFromSize(inspector.resolution),
   sizeM:typeof inspector.resolution==='number'?inspector.resolution:null,
-  evidence:{utility:inspector.utility??null,quality:inspector.quality??null,geometryComplexity:inspector.geometry_complexity??null,semanticConfidence:inspector.semantic_confidence??null,semanticClass:inspector.semantic_class??null,motion:inspector.motion??null,drivableEvidence:inspector.drivable_evidence??null,groundEvidence:inspector.ground_evidence??null},
-  promotionProven:false,
+  evidence:{utility:inspector.utility??null,quality:inspector.quality??null,geometryComplexity:inspector.geometry_complexity??null,semanticConfidence:inspector.semantic_confidence??null,semanticClass:inspector.semantic_class??null,semanticLabel:(typeof inspector.semantic_class==='number'&&Number.isFinite(inspector.semantic_class)&&classNames[inspector.semantic_class])||null,motion:inspector.motion??null,drivableEvidence:inspector.drivable_evidence??null,groundEvidence:inspector.ground_evidence??null},
+  attribution:{available:false},
  }));
  const cellAnatomyModel=$derived(!inspector?null:cellAnatomy({
   physicalLayers:inspector.physical_layers??null,
   pooled:{mean:inspector.elevation??null,zmin:inspector.height_min??null,zmax:inspector.height_max??null,variance:inspector.height_variance??null,count:inspector.point_count??null},
   resolution:typeof inspector.resolution==='number'?`${Math.round(inspector.resolution*100)} cm`:null,
   lod:typeof inspector.lod_level==='number'?inspector.lod_level:null,
+  context:{
+   semantic:(typeof inspector.semantic_class==='number'&&Number.isFinite(inspector.semantic_class)&&classNames[inspector.semantic_class])||null,
+   semanticConfidence:inspector.semantic_confidence??null,
+   motion:motionLabel(inspector.motion),
+   traversability:traversabilityLabel(inspector.drivable_evidence),
+   quality:inspector.quality??null,
+   observations:inspector.point_count??null,
+  },
  }));
- const distanceBands=$derived(status.policy==='distance_lod'||status.policy==='utility_lod');
+ const rangeBandNote=$derived(rangeBandLabels?'Range bands from the live mapper configuration.':'Range bands unavailable for this frame.');
  let report=$state<Json|null>(null),reportMeta=$state<(Omit<AcceptedReport,'report'>&{artifactSha256:string|null})|null>(null),previousReport=$state<Json|null>(null),benchmarkState=$state('idle'),benchmarkRequest=$state<number|null>(null),validationState=$state('idle'),validationResult=$state<Json|null>(null);
  let events=$state<DashboardEvent[]>([]);
  let now=$state(Date.now()),awaitingFrame=$state(false);
  const playbackEnabled=()=>canPlayback(status,busy);
  const labels:Record<string,string>={uniform5:'Uniform 5 cm',uniform40:'Uniform 40 cm',distance_lod:'Distance LOD',utility_lod:'Utility LOD'};
+ // Policy chip source: replay cache header while replaying, else live status.
+ const policyBadge=$derived(((name)=>name&&labels[name]?labels[name]:name)(replayPolicyName(status))??'—');
  const proc=$derived(processingDisplay(status,telemetry));
  const benchmarkFrames=$derived(benchmarkFrameCount(benchmarkRequest,status.frames));
  const benchmarkPhase=$derived(benchmarkLifecycle(benchmarkState));
@@ -96,6 +131,7 @@
    replayFps=resolveReplayFps(config.playback?.fps,replayFps);
    const r=await window.veyra.command('replay_open',{path:replayPath,fps:replayFps});
    if(r.status)status=mergeSessionStatus(status,r.status);
+   clearSelection();
    playbackMode='replay';seekIndex=0;
    notice=`Smooth replay open: ${r.result?.replay?.frames??status.replay?.frames??'?'} cached frames at ${replayFps} FPS. Processing metrics below are RECORDED, not live.`;
   }catch(e){error=e instanceof Error?e.message:String(e);}
@@ -106,6 +142,7 @@
   try{
    const r=await window.veyra.command('replay_close');
    if(r.status)status=mergeSessionStatus(status,r.status);
+   clearSelection();
    playbackMode='live';notice='Live processing mode. Playback speed is constrained by actual compute.';
   }catch(e){error=e instanceof Error?e.message:String(e);}
   finally{replayBusy=false;}
@@ -117,7 +154,7 @@
   if(!replayPath)notice+=' Enter the *.veyra-replay path first.';
  }
  async function action(fn:()=>Promise<any>){if(busy)return;busy=true;error='';notice='';try{return await fn();}catch(e){error=e instanceof Error?e.message:String(e);awaitingFrame=false;}finally{busy=false;}}
- function clearSessionView(){frame=null;telemetry={};render={};telemetryHistory.reset();samples=[];inspector=null;selectedCell=null;}
+ function clearSessionView(){frame=null;telemetry={};replayTelemetry=null;render={};telemetryHistory.reset();samples=[];inspector=null;selectedCell=null;}
  async function command(name:string,args:Json={}){return action(async()=>{const reload=['sequence','reset','policy'].includes(name);if(reload){clearSessionView();awaitingFrame=true;}if(name==='seek')clearSelection();const r=await window.veyra.command(name,args);if(r.status)status=mergeSessionStatus(status,r.status);if(reload){const preview=await window.veyra.command('step');if(preview.status)status=preview.status;}return r;});}
 let governorOverride=$state('automatic');
 function syncGovernorOverride(value:unknown){if(value==='automatic'||value==='disabled'||value==='conserve')governorOverride=value;}
@@ -165,12 +202,15 @@ function confirmSaved(ok:unknown,saved:string,cancelled:string){notice=ok?saved:
    events=recordEvent(events,event);
    const diagnostic=diagnosticMessage(event);if(diagnostic){error=diagnostic;awaitingFrame=false;}
    if(event.type==='status'){status={...status,...event};if(event.error)error=event.error.process+': '+event.error.message;}
-   if(event.type==='telemetry'){telemetry=event;const sample=telemetryChartSample(event);if(sample){const state=status.state==='running'&&event.state==='running'?'running':status.state;telemetryHistory.append(sample,state);samples=[...telemetryHistory.values()];}}
+   // Sparse replay telemetry must never clobber live measurements: the
+  // Judge strip and metric strip read recorded values explicitly while
+  // replaying, and live telemetry simply goes stale underneath.
+  if(event.type==='telemetry'){if(event.replay===true){replayTelemetry=event;}else{replayTelemetry=null;telemetry=event;const sample=telemetryChartSample(event);if(sample){const state=status.state==='running'&&event.state==='running'?'running':status.state;telemetryHistory.append(sample,state);samples=[...telemetryHistory.values()];}}}
    if(event.type==='desktop_telemetry')desktop=event;
    if(event.type==='benchmark'){if(event.error){benchmarkState='failed';error=String(event.error.message??event.error);}else if(benchmarkLifecycle(event.state)==='complete')void loadGeneratedReport(event);else benchmarkState=benchmarkLifecycle(event.state);}
    if(event.type==='validation'){validationState=validationOutcome(event);if(event.result)validationResult=event.result;}
   });
-  const offVisual=window.veyra.onVisualization(value=>{try{if(!acceptFrame(value,frame,status.state,awaitingFrame))return;frame=value;awaitingFrame=false;notice='';}catch(e){error=`Visualization failed: ${e instanceof Error?e.message:String(e)}`;awaitingFrame=false;}});
+  const offVisual=window.veyra.onVisualization(value=>{try{if(!acceptFrame(value,frame,status.state,awaitingFrame))return;frame=value;awaitingFrame=false;notice='';refreshSelection();}catch(e){error=`Visualization failed: ${e instanceof Error?e.message:String(e)}`;awaitingFrame=false;}});
   const clock=setInterval(()=>{now=Date.now();},1000);
   const subscriptionError=(event:Event)=>{error=`Desktop event connection failed: ${(event as CustomEvent).detail}`;};
   window.addEventListener('veyra-subscription-error',subscriptionError);
@@ -203,8 +243,8 @@ function confirmSaved(ok:unknown,saved:string,cancelled:string){notice=ok?saved:
       <button class="layer" class:selected={mode===value} onclick={()=>setLayer(value)} disabled={!playbackEnabled()} title={value==='lod'?'Cell size by level: L0 5 cm, L1 10 cm, L2 20 cm, L3 40 cm':value==='utility'?'Per-cell promotion signal 0–1 (quality-gated)':label}><span class="layer-dot" style:background={value==='lod'?'#45d3c9':undefined}></span>{label}{#if layerUnavailable(frame,value)}<small>n/a</small>{/if}</button>
      {/each}
      <div class="separator"></div><label class="toggle"><input type="checkbox" bind:checked={boundaries}/>Cell boundaries</label><label class="toggle"><input type="checkbox" bind:checked={follow}/>Follow robot</label><label class="toggle" title="DistanceLOD bands: 0–10 m → 5 cm, 10–30 m → 10 cm, 30–60 m → 20 cm, 60–100 m → 40 cm"><input type="checkbox" bind:checked={showRings}/>Range rings</label><p class="hint policy-hint">{POLICY_SWITCH_NOTE}</p>
-     <div class="panel-heading space-top" title={GLOSSARY['LOD']}>RESOLUTION <span title={GLOSSARY['LOD']}><Icon name="info" size={14}/></span></div>{#each ['5 cm','10 cm','20 cm','40 cm'] as level,i}<div class="legend-row"><i style:background={['#33d9f2','#4dd980','#ffb340','#d966d9'][i]}></i><span>L{i} · {level}{#if distanceBands}<small> · {['0–10 m','10–30 m','30–60 m','60–100 m'][i]}</small>{/if}</span><b>{format(telemetry.map?.cells_by_level?.[i],0)}</b></div>{/each}
-     <div class="legend-row"><span>Splits / s</span><b>{format(telemetry.map?.splits_per_second,2)}</b></div><div class="legend-row"><span>Merges / s</span><b>{format(telemetry.map?.merges_per_second,2)}</b></div>
+     <div class="panel-heading space-top" title={GLOSSARY['LOD']}>RESOLUTION <span title={GLOSSARY['LOD']}><Icon name="info" size={14}/></span></div>{#each ['5 cm','10 cm','20 cm','40 cm'] as level,i}<div class="legend-row"><i style:background={['#33d9f2','#4dd980','#ffb340','#d966d9'][i]}></i><span>L{i} · {level}{#if rangeBandLabels}<small> · {rangeBandLabels[i]}</small>{/if}</span><b>{format(telemetry.map?.cells_by_level?.[i],0)}</b></div>{/each}
+     <div class="legend-row"><span>Splits / s</span><b>{format(telemetry.map?.splits_per_second,2)}</b></div><div class="legend-row"><span>Merges / s</span><b>{format(telemetry.map?.merges_per_second,2)}</b></div>{#if !rangeBandLabels}<p class="hint">{rangeBandNote}</p>{/if}
      {#if inspector}<div class="inspector"><div class="panel-heading">CELL INSPECTOR <span>MEASURED</span></div>{#each inspectorRows(inspector) as row}<div title={row.hint}><span>{row.label}</span><b>{row.value}</b></div>{/each}
       {#if cellExplanation}<div class="explanation"><div class="panel-heading">WHY THIS RESOLUTION? <span>DERIVED</span></div><strong>{cellExplanation.headline}</strong><p>{cellExplanation.detail}</p>{#if cellExplanation.signals.length}<details><summary>Measured signals ({cellExplanation.signals.length})</summary>{#each cellExplanation.signals as signal}<div><span>{signal}</span></div>{/each}</details>{/if}{#if cellExplanation.unavailable.length}<p class="hint">Unavailable: {cellExplanation.unavailable.join(', ')} — shown as missing, never guessed.</p>{/if}</div>{/if}
       {#if cellAnatomyModel}<CellAnatomy anatomy={cellAnatomyModel}/>{/if}
@@ -213,13 +253,13 @@ function confirmSaved(ok:unknown,saved:string,cancelled:string){notice=ok?saved:
     <section class="map-stage" aria-label="LiDAR and adaptive map">
      {#if showCells}<div class="representation-banner" title={GLOSSARY['2.5D']}><strong>Representation · Adaptive 2.5D Grid</strong><span>Rendered in 3D · Stored as XY cells + height/statistics</span><details><summary>What is 2.5D?</summary><p>Veyra stores one adaptive XY cell containing height and scene statistics rather than maintaining a dense XYZ voxel volume. (X,Y) → elevation + statistics.</p></details></div>{/if}
      <MapCanvas {frame} {mode} {showPoints} {showCells} {boundaries} {view} {follow} {accumulate} {showRings} {selectedCell} onStats={handleStats} onInspect={handleInspect}/>
-     <div class="map-toolbar"><div class="segmented">{#each ['orbit','top','driver'] as camera}<button class:active={view===camera} onclick={()=>view=camera}>{camera}</button>{/each}</div><button class:active={judge.active} title="One click: map-focused top-down follow view with LOD layer, boundaries and range rings — live frames only" onclick={toggleJudgeView}>Judge View</button><span class="policy-badge" title="Active mapping policy driving the mapper — not just a dropdown state">Policy · {labels[status.policy]??status.policy??'—'}</span>
-      {#if judge.active}<div class="judge-strip" role="status" aria-label="Judge view live metrics"><span>Cells <b>{format(telemetry.map?.active_cells,0)}</b></span><span>Splits/s <b>{format(telemetry.map?.splits_per_second,2)}</b></span><span>Merges/s <b>{format(telemetry.map?.merges_per_second,2)}</b></span><span>Policy <b>{labels[status.policy]??status.policy??'—'}</b></span><span>Map update <b>{format(telemetry.latency_ms?.mapping,2)} ms</b></span><span>Map memory <b>{mb(telemetry.map?.logical_bytes)}</b></span></div>{/if}
+     <div class="map-toolbar"><div class="segmented">{#each ['orbit','top','driver'] as camera}<button class:active={view===camera} onclick={()=>view=camera}>{camera}</button>{/each}</div><button class:active={judge.active} title="One click: map-focused top-down follow view with LOD layer, boundaries and range rings — works on live frames and cached replay" onclick={toggleJudgeView}>Judge View</button><span class="policy-badge" title={replayActive()?'Policy recorded in the replay cache — not the live mapper':'Active mapping policy driving the mapper — not just a dropdown state'}>Policy · {policyBadge}</span>
+      {#if judge.active}<div class="judge-strip" role="status" aria-label="Judge view metrics"><span>Cells <b>{replayActive()?formatRecorded(recorded?.active_cells,(v)=>format(v,0)):format(telemetry.map?.active_cells,0)}</b></span><span>Splits/s <b>{replayActive()?'N/A DURING REPLAY':format(telemetry.map?.splits_per_second,2)}</b></span><span>Merges/s <b>{replayActive()?'N/A DURING REPLAY':format(telemetry.map?.merges_per_second,2)}</b></span><span>Policy <b>{policyBadge}</b></span><span>Map update <b>{replayActive()?formatRecorded(recorded?.map_update_ms,(v)=>format(v,2)+' ms'):format(telemetry.latency_ms?.mapping,2)+' ms'}</b></span><span>Map memory <b>{replayActive()?formatRecorded(recorded?.logical_bytes,mb):mb(telemetry.map?.logical_bytes)}</b></span></div>{/if}
      {#if frame&&(mode==='semantic')}<div class="map-legend" aria-label="Semantic legend"><span class="legend-title">Classes · {frame?.metadata.pipeline_status?.semantic==='ground_truth'?'dataset ground truth':'model inference'}{#if frame?.metadata.pipeline_status?.semantic==='ground_truth'} · DEBUG/EVAL{/if}</span>{#each legendItems as item}<span><i style:background={legendCss.get(item.id)}></i>{item.name}</span>{/each}<span><i style:background={legendCss.get(0)}></i>Unknown</span></div>{/if}
      {#if frame&&mode==='terrain'}<div class="map-legend" aria-label="Traversability legend"><span><i style:background="#33d980"></i>Drivable</span><span><i style:background="#f24d59"></i>Non-drivable</span><span><i style:background="#59616b"></i>Unknown — never drivable</span></div>{/if}
      {#if frame&&mode==='motion'}<div class="map-legend" aria-label="Motion legend"><span><i style:background="#336699"></i>STATIC</span><span><i style:background="#b35533"></i>MOVING</span><span><i style:background="#59616b"></i>UNKNOWN</span></div>{/if}<button disabled={!frame||busy} onclick={()=>action(async()=>{const saved=await window.veyra.screenshot();confirmSaved(saved,'Screenshot saved.','Screenshot cancelled — no file written.');})}><Icon name="camera" size={16}/>Screenshot</button></div>
      {#if !frame}<div class="map-empty" role="status"><h2>{error?'Preview unavailable':awaitingFrame?'Processing your first frame…':'Open a dataset to begin'}</h2><p>{error?'The error above explains what failed. Return to Dataset to check the session.':awaitingFrame?'The runtime is preparing LiDAR points and map cells. The preview appears when those bytes reach this viewer.':'Choose a dataset directory and sequence, then open its preview.'}</p>{#if !awaitingFrame}<button class="primary" onclick={()=>workspace='Datasets'}><Icon name="folder" size={18}/>Set up a session</button>{/if}</div>{/if}
-     <div class="map-coordinate"><span>WORLD · ODOM</span><span>Frame {frame?.metadata.frame_id??status.index??'—'} · {frame?.metadata.dataset??status.dataset??'—'}/{frame?.metadata.sequence??status.sequence??'—'} · {format(frame?.metadata.n_points,0)} pts · {frame?.metadata.range_m?`≤ ${frame.metadata.range_m} m`:'full range'}</span><span>{format(render.source_points??frame?.metadata.points?.count,0)} source points · {format(render.rendered_points??frame?.metadata.points?.count,0)} rendered{#if (render.accumulated_scans??1)>1} from {render.accumulated_scans} scans{/if} · {format(render.source_cells??frame?.metadata.cells?.count,0)} source cells · {render.sampling_active?'SAMPLING ACTIVE':'FULL VIEW'}</span></div>
+     <div class="map-coordinate"><span>WORLD · ODOM</span><span>Frame {frame?.metadata.frame_id??status.index??'—'} · {frame?.metadata.dataset??status.dataset??'—'}/{frame?.metadata.sequence??status.sequence??'—'} · {format(frame?.metadata.n_points,0)} pts · {frame?.metadata.range_m?`≤ ${frame.metadata.range_m} m`:'full range'}</span><span>{format(render.source_points??frame?.metadata.points?.count,0)} source points · {format(render.rendered_points??frame?.metadata.points?.count,0)} rendered{#if (render.accumulated_scans??1)>1} from {render.accumulated_scans} scans{/if} · {format(render.rendered_cells??frame?.metadata.cells?.count,0)} cells drawn (nearest {format(render.wire_cells??frame?.metadata.cells?.count,0)} of {format(render.source_cells??frame?.metadata.cells?.count,0)} to vehicle){#if (render.wire_cells??0)>(render.rendered_cells??0)} · viewport clamped{/if} · {render.sampling_active?'SAMPLING ACTIVE':'FULL VIEW'}</span></div>
      {#if frame&&mode==='motion'&&layerUnavailable(frame,'motion')}<div class="layer-warning">Motion evidence unavailable for this dataset — no dataset timestamps, so nothing is tracked or drawn as moving. Static map evidence is unaffected.</div>
      {:else if frame&&layerUnavailable(frame,mode)}<div class="layer-warning">{mode[0].toUpperCase()+mode.slice(1)} values are unavailable in the current map snapshot.</div>{/if}
      <details class="event-drawer"><summary>Events / Diagnostics ({events.length})</summary><div class="event-list">{#each events.slice(-30).reverse() as event}<div class="event-item"><i class:error={event.kind==='error'}></i><time>{new Date(event.time).toLocaleTimeString(undefined,{hour12:false})}</time><p>{event.message}</p></div>{:else}<div class="events-empty">No runtime events yet.<span>Session changes and backend diagnostics appear here.</span></div>{/each}</div></details>
@@ -231,11 +271,11 @@ function confirmSaved(ok:unknown,saved:string,cancelled:string){notice=ok?saved:
    <div class="metric-strip">
     <div title={replayActive()?'Recorded processing rate from cache build — NOT live throughput. Live processing is N/A during replay.':'Completed backend frame throughput'}><span>Processing{#if replayActive()} · RECORDED{/if}</span><b>{replayActive()?'N/A DURING REPLAY':proc.label}</b><small>{replayActive()?'recorded during cache build':proc.sub}</small></div>
     <div title={replayActive()?'Cached snapshots presented per second (presentation rate, not compute).':'Latest measured C++ map-update latency'}><span>{replayActive()?'Replay FPS':'Map update'}</span><b>{replayActive()?format(status.replay?.fps??replayFps,0):format(telemetry.latency_ms?.mapping,2)+(telemetry.latency_ms?.mapping!=null?' ms':'')}</b></div>
-    <div title="Live C++ logical map bytes"><span>Map memory</span><b>{mb(telemetry.map?.logical_bytes)}</b></div>
-    <div title="OS-measured C++ mapper process RSS"><span>Mapper RSS</span><b>{mb(telemetry.processes?.find((p:Json)=>p.name==='mapper')?.rss_bytes)}</b></div>
-    <div><span>Active cells</span><b>{format(telemetry.map?.active_cells,0)}</b></div>
+    <div title={replayActive()?'Recorded logical bytes from cache build — NOT live memory.':'Live C++ logical map bytes'}><span>Map memory{#if replayActive()} · RECORDED{/if}</span><b>{replayActive()?formatRecorded(recorded?.logical_bytes,mb):mb(telemetry.map?.logical_bytes)}</b></div>
+    <div title={replayActive()?'Process RSS is not measured during replay.':'OS-measured C++ mapper process RSS'}><span>Mapper RSS</span><b>{replayActive()?'N/A DURING REPLAY':mb(telemetry.processes?.find((p:Json)=>p.name==='mapper')?.rss_bytes)}</b></div>
+    <div><span>Active cells{#if replayActive()} · RECORDED{/if}</span><b>{replayActive()?formatRecorded(recorded?.active_cells,(v)=>format(v,0)):format(telemetry.map?.active_cells,0)}</b></div>
     <div title="Three.js viewport throughput"><span>Render FPS{#if isRenderStale(render)} · stale{/if}</span><b>{format(render.fps)}</b></div>
-    <div title="Processing drops; visualization supersession is reported separately"><span>Dropped frames</span><b>{format(telemetry.dropped_frames,0)}</b></div>
+    <div title={replayActive()?'Backend drops are not measured during replay.':'Processing drops; visualization supersession is reported separately'}><span>Dropped frames</span><b>{replayActive()?'N/A DURING REPLAY':format(telemetry.dropped_frames,0)}</b></div>
    </div>
   {:else if workspace==='Performance'}
    <div class="workspace-scroll performance-page"><div class="page-intro"><div><h2>Every stage, accounted for.</h2><p>Live runtime telemetry · trailing 60 seconds · elapsed time, not calendar time.</p></div><span class="chip">{String(status.state??'IDLE').toUpperCase()} · {samples.length} samples</span></div>
