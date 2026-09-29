@@ -2,7 +2,7 @@
  import {onMount,untrack} from 'svelte';
  import * as THREE from 'three';
  import {OrbitControls} from 'three/examples/jsm/controls/OrbitControls.js';
- import {pointColor,cellColor,displayPosition} from './colors';
+ import {pointColor,cellColor} from './colors';
  import {clampRenderCounts} from './dashboard';
  import {ScanHistory,colorInput,ACCUMULATION_POINT_CAPACITY,HISTORY_STRIDE} from './accumulation';
  import {decodePhysicalLayers,type WireFrame,type Json} from '../core';
@@ -12,21 +12,30 @@
  let points:THREE.Points,mesh:THREE.InstancedMesh,pointGeo:THREE.BufferGeometry,rings:THREE.Group;
  const capacity=100000;
  const pointCapacity=ACCUMULATION_POINT_CAPACITY;
- let position=new Float32Array(pointCapacity*3),colors=new Float32Array(pointCapacity*3),cellData=new Float32Array(0),cellStride=17;
+ let position=new Float32Array(pointCapacity*3),colors=new Float32Array(pointCapacity*3),cellData=new Float32Array(capacity*17),cellDataCount=0,cellStride=17;
  const history=new ScanHistory(1,pointCapacity);let paintedMode='',paintedLayers='';
  const color=new THREE.Color();let matrices:Float32Array<ArrayBufferLike>=new Float32Array(0),instanceColors:Float32Array<ArrayBufferLike>=new Float32Array(0);
  const littleEndian=new Uint8Array(new Uint32Array([1]).buffer)[0]===1;
+ // Reusable per-frame scratch (module scope — never allocated in update()).
+ const cellRow=new Float32Array(17),pointScratch=new Float32Array(17);
+ const followTarget=new THREE.Vector3(),followDelta=new THREE.Vector3();
+ let lastLayersRef:Record<string,string>|null=null,lastLayerKey='';
  // Payload sections are little-endian float32 at 4-byte offsets: on
- // little-endian hosts one aligned copy replaces a DataView call per float.
+ // little-endian hosts one aligned zero-copy view replaces a per-float
+ // DataView pass and the old buffer.slice() full copy.
  function readFloats(bytes:Uint8Array,data:DataView,offset:number,count:number):Float32Array{
   const start=bytes.byteOffset+offset;
-  if(littleEndian&&start%4===0)return new Float32Array(bytes.buffer.slice(start,start+count*4));
+  if(littleEndian&&start%4===0)return new Float32Array(bytes.buffer,start,count);
   const out=new Float32Array(count);for(let i=0;i<count;i++)out[i]=data.getFloat32(offset+i*4,true);return out;
+ }
+ function layerKeyFor(layers:Record<string,string>):string{
+  if(layers!==lastLayersRef){lastLayersRef=layers;lastLayerKey=`${layers.semantic}|${layers.ground}|${layers.terrain}|${layers.motion}|${layers.utility}`;}
+  return lastLayerKey;
  }
  let lastGeneration=-1,lastIndex=-1,inspectionFrame:WireFrame|null=null;
  function update(){
   if(!ready)return;points.visible=showPoints;mesh.visible=showCells;(mesh.material as THREE.MeshBasicMaterial).wireframe=boundaries;
-  if(!frame){pointGeo.setDrawRange(0,0);mesh.count=0;inspectionFrame=null;lastGeneration=-1;lastIndex=-1;history.clear();return;}
+  if(!frame){pointGeo.setDrawRange(0,0);mesh.count=0;cellDataCount=0;inspectionFrame=null;lastGeneration=-1;lastIndex=-1;history.clear();return;}
   const meta=frame.metadata;
   if(meta.generation<lastGeneration||(meta.generation===lastGeneration&&meta.index<lastIndex))return;
   lastGeneration=meta.generation;lastIndex=meta.index;
@@ -36,23 +45,24 @@
   // v2 frames pack 9 floats/cell, v3 packs 17; normalize to 17 with NaN
   // padding so inspection never fabricates missing evidence.
   cellStride=Math.max(9,Math.round((meta.cells.stride??36)/4));
-  const cellRow=new Float32Array(cellStride);
-  // Copy the point section into an aligned little-endian view once.
+  // Zero-copy aligned views into the payload (retained by inspectionFrame).
   const wire=readFloats(bytes,data,meta.points.offset,pointCount*17);
   const cells=readFloats(bytes,data,meta.cells.offset,cellCount*cellStride);
   const changed=history.push(meta as any,wire,pointCount);
   paintPoints(changed,meta.layers??{});
   // Rendered instance i, cellData row i, and physical-layer row i share the
   // same ordered payload prefix even when rendering clamps the cell count.
-  cellData=new Float32Array(cellCount*17);inspectionFrame=frame;
+  // cellData is capacity-sized and reused — never allocated per frame.
+  cellDataCount=cellCount;inspectionFrame=frame;
   for(let i=0;i<cellCount;i++){
    for(let j=0;j<cellStride;j++)cellRow[j]=cells[i*cellStride+j];
    for(let j=0;j<17;j++)cellData[i*17+j]=j<cellStride?cellRow[j]:Number.NaN;
    const size=cellRow[3];
    // Cells are axis-aligned boxes: write scale + translation straight into
    // the column-major instance matrix instead of composing an Object3D.
-   const [px,py,pz]=displayPosition(cellRow[0],cellRow[1],cellRow[2]);const m=matrices,o=i*16;
-   m[o]=size*.95;m[o+1]=0;m[o+2]=0;m[o+3]=0;m[o+4]=0;m[o+5]=.025;m[o+6]=0;m[o+7]=0;m[o+8]=0;m[o+9]=0;m[o+10]=size*.95;m[o+11]=0;m[o+12]=px;m[o+13]=py;m[o+14]=pz;m[o+15]=1;
+   // World (x,y,z) -> display (x,z,-y) inline: no per-cell array alloc.
+   const m=matrices,o=i*16;
+   m[o]=size*.95;m[o+1]=0;m[o+2]=0;m[o+3]=0;m[o+4]=0;m[o+5]=.025;m[o+6]=0;m[o+7]=0;m[o+8]=0;m[o+9]=0;m[o+10]=size*.95;m[o+11]=0;m[o+12]=cellRow[0];m[o+13]=cellRow[2];m[o+14]=-cellRow[1];m[o+15]=1;
    const [r,g,b]=cellColor(mode,cellRow);color.setRGB(r,g,b);instanceColors[i*3]=color.r;instanceColors[i*3+1]=color.g;instanceColors[i*3+2]=color.b;
   }
   mesh.count=cellCount;mesh.instanceMatrix.clearUpdateRanges();mesh.instanceMatrix.addUpdateRange(0,cellCount*16);mesh.instanceMatrix.needsUpdate=true;
@@ -60,23 +70,24 @@
   // Bounds are only needed to raycast a click; Three recomputes them lazily.
   mesh.boundingSphere=null;
   onStats({status:'available',source_points:meta.n_points??meta.points.count,source_cells:meta.total_leaves??meta.cells.count,rendered_points:history.pointCount,accumulated_scans:history.frameCount,rendered_cells:cellCount,sampling_active:clamped.truncated||(meta.n_points??0)>pointCount||(meta.total_leaves??0)>cellCount});
-  if(follow&&meta.pose?.length===16){const target=new THREE.Vector3(...displayPosition(meta.pose[3],meta.pose[7],meta.pose[11]));const delta=target.clone().sub(controls.target);camera.position.add(delta);controls.target.copy(target);}
+  if(follow&&meta.pose?.length===16){followTarget.set(meta.pose[3],meta.pose[11],-meta.pose[7]);followDelta.subVectors(followTarget,controls.target);camera.position.add(followDelta);controls.target.copy(followTarget);}
   // Range rings sit on the vehicle, through the same world->display mapping.
-  if(rings){rings.visible=!!showRings;if(meta.pose?.length===16){const [rx,ry,rz]=displayPosition(meta.pose[3],meta.pose[7],meta.pose[11]);rings.position.set(rx,ry+0.05,rz);}}
+  if(rings){rings.visible=!!showRings;if(meta.pose?.length===16){rings.position.set(meta.pose[3],meta.pose[11]+0.05,-meta.pose[7]);}}
  }
  // Rewrites the GPU point buffers from retained history, oldest scan first.
  // Older scans are dimmed so the live scan stays readable inside the cloud.
  function paintPoints(changed:boolean,layers:Record<string,string>){
-  const layerKey=JSON.stringify(layers);
+  const layerKey=layerKeyFor(layers);
   if(!changed&&paintedMode===mode&&paintedLayers===layerKey)return;
   paintedMode=mode;paintedLayers=layerKey;
-  const frames=history.list(),scratch=new Float32Array(17);let n=0;
+  const frames=history.list();let n=0;
   frames.forEach((scan,age)=>{
    const fade=frames.length>1?.45+.55*(age/(frames.length-1)):1;
    for(let i=0;i<scan.count&&n<pointCapacity;i++,n++){
     const o=i*HISTORY_STRIDE;
-    position.set(displayPosition(scan.rows[o],scan.rows[o+1],scan.rows[o+2]),n*3);
-    const c=pointColor(mode,colorInput(scan.rows,o,scratch),layers);
+    // World (x,y,z) -> display (x,z,-y) inline: no per-point array alloc.
+    position[n*3]=scan.rows[o];position[n*3+1]=scan.rows[o+2];position[n*3+2]=-scan.rows[o+1];
+    const c=pointColor(mode,colorInput(scan.rows,o,pointScratch),layers);
     colors[n*3]=c[0]*fade;colors[n*3+1]=c[1]*fade;colors[n*3+2]=c[2]*fade;
    }
   });
@@ -93,7 +104,11 @@
   g.addColorStop(0,'rgba(255,255,255,1)');g.addColorStop(.7,'rgba(255,255,255,1)');g.addColorStop(1,'rgba(255,255,255,0)');
   ctx.fillStyle=g;ctx.fillRect(0,0,size,size);return new THREE.CanvasTexture(canvas);
  }
- $effect(()=>{frame;mode;showPoints;showCells;boundaries;follow;showRings;ready;untrack(update);});
+ function applyVisibility(){
+  if(!ready)return;points.visible=showPoints;mesh.visible=showCells;(mesh.material as THREE.MeshBasicMaterial).wireframe=boundaries;
+ }
+ $effect(()=>{showPoints;showCells;boundaries;ready;untrack(applyVisibility);});
+ $effect(()=>{frame;mode;follow;showRings;ready;untrack(update);});
  $effect(()=>{const scans=Math.max(1,Math.round(accumulate));untrack(()=>{history.setWindow(scans);if(ready&&frame)paintPoints(true,frame.metadata.layers??{});});});
  $effect(()=>{if(!ready)return;const target=controls.target.clone();camera.up.set(0,1,0);if(view==='top'){camera.position.copy(target).add(new THREE.Vector3(0,100,.01));}else if(view==='driver'){camera.position.copy(target).add(new THREE.Vector3(0,3,8));}else camera.position.copy(target).add(new THREE.Vector3(-32,25,36));controls.update();});
  onMount(()=>{
@@ -115,7 +130,7 @@
    const resize=new ResizeObserver(()=>{const w=host.clientWidth,h=host.clientHeight;renderer.setSize(w,h);camera.aspect=w/h;camera.updateProjectionMatrix();});resize.observe(host);
    let animation=0,frames=0,last=performance.now(),duration=0;
    const draw=()=>{animation=requestAnimationFrame(draw);const start=performance.now();controls.update();renderer.render(scene,camera);duration+=performance.now()-start;frames++;if(start-last>1000){onStats({fps:frames*1000/(start-last),latency_ms:duration/frames,entities:mesh.count+pointGeo.drawRange.count});last=start;frames=0;duration=0;}};draw();
-   const pick=(event:MouseEvent)=>{const rect=host.getBoundingClientRect();const ray=new THREE.Raycaster();ray.setFromCamera(new THREE.Vector2((event.clientX-rect.left)/rect.width*2-1,-(event.clientY-rect.top)/rect.height*2+1),camera);const hit=ray.intersectObject(mesh)[0];if(hit?.instanceId!==undefined){const r=cellData.subarray(hit.instanceId*17,hit.instanceId*17+17);const num=(i:number)=>Number.isFinite(r[i])?r[i]:null;const size=num(3);const level=size!=null?Math.max(0,Math.min(3,Math.round(Math.log2(size/0.05)))):null;onInspect({x:num(0),y:num(1),elevation:num(2),resolution:size,lod_level:level,semantic_class:num(4),motion:num(5),quality:num(6),drivable_evidence:num(7),utility:num(8),semantic_confidence:num(9),ground_evidence:num(10),terrain_confidence:num(11),geometry_complexity:num(12),point_count:num(13),height_min:num(14),height_max:num(15),height_variance:num(16),physical_layers:inspectionFrame?decodePhysicalLayers(inspectionFrame,hit.instanceId):null});}};
+   const pick=(event:MouseEvent)=>{const rect=host.getBoundingClientRect();const ray=new THREE.Raycaster();ray.setFromCamera(new THREE.Vector2((event.clientX-rect.left)/rect.width*2-1,-(event.clientY-rect.top)/rect.height*2+1),camera);const hit=ray.intersectObject(mesh)[0];if(hit?.instanceId!==undefined&&hit.instanceId<cellDataCount){const r=cellData.subarray(hit.instanceId*17,hit.instanceId*17+17);const num=(i:number)=>Number.isFinite(r[i])?r[i]:null;const size=num(3);const level=size!=null?Math.max(0,Math.min(3,Math.round(Math.log2(size/0.05)))):null;onInspect({x:num(0),y:num(1),elevation:num(2),resolution:size,lod_level:level,semantic_class:num(4),motion:num(5),quality:num(6),drivable_evidence:num(7),utility:num(8),semantic_confidence:num(9),ground_evidence:num(10),terrain_confidence:num(11),geometry_complexity:num(12),point_count:num(13),height_min:num(14),height_max:num(15),height_variance:num(16),physical_layers:inspectionFrame?decodePhysicalLayers(inspectionFrame,hit.instanceId):null});}};
    host.addEventListener('click',pick);
    const lost=(event:Event)=>{event.preventDefault();failure='WebGL context lost. Switch workspace and back, or reload the window to restore rendering — mapping continues in the backend.';onStats({status:'context_lost'});};
    const restored=()=>{failure='';lastGeneration=-1;lastIndex=-1;update();onStats({status:'available'});};
