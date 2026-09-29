@@ -517,7 +517,7 @@ class CENetSemanticProvider:
                     f"probe max abs probability difference {difference:.3g} "
                     f"exceeds {CENET_PROBE_MAX_ABS_DIFF:g}"
                 )
-        except Exception as error:  # noqa: BLE001 - backend errors vary by release
+        except Exception as error:
             self._model = self._model.to("cpu")
             reason = f"MPS parity probe failed ({type(error).__name__}: {error})"
             if requested == "mps":
@@ -576,7 +576,7 @@ class CENetSemanticProvider:
         if valid.any():
             try:
                 scores = self._forward(tensor)
-            except Exception as error:  # noqa: BLE001 - backend errors vary
+            except Exception as error:
                 if self.execution_device == "cpu" or self.requested_device != "auto":
                     raise
                 # auto: an accelerator runtime failure degrades to CPU for

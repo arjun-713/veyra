@@ -210,7 +210,7 @@ def _scatter(
             elements.append(
                 f'<circle cx="{px:.1f}" cy="{py:.1f}" r="5" fill="{COLORS.get(policy, "#e8c35a")}" opacity="0.8"><title>{html.escape(policy)}: {x:.4g}, {y:.4g}</title></circle>'
             )
-        legend = " | ".join(sorted(set(policy for _, _, policy in points)))
+        legend = " | ".join(sorted({policy for _, _, policy in points}))
         elements.append(
             f'<text x="855" y="45" text-anchor="end" fill="#9db2c1" font-size="11">{html.escape(legend)}</text>'
         )

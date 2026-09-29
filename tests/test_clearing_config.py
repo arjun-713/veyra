@@ -10,8 +10,12 @@ from runtime.config import validate_config
 class ClearingConfigTests(unittest.TestCase):
     def test_shared_service_forwards_clearing_to_the_persistent_mapper(self):
         from runtime.service import ProductRuntime
+        from tests.test_engine_service import RUNTIME_RELATIVE, require_binary
         from tests.test_runtime_player import _write_frame
 
+        # The Python-only CI job does not build the C++ mapper; an unbuilt
+        # binary is a missing prerequisite, not a product defect.
+        require_binary(self, "VEYRA_RUNTIME_BINARY", RUNTIME_RELATIVE)
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
             _write_frame(root, "00000", "000000", 0)

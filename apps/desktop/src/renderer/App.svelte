@@ -7,6 +7,7 @@
  import {policies,type Json,type WireFrame} from '../core';import {nativeRuntimeUnavailableMessage} from '../api';
  import {acceptBenchmarkReport,benchmarkFrameCount,benchmarkLifecycle,millis,qualityResourceRows,type AcceptedReport} from './benchmark-report';
  import {acceptFrame,canPlayback,diagnosticMessage,formatTelemetryAge,telemetryFreshness,mergeSessionStatus,validationOutcome} from './session';
+ import {resolveReplayFps} from './replay-clock';
  let workspace=$state('Dashboard'),status=$state<Json>({state:'unconfigured',index:0,frames:0,policy:'distance_lod',speed:1}),telemetry=$state<Json>({}),desktop=$state<Json>({}),render=$state<Json>({}),info=$state<Json>({});
  let frame=$state.raw<WireFrame|null>(null),samples=$state<LiveTelemetrySample[]>([]),error=$state(''),notice=$state(''),busy=$state(false),catalog=$state<Json|null>(null),inspector=$state<Json|null>(null);
  const telemetryHistory=new LiveTelemetryHistory();
@@ -42,6 +43,44 @@
  }
  const previousRow=(policy:string)=>qualityResourceRows(previousReport).find(row=>row.policy===policy);
  const tailMs=(value:number|null,reliable:boolean)=>value===null?'—':millis(value)+(reliable?'':' (descriptive)');
+ // Hoisted: legend entries and stable viewport callbacks never rebuild per frame.
+ const legendItems=classNames.map((name,id)=>({name,id})).filter(item=>item.id!==0);
+ const legendCss=new Map<number,string>([...legendItems,{name:'Unknown',id:0}].map(item=>[item.id,cssRGB(semanticRGB(item.id))]));
+ function handleStats(value:Json){render={...render,...value,updated_at:Date.now()};}
+ function handleInspect(value:Json){inspector=value;}
+ // Smooth-replay (demo) presentation state. Replay FPS is a presentation
+ // rate (cached snapshots shown per second), never processing throughput.
+ let playbackMode=$state<'live'|'replay'>('live');
+ let replayFps=$state(30),replayPath=$state(''),replayBusy=$state(false);
+ const replayActive=()=>playbackMode==='replay'&&(status.replay?.active===true);
+ async function openReplay(){
+  if(replayBusy)return;replayBusy=true;error='';notice='';
+  try{
+   // The session configuration is the source of the replay rate when it
+   // carries 15/30/60 FPS (cache is rate-independent); else the selection.
+   replayFps=resolveReplayFps(config.playback?.fps,replayFps);
+   const r=await window.veyra.command('replay_open',{path:replayPath,fps:replayFps});
+   if(r.status)status=mergeSessionStatus(status,r.status);
+   playbackMode='replay';seekIndex=0;
+   notice=`Smooth replay open: ${r.result?.replay?.frames??status.replay?.frames??'?'} cached frames at ${replayFps} FPS. Processing metrics below are RECORDED, not live.`;
+  }catch(e){error=e instanceof Error?e.message:String(e);}
+  finally{replayBusy=false;}
+ }
+ async function closeReplay(){
+  if(replayBusy)return;replayBusy=true;error='';notice='';
+  try{
+   const r=await window.veyra.command('replay_close');
+   if(r.status)status=mergeSessionStatus(status,r.status);
+   playbackMode='live';notice='Live processing mode. Playback speed is constrained by actual compute.';
+  }catch(e){error=e instanceof Error?e.message:String(e);}
+  finally{replayBusy=false;}
+ }
+ async function demoPlayback(){
+  // Presentation preset only: never changes mapping/perception values.
+  replayFps=30;view='driver';follow=true;accumulate=5;setViewMode('both');showRings=true;
+  workspace='Map';notice='Demo preset: smooth replay · 30 FPS · driver camera · 5-scan accumulation. Open a replay cache to play.';
+  if(!replayPath)notice+=' Enter the *.veyra-replay path first.';
+ }
  async function action(fn:()=>Promise<any>){if(busy)return;busy=true;error='';notice='';try{return await fn();}catch(e){error=e instanceof Error?e.message:String(e);awaitingFrame=false;}finally{busy=false;}}
  function clearSessionView(){frame=null;telemetry={};render={};telemetryHistory.reset();samples=[];inspector=null;}
  async function command(name:string,args:Json={}){return action(async()=>{const reload=['sequence','reset','policy'].includes(name);if(reload){clearSessionView();awaitingFrame=true;}const r=await window.veyra.command(name,args);if(r.status)status=mergeSessionStatus(status,r.status);if(reload){const preview=await window.veyra.command('step');if(preview.status)status=preview.status;}return r;});}
@@ -135,9 +174,9 @@ function confirmSaved(ok:unknown,saved:string,cancelled:string){notice=ok?saved:
     </aside>
     <section class="map-stage" aria-label="LiDAR and adaptive map">
      {#if showCells}<div class="representation-banner" title={GLOSSARY['2.5D']}><strong>Representation · Adaptive 2.5D Grid</strong><span>Rendered in 3D · Stored as XY cells + height/statistics</span><details><summary>What is 2.5D?</summary><p>Veyra stores one adaptive XY cell containing height and scene statistics rather than maintaining a dense XYZ voxel volume. (X,Y) → elevation + statistics.</p></details></div>{/if}
-     <MapCanvas {frame} {mode} {showPoints} {showCells} {boundaries} {view} {follow} {accumulate} {showRings} onStats={value=>render={...render,...value,updated_at:Date.now()}} onInspect={value=>inspector=value}/>
+     <MapCanvas {frame} {mode} {showPoints} {showCells} {boundaries} {view} {follow} {accumulate} {showRings} onStats={handleStats} onInspect={handleInspect}/>
      <div class="map-toolbar"><div class="segmented">{#each ['orbit','top','driver'] as camera}<button class:active={view===camera} onclick={()=>view=camera}>{camera}</button>{/each}</div><span class="policy-badge" title="Active mapping policy driving the mapper — not just a dropdown state">Policy · {labels[status.policy]??status.policy??'—'}</span>
-     {#if frame&&(mode==='semantic')}<div class="map-legend" aria-label="Semantic legend"><span class="legend-title">Classes · {frame?.metadata.pipeline_status?.semantic==='ground_truth'?'dataset ground truth':'model inference'}{#if frame?.metadata.pipeline_status?.semantic==='ground_truth'} · DEBUG/EVAL{/if}</span>{#each classNames.map((name,id)=>({name,id})).filter(item=>item.id!==0) as item}<span><i style:background={cssRGB(semanticRGB(item.id))}></i>{item.name}</span>{/each}<span><i style:background={cssRGB(semanticRGB(0))}></i>Unknown</span></div>{/if}
+     {#if frame&&(mode==='semantic')}<div class="map-legend" aria-label="Semantic legend"><span class="legend-title">Classes · {frame?.metadata.pipeline_status?.semantic==='ground_truth'?'dataset ground truth':'model inference'}{#if frame?.metadata.pipeline_status?.semantic==='ground_truth'} · DEBUG/EVAL{/if}</span>{#each legendItems as item}<span><i style:background={legendCss.get(item.id)}></i>{item.name}</span>{/each}<span><i style:background={legendCss.get(0)}></i>Unknown</span></div>{/if}
      {#if frame&&mode==='terrain'}<div class="map-legend" aria-label="Traversability legend"><span><i style:background="#33d980"></i>Drivable</span><span><i style:background="#f24d59"></i>Non-drivable</span><span><i style:background="#59616b"></i>Unknown — never drivable</span></div>{/if}
      {#if frame&&mode==='motion'}<div class="map-legend" aria-label="Motion legend"><span><i style:background="#336699"></i>STATIC</span><span><i style:background="#b35533"></i>MOVING</span><span><i style:background="#59616b"></i>UNKNOWN</span></div>{/if}<button disabled={!frame||busy} onclick={()=>action(async()=>{const saved=await window.veyra.screenshot();confirmSaved(saved,'Screenshot saved.','Screenshot cancelled — no file written.');})}><Icon name="camera" size={16}/>Screenshot</button></div>
      {#if !frame}<div class="map-empty" role="status"><h2>{error?'Preview unavailable':awaitingFrame?'Processing your first frame…':'Open a dataset to begin'}</h2><p>{error?'The error above explains what failed. Return to Dataset to check the session.':awaitingFrame?'The runtime is preparing LiDAR points and map cells. The preview appears when those bytes reach this viewer.':'Choose a dataset directory and sequence, then open its preview.'}</p>{#if !awaitingFrame}<button class="primary" onclick={()=>workspace='Datasets'}><Icon name="folder" size={18}/>Set up a session</button>{/if}</div>{/if}
@@ -147,10 +186,12 @@ function confirmSaved(ok:unknown,saved:string,cancelled:string){notice=ok?saved:
      <details class="event-drawer"><summary>Events / Diagnostics ({events.length})</summary><div class="event-list">{#each events.slice(-30).reverse() as event}<div class="event-item"><i class:error={event.kind==='error'}></i><time>{new Date(event.time).toLocaleTimeString(undefined,{hour12:false})}</time><p>{event.message}</p></div>{:else}<div class="events-empty">No runtime events yet.<span>Session changes and backend diagnostics appear here.</span></div>{/each}</div></details>
     </section>
    </div>
-   <div class="playback"><div class="playback-buttons"><button title="Reset map" disabled={!playbackEnabled()} aria-label="Reset map" onclick={()=>command('reset')}><Icon name="restart" size={18}/></button><button class="play-button" disabled={!playbackEnabled()} aria-label={status.state==='running'?'Pause replay':'Play replay'} onclick={()=>command(status.state==='running'?'pause':'start')}><Icon name={status.state==='running'?'pause':'play'} size={18}/></button><button title="Step frame" disabled={!playbackEnabled()} aria-label="Next frame" onclick={()=>command('step')}><Icon name="next" size={18}/></button></div><div class="timeline"><div><span>FRAME {format(status.index,0)}</span><span>{format(status.frames,0)} frames</span></div><input aria-label="Seek frame" type="range" min="0" max={Math.max(0,(status.frames??1)-1)} value={status.index??0} oninput={event=>seekIndex=Number(event.currentTarget.value)} onchange={()=>command('seek',{index:seekIndex})} disabled={!playbackEnabled()}/></div><select disabled={!playbackEnabled()} aria-label="Playback speed" value={status.speed??1} onchange={event=>command('speed',{speed:Number(event.currentTarget.value)})}>{#each [.25,.5,1,2,4,8] as speed}<option value={speed}>{speed}×</option>{/each}</select><select disabled={!playbackEnabled()} aria-label="Mapping policy" title={POLICY_SWITCH_NOTE} value={status.policy??'distance_lod'} onchange={event=>command('policy',{policy:event.currentTarget.value})}>{#each policies as policy}<option value={policy}>{labels[policy]}</option>{/each}</select></div>
+   <div class="playback"><div class="segmented" role="group" aria-label="Playback mode"><button class:active={playbackMode==='live'} onclick={()=>{if(playbackMode!=='live')void closeReplay();}} title="Live processing: dataset → perception → mapper. Speed is constrained by actual compute.">Live</button><button class:active={playbackMode==='replay'} onclick={()=>{playbackMode='replay';workspace='Map';}} title="Smooth replay: precomputed cached snapshots, no perception/mapping per frame.">Smooth Replay</button></div>{#if replayActive()}<span class="replay-badge" title="Cached snapshots presented at the replay rate. This is NOT processing throughput.">REPLAY · CACHED · {status.replay?.fps??replayFps} FPS</span>{/if}<div class="playback-buttons"><button title={replayActive()?'Restart replay from frame 0':'Reset map'} disabled={!playbackEnabled()} aria-label="Reset map" onclick={()=>replayActive()?command('seek',{index:0}):command('reset')}><Icon name="restart" size={18}/></button><button class="play-button" disabled={!playbackEnabled()} aria-label={status.state==='running'?'Pause replay':'Play replay'} onclick={()=>command(status.state==='running'?'pause':'start')}><Icon name={status.state==='running'?'pause':'play'} size={18}/></button><button title="Step frame" disabled={!playbackEnabled()} aria-label="Next frame" onclick={()=>command('step')}><Icon name="next" size={18}/></button></div><div class="timeline"><div><span>FRAME {format(status.index,0)}</span><span>{format(status.frames,0)} frames</span></div><input aria-label="Seek frame" type="range" min="0" max={Math.max(0,(status.frames??1)-1)} value={status.index??0} oninput={event=>seekIndex=Number(event.currentTarget.value)} onchange={()=>command('seek',{index:seekIndex})} disabled={!playbackEnabled()}/></div><select disabled={!playbackEnabled()} aria-label="Playback speed" value={status.speed??1} onchange={event=>command('speed',{speed:Number(event.currentTarget.value)})}>{#each (replayActive()?[.5,1,2]:[.25,.5,1,2,4,8]) as speed}<option value={speed}>{speed}×</option>{/each}</select><select disabled={!playbackEnabled()||replayActive()} aria-label="Mapping policy" title={replayActive()?'Policy is fixed by the replay cache — close the replay to change it.':POLICY_SWITCH_NOTE} value={status.policy??'distance_lod'} onchange={event=>command('policy',{policy:event.currentTarget.value})}>{#each policies as policy}<option value={policy}>{labels[policy]}</option>{/each}</select></div>
+   {#if playbackMode==='replay'&&!replayActive()}<div class="replay-setup" role="group" aria-label="Smooth replay setup"><input aria-label="Replay cache path" placeholder="data/cache/replays/…​.veyra-replay" bind:value={replayPath}/><select aria-label="Replay rate" bind:value={replayFps}>{#each [15,30,60] as fps}<option value={fps}>{fps} FPS</option>{/each}</select><button class="primary" disabled={replayBusy||!replayPath} onclick={openReplay}>{replayBusy?'Opening…':'Open replay'}</button><button disabled={replayBusy} onclick={demoPlayback} title="Presentation preset only: 30 FPS, driver camera, 5-scan accumulation. Never changes mapping/perception.">Demo preset</button></div>{/if}
+   {#if replayActive()}<div class="replay-strip" role="status"><span>Replay {status.replay?.position??status.index}/{format(status.replay?.frames??status.frames,0)} · {status.replay?.dataset??''} {status.replay?.sequence??''} · policy {status.replay?.policy??''}</span><span>Prefetch {status.replay?.prefetch_frames??0} frames · underruns {status.replay?.underruns??0}</span><button onclick={demoPlayback}>Demo preset</button><button onclick={closeReplay}>Back to Live</button></div>{/if}
    <div class="metric-strip">
-    <div title="Completed backend frame throughput"><span>Processing</span><b>{proc.label}</b><small>{proc.sub}</small></div>
-    <div title="Latest measured C++ map-update latency"><span>Map update</span><b>{format(telemetry.latency_ms?.mapping,2)} <small>ms</small></b></div>
+    <div title={replayActive()?'Recorded processing rate from cache build — NOT live throughput. Live processing is N/A during replay.':'Completed backend frame throughput'}><span>Processing{#if replayActive()} · RECORDED{/if}</span><b>{replayActive()?'N/A DURING REPLAY':proc.label}</b><small>{replayActive()?'recorded during cache build':proc.sub}</small></div>
+    <div title={replayActive()?'Cached snapshots presented per second (presentation rate, not compute).':'Latest measured C++ map-update latency'}><span>{replayActive()?'Replay FPS':'Map update'}</span><b>{replayActive()?format(status.replay?.fps??replayFps,0):format(telemetry.latency_ms?.mapping,2)+(telemetry.latency_ms?.mapping!=null?' ms':'')}</b></div>
     <div title="Live C++ logical map bytes"><span>Map memory</span><b>{mb(telemetry.map?.logical_bytes)}</b></div>
     <div title="OS-measured C++ mapper process RSS"><span>Mapper RSS</span><b>{mb(telemetry.processes?.find((p:Json)=>p.name==='mapper')?.rss_bytes)}</b></div>
     <div><span>Active cells</span><b>{format(telemetry.map?.active_cells,0)}</b></div>
