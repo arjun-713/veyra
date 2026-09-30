@@ -6,6 +6,7 @@ use crate::supervisor::RuntimeEvent;
 use crate::telemetry::{normalize_event, EventChannel};
 
 const MAX_PAYLOAD_BYTES: usize = 32 * 1024 * 1024;
+const MAX_LEGACY_PAYLOAD_BYTES: usize = 1024 * 1024;
 
 #[derive(Default)]
 struct Mailbox {
@@ -61,6 +62,12 @@ impl VisualizationTransport {
             }
             // Keep one paused preview through listener/transport startup.
             // Legacy delivery still needs its own bytes for the number array.
+            if event.payload.len() > MAX_LEGACY_PAYLOAD_BYTES {
+                // Tauri evaluates event payloads as JavaScript source; large
+                // frames wait in the mailbox for the raw transport instead.
+                mailbox.latest = Some(event);
+                return Ok(None);
+            }
             mailbox.latest = Some(event.clone());
         }
         crate::forwardable_runtime_event(event).map(Some)
@@ -213,6 +220,17 @@ mod tests {
         let legacy = transport.prepare(frame(3, vec![6])).unwrap().unwrap();
         assert_eq!(legacy.1["metadata"]["frame_id"], 3);
         assert_eq!(legacy.1["payload"], json!([6]));
+    }
+
+    #[test]
+    fn legacy_mode_never_emits_multi_megabyte_number_arrays() {
+        // A 9 MiB replay frame becomes ~35 MB of evaluated JavaScript on the
+        // legacy event channel; at 30 FPS that froze the WebView.
+        let transport = VisualizationTransport::default();
+        let large = vec![5; super::MAX_LEGACY_PAYLOAD_BYTES + 1];
+        assert!(transport.prepare(frame(1, large.clone())).unwrap().is_none());
+        transport.set_raw(true).unwrap();
+        assert_eq!(take_bytes(&transport).last(), Some(&5));
     }
 
     #[test]
