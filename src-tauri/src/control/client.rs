@@ -31,6 +31,7 @@ impl fmt::Display for ControlClientError {
     }
 }
 
+#[derive(Clone)]
 pub struct ControlClient {
     endpoint: SocketAddr,
     token: String,

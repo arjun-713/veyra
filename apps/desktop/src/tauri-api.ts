@@ -3,7 +3,8 @@ import {listen} from '@tauri-apps/api/event';
 import {open,save} from '@tauri-apps/plugin-dialog';
 import {readTextFile,writeFile,writeTextFile} from '@tauri-apps/plugin-fs';
 import type {DesktopAPI} from './api';
-import type {Json,WireFrame} from './core';
+import type {Json} from './core';
+import {createVisualizationSubscription} from './visualization-transport';
 
 type Unlisten=(()=>void)|undefined;
 
@@ -49,6 +50,13 @@ export interface TauriDesktopAPI extends DesktopAPI{
 }
 
 export function createTauriAPI():TauriDesktopAPI{
+ const onVisualization=createVisualizationSubscription({
+  listen:notify=>listen('veyra://visualization-ready',notify),
+  enable:()=>invoke('runtime_visualization_transport',{raw:true}),
+  pull:()=>invoke<ArrayBuffer>('take_visualization'),
+  schedule:callback=>requestAnimationFrame(callback),cancel:id=>cancelAnimationFrame(id),
+  onError:error=>window.dispatchEvent(new CustomEvent('veyra-subscription-error',{detail:String(error)})),
+ });
  return {
   info:()=>invoke<Json>('runtime_status').then(status=>({version:'0.1.0',platform:navigator.platform,repo:'tauri',mapper:null,status})),
   command:(command,args={})=>invoke<Json>('runtime_command',{command,args}),
@@ -66,7 +74,7 @@ export function createTauriAPI():TauriDesktopAPI{
   screenshot:saveRendererScreenshot,
   restart:()=>invoke<Json>('runtime_command',{command:'restart',args:{}}),
   onEvent:callback=>subscribe<Json>('veyra://event',callback),
-  onVisualization:callback=>subscribe<WireFrame>('veyra://visualization',callback),
+  onVisualization,
  };
 }
 
@@ -75,10 +83,6 @@ function subscribe<T>(channel:string,callback:(value:T)=>void):()=>void{
  let disposed=false;
  void listen<T>(channel,event=>{
   const value=event.payload as T;
-  if(channel.endsWith('visualization')&&value&&typeof value==='object'){
-   const frame=value as T & {payload?:number[]|Uint8Array};
-   if(Array.isArray(frame.payload))frame.payload=new Uint8Array(frame.payload);
-  }
   callback(value);
  }).then(value=>{if(disposed)value();else unlisten=value;}).catch(error=>{
   window.dispatchEvent(new CustomEvent('veyra-subscription-error',{detail:String(error)}));

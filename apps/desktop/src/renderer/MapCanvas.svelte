@@ -66,8 +66,11 @@
    m[o]=size*.95;m[o+1]=0;m[o+2]=0;m[o+3]=0;m[o+4]=0;m[o+5]=.025;m[o+6]=0;m[o+7]=0;m[o+8]=0;m[o+9]=0;m[o+10]=size*.95;m[o+11]=0;m[o+12]=cellRow[0];m[o+13]=cellRow[2];m[o+14]=-cellRow[1];m[o+15]=1;
    const [r,g,b]=cellColor(mode,cellRow);color.setRGB(r,g,b);instanceColors[i*3]=color.r;instanceColors[i*3+1]=color.g;instanceColors[i*3+2]=color.b;
   }
-  mesh.count=cellCount;mesh.instanceMatrix.clearUpdateRanges();mesh.instanceMatrix.addUpdateRange(0,cellCount*16);mesh.instanceMatrix.needsUpdate=true;
-  mesh.instanceColor!.clearUpdateRanges();mesh.instanceColor!.addUpdateRange(0,cellCount*3);mesh.instanceColor!.needsUpdate=true;
+  mesh.count=cellCount;
+  if(cellCount>0){
+   mesh.instanceMatrix.clearUpdateRanges();mesh.instanceMatrix.addUpdateRange(0,cellCount*16);mesh.instanceMatrix.needsUpdate=true;
+   mesh.instanceColor!.clearUpdateRanges();mesh.instanceColor!.addUpdateRange(0,cellCount*3);mesh.instanceColor!.needsUpdate=true;
+  }
   // Bounds are only needed to raycast a click; Three recomputes them lazily.
   mesh.boundingSphere=null;
   onStats({status:'available',source_points:meta.n_points??meta.points.count,source_cells:meta.total_leaves??meta.cells.count,wire_cells:meta.cells.count,rendered_points:history.pointCount,accumulated_scans:history.frameCount,rendered_cells:cellCount,sampling_active:clamped.truncated||(meta.n_points??0)>pointCount||(meta.total_leaves??0)>cellCount});
@@ -93,6 +96,9 @@
    }
   });
   pointGeo.setDrawRange(0,n);
+  // WebGL2 interprets a zero source length as the whole remaining array,
+  // so an empty scan must not upload the two capacity-sized point buffers.
+  if(n===0)return;
   const pos=pointGeo.getAttribute('position') as THREE.BufferAttribute,col=pointGeo.getAttribute('color') as THREE.BufferAttribute;
   pos.clearUpdateRanges();pos.addUpdateRange(0,n*3);pos.needsUpdate=true;
   col.clearUpdateRanges();col.addUpdateRange(0,n*3);col.needsUpdate=true;

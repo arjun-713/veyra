@@ -41,12 +41,11 @@ precomputed real visualization snapshot → lightweight decode → GPU buffers �
 
 ### Latest frame wins
 
-If the UI stalls, replay jumps to the snapshot for the current replay time
-instead of queueing late frames. Skipped snapshots count as
-`presentation_drops` — a presentation metric, unrelated to backend
-processing drops. The backend `Outbox` and the desktop `EventRelay` were
-already latest-only; the replay clock (`renderer/replay-clock.ts`) makes the
-policy explicit and measurable.
+The backend serves cache positions in order. If the UI stalls, the desktop
+transport retains only the newest snapshot rather than queueing large late
+frames. Coalesced snapshots count as transport/presentation drops, not backend
+processing drops. Displaying every snapshot at the selected rate still requires
+sufficient disk, IPC and renderer capacity.
 
 ### Cache format (`*.veyra-replay`, schema v1)
 
@@ -83,14 +82,52 @@ replay… n / N`.
 ### Runtime replay commands
 
 `replay_open {path, fps}` / `replay_close` / `replay_status`, plus the usual
-`start / pause / step / seek / speed` which serve cached snapshots instantly
-in replay mode (seek <100 ms typical, restart = seek 0, no mapper rebuild).
+`start / pause / step / seek / speed` for cached playback (restart = seek 0,
+no mapper rebuild). Play schedules background prefetch and returns without
+filling the cache on the control worker. Playback ticks consume ready frames;
+a cold frame is retried in order while Pause and other controls remain
+available. Explicit seek/step may synchronously read one cold snapshot,
+using a separate file handle from the prefetch worker.
 `reset / sequence / policy` are rejected while a replay is open — the cache
 belongs to its recorded policy/config.
 
+After opening, change the presentation rate with:
+
+```json
+{"id":"rate-1","command":"replay_rate","args":{"fps":60}}
+```
+
+`replay_rate` accepts numeric **15 / 30 / 60 FPS** and requires an open
+cache. It works while paused or running, preserves position and generation,
+and never recomputes snapshots. The result is `{ "replay": { ... } }`,
+including `fps` (selected rate) and `effective_fps` (`fps × speed`). A rate
+or speed change schedules the next tick one new interval from the command;
+resuming with Play makes the next snapshot immediately eligible. The legacy
+`replay_open` FPS range remains 1–60 (including the configured 10 FPS option).
+
+The worker waits on the command queue until the next playback deadline,
+capped at 20 ms when idle; it does not impose a 20 ms floor on 60 FPS.
+The backend publishes every cache position in order, including all 488
+positions of a 488-frame cache, and reports `ended` with the final snapshot.
+Disk underruns delay that sequence rather than skipping frames or emitting
+a catch-up burst. The transport/viewer remain latest-only, so actual display
+of every publication still depends on consumer capacity; transport drops
+remain visible in `visualization_dropped`.
+
 The serve path is instrumented: `replay_serve_ms` per frame, byte-bounded
 look-ahead ring (128 MiB / 64 frames max), `underruns` vs `prefetch_hits`
-counters in `replay_status`.
+counters in `replay_status`. Admission and eviction use exact encoded
+metadata + payload sizes from the frame table; the byte cap includes an
+in-flight read (`prefetch_in_flight_bytes`) as well as ready snapshots
+(`prefetch_bytes`). These counters are not a measurement of process RSS or
+Python object overhead. Repeated retries of the same cold position count as
+one underrun. Prefetch read errors become a replay error at that position;
+after a backward seek, farther-ahead frames yield byte budget to the next
+required frame so retained data cannot starve playback. On a read error,
+the control worker stays available to close/reopen the cache. Close cancels
+prefetch without waiting for an OS read, prevents retired data from entering
+a replacement cache, and leaves live playback paused (or unconfigured when
+there is no live session).
 
 ### Accumulation in replay
 
