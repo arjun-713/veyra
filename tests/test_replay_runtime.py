@@ -555,6 +555,34 @@ class ReplayRuntimeTests(unittest.TestCase):
         finally:
             runtime._replay_close_locked()
 
+    def test_policy_change_during_session_replay_prepares_new_policy_cache(self):
+        runtime = self.make_runtime()
+        config = {
+            "dataset": "semanticposs",
+            "sequence": "00",
+            "map": {"policy": "distance_lod"},
+            "playback": {"fps": 30.0, "speed": 1.0, "full_sequence": True},
+        }
+        session = mock.Mock()
+        session.status.return_value = {"frames": 6}
+        try:
+            with (
+                tempfile.TemporaryDirectory() as directory,
+                mock.patch("runtime.service.validate_config", side_effect=lambda c, _: c),
+                mock.patch.object(runtime, "_create_session", return_value=session),
+                mock.patch("runtime.replay_cache.check_compatible", return_value=None),
+                mock.patch.object(runtime, "_prepare_auto_replay") as prepare,
+            ):
+                runtime._configure(config)
+                self.open_replay(runtime, build_small_cache(directory))
+                runtime._execute("policy", {"policy": "utility_lod"})
+                self.assertIsNone(runtime.replay_reader)
+                self.assertEqual(runtime.config["map"]["policy"], "utility_lod")
+                self.assertEqual(runtime._auto_replay["state"], "pending")
+                prepare.assert_called_once()
+        finally:
+            runtime._replay_close_locked()
+
     def test_policy_mismatch_rejected_at_open(self):
         runtime = self.make_runtime()
         try:

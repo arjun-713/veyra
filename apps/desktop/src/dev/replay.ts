@@ -11,6 +11,9 @@ const events = new Set<Listener<Json>>();
 const visuals = new Set<Listener<WireFrame>>();
 const params = new URLSearchParams(location.search);
 const fps = Number(params.get('fps') ?? 10);
+// ?replay=1 simulates an active Smooth Replay session (status.replay + recorded
+// telemetry) so replay-only overlays can be laid out and screenshotted.
+const simulateReplay = params.get('replay') === '1';
 let status: Json = {state: 'paused', index: 0, frames: 0, dataset: 'generic', sequence: '011', policy: 'distance_lod', speed: 1, layer: 'semantic'};
 let frames: WireFrame[] = [];
 let timer: ReturnType<typeof setInterval> | undefined;
@@ -26,13 +29,16 @@ async function load() {
     return {metadata, payload: new Uint8Array(payload)} as WireFrame;
   }));
   status = {...status, frames: frames.length};
+  if (simulateReplay) status = {...status, replay: {active: true, fps, frames: frames.length, position: 0, dataset: 'generic', sequence: '011', policy: 'distance_lod', prefetch_frames: 0, underruns: 0}};
   (window as any).__replay = {frames: frames.length, telemetry: index.telemetry};
 }
 
 function emit(index: number) {
   const frame = frames[index % frames.length];
   status = {...status, index: index % frames.length};
-  const metadata = {...frame.metadata, generation: ++generation, index: status.index};
+  if (simulateReplay) status = {...status, replay: {...status.replay, position: status.index}};
+  const recorded = simulateReplay ? {recorded_telemetry: {active_cells: 492206, map_update_ms: 3.21, logical_bytes: 18874368}} : {};
+  const metadata = {...frame.metadata, ...recorded, generation: ++generation, index: status.index};
   for (const listener of visuals) listener({metadata, payload: frame.payload} as WireFrame);
   for (const listener of events) listener({type: 'status', ...status});
 }

@@ -631,7 +631,15 @@ class ProductRuntime:
                 self.state = "paused"
                 self._process_replay(target, force_visual=True)
                 return {"replay": self._replay_status()}
-            if command in ("reset", "sequence", "policy"):
+            if command == "policy" and self.session is not None:
+                # The cache belongs to its recorded policy: leave it and
+                # prepare (or reuse) the cache for the requested policy.
+                self._replay_close_locked()
+                self.state = "paused"
+                self.error = None
+                self.last_telemetry = None
+                self.generation += 1
+            elif command in ("reset", "sequence", "policy"):
                 raise ValueError(
                     "close the smooth replay before changing "
                     f"{command}: the cache belongs to its recorded policy/config"
@@ -725,7 +733,10 @@ class ProductRuntime:
                 if args["policy"] not in POLICIES:
                     raise ValueError("unsupported map policy")
                 config["map"]["policy"] = args["policy"]
-            return self._configure(config, prepare_replay=True)
+            result = self._configure(config, prepare_replay=True)
+            if command == "policy":
+                self._prepare_auto_replay()
+            return result
         if command in ("step", "seek"):
             target = (
                 min(self.index + 1, self.status()["frames"] - 1)

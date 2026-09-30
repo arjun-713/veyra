@@ -243,7 +243,7 @@ test('missing section is unavailable, all-empty clears nothing',()=>{
 // --- Cell lookup across frames (selection sync) ---
 
 import {findCellInPayload, inspectorFromRow, readCellRow} from '../src/renderer/cell-lookup.ts';
-import {formatRecorded, replayPolicyName} from '../src/renderer/replay-metrics.ts';
+import {compactRecorded, formatRecorded, replayPolicyName} from '../src/renderer/replay-metrics.ts';
 import {samplingStatus} from '../src/renderer/dashboard.ts';
 
 function payloadWithCells(rows: number[][], stride = 17): {payload: Uint8Array; section: {count: number; offset: number; stride: number}} {
@@ -301,6 +301,11 @@ test('recorded values label RECORDED; missing values are N/A, never live',()=>{
  assert.equal(formatRecorded(null, v => String(v)), 'N/A DURING REPLAY');
  assert.equal(formatRecorded(undefined, v => String(v)), 'N/A DURING REPLAY');
  assert.equal(formatRecorded(NaN, v => String(v)), 'N/A DURING REPLAY');
+});
+
+test('compact recorded chips keep the full honesty label in the tooltip',()=>{
+ assert.deepEqual(compactRecorded(492206, v => v.toLocaleString('en-US')), {text: '492,206', title: '492,206 · RECORDED'});
+ assert.deepEqual(compactRecorded(null, v => String(v)), {text: 'N/A', title: 'N/A DURING REPLAY'});
 });
 
 test('policy chip prefers the replay header while replaying',()=>{
