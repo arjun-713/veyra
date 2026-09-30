@@ -6,13 +6,14 @@ export function isSupportedDataset(value:unknown):value is typeof supportedDatas
 export function validateCommand(command: unknown, args: unknown = {}): {command:string,args:Json} {
   if (typeof command !== 'string' || !args || typeof args !== 'object' || Array.isArray(args)) throw new Error('Invalid runtime command');
   const value = args as Json;
-  const fields: Record<string,string[]> = {start:[],pause:[],step:[],reset:[],status:[],shutdown:[],stop:[],validation:[],replay_close:[],replay_status:[],layer:['layer'],seek:['index'],speed:['speed'],sequence:['sequence'],policy:['policy'],governor:['mode'],benchmark:['dataset','sequence','start','count','repetitions','warmup_frames','hardware_profile'],replay_open:['path','fps']};
+  const fields: Record<string,string[]> = {start:[],pause:[],step:[],reset:[],status:[],shutdown:[],stop:[],validation:[],replay_close:[],replay_status:[],replay_rate:['fps'],layer:['layer'],seek:['index'],speed:['speed'],sequence:['sequence'],policy:['policy'],governor:['mode'],benchmark:['dataset','sequence','start','count','repetitions','warmup_frames','hardware_profile'],replay_open:['path','fps']};
   if (!(command in fields) || Object.keys(value).some(key=>!fields[command].includes(key))) throw new Error('Command or field is not allowed');
   if (command==='seek' && (!Number.isSafeInteger(value.index) || value.index<0)) throw new Error('Invalid frame index');
   if (command==='speed' && (!Number.isFinite(value.speed) || value.speed<0.1 || value.speed>8)) throw new Error('Speed must be 0.1–8');
   if (command==='policy' && !policies.includes(value.policy)) throw new Error('Unknown policy');
   if (command==='layer' && !['semantic','elevation','ground','terrain','traversability','motion','lod','utility'].includes(value.layer)) throw new Error('Unknown layer');
   if (command==='governor' && !['automatic','disabled','conserve'].includes(value.mode)) throw new Error('Unknown governor override');
+  if (command==='replay_rate' && ![15,30,60].includes(value.fps)) throw new Error('Replay FPS must be 15, 30 or 60');
   if (command==='sequence' && (typeof value.sequence!=='string' || !/^[\w.-]{1,128}$/.test(value.sequence))) throw new Error('Invalid sequence');
   if (command==='replay_open') {
     if (typeof value.path!=='string' || !value.path || value.path.length>4096) throw new Error('Invalid replay path');

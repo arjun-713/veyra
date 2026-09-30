@@ -39,6 +39,7 @@ COMMANDS = {
     "replay_open": ("path", "fps"),
     "replay_close": (),
     "replay_status": (),
+    "replay_rate": ("fps",),
     "benchmark": (
         "dataset",
         "sequence",
@@ -142,8 +143,8 @@ class ProductRuntime:
         self.replay_underruns = 0
         self.replay_hits = 0
         self.replay_misses = 0
-        self._replay_cache: dict[int, tuple[dict, bytes]] = {}
-        self._replay_cached_bytes = 0
+        self._replay_prefetcher = None
+        self._replay_waiting_position = None
         self._publish_status()
 
     def _publish_status(self):
@@ -210,18 +211,24 @@ class ProductRuntime:
             "frames": len(reader),
             "position": self.replay_position,
             "fps": self.replay_fps,
+            "effective_fps": self.replay_fps
+            * (self.config["playback"]["speed"] if self.config else self.replay_speed),
             "dataset": header.get("dataset"),
             "sequence": header.get("sequence"),
             "policy": header.get("policy"),
             "underruns": self.replay_underruns,
             "prefetch_hits": self.replay_hits,
             "prefetch_misses": self.replay_misses,
-            "prefetch_frames": len(self._replay_cache),
-            "prefetch_bytes": self._replay_cached_bytes,
+            **self._replay_prefetcher.status(),
         }
 
     def _replay_open(self, args) -> dict:
-        from .replay_cache import ReplayError, ReplayReader, check_compatible
+        from .replay_cache import (
+            ReplayError,
+            ReplayPrefetch,
+            ReplayReader,
+            check_compatible,
+        )
 
         raw_path = args.get("path")
         if not isinstance(raw_path, str) or not raw_path or len(raw_path) > 4096:
@@ -241,8 +248,19 @@ class ProductRuntime:
             if mismatch:
                 reader.close()
                 raise ValueError(f"replay cache mismatch: {mismatch}")
+        # A separate handle belongs exclusively to the prefetch worker.
+        try:
+            prefetcher = ReplayPrefetch(
+                ReplayReader(raw_path),
+                max_frames=REPLAY_PREFETCH_FRAMES,
+                max_bytes=REPLAY_PREFETCH_BYTES,
+            )
+        except Exception:
+            reader.close()
+            raise
         self._replay_close_locked()
         self.replay_reader = reader
+        self._replay_prefetcher = prefetcher
         self.replay_path = str(raw_path)
         self.replay_fps = float(fps)
         self.replay_position = -1
@@ -251,57 +269,44 @@ class ProductRuntime:
         self.replay_misses = 0
         self.replay_speed = 1.0
         self.state = "paused"
+        self.error = None
+        self.last_telemetry = None
         self.generation += 1
         self._publish_status()
         return self._replay_status()
 
     def _replay_close_locked(self) -> None:
+        if self._replay_prefetcher is not None:
+            self._replay_prefetcher.close()
+        self._replay_prefetcher = None
         if self.replay_reader is not None:
             self.replay_reader.close()
         self.replay_reader = None
         self.replay_path = None
         self.replay_position = -1
         self.replay_speed = 1.0
-        self._replay_cache = {}
-        self._replay_cached_bytes = 0
+        self._replay_waiting_position = None
 
     def _replay_prefetch(self, from_position: int) -> None:
-        """Fill the byte-bounded look-ahead window ahead of from_position."""
-        reader = self.replay_reader
-        if reader is None:
-            return
-        position = from_position + 1
-        while (
-            position < len(reader)
-            and len(self._replay_cache) < REPLAY_PREFETCH_FRAMES
-            and self._replay_cached_bytes < REPLAY_PREFETCH_BYTES
-        ):
-            if position in self._replay_cache:
-                position += 1
-                continue
-            try:
-                metadata, payload = reader.read_frame(position)
-            except Exception:  # noqa: BLE001 - stop prefetching, tick reports it.
-                break
-            self._replay_cache[position] = (metadata, payload)
-            self._replay_cached_bytes += len(payload) + len(
-                json.dumps(metadata, allow_nan=False).encode()
-            )
-            position += 1
+        """Schedule look-ahead without reading on the control worker."""
+        if self._replay_prefetcher is not None:
+            self._replay_prefetcher.request(from_position + 1)
 
-    def _replay_take(self, position: int) -> tuple[dict, bytes]:
-        """Serve one cached snapshot: prefetch hit or synchronous read."""
+    def _replay_take(self, position: int, *, wait=True) -> tuple[dict, bytes] | None:
+        """Ticks never read disk; explicit seek/step may read one cold frame."""
         reader = self.replay_reader
         assert reader is not None
-        cached = self._replay_cache.pop(position, None)
+        cached = self._replay_prefetcher.take(position)
         if cached is not None:
             self.replay_hits += 1
-            self._replay_cached_bytes = max(
-                0, self._replay_cached_bytes - (len(cached[1]) + 1024)
-            )
+            self._replay_waiting_position = None
             return cached
-        self.replay_misses += 1
-        self.replay_underruns += 1
+        if self._replay_waiting_position != position:
+            self.replay_misses += 1
+            self.replay_underruns += 1
+            self._replay_waiting_position = position
+        if not wait:
+            return None
         try:
             return reader.read_frame(position)
         except Exception as error:
@@ -309,10 +314,13 @@ class ProductRuntime:
 
             raise ReplayError(f"cached frame {position} unreadable: {error}") from error
 
-    def _publish_replay_frame(self, position: int) -> None:
+    def _publish_replay_frame(self, position: int, frame=None) -> None:
         """Present a cached snapshot. Never touches perception or the mapper."""
         started = time.perf_counter()
-        metadata, payload = self._replay_take(position)
+        metadata, payload = frame if frame is not None else self._replay_take(position)
+        self._replay_waiting_position = None
+        if self.state == "running" and position == len(self.replay_reader) - 1:
+            self.state = "ended"
         # Stamp the live generation so stale live frames can never win over
         # the replay (and vice versa after replay closes).
         outgoing = dict(metadata)
@@ -338,11 +346,10 @@ class ProductRuntime:
             "recorded_telemetry": recorded,
             "replay_serve_ms": serve_ms,
             "replay_fps": self.replay_fps,
+            "replay_effective_fps": self._replay_status()["effective_fps"],
         }
         self.outbox.publish(self.last_telemetry)
-        # Keep the window ahead warm; drop entries behind the playhead.
-        for key in [key for key in self._replay_cache if key <= position]:
-            self._replay_cache.pop(key, None)
+        # Keep the window ahead warm; drop entries outside the next window.
         self._replay_prefetch(position)
         self._publish_status()
 
@@ -499,19 +506,34 @@ class ProductRuntime:
         if command == "replay_open":
             return {"replay": self._replay_open(args)}
         if command == "replay_close":
-            self._replay_close_locked()
+            if self.replay_reader is not None:
+                self._replay_close_locked()
+                self.state = "paused" if self.session is not None else "unconfigured"
+                self.error = None
+                self.last_telemetry = None
+                self.generation += 1
             self._publish_status()
             return {"replay": self._replay_status()}
         if command == "replay_status":
             return {"replay": self._replay_status()}
+        if command == "replay_rate":
+            if self.replay_reader is None:
+                raise ValueError("open a smooth replay before changing its rate")
+            fps = number(args["fps"], "fps", REPLAY_MIN_FPS, REPLAY_MAX_FPS)
+            if fps not in (15, 30, 60):
+                raise ValueError("replay rate must be 15, 30 or 60 FPS")
+            self.replay_fps = float(fps)
+            speed = (
+                self.config["playback"]["speed"] if self.config else self.replay_speed
+            )
+            self.next_frame = time.monotonic() + 1 / (self.replay_fps * speed)
+            return {"replay": self._replay_status()}
         if self.replay_reader is not None:
             if command == "start":
                 if self.state == "error":
-                    raise RuntimeError("reset the failed session before restarting")
+                    raise RuntimeError("close and reopen the failed smooth replay")
                 if self.replay_position >= len(self.replay_reader) - 1:
                     self.replay_position = -1
-                    self._replay_cache = {}
-                    self._replay_cached_bytes = 0
                     self.generation += 1
                 self.state = "running"
                 self.next_frame = time.monotonic()
@@ -526,6 +548,7 @@ class ProductRuntime:
                     self.config["playback"]["speed"] = value
                 else:
                     self.replay_speed = value
+                self.next_frame = time.monotonic() + 1 / (self.replay_fps * value)
                 return None
             if command in ("step", "seek"):
                 last = len(self.replay_reader) - 1
@@ -657,12 +680,12 @@ class ProductRuntime:
         finally:
             self._frame_in_flight.release()
 
-    def _process_replay(self, target, force_visual=False):
+    def _process_replay(self, target, force_visual=False, *, frame=None):
         """Serve a cached snapshot; the force flag is accepted for API parity."""
         if not self._frame_in_flight.acquire(blocking=False):
             raise RuntimeError("frame already in flight")
         try:
-            self._publish_replay_frame(target)
+            self._publish_replay_frame(target, frame=frame)
         finally:
             self._frame_in_flight.release()
 
@@ -759,7 +782,22 @@ class ProductRuntime:
                 self._publish_status()
                 return
             started = time.monotonic()
-            self._process_replay(self.replay_position + 1)
+            target = self.replay_position + 1
+            self._replay_prefetch(self.replay_position)
+            from .replay_cache import ReplayError
+
+            try:
+                frame = self._replay_take(target, wait=False)
+            except ReplayError as error:
+                self.state = "error"
+                self.error = {"process": "replay", "message": str(error)}
+                self._publish_status()
+                return
+            if frame is None:
+                # Retry the same frame without busy-spinning or skipping it.
+                self.next_frame = started + 0.005
+                return
+            self._process_replay(target, frame=frame)
             speed = (
                 self.config["playback"]["speed"] if self.config else self.replay_speed
             )
@@ -889,8 +927,11 @@ class ProductRuntime:
 
     def run(self):
         while not self.stopping.is_set():
+            timeout = 0.02
+            if self.state == "running":
+                timeout = min(timeout, max(0.0, self.next_frame - time.monotonic()))
             try:
-                request = self.commands.get(timeout=0.02)
+                request = self.commands.get(timeout=timeout)
             except queue.Empty:
                 request = None
             if request is not None:

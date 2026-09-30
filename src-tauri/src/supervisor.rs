@@ -442,6 +442,14 @@ fn dispatch_packet(shared: &Arc<Mutex<Shared>>, metadata: Value, payload: Vec<u8
                 }
             }
         }
+        // The daemon may be waiting for a command response while stdout
+        // continues producing frames. Bound binary retention here as well as
+        // in the desktop relay: an event-count limit alone can retain GiB.
+        if matches!(kind, Some("visualization" | "telemetry" | "status")) {
+            state
+                .events
+                .retain(|event| event.metadata.get("type").and_then(Value::as_str) != kind);
+        }
         if state.events.len() >= MAX_EVENTS {
             state.events.pop_front();
         }
@@ -725,6 +733,41 @@ mod tests {
             .unwrap()
             .is_ok());
         assert!(shared.lock().unwrap().pending.is_empty());
+    }
+
+    #[test]
+    fn visualization_backlog_keeps_only_latest_binary_frame_and_resolves_pause() {
+        let shared = test_shared();
+        let (sender, receiver) = std::sync::mpsc::channel();
+        shared
+            .lock()
+            .unwrap()
+            .pending
+            .insert("pause".into(), sender);
+        for frame in 0..3 {
+            dispatch_packet(
+                &shared,
+                json!({"type": "visualization", "frame_id": frame}),
+                vec![frame; 1024 * 1024],
+            );
+        }
+        dispatch_packet(
+            &shared,
+            json!({"type": "response", "id": "pause", "ok": true}),
+            vec![],
+        );
+        assert!(receiver
+            .recv_timeout(Duration::from_secs(1))
+            .unwrap()
+            .is_ok());
+        let state = shared.lock().unwrap();
+        assert_eq!(
+            state.events.len(),
+            1,
+            "old binary frames must not accumulate while a command holds the daemon"
+        );
+        assert_eq!(state.events[0].metadata["frame_id"], 2);
+        assert_eq!(state.events[0].payload, vec![2; 1024 * 1024]);
     }
 
     #[test]

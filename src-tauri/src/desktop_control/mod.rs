@@ -40,7 +40,7 @@ impl DesktopControlService {
         self.unavailable.as_deref()
     }
 
-    pub(crate) fn request(&mut self, command: &'static str, args: Value) -> Result<Value, String> {
+    fn request_client(&mut self) -> Result<ControlClient, String> {
         let client = self.client.as_mut().ok_or_else(|| {
             format!(
                 "CONTROL_UNAVAILABLE: {}",
@@ -49,7 +49,7 @@ impl DesktopControlService {
                     .unwrap_or("local control daemon is unavailable")
             )
         })?;
-        client.request(command, args).map_err(control_error_message)
+        Ok(client.clone())
     }
 
     pub(crate) fn shutdown(&mut self) -> Result<(), String> {
@@ -101,12 +101,83 @@ fn control_error_message(error: ControlClientError) -> String {
     error.to_string()
 }
 
+pub(crate) fn request_from_state(
+    state: &std::sync::Mutex<DesktopControlService>,
+    command: &'static str,
+    args: Value,
+) -> Result<Value, String> {
+    // A request uses its own socket. Keep only the client snapshot under the
+    // desktop lock; waiting for a backend reply must not stop event delivery.
+    let mut client = state
+        .lock()
+        .map_err(|_| "desktop control client lock poisoned".to_owned())?
+        .request_client()?;
+    client.request(command, args).map_err(control_error_message)
+}
+
 #[cfg(test)]
 mod tests {
     use serde_json::json;
 
     use super::{control_error_message, request_for, DesktopControlRequest};
     use crate::control::ControlClientError;
+
+    #[test]
+    fn pending_command_releases_desktop_state_for_event_delivery() {
+        use std::io::{BufRead, BufReader, Write};
+        use std::sync::{mpsc, Arc, Mutex};
+        use std::time::Duration;
+
+        let listener = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
+        let client = crate::control::ControlClient::from_endpoint_and_token(
+            listener.local_addr().unwrap(),
+            "a".repeat(64),
+        )
+        .unwrap();
+        let state = Arc::new(Mutex::new(super::DesktopControlService {
+            client: Some(client),
+            unavailable: None,
+            host: None,
+        }));
+        let (arrived_tx, arrived_rx) = mpsc::channel();
+        let (release_tx, release_rx) = mpsc::channel();
+        let server = std::thread::spawn(move || {
+            let (mut stream, _) = listener.accept().unwrap();
+            let mut line = String::new();
+            BufReader::new(stream.try_clone().unwrap())
+                .read_line(&mut line)
+                .unwrap();
+            let request: serde_json::Value = serde_json::from_str(&line).unwrap();
+            arrived_tx.send(()).unwrap();
+            release_rx.recv_timeout(Duration::from_secs(5)).unwrap();
+            writeln!(
+                stream,
+                "{}",
+                json!({"schema_version": 1, "id": request["id"], "ok": true, "result": {}})
+            )
+            .unwrap();
+        });
+        let worker_state = Arc::clone(&state);
+        let worker = std::thread::spawn(move || {
+            super::request_from_state(
+                &worker_state,
+                "command",
+                json!({"name": "pause", "args": {}}),
+            )
+        });
+        arrived_rx.recv_timeout(Duration::from_secs(5)).unwrap();
+        let events_available = state
+            .try_lock()
+            .map(|service| service.drain_events())
+            .is_ok();
+        release_tx.send(()).unwrap();
+        worker.join().unwrap().unwrap();
+        server.join().unwrap();
+        assert!(
+            events_available,
+            "pending command blocks desktop state and event pump"
+        );
+    }
 
     #[test]
     fn desktop_requests_map_to_the_daemon_protocol() {

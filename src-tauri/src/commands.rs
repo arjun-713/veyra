@@ -3,7 +3,7 @@ use std::sync::Mutex;
 
 use serde_json::{json, Value};
 
-use crate::desktop_control::{request_for, DesktopControlService};
+use crate::desktop_control::{request_for, request_from_state, DesktopControlService};
 
 async fn request(
     app: tauri::AppHandle,
@@ -15,11 +15,7 @@ async fn request(
         use tauri::Manager;
         let state = app.state::<Mutex<DesktopControlService>>();
         let request = request_for(command, args);
-        let result = state
-            .lock()
-            .map_err(|_| "desktop control client lock poisoned".to_owned())?
-            .request(request.command, request.args);
-        result
+        request_from_state(&state, request.command, request.args)
     })
     .await
     .map_err(|error| format!("runtime command worker failed: {error}"))?
@@ -129,6 +125,39 @@ pub async fn read_benchmark_artifact(path: String, app: tauri::AppHandle) -> Res
 #[tauri::command]
 pub async fn runtime_shutdown(app: tauri::AppHandle) -> Result<Value, String> {
     request(app, "shutdown", json!({})).await
+}
+
+/// Opt in to lightweight ready events and the bounded raw visualization mailbox.
+#[tauri::command]
+pub async fn runtime_visualization_transport(
+    raw: bool,
+    app: tauri::AppHandle,
+) -> Result<(), String> {
+    tauri::async_runtime::spawn_blocking(move || {
+        use tauri::{Emitter, Manager};
+        let announce = app
+            .state::<crate::visualization_transport::VisualizationTransport>()
+            .set_raw(raw)?;
+        if announce {
+            app.emit("veyra://visualization-ready", json!({"available": true}))
+                .map_err(|error| format!("visualization ready event failed: {error}"))?;
+        }
+        Ok(())
+    })
+    .await
+    .map_err(|error| format!("visualization transport worker failed: {error}"))?
+}
+
+/// Return the latest frame as a raw, aligned VYRA packet; empty means no frame.
+#[tauri::command]
+pub async fn take_visualization(app: tauri::AppHandle) -> Result<tauri::ipc::Response, String> {
+    tauri::async_runtime::spawn_blocking(move || {
+        use tauri::Manager;
+        app.state::<crate::visualization_transport::VisualizationTransport>()
+            .take()
+    })
+    .await
+    .map_err(|error| format!("visualization payload worker failed: {error}"))?
 }
 
 fn choose_dataset_allowlist_check(dataset: &str) -> Result<(), String> {

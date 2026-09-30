@@ -7,6 +7,7 @@ mod desktop_control;
 mod packaged_e2e;
 pub mod supervisor;
 mod telemetry;
+mod visualization_transport;
 
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicBool, Ordering};
@@ -56,6 +57,7 @@ pub fn run() {
             let startup_diagnostic = control.startup_diagnostic().map(str::to_owned);
             app.manage(Mutex::new(control));
             app.manage(BenchmarkArtifacts::default());
+            app.manage(visualization_transport::VisualizationTransport::default());
             let event_pump = EventPump::new();
             spawn_event_pump(app.handle().clone(), Arc::clone(&event_pump.running));
             app.manage(event_pump);
@@ -85,6 +87,8 @@ pub fn run() {
             commands::export_diagnostics,
             commands::read_benchmark_artifact,
             commands::runtime_shutdown,
+            commands::runtime_visualization_transport,
+            commands::take_visualization,
         ]);
     let app = builder
         .build(tauri::generate_context!())
@@ -120,13 +124,17 @@ fn spawn_event_pump(app_handle: tauri::AppHandle, running: Arc<AtomicBool>) {
                     .and_then(|service| service.lock().ok().map(|service| service.drain_events()))
                     .unwrap_or_default();
                 for event in events {
-                    match forwardable_runtime_event(event) {
-                        Ok((channel, payload)) => {
+                    match app_handle
+                        .state::<visualization_transport::VisualizationTransport>()
+                        .prepare(event)
+                    {
+                        Ok(Some((channel, payload))) => {
                             if let Some(artifacts) = app_handle.try_state::<BenchmarkArtifacts>() {
                                 artifacts.observe(&payload);
                             }
                             let _ = app_handle.emit(channel, payload);
                         }
+                        Ok(None) => {}
                         Err(error) => {
                             let _ = app_handle.emit(
                                 "veyra://event",

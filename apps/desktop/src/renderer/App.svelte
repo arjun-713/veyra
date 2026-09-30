@@ -8,6 +8,7 @@
  import {acceptBenchmarkReport,benchmarkFrameCount,benchmarkLifecycle,millis,qualityResourceRows,type AcceptedReport} from './benchmark-report';
  import {acceptFrame,canPlayback,diagnosticMessage,formatTelemetryAge,telemetryFreshness,mergeSessionStatus,validationOutcome} from './session';
  import {resolveReplayFps} from './replay-clock';
+ import {PlaybackControl} from './playback-control';
  import CellAnatomy from './CellAnatomy.svelte';
  import {cellAnatomy} from './cell-anatomy';
  import {bandLabels,cellRangeM,explainResolution,levelFromSize,parsePolicyDescriptor} from './cell-explain';
@@ -86,7 +87,7 @@ import {formatRecorded,replayPolicyName} from './replay-metrics';
  let report=$state<Json|null>(null),reportMeta=$state<(Omit<AcceptedReport,'report'>&{artifactSha256:string|null})|null>(null),previousReport=$state<Json|null>(null),benchmarkState=$state('idle'),benchmarkRequest=$state<number|null>(null),validationState=$state('idle'),validationResult=$state<Json|null>(null);
  let events=$state<DashboardEvent[]>([]);
  let now=$state(Date.now()),awaitingFrame=$state(false);
- const playbackEnabled=()=>canPlayback(status,busy);
+ const playbackEnabled=()=>canPlayback(status,busy||replayBusy)&&(playbackMode==='live'||replayActive());
  const labels:Record<string,string>={uniform5:'Uniform 5 cm',uniform40:'Uniform 40 cm',distance_lod:'Distance LOD',utility_lod:'Utility LOD'};
  // Policy chip source: replay cache header while replaying, else live status.
  const policyBadge=$derived(((name)=>name&&labels[name]?labels[name]:name)(replayPolicyName(status))??'—');
@@ -122,13 +123,21 @@ import {formatRecorded,replayPolicyName} from './replay-metrics';
  // rate (cached snapshots shown per second), never processing throughput.
  let playbackMode=$state<'live'|'replay'>('live');
  let replayFps=$state(30),replayPath=$state(''),replayBusy=$state(false);
+ let playbackIntent=$state<'running'|'paused'|null>(null);
+ const playbackRunning=()=>playbackIntent==='running'||(playbackIntent===null&&status.state==='running');
+ const playbackControl=new PlaybackControl({
+  command:name=>window.veyra.command(name),
+  onPending:value=>{playbackIntent=value;},
+  onStatus:value=>{status=mergeSessionStatus(status,value);},
+  onError:value=>{error=value instanceof Error?value.message:String(value);},
+ });
+ async function togglePlayback(){error='';notice='';await playbackControl.setRunning(!playbackRunning());}
+ async function setReplayRate(fps:number){const response=await command('replay_rate',{fps});if(response)replayFps=fps;}
  const replayActive=()=>playbackMode==='replay'&&(status.replay?.active===true);
  async function openReplay(){
   if(replayBusy)return;replayBusy=true;error='';notice='';
+  playbackControl.invalidate();
   try{
-   // The session configuration is the source of the replay rate when it
-   // carries 15/30/60 FPS (cache is rate-independent); else the selection.
-   replayFps=resolveReplayFps(config.playback?.fps,replayFps);
    const r=await window.veyra.command('replay_open',{path:replayPath,fps:replayFps});
    if(r.status)status=mergeSessionStatus(status,r.status);
    clearSelection();
@@ -139,6 +148,7 @@ import {formatRecorded,replayPolicyName} from './replay-metrics';
  }
  async function closeReplay(){
   if(replayBusy)return;replayBusy=true;error='';notice='';
+  playbackControl.invalidate();
   try{
    const r=await window.veyra.command('replay_close');
    if(r.status)status=mergeSessionStatus(status,r.status);
@@ -154,7 +164,7 @@ import {formatRecorded,replayPolicyName} from './replay-metrics';
   if(!replayPath)notice+=' Enter the *.veyra-replay path first.';
  }
  async function action(fn:()=>Promise<any>){if(busy)return;busy=true;error='';notice='';try{return await fn();}catch(e){error=e instanceof Error?e.message:String(e);awaitingFrame=false;}finally{busy=false;}}
- function clearSessionView(){frame=null;telemetry={};replayTelemetry=null;render={};telemetryHistory.reset();samples=[];inspector=null;selectedCell=null;}
+ function clearSessionView(){playbackControl.invalidate();frame=null;telemetry={};replayTelemetry=null;render={};telemetryHistory.reset();samples=[];inspector=null;selectedCell=null;}
  async function command(name:string,args:Json={}){return action(async()=>{const reload=['sequence','reset','policy'].includes(name);if(reload){clearSessionView();awaitingFrame=true;}if(name==='seek')clearSelection();const r=await window.veyra.command(name,args);if(r.status)status=mergeSessionStatus(status,r.status);if(reload){const preview=await window.veyra.command('step');if(preview.status)status=preview.status;}return r;});}
 let governorOverride=$state('automatic');
 function syncGovernorOverride(value:unknown){if(value==='automatic'||value==='disabled'||value==='conserve')governorOverride=value;}
@@ -175,6 +185,7 @@ function confirmSaved(ok:unknown,saved:string,cancelled:string){notice=ok?saved:
    await window.veyra.validateConfig(next);
    const response=await window.veyra.configure(next);
    config=next;syncGovernorOverride(next.map?.governor_override);
+   replayFps=resolveReplayFps(next.playback?.fps,replayFps);
    if(response.status)status=response.status;
    clearSessionView();awaitingFrame=true;workspace='Map';
    notice='Processing the first frame…';
@@ -265,9 +276,9 @@ function confirmSaved(ok:unknown,saved:string,cancelled:string){notice=ok?saved:
      <details class="event-drawer"><summary>Events / Diagnostics ({events.length})</summary><div class="event-list">{#each events.slice(-30).reverse() as event}<div class="event-item"><i class:error={event.kind==='error'}></i><time>{new Date(event.time).toLocaleTimeString(undefined,{hour12:false})}</time><p>{event.message}</p></div>{:else}<div class="events-empty">No runtime events yet.<span>Session changes and backend diagnostics appear here.</span></div>{/each}</div></details>
     </section>
    </div>
-   <div class="playback"><div class="segmented" role="group" aria-label="Playback mode"><button class:active={playbackMode==='live'} onclick={()=>{if(playbackMode!=='live')void closeReplay();}} title="Live processing: dataset → perception → mapper. Speed is constrained by actual compute.">Live</button><button class:active={playbackMode==='replay'} onclick={()=>{playbackMode='replay';workspace='Map';}} title="Smooth replay: precomputed cached snapshots, no perception/mapping per frame.">Smooth Replay</button></div>{#if replayActive()}<span class="replay-badge" title="Cached snapshots presented at the replay rate. This is NOT processing throughput.">REPLAY · CACHED · {status.replay?.fps??replayFps} FPS</span>{/if}<div class="playback-buttons"><button title={replayActive()?'Restart replay from frame 0':'Reset map'} disabled={!playbackEnabled()} aria-label="Reset map" onclick={()=>replayActive()?command('seek',{index:0}):command('reset')}><Icon name="restart" size={18}/></button><button class="play-button" disabled={!playbackEnabled()} aria-label={status.state==='running'?'Pause replay':'Play replay'} onclick={()=>command(status.state==='running'?'pause':'start')}><Icon name={status.state==='running'?'pause':'play'} size={18}/></button><button title="Step frame" disabled={!playbackEnabled()} aria-label="Next frame" onclick={()=>command('step')}><Icon name="next" size={18}/></button></div><div class="timeline"><div><span>FRAME {format(status.index,0)}</span><span>{format(status.frames,0)} frames</span></div><input aria-label="Seek frame" type="range" min="0" max={Math.max(0,(status.frames??1)-1)} value={status.index??0} oninput={event=>seekIndex=Number(event.currentTarget.value)} onchange={()=>command('seek',{index:seekIndex})} disabled={!playbackEnabled()}/></div><select disabled={!playbackEnabled()} aria-label="Playback speed" value={status.speed??1} onchange={event=>command('speed',{speed:Number(event.currentTarget.value)})}>{#each (replayActive()?[.5,1,2]:[.25,.5,1,2,4,8]) as speed}<option value={speed}>{speed}×</option>{/each}</select><select disabled={!playbackEnabled()||replayActive()} aria-label="Mapping policy" title={replayActive()?'Policy is fixed by the replay cache — close the replay to change it.':POLICY_SWITCH_NOTE} value={status.policy??'distance_lod'} onchange={event=>command('policy',{policy:event.currentTarget.value})}>{#each policies as policy}<option value={policy}>{labels[policy]}</option>{/each}</select></div>
+   <div class="playback"><div class="segmented" role="group" aria-label="Playback mode"><button class:active={playbackMode==='live'} onclick={()=>{if(playbackMode!=='live')void closeReplay();}} title="Live processing: dataset → perception → mapper. Speed is constrained by actual compute.">Live</button><button class:active={playbackMode==='replay'} onclick={()=>{playbackMode='replay';workspace='Map';}} title="Smooth replay: precomputed cached snapshots, no perception/mapping per frame.">Smooth Replay</button></div>{#if replayActive()}<span class="replay-badge" title="Cached snapshots presented at the replay rate. This is NOT processing throughput.">REPLAY · CACHED · {status.replay?.fps??replayFps} FPS</span>{/if}<div class="playback-buttons"><button title={replayActive()?'Restart replay from frame 0':'Reset map'} disabled={!playbackEnabled()} aria-label="Reset map" onclick={()=>replayActive()?command('seek',{index:0}):command('reset')}><Icon name="restart" size={18}/></button><button class="play-button" disabled={!playbackEnabled()} aria-label={playbackRunning()?'Pause replay':'Play replay'} onclick={togglePlayback}><Icon name={playbackRunning()?'pause':'play'} size={18}/></button><button title="Step frame" disabled={!playbackEnabled()} aria-label="Next frame" onclick={()=>command('step')}><Icon name="next" size={18}/></button></div><div class="timeline"><div><span>FRAME {format(status.index,0)}</span><span>{format(status.frames,0)} frames</span></div><input aria-label="Seek frame" type="range" min="0" max={Math.max(0,(status.frames??1)-1)} value={status.index??0} oninput={event=>seekIndex=Number(event.currentTarget.value)} onchange={()=>command('seek',{index:seekIndex})} disabled={!playbackEnabled()}/></div><select disabled={!playbackEnabled()} aria-label="Playback speed" value={status.speed??1} onchange={event=>command('speed',{speed:Number(event.currentTarget.value)})}>{#each (replayActive()?[.5,1,2]:[.25,.5,1,2,4,8]) as speed}<option value={speed}>{speed}×</option>{/each}</select><select disabled={!playbackEnabled()||replayActive()} aria-label="Mapping policy" title={replayActive()?'Policy is fixed by the replay cache — close the replay to change it.':POLICY_SWITCH_NOTE} value={status.policy??'distance_lod'} onchange={event=>command('policy',{policy:event.currentTarget.value})}>{#each policies as policy}<option value={policy}>{labels[policy]}</option>{/each}</select></div>
    {#if playbackMode==='replay'&&!replayActive()}<div class="replay-setup" role="group" aria-label="Smooth replay setup"><input aria-label="Replay cache path" placeholder="data/cache/replays/…​.veyra-replay" bind:value={replayPath}/><select aria-label="Replay rate" bind:value={replayFps}>{#each [15,30,60] as fps}<option value={fps}>{fps} FPS</option>{/each}</select><button class="primary" disabled={replayBusy||!replayPath} onclick={openReplay}>{replayBusy?'Opening…':'Open replay'}</button><button disabled={replayBusy} onclick={demoPlayback} title="Presentation preset only: 30 FPS, driver camera, 5-scan accumulation. Never changes mapping/perception.">Demo preset</button></div>{/if}
-   {#if replayActive()}<div class="replay-strip" role="status"><span>Replay {status.replay?.position??status.index}/{format(status.replay?.frames??status.frames,0)} · {status.replay?.dataset??''} {status.replay?.sequence??''} · policy {status.replay?.policy??''}</span><span>Prefetch {status.replay?.prefetch_frames??0} frames · underruns {status.replay?.underruns??0}</span><button onclick={demoPlayback}>Demo preset</button><button onclick={closeReplay}>Back to Live</button></div>{/if}
+   {#if replayActive()}<div class="replay-strip" role="status"><span>Replay {status.replay?.position??status.index}/{format(status.replay?.frames??status.frames,0)} · {status.replay?.dataset??''} {status.replay?.sequence??''} · policy {status.replay?.policy??''}</span><span>Prefetch {status.replay?.prefetch_frames??0} frames · underruns {status.replay?.underruns??0}</span><label>Replay rate <select aria-label="Replay rate" disabled={busy||replayBusy} value={status.replay?.fps??replayFps} onchange={event=>setReplayRate(Number(event.currentTarget.value))}>{#each [15,30,60] as fps}<option value={fps}>{fps} FPS</option>{/each}</select></label><button onclick={demoPlayback}>Demo preset</button><button onclick={closeReplay}>Back to Live</button></div>{/if}
    <div class="metric-strip">
     <div title={replayActive()?'Recorded processing rate from cache build — NOT live throughput. Live processing is N/A during replay.':'Completed backend frame throughput'}><span>Processing{#if replayActive()} · RECORDED{/if}</span><b>{replayActive()?'N/A DURING REPLAY':proc.label}</b><small>{replayActive()?'recorded during cache build':proc.sub}</small></div>
     <div title={replayActive()?'Cached snapshots presented per second (presentation rate, not compute).':'Latest measured C++ map-update latency'}><span>{replayActive()?'Replay FPS':'Map update'}</span><b>{replayActive()?format(status.replay?.fps??replayFps,0):format(telemetry.latency_ms?.mapping,2)+(telemetry.latency_ms?.mapping!=null?' ms':'')}</b></div>

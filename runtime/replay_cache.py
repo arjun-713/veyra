@@ -34,6 +34,7 @@ import hashlib
 import json
 import struct
 import subprocess
+import threading
 import time
 from pathlib import Path
 
@@ -379,6 +380,13 @@ class ReplayReader:
             return 0
         return self.disk_bytes() // len(self._entries)
 
+    def frame_bytes(self, position: int) -> int:
+        """Encoded metadata + payload bytes, known before reading a blob."""
+        if not 0 <= position < len(self._entries):
+            raise ReplayError(f"replay position {position} out of range")
+        entry = self._entries[position]
+        return entry[1] + entry[2]
+
     def close(self) -> None:
         self._stream.close()
 
@@ -407,6 +415,136 @@ class ReplayReader:
         if not isinstance(metadata, dict):
             raise ReplayError("replay frame metadata must be an object")
         return metadata, payload_bytes
+
+
+class ReplayPrefetch:
+    """One reader-owning worker; control/tick never wait on speculative I/O.
+
+    The worker has its own file handle so synchronous seek/step reads cannot
+    race its seek/read cursor. Close cancels admission immediately; an ongoing
+    OS read finishes before the worker closes its own reader. The byte cap
+    includes encoded bytes being read, not Python object/allocator overhead.
+    """
+
+    def __init__(self, reader: ReplayReader, *, max_frames: int, max_bytes: int):
+        self._reader = reader
+        self._max_frames = max_frames
+        self._max_bytes = max_bytes
+        self._condition = threading.Condition()
+        self._start: int | None = None
+        self._closed = False
+        self._frames: dict[int, tuple[dict, bytes]] = {}
+        self._errors: dict[int, ReplayError] = {}
+        self._bytes = 0
+        self._in_flight_bytes = 0
+        self._thread = threading.Thread(
+            target=self._run, name="veyra-replay-prefetch", daemon=True
+        )
+        self._thread.start()
+
+    def request(self, position: int) -> None:
+        """Keep only the bounded window beginning at the next wanted frame."""
+        with self._condition:
+            self._start = position
+            end = min(len(self._reader), position + self._max_frames)
+            for key in list(self._frames):
+                if not position <= key < end:
+                    del self._frames[key]
+                    self._bytes -= self._reader.frame_bytes(key)
+            self._errors = {
+                key: error
+                for key, error in self._errors.items()
+                if position <= key < end
+            }
+            self._condition.notify_all()
+
+    def take(self, position: int) -> tuple[dict, bytes] | None:
+        """Take a ready frame or return immediately; errors fail at consumption."""
+        with self._condition:
+            if position in self._errors:
+                raise self._errors[position]
+            frame = self._frames.pop(position, None)
+            if frame is not None:
+                self._bytes -= self._reader.frame_bytes(position)
+                self._condition.notify_all()
+            return frame
+
+    def status(self) -> dict:
+        with self._condition:
+            return {
+                "prefetch_frames": len(self._frames),
+                "prefetch_bytes": self._bytes,
+                "prefetch_in_flight_bytes": self._in_flight_bytes,
+            }
+
+    def close(self) -> None:
+        with self._condition:
+            self._closed = True
+            self._frames.clear()
+            self._errors.clear()
+            self._bytes = 0
+            self._condition.notify_all()
+
+    def _run(self) -> None:
+        try:
+            while True:
+                with self._condition:
+                    while True:
+                        if self._closed:
+                            return
+                        position = None
+                        if self._start is not None:
+                            end = min(len(self._reader), self._start + self._max_frames)
+                            position = next(
+                                (
+                                    key
+                                    for key in range(self._start, end)
+                                    if key not in self._frames
+                                    and key not in self._errors
+                                ),
+                                None,
+                            )
+                        if position is not None:
+                            size = self._reader.frame_bytes(position)
+                            if size > self._max_bytes:
+                                self._errors[position] = ReplayError(
+                                    f"cached frame {position} exceeds prefetch byte budget"
+                                )
+                                continue
+                            # A backward seek may retain far-ahead frames inside
+                            # the wider frame-count window. Give the earliest
+                            # missing frame priority when the byte cap is full.
+                            for key in sorted(self._frames, reverse=True):
+                                if (
+                                    self._bytes + size <= self._max_bytes
+                                    or key <= position
+                                ):
+                                    break
+                                del self._frames[key]
+                                self._bytes -= self._reader.frame_bytes(key)
+                            if self._bytes + size <= self._max_bytes:
+                                self._in_flight_bytes = size
+                                break
+                        self._condition.wait()
+                frame = None
+                error = None
+                try:
+                    frame = self._reader.read_frame(position)
+                except Exception as cause:  # noqa: BLE001 - fail at the requested frame.
+                    error = ReplayError(f"cached frame {position} unreadable: {cause}")
+                with self._condition:
+                    self._in_flight_bytes = 0
+                    if self._closed:
+                        return
+                    if self._start <= position < self._start + self._max_frames:
+                        if error is not None:
+                            self._errors[position] = error
+                        else:
+                            self._frames[position] = frame
+                            self._bytes += size
+                    self._condition.notify_all()
+        finally:
+            self._reader.close()
 
 
 def default_cache_path(

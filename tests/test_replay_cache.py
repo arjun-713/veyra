@@ -1,12 +1,15 @@
 """Replay cache schema, provenance, ordering and corruption tests."""
 
 import tempfile
+import threading
+import time
 import unittest
 from pathlib import Path
 
 from runtime.replay_cache import (
     REPLAY_SCHEMA,
     ReplayError,
+    ReplayPrefetch,
     ReplayReader,
     ReplayWriter,
     build_header,
@@ -202,6 +205,88 @@ class ReplayCacheTests(unittest.TestCase):
         ):
             self.assertIn(key, header)
         self.assertEqual(header["replay_schema"], REPLAY_SCHEMA)
+
+    def test_prefetch_retarget_discards_in_flight_frame_and_reclaims_bytes(self):
+        """Seeking while disk I/O runs must discard old data and exact byte costs."""
+        with tempfile.TemporaryDirectory() as directory:
+            path, _, _ = self.write_cache(directory, count=6)
+            reader = ReplayReader(path)
+            frame_size = reader._entries[0][1] + reader._entries[0][2]
+            reading = threading.Event()
+            release = threading.Event()
+            original = reader.read_frame
+
+            def slow_first(position):
+                if position == 0:
+                    reading.set()
+                    release.wait(2)
+                return original(position)
+
+            reader.read_frame = slow_first
+            prefetch = ReplayPrefetch(reader, max_frames=2, max_bytes=2 * frame_size)
+            try:
+                prefetch.request(0)
+                self.assertTrue(reading.wait(1))
+                self.assertEqual(
+                    prefetch.status()["prefetch_in_flight_bytes"], frame_size
+                )
+                prefetch.request(4)
+                release.set()
+                deadline = time.perf_counter() + 1
+                while prefetch.status()["prefetch_frames"] != 2:
+                    if time.perf_counter() > deadline:
+                        self.fail("prefetch did not fill the new seek window")
+                    time.sleep(0.001)
+                self.assertIsNone(prefetch.take(0))
+                self.assertEqual(prefetch.status()["prefetch_bytes"], 2 * frame_size)
+                # Advancing the window evicts frame 4 with its full encoded cost.
+                prefetch.request(5)
+                self.assertEqual(prefetch.status()["prefetch_bytes"], frame_size)
+                metadata, payload = prefetch.take(5)
+                self.assertEqual(metadata["index"], 5)
+                self.assertEqual(payload, bytes(204))
+                self.assertEqual(prefetch.status()["prefetch_bytes"], 0)
+            finally:
+                release.set()
+                prefetch.close()
+                prefetch._thread.join(1)
+                self.assertFalse(prefetch._thread.is_alive())
+                self.assertTrue(reader._stream.closed)
+
+    def test_backward_seek_prioritizes_missing_near_frame_when_byte_budget_full(self):
+        """Retained future frames must not starve an earlier requested frame."""
+        with tempfile.TemporaryDirectory() as directory:
+            path, _, _ = self.write_cache(directory, count=6)
+            reader = ReplayReader(path)
+            frame_size = reader._entries[0][1] + reader._entries[0][2]
+            prefetch = ReplayPrefetch(reader, max_frames=64, max_bytes=2 * frame_size)
+            try:
+                prefetch.request(4)
+                deadline = time.perf_counter() + 1
+                while prefetch.status()["prefetch_frames"] != 2:
+                    if time.perf_counter() > deadline:
+                        self.fail("prefetch did not warm frames 4 and 5")
+                    time.sleep(0.001)
+                # The new 64-frame window still includes both old frames, but
+                # their bytes must yield to frame 1 at the start of the window.
+                prefetch.request(1)
+                deadline = time.perf_counter() + 0.5
+                frame = None
+                while frame is None and time.perf_counter() < deadline:
+                    frame = prefetch.take(1)
+                    time.sleep(0.001)
+                self.assertIsNotNone(
+                    frame, "future frames exhausted the budget before frame 1"
+                )
+                self.assertEqual(frame[0]["index"], 1)
+                status = prefetch.status()
+                self.assertLessEqual(
+                    status["prefetch_bytes"] + status["prefetch_in_flight_bytes"],
+                    2 * frame_size,
+                )
+            finally:
+                prefetch.close()
+                prefetch._thread.join(1)
 
 
 if __name__ == "__main__":
