@@ -7,6 +7,7 @@
  import {ScanHistory,colorInput,ACCUMULATION_POINT_CAPACITY,HISTORY_STRIDE} from './accumulation';
  import {decodePhysicalLayers,type WireFrame,type Json} from '../core';
  import {inspectorFromRow} from './cell-lookup';
+ import {createChaseState,observePose,chaseTargets,chaseAlpha,resetChase} from './chase-camera';
  let {frame=null,mode='semantic',showPoints=true,showCells=true,boundaries=false,view='orbit',follow=false,accumulate=1,showRings=false,selectedCell=null,onStats=()=>{},onInspect=()=>{}}=$props<{frame:WireFrame|null;mode:string;showPoints:boolean;showCells:boolean;boundaries:boolean;view:string;follow:boolean;accumulate?:number;showRings?:boolean;selectedCell?:{x:number;y:number;z:number;size:number}|null;onStats?:(value:Json)=>void;onInspect?:(value:Json)=>void}>();
  let host:HTMLDivElement,ready=$state(false),failure=$state('');
  let renderer:THREE.WebGLRenderer,scene:THREE.Scene,camera:THREE.PerspectiveCamera,controls:OrbitControls;
@@ -20,6 +21,9 @@
  // Reusable per-frame scratch (module scope — never allocated in update()).
  const cellRow=new Float32Array(17),pointScratch=new Float32Array(17);
  const followTarget=new THREE.Vector3(),followDelta=new THREE.Vector3();
+ // Driver-view chase camera: pose observed every frame (so switching to
+ // driver is instant), eased toward in the draw loop, snapped on reset.
+ const chase=createChaseState(),chaseOut=new Float64Array(6),chasePos=new THREE.Vector3(),chaseLook=new THREE.Vector3();let chaseReady=false,chaseSnap=true;
  let lastLayersRef:Record<string,string>|null=null,lastLayerKey='';
  // Payload sections are little-endian float32 at 4-byte offsets: on
  // little-endian hosts one aligned zero-copy view replaces a per-float
@@ -36,7 +40,7 @@
  let lastGeneration=-1,lastIndex=-1,inspectionFrame:WireFrame|null=null;
  function update(){
   if(!ready)return;points.visible=showPoints;mesh.visible=showCells;(mesh.material as THREE.MeshBasicMaterial).wireframe=boundaries;
-  if(!frame){pointGeo.setDrawRange(0,0);mesh.count=0;cellDataCount=0;inspectionFrame=null;lastGeneration=-1;lastIndex=-1;history.clear();return;}
+  if(!frame){pointGeo.setDrawRange(0,0);mesh.count=0;cellDataCount=0;inspectionFrame=null;lastGeneration=-1;lastIndex=-1;history.clear();resetChase(chase);chaseReady=false;return;}
   const meta=frame.metadata;
   if(meta.generation<lastGeneration||(meta.generation===lastGeneration&&meta.index<lastIndex))return;
   lastGeneration=meta.generation;lastIndex=meta.index;
@@ -74,7 +78,9 @@
   // Bounds are only needed to raycast a click; Three recomputes them lazily.
   mesh.boundingSphere=null;
   onStats({status:'available',source_points:meta.n_points??meta.points.count,source_cells:meta.total_leaves??meta.cells.count,wire_cells:meta.cells.count,rendered_points:history.pointCount,accumulated_scans:history.frameCount,rendered_cells:cellCount,sampling_active:clamped.truncated||(meta.n_points??0)>pointCount||(meta.total_leaves??0)>cellCount});
-  if(follow&&meta.pose?.length===16){followTarget.set(meta.pose[3],meta.pose[11],-meta.pose[7]);followDelta.subVectors(followTarget,controls.target);camera.position.add(followDelta);controls.target.copy(followTarget);}
+  if(meta.pose?.length===16){if(observePose(chase,meta.generation,meta.index,meta.pose))chaseSnap=true;chaseTargets(chase,chaseOut);chasePos.set(chaseOut[0],chaseOut[1],chaseOut[2]);chaseLook.set(chaseOut[3],chaseOut[4],chaseOut[5]);chaseReady=true;}
+  // Driver view chases the vehicle itself; follow only translates other views.
+  if(follow&&view!=='driver'&&meta.pose?.length===16){followTarget.set(meta.pose[3],meta.pose[11],-meta.pose[7]);followDelta.subVectors(followTarget,controls.target);camera.position.add(followDelta);controls.target.copy(followTarget);}
   // Range rings sit on the vehicle, through the same world->display mapping.
   if(rings){rings.visible=!!showRings;if(meta.pose?.length===16){rings.position.set(meta.pose[3],meta.pose[11]+0.05,-meta.pose[7]);}}
  }
@@ -136,7 +142,7 @@
   highlight.visible=true;
  }
  $effect(()=>{const scans=Math.max(1,Math.round(accumulate));untrack(()=>{history.setWindow(scans);if(ready&&frame)paintPoints(true,frame.metadata.layers??{});});});
- $effect(()=>{if(!ready)return;const target=controls.target.clone();camera.up.set(0,1,0);if(view==='top'){camera.position.copy(target).add(new THREE.Vector3(0,100,.01));}else if(view==='driver'){camera.position.copy(target).add(new THREE.Vector3(0,3,8));}else camera.position.copy(target).add(new THREE.Vector3(-32,25,36));controls.update();});
+ $effect(()=>{if(!ready)return;const target=controls.target.clone();camera.up.set(0,1,0);if(view==='top'){camera.position.copy(target).add(new THREE.Vector3(0,100,.01));}else if(view==='driver'){chaseSnap=true;if(!chaseReady)camera.position.copy(target).add(new THREE.Vector3(0,3,8));}else camera.position.copy(target).add(new THREE.Vector3(-32,25,36));controls.update();});
  onMount(()=>{
   try{
    renderer=new THREE.WebGLRenderer({antialias:true,preserveDrawingBuffer:true});renderer.setPixelRatio(Math.min(devicePixelRatio,1.75));host.appendChild(renderer.domElement);
@@ -164,8 +170,10 @@
    locator.frustumCulled=false;highlight.add(locator);
    highlight.visible=false;highlight.frustumCulled=false;scene.add(highlight);
    const resize=new ResizeObserver(()=>{const w=host.clientWidth,h=host.clientHeight;renderer.setSize(w,h);camera.aspect=w/h;camera.updateProjectionMatrix();});resize.observe(host);
-   let animation=0,frames=0,last=performance.now(),duration=0;
-   const draw=()=>{animation=requestAnimationFrame(draw);const start=performance.now();controls.update();renderer.render(scene,camera);duration+=performance.now()-start;frames++;if(start-last>1000){onStats({fps:frames*1000/(start-last),latency_ms:duration/frames,entities:mesh.count+pointGeo.drawRange.count});last=start;frames=0;duration=0;}};draw();
+   let animation=0,frames=0,last=performance.now(),duration=0,previous=last;
+   const draw=()=>{animation=requestAnimationFrame(draw);const start=performance.now();const dt=Math.min(.25,(start-previous)/1000);previous=start;
+    if(view==='driver'&&chaseReady){if(chaseSnap){camera.position.copy(chasePos);controls.target.copy(chaseLook);chaseSnap=false;}else{const a=chaseAlpha(dt);camera.position.lerp(chasePos,a);controls.target.lerp(chaseLook,a);}}
+    controls.update();renderer.render(scene,camera);duration+=performance.now()-start;frames++;if(start-last>1000){onStats({fps:frames*1000/(start-last),latency_ms:duration/frames,entities:mesh.count+pointGeo.drawRange.count});last=start;frames=0;duration=0;}};draw();
    const pick=(event:MouseEvent)=>{const rect=host.getBoundingClientRect();const ray=new THREE.Raycaster();ray.setFromCamera(new THREE.Vector2((event.clientX-rect.left)/rect.width*2-1,-(event.clientY-rect.top)/rect.height*2+1),camera);const hit=ray.intersectObject(mesh)[0];if(hit?.instanceId!==undefined&&hit.instanceId<cellDataCount){const inspected=inspectorFromRow(cellData.subarray(hit.instanceId*17,hit.instanceId*17+17));onInspect({...inspected,physical_layers:inspectionFrame?decodePhysicalLayers(inspectionFrame,hit.instanceId):null});}};
    host.addEventListener('click',pick);
    const lost=(event:Event)=>{event.preventDefault();failure='WebGL context lost. Switch workspace and back, or reload the window to restore rendering — mapping continues in the backend.';onStats({status:'context_lost'});};

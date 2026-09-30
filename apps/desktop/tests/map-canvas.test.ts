@@ -107,11 +107,31 @@ test('empty map uploads no instance buffer tail',{skip:!chrome,timeout:15000},as
 
 test('follow translates the camera without resetting its offset',{skip:!chrome,timeout:15000},async()=>{
  await evaluate('canvasProbe.clear()');
- await evaluate('canvasProbe.settings({follow:true,view:"driver"})');
+ await evaluate('canvasProbe.settings({follow:true,view:"orbit"})');
  const first=await evaluate('canvasProbe.present(0)');
  const next=await evaluate('canvasProbe.present(1)');
  assert.ok(Math.abs(next.camera[0]-first.camera[0]-1)<1e-6);
  assert.ok(Math.abs(next.camera[1]-first.camera[1])<1e-6);
  assert.ok(Math.abs(next.camera[2]-first.camera[2])<1e-6);
+ assert.deepEqual(errors,[]);
+});
+
+test('driver view chases the vehicle along its travel direction, then orbit is restored',{skip:!chrome,timeout:15000},async()=>{
+ await evaluate('canvasProbe.clear()');
+ await evaluate('canvasProbe.settings({follow:false,view:"driver"})');
+ // SemanticPOSS-like pose: sensor x-axis points -world x while driving +world y.
+ const pose=(y:number)=>JSON.stringify({pose:[-1,0,0,0,0,-1,0,y,0,0,1,0,0,0,0,1]});
+ const first=await evaluate(`canvasProbe.present(0,2,${pose(0)})`);
+ assert.deepEqual(first.camera.map((v:number)=>Math.round(v*1e6)/1e6),[10,4,0],'first frame snaps behind the fallback sensor axis');
+ await evaluate(`canvasProbe.present(1,2,${pose(1)})`);
+ for(let i=0;i<30;i++)await evaluate('canvasProbe.settle()');
+ const chased=(await evaluate('canvasProbe.snapshot')).camera as number[];
+ // Heading +world y -> camera 10 m behind at world y=-9 -> display z=+9.
+ assert.ok(Math.hypot(chased[0],chased[1]-4,chased[2]-9)<.1,`camera not behind vehicle: ${chased}`);
+ const orbit=(await evaluate('canvasProbe.settings({view:"orbit"})')).camera as number[];
+ for(let i=0;i<5;i++)await evaluate('canvasProbe.settle()');
+ const still=(await evaluate('canvasProbe.snapshot')).camera as number[];
+ assert.ok(Math.hypot(still[0]-orbit[0],still[1]-orbit[1],still[2]-orbit[2])<1e-3,'orbit view is no longer driven by the chase camera');
+ assert.ok(Math.hypot(orbit[0]-chased[0],orbit[2]-chased[2])>20,'orbit view re-places the camera');
  assert.deepEqual(errors,[]);
 });

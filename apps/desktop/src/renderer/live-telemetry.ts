@@ -48,6 +48,33 @@ export function telemetryChartSample(event: Json): LiveTelemetrySample | null {
   };
 }
 
+// Smooth Replay: chart values RECORDED during cache build, never the replay
+// presentation rate (replay_fps / replay_effective_fps is not throughput).
+// The x axis is wall-clock seconds since the first replay sample (originS),
+// so a looping replay stays one continuous trailing window.
+export function replayChartSample(event: Json, originS: number): LiveTelemetrySample | null {
+  if (event?.replay !== true) return null;
+  const timestamp = finite(event.timestamp);
+  const origin = finite(originS);
+  if (timestamp === null || origin === null || timestamp < origin) return null;
+  const recorded = event.recorded_telemetry ?? {};
+  const metrics = recorded.map_metrics ?? {};
+  const latencyNs = metrics.map_update_latency_ns ?? {};
+  const rssBytes = finite(metrics.measured_rss_bytes);
+  const p95Ns = finite(latencyNs.count) !== null && latencyNs.count >= 20 ? finite(latencyNs.p95) : null;
+  return {
+    elapsedMs: (timestamp - origin) * 1000,
+    frame: finite(event.index),
+    fps: finite(metrics.fps),
+    e2eP95Ms: null,
+    backendRssMb: rssBytes === null ? null : rssBytes / 1048576,
+    mapperP50Ms: finite(recorded.map_update_ms),
+    mapperP95Ms: p95Ns === null ? null : p95Ns / 1e6,
+    perceptionMs: finite(recorded.perception_timings_ms?.total),
+    activeCells: finite(recorded.active_cells),
+  };
+}
+
 export class LiveTelemetryHistory {
   private rows: LiveTelemetrySample[] = [];
 
