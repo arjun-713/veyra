@@ -6,6 +6,8 @@ export const classNames=['Unknown','Car','Bicycle','Motorcycle','Truck','Other v
 export const datasetFormats=[['generic','Generic manifest'],['semanticposs','SemanticPOSS'],['semantickitti','SemanticKITTI'],['rellis3d','RELLIS-3D']] as const;
 export interface DashboardEvent {time:number;message:string;kind:string}
 export function defaultSessionConfig():Json{return defaultRuntimeConfig();}
+// Motion is hidden until temporal evidence is validated; flip to re-enable.
+export const MOTION_FEATURE_ENABLED=false;
 export function evidenceAvailable(value:unknown){return typeof value==='string'&&value.length>0&&!['unavailable','disabled','skipped','invalid'].includes(value);}
 export function profileConfig(current:Json,name:string):Json{
  if(name==='LowResource'){const low=defaultRuntimeConfig();return {...current,preset:name,map:{...current.map,...low.map,policy:current.map?.policy??low.map.policy},playback:{...current.playback,...low.playback},visualization:low.visualization};}
@@ -17,7 +19,7 @@ export function layerUnavailable(frame:WireFrame|null,mode:string){return ['grou
 export function perceptionStages(frame:WireFrame|null){
  const status=frame?.metadata.pipeline_status??{};
  const timings=frame?.metadata.perception_timings_ms??{};
- return [['Semantic','semantic'],['Ground','ground'],['Terrain','terrain'],['Temporal','temporal']].map(([label,key])=>({label,status:status[key]??'unavailable',latency:typeof timings[key]==='number'?timings[key]:null}));
+ return [['Semantic','semantic'],['Ground','ground'],['Terrain','terrain'],...(MOTION_FEATURE_ENABLED?[['Temporal','temporal']]:[])].map(([label,key])=>({label,status:status[key]??'unavailable',latency:typeof timings[key]==='number'?timings[key]:null}));
 }
 export function mapActivity(telemetry:Json):[string,unknown][]{return [['Active cells',telemetry.map?.active_cells],['Logical bytes',telemetry.map?.logical_bytes],['Allocated bytes',telemetry.map?.allocated_bytes],['Topology changes',telemetry.map?.topology_changes],['Splits / second',telemetry.map?.splits_per_second],['Merges / second',telemetry.map?.merges_per_second]];}
 export const MEMORY_DOMAIN_NOTE='Live process RSS (OS), map logical/allocated bytes (C++ snapshot), and benchmark peak RSS (harness) measure different domains — do not compare across tables.';
@@ -246,7 +248,7 @@ export function inspectorRows(cell:Json):InspectorRow[]{
   {key:'semconf',label:'Semantic confidence',value:f(cell.semantic_confidence),hint:'0–1, unknown class is 0'},
   {key:'ground',label:'Ground evidence',value:f(cell.ground_evidence),hint:'Positive = ground support'},
   {key:'trav',label:'Traversability',value:traversabilityLabel(cell.drivable_evidence),hint:'Unknown is never drivable'},
-  {key:'motion',label:'Motion',value:motionLabel(cell.motion),hint:'From temporal tracking'},
+  ...(MOTION_FEATURE_ENABLED?[{key:'motion',label:'Motion',value:motionLabel(cell.motion),hint:'From temporal tracking'}]:[]),
   {key:'quality',label:'Observation quality',value:f(cell.quality),hint:'Gates UtilityLOD promotion'},
   {key:'utility',label:'Utility score',value:f(cell.utility),hint:'Promotion signal 0–1'},
   ...(['ground','obstacle','overhead'] as const).flatMap(name=>{

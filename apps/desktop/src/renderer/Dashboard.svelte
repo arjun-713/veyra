@@ -1,6 +1,6 @@
 <script lang="ts">
  import MapCanvas from './MapCanvas.svelte';import Icon from './Icon.svelte';
- import {comparisonMetrics,gateStatistic,MEMORY_DOMAIN_NOTE,MIN_SAMPLES,processingDisplay,summarizeVisual,type DashboardEvent} from './dashboard';
+ import {comparisonMetrics,gateStatistic,MEMORY_DOMAIN_NOTE,MOTION_FEATURE_ENABLED,MIN_SAMPLES,processingDisplay,summarizeVisual,type DashboardEvent} from './dashboard';
  import {processRss} from './session';
  import {POLICY_COLORS} from './benchmark-quality';
  import {sessionActive} from './setup';
@@ -13,7 +13,7 @@
  let rss=$derived(processRss(telemetry.processes??[]));
  let storyLayers=$derived(frame?.metadata.layers??{});
  const storyDot=(v:string)=>v==='available'||v==='model'||v==='ground_truth'?'ok':v==='unavailable'||v==='disabled'||!v?'off':'warn';
- let storySteps=$derived([['Raw LiDAR',frame?'live':'empty',frame?(typeof frame.metadata.n_points==='number'?`${frame.metadata.n_points.toLocaleString()} pts`:'frame live'):status.frames?'waiting':'no dataset'],['Perception',storyDot(storyLayers.semantic),storyLayers.semantic??'—'],['Terrain',storyDot(storyLayers.terrain),storyLayers.terrain??'—'],['Motion',storyDot(storyLayers.motion),storyLayers.motion??'—'],['Adaptive 2.5D',(frame?.metadata.cells?.count??0)>0?'live':'empty',telemetry.map?.active_cells!=null?`${telemetry.map.active_cells.toLocaleString()} cells`:'—'],['Evidence',report?'ready':'none',report?'benchmark loaded':'run or open a report']]);
+ let storySteps=$derived([['Raw LiDAR',frame?'live':'empty',frame?(typeof frame.metadata.n_points==='number'?`${frame.metadata.n_points.toLocaleString()} pts`:'frame live'):status.frames?'waiting':'no dataset'],['Perception',storyDot(storyLayers.semantic),storyLayers.semantic??'—'],['Terrain',storyDot(storyLayers.terrain),storyLayers.terrain??'—'],...(MOTION_FEATURE_ENABLED?[['Motion',storyDot(storyLayers.motion),storyLayers.motion??'—']]:[]),['Adaptive 2.5D',(frame?.metadata.cells?.count??0)>0?'live':'empty',telemetry.map?.active_cells!=null?`${telemetry.map.active_cells.toLocaleString()} cells`:'—'],['Evidence',report?'ready':'none',report?'benchmark loaded':'run or open a report']]);
 
  let proc=$derived(processingDisplay(status,telemetry));
  let e2eCount=$derived(telemetry.latency_ms?.end_to_end?.count);

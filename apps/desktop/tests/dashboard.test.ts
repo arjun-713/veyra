@@ -1,5 +1,5 @@
 import {test} from 'node:test';import assert from 'node:assert/strict';
-import {comparisonMetrics,datasetFormats,defaultSessionConfig, FIRST_CPU_SAMPLE_NOTE, clampRenderCounts, formatRenderAge, inputTargetFps,isRenderStale,layerUnavailable,mapActivity,MEMORY_DOMAIN_NOTE,perceptionStages,profileConfig,recordEvent, renderAgeMs,summarizeVisual, RENDER_CAPACITY,inspectorRows,lodLabel,resolutionLabel,datasetCapabilities,sessionPhase,GLOSSARY} from '../src/renderer/dashboard.ts';
+import {MOTION_FEATURE_ENABLED,comparisonMetrics,datasetFormats,defaultSessionConfig, FIRST_CPU_SAMPLE_NOTE, clampRenderCounts, formatRenderAge, inputTargetFps,isRenderStale,layerUnavailable,mapActivity,MEMORY_DOMAIN_NOTE,perceptionStages,profileConfig,recordEvent, renderAgeMs,summarizeVisual, RENDER_CAPACITY,inspectorRows,lodLabel,resolutionLabel,datasetCapabilities,sessionPhase,GLOSSARY} from '../src/renderer/dashboard.ts';
 test('comparison requires measured matching policy reports and never fabricates reduction',()=>{
  const reduction=(report:any,policy:string)=>comparisonMetrics(report).rows.find(row=>row.policy===policy)!.memoryReduction;
  assert.ok(comparisonMetrics(null).rows.every(row=>row.memory===null&&row.memoryReduction===null));
@@ -57,7 +57,7 @@ test('semantic layer flags its n/a badge when semantic evidence is missing',()=>
 });
 test('perception stage summary keeps backend state distinct from timing',()=>{
  const rows=perceptionStages({metadata:{pipeline_status:{semantic:'model',ground:'available',terrain:'unavailable',temporal:'skipped'},perception_timings_ms:{semantic:12.5,ground:3.2}},payload:new Uint8Array()});
- assert.deepEqual(rows,[{label:'Semantic',status:'model',latency:12.5},{label:'Ground',status:'available',latency:3.2},{label:'Terrain',status:'unavailable',latency:null},{label:'Temporal',status:'skipped',latency:null}]);
+ assert.deepEqual(rows,[{label:'Semantic',status:'model',latency:12.5},{label:'Ground',status:'available',latency:3.2},{label:'Terrain',status:'unavailable',latency:null},...(MOTION_FEATURE_ENABLED?[{label:'Temporal',status:'skipped',latency:null}]:[])]);
 });
 test('performance activity exposes measured split and merge rates',()=>{
  const activity=mapActivity({map:{splits_per_second:12.5,merges_per_second:3.25}} as any);
@@ -145,7 +145,7 @@ test('cell inspector labels every stored field and never fabricates missing evid
   const rows=inspectorRows(full);
   const byKey=Object.fromEntries(rows.map(r=>[r.key,r.value]));
   assert.equal(byKey.resolution,'5 cm');assert.equal(byKey.lod,'L0');assert.equal(byKey.count,'42');
-  assert.equal(byKey.class,'Road');assert.equal(byKey.trav,'Non-drivable');assert.equal(byKey.motion,'MOVING');
+  assert.equal(byKey.class,'Road');assert.equal(byKey.trav,'Non-drivable');assert.equal(byKey.motion,MOTION_FEATURE_ENABLED?'MOVING':undefined);
   const empty=Object.fromEntries(inspectorRows({}).map(r=>[r.key,r.value]));
   assert.ok(Object.values(empty).every(v=>v==='Unavailable'||v==='Unknown'));
   assert.equal(empty.trav,'Unavailable');
