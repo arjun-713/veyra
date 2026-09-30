@@ -1,6 +1,6 @@
 import {test} from 'node:test';
 import assert from 'node:assert/strict';
-import {ReplayClock, PrefetchWindow, REPLAY_DEFAULT_FPS, percentile, resolveReplayFps} from '../src/renderer/replay-clock.ts';
+import {ReplayClock, PrefetchWindow, REPLAY_DEFAULT_FPS, percentile, resolveReplayFps, smoothReplayPath} from '../src/renderer/replay-clock.ts';
 import {validateCommand} from '../src/core.ts';
 
 // 488 SemanticPOSS frames at 30 FPS present as ~16.3 s of demo playback.
@@ -108,13 +108,20 @@ test('cached playback issues no processing commands',()=>{
 });
 
 test('session configuration supplies the replay rate, including 60 FPS',()=>{
- assert.equal(resolveReplayFps(60,30),60);
- assert.equal(resolveReplayFps(30,15),30);
- assert.equal(resolveReplayFps(15,30),15);
- // Non-replay rates (e.g. the live 10 FPS default) fall back to selection.
+ // The visible replay selector is authoritative even when the session has a rate.
+ assert.equal(resolveReplayFps(30,60),60);
+ assert.equal(resolveReplayFps(60,30),30);
+ assert.equal(resolveReplayFps(15,30),30);
  assert.equal(resolveReplayFps(10,30),30);
  assert.equal(resolveReplayFps(undefined,30),30);
  assert.equal(resolveReplayFps('60',30),30);
+});
+
+test('ordinary Play uses a prepared cache unless a manual path was entered',()=>{
+ assert.equal(smoothReplayPath('',{state:'ready',path:'/cache/session.veyra-replay'}),'/cache/session.veyra-replay');
+ assert.equal(smoothReplayPath(' /manual.veyra-replay ',{state:'ready',path:'/cache/session.veyra-replay'}),'/manual.veyra-replay');
+ assert.equal(smoothReplayPath('',{state:'preparing',done:10,frames:488}),null);
+ assert.equal(smoothReplayPath('',{state:'failed',error:'disk full'}),null);
 });
 
 test('60 FPS presentation clock advances every 16.667 ms',()=>{

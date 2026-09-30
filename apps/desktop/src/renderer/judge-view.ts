@@ -15,15 +15,8 @@ export interface JudgeViewSession {
   saved: ViewerDisplayState | null;
 }
 
-export function judgeViewPreset(): ViewerDisplayState {
-  return {
-    viewMode: 'map',
-    view: 'top',
-    follow: true,
-    mode: 'lod',
-    boundaries: true,
-    showRings: true,
-  };
+export function judgeViewPreset(current: ViewerDisplayState): ViewerDisplayState {
+  return {...current, mode: 'semantic', showRings: true};
 }
 
 export function initialJudgeView(): JudgeViewSession {
@@ -34,7 +27,7 @@ export function initialJudgeView(): JudgeViewSession {
 // normal Viewer state is never corrupted by the preset.
 export function enterJudgeView(current: ViewerDisplayState, session: JudgeViewSession): {state: ViewerDisplayState; session: JudgeViewSession} {
   const saved = session.saved ?? {...current};
-  return {state: judgeViewPreset(), session: {active: true, saved}};
+  return {state: judgeViewPreset(current), session: {active: true, saved}};
 }
 
 export function exitJudgeView(session: JudgeViewSession, fallback: ViewerDisplayState): {state: ViewerDisplayState; session: JudgeViewSession} {

@@ -54,6 +54,10 @@ def parse_args(argv=None):
     parser.add_argument("--count", type=int, default=488)
     parser.add_argument("--stride", type=int, default=1)
     parser.add_argument(
+        "--fps", type=int, choices=(10, 15, 30, 60), default=None,
+        help="Match the desktop session playback rate for cache compatibility.",
+    )
+    parser.add_argument(
         "--policy", default=None, help="Map policy (defaults to the preset policy)."
     )
     parser.add_argument(
@@ -85,6 +89,24 @@ def resolve_dataset_root(repo: Path, dataset: str, explicit: str | None) -> str:
     return str(repo / settings[dataset]["root"])
 
 
+def cache_playback(args, preset: dict) -> dict:
+    return {"full_sequence": True, "fps": args.fps or preset["playback"]["fps"]}
+
+
+def cache_pipeline(args) -> dict:
+    if args.perception_config:
+        return json.loads(Path(args.perception_config).read_text())
+    return {
+        "semantic": {"mode": args.semantic_mode},
+        "ground": {
+            "enabled": True,
+            "parameter_overrides": {"min_range": 0, "max_range": 100},
+        },
+        "terrain": {"enabled": True},
+        "temporal": {"enabled": False},
+    }
+
+
 def main(argv=None) -> int:
     args = parse_args(argv)
     repo = Path(args.repo).resolve()
@@ -94,19 +116,15 @@ def main(argv=None) -> int:
     cell_budget = args.cell_budget or preset["visualization"]["cell_budget"]
     policy = args.policy or preset["map"].get("policy", "distance_lod")
 
-    perception_overrides: dict = {"semantic": {"mode": args.semantic_mode}}
-    if args.perception_config:
-        perception_overrides = json.loads(Path(args.perception_config).read_text())
-
     config = validate_config(
         {
             "dataset": args.dataset,
             "dataset_root": root,
             "sequence": args.sequence,
             "preset": args.preset,
-            "pipeline": perception_overrides,
+            "pipeline": cache_pipeline(args),
             "map": {"policy": policy},
-            "playback": {"full_sequence": True},
+            "playback": cache_playback(args, preset),
             "visualization": {
                 "point_budget": point_budget,
                 "cell_budget": cell_budget,

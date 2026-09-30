@@ -24,16 +24,17 @@ const NO_ATTRIBUTION = {available: false};
 // --- Judge view state ---
 
 test('judge view enables the correct viewer state',()=>{
- const state = judgeViewPreset();
- assert.deepEqual(state, {viewMode: 'map', view: 'top', follow: true, mode: 'lod', boundaries: true, showRings: true});
+ const current = {viewMode: 'both', view: 'driver', follow: false, mode: 'terrain', boundaries: false, showRings: false};
+ const state = judgeViewPreset(current);
+ assert.deepEqual(state, {...current, mode: 'semantic', showRings: true});
 });
 
 test('entering judge view saves prior state; exiting restores it uncorrupted',()=>{
  const prior = {viewMode: 'both', view: 'orbit', follow: false, mode: 'semantic', boundaries: false, showRings: false};
  const entered = enterJudgeView(prior, initialJudgeView());
  assert.equal(entered.session.active, true);
- assert.deepEqual(entered.state, judgeViewPreset());
- const exited = exitJudgeView(entered.session, judgeViewPreset());
+ assert.deepEqual(entered.state, {...prior, showRings: true});
+ const exited = exitJudgeView(entered.session, entered.state);
  assert.deepEqual(exited.state, prior);
  assert.equal(exited.session.active, false);
  assert.equal(exited.session.saved, null);
@@ -42,9 +43,9 @@ test('entering judge view saves prior state; exiting restores it uncorrupted',()
 test('re-entering judge view keeps the original saved state',()=>{
  const prior = {viewMode: 'raw', view: 'driver', follow: true, mode: 'terrain', boundaries: true, showRings: false};
  const once = enterJudgeView(prior, initialJudgeView());
- const tweaked = {...judgeViewPreset(), follow: false};
+ const tweaked = {...once.state, follow: false};
  const twice = enterJudgeView(tweaked, once.session);
- assert.deepEqual(exitJudgeView(twice.session, judgeViewPreset()).state, prior);
+ assert.deepEqual(exitJudgeView(twice.session, twice.state).state, prior);
 });
 
 // --- Policy descriptor parsing ---

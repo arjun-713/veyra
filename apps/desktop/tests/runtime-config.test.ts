@@ -7,7 +7,7 @@ test('low-resource runtime config is the persisted desktop default',()=>{
  assert.equal(LOW_RESOURCE_PRESET,'LowResource');
  assert.equal(config.preset,LOW_RESOURCE_PRESET);
  assert.deepEqual(config.map,{policy:'distance_lod',resource_profile:'performance',governor_override:'automatic'});
- assert.deepEqual(config.playback,{fps:10,speed:1,frame_limit:30,full_sequence:false});
+ assert.deepEqual(config.playback,{fps:30,speed:1,frame_limit:30,full_sequence:true});
  assert.deepEqual(config.visualization,{point_budget:15000,cell_budget:10000,update_hz:2,max_in_flight:1});
 });
 

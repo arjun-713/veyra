@@ -213,8 +213,8 @@ class ReplayRuntimeTests(unittest.TestCase):
         finally:
             runtime.close()
 
-    def test_last_snapshot_publishes_ended_without_an_extra_tick(self):
-        """The last frame must have an ended status even without another tick."""
+    def test_last_snapshot_remains_running_until_pause(self):
+        """The last frame stays active so the next scheduled tick can loop."""
         runtime = self.make_runtime()
         try:
             with tempfile.TemporaryDirectory() as directory:
@@ -223,7 +223,7 @@ class ReplayRuntimeTests(unittest.TestCase):
                 wait_until(lambda: runtime._replay_status()["prefetch_frames"] == 1)
                 runtime.tick()
                 self.assertEqual(runtime.replay_position, 0)
-                self.assertEqual(runtime.status()["state"], "ended")
+                self.assertEqual(runtime.status()["state"], "running")
         finally:
             runtime.close()
 
@@ -295,7 +295,7 @@ class ReplayRuntimeTests(unittest.TestCase):
                         ]
                         self.assertEqual(indices, list(range(488)))
                         self.assertEqual(runtime.generation, generation)
-                        self.assertEqual(runtime.state, "ended")
+                        self.assertEqual(runtime.state, "running")
                         self.assertIsNone(runtime.last_telemetry["fps"])
                 finally:
                     runtime.close()
@@ -437,6 +437,46 @@ class ReplayRuntimeTests(unittest.TestCase):
         finally:
             runtime._replay_close_locked()
 
+    def test_worker_wait_tracks_60_fps_deadline_instead_of_20_ms_poll(self):
+        runtime = self.make_runtime()
+        try:
+            with tempfile.TemporaryDirectory() as directory:
+                self.open_replay(runtime, build_small_cache(directory), fps=60)
+                runtime._execute("start", {})
+                runtime.next_frame = 100.0 + 1 / 60
+                self.assertAlmostEqual(runtime._command_wait_timeout(100.0), 1 / 60)
+                self.assertEqual(runtime._command_wait_timeout(101.0), 0.0)
+        finally:
+            runtime._replay_close_locked()
+
+    def test_replay_deadline_does_not_accumulate_worker_lateness(self):
+        runtime = self.make_runtime()
+        try:
+            with tempfile.TemporaryDirectory() as directory:
+                self.open_replay(runtime, build_small_cache(directory), fps=60)
+                runtime._execute("start", {})
+                wait_until(lambda: runtime._replay_status()["prefetch_frames"] >= 1)
+                runtime.next_frame = 100.0
+                with mock.patch("runtime.service.time.monotonic", return_value=100.01):
+                    runtime.tick()
+                self.assertAlmostEqual(runtime.next_frame, 100.0 + 1 / 60)
+        finally:
+            runtime._replay_close_locked()
+
+    def test_replay_stall_restarts_cadence_instead_of_bursting(self):
+        runtime = self.make_runtime()
+        try:
+            with tempfile.TemporaryDirectory() as directory:
+                self.open_replay(runtime, build_small_cache(directory), fps=60)
+                runtime._execute("start", {})
+                wait_until(lambda: runtime._replay_status()["prefetch_frames"] >= 1)
+                runtime.next_frame = 100.0
+                with mock.patch("runtime.service.time.monotonic", return_value=102.0):
+                    runtime.tick()
+                self.assertAlmostEqual(runtime.next_frame, 102.0 + 1 / 60)
+        finally:
+            runtime._replay_close_locked()
+
     def test_replay_seek_is_instant_and_backward_bumps_generation(self):
         runtime = self.make_runtime()
         try:
@@ -466,6 +506,18 @@ class ReplayRuntimeTests(unittest.TestCase):
         finally:
             runtime._replay_close_locked()
 
+    def test_closing_running_replay_does_not_start_live_processing(self):
+        runtime = self.make_runtime()
+        try:
+            with tempfile.TemporaryDirectory() as directory:
+                self.open_replay(runtime, build_small_cache(directory))
+                runtime._execute("start", {})
+                runtime._execute("replay_close", {})
+                self.assertEqual(runtime.state, "unconfigured")
+                self.assertIsNone(runtime.replay_reader)
+        finally:
+            runtime._replay_close_locked()
+
     def test_replay_reaches_end_of_sequence(self):
         runtime = self.make_runtime()
         try:
@@ -478,8 +530,17 @@ class ReplayRuntimeTests(unittest.TestCase):
                 runtime.next_frame = 0
                 runtime.tick()
                 runtime.next_frame = 0
-                runtime.tick()  # past the end
-                self.assertEqual(runtime.state, "ended")
+                before = runtime.generation
+                runtime._replay_prefetch(-1)
+                wait_until(lambda: 0 in runtime._replay_prefetcher._frames)
+                runtime.tick()  # loop to the first real cached scan
+                self.assertEqual(runtime.replay_position, 0)
+                self.assertEqual(runtime.state, "running")
+                self.assertGreater(runtime.generation, before)
+                runtime._execute("pause", {})
+                runtime.next_frame = 0
+                runtime.tick()
+                self.assertEqual(runtime.replay_position, 0)
         finally:
             runtime._replay_close_locked()
 

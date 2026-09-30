@@ -132,10 +132,11 @@ test('v2 production strides decode with real point and cell sections',()=>{
  assert.equal(over.truncated,true);
  assert.equal(over.points.count,RENDER_CAPACITY);
 });
-test('new sessions use bounded low-resource rendering without limiting mapper input',()=>{
+test('new desktop sessions expose the full sequence with bounded display budgets',()=>{
  const value=defaultSessionConfig();
  assert.equal(value.playback.frame_limit,30);
- assert.equal(value.playback.full_sequence,false);
+ assert.equal(value.playback.full_sequence,true);
+ assert.equal(value.playback.fps,30);
  assert.equal(value.visualization.point_budget,15000);
  assert.equal(value.visualization.cell_budget,10000);
 });

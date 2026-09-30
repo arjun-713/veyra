@@ -18,9 +18,8 @@ labeled accordingly. Nothing is precomputed silently, scripted, or faked.
 
 ## What one click does
 
-- Map-focused view (raw points hidden so cells read clearly)
-- Top-down camera + follow-robot ON
-- LOD/resolution layer + cell boundaries + range rings ON
+- Semantic display and range rings ON
+- Camera, follow, point/cell visibility, and cell-boundary settings stay as selected
 
 Exiting restores the exact prior display state. The preset never touches
 mapping, perception, policy, or telemetry.

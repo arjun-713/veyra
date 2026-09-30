@@ -30,10 +30,16 @@ precomputed real visualization snapshot → lightweight decode → GPU buffers �
 - Dataset presentation rate: default **30 snapshots/sec** (~33.333 ms each).
   At 60 Hz that is roughly two render refreshes per LiDAR frame.
 - 488 SemanticPOSS-00 frames at 30 FPS ≈ **16.3 s** of demo playback.
-- The session configuration carries a **Playback rate** option (10 / 15 /
-  30 / **60 FPS**). When it is 15/30/60, Smooth Replay presents cached
-  snapshots at that rate (the cache itself is rate-independent); 60 FPS is
-  the optional speed mode, 30 FPS stays the demo default.
+- At 60 FPS, the same 488 frames take ≈ **8.1 s** per pass. Cached replay
+  loops through the real sequence until Pause is pressed.
+- The desktop session defaults to the full sequence at 30 FPS. After its
+  first-frame preview, Veyra prepares the full replay in the background or
+  reuses a compatible cache. Progress appears beside the controls. When it
+  reads `frames ready`, the ordinary Play button opens that cache and plays
+  until Pause; the sequence loops at the end.
+- The Playback rate selector accepts 10 / 15 / 30 / 60 FPS. Smooth Replay
+  presents at the selected 15/30/60 rate, and its rate selector can override
+  the session rate.
 - **Replay FPS is a presentation rate, NOT processing throughput.** The UI
   labels it `REPLAY · CACHED · 30 FPS`, processing reads `N/A DURING REPLAY`
   (`RECORDED` where historical values are shown), and each cached frame
@@ -49,7 +55,8 @@ sufficient disk, IPC and renderer capacity.
 
 ### Cache format (`*.veyra-replay`, schema v1)
 
-Single file, `mmap`-friendly, under git-ignored `data/cache/replays/`:
+Single file, `mmap`-friendly, under git-ignored `data/cache/replays/` for
+the CLI or `~/.cache/veyra/replays/` for automatic desktop preparation:
 
 ```
 VYRAREPL | u32 schema | u32 header_len | header JSON | u32 nframes |
@@ -66,18 +73,22 @@ config digest, perception digest, policy, semantic provider, budgets,
 protocol/viz schema versions. A policy or config mismatch invalidates the
 cache — prepare one cache per policy, or close the replay and rebuild.
 
-### Preparing a cache (once, before the demo)
+### Preparing a cache
+
+The desktop prepares automatically after a full-sequence preview and reuses
+an exact configuration match on later sessions. This may take time because
+all source frames must pass through perception and mapping once. A failed
+preparation leaves Live processing available. To prepare manually:
 
 ```bash
 python3 scripts/prepare_replay_cache.py \
   --dataset semanticposs --sequence 00 --start 0 --count 488 \
-  --policy utility_lod --preset Quality
+  --policy utility_lod --preset Quality --fps 30
 python3 scripts/verify_replay_cache.py data/cache/replays/<file>.veyra-replay
 ```
 
-Preparation runs the full live pipeline and may take a long time; that cost
-is paid once, never during playback. Progress prints `Preparing smooth
-replay… n / N`.
+The CLI prints `Preparing smooth replay… n / N`; the desktop shows the same
+count in its viewer. Generated caches are never committed to Git.
 
 ### Runtime replay commands
 

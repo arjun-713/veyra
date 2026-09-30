@@ -145,6 +145,11 @@ class ProductRuntime:
         self.replay_misses = 0
         self._replay_prefetcher = None
         self._replay_waiting_position = None
+        self._auto_replay = {"state": "idle"}
+        self._auto_replay_config = None
+        self._auto_replay_cancel = threading.Event()
+        self._auto_replay_thread = None
+        self._auto_replay_generation = 0
         self._publish_status()
 
     def _publish_status(self):
@@ -177,6 +182,7 @@ class ProductRuntime:
             "error": self.error,
             "config_digest": config_digest(self.config) if self.config else None,
             "replay": self._replay_status(),
+            "auto_replay": dict(getattr(self, "_auto_replay", {"state": "idle"})),
         }
         with self._status_lock:
             self._cached_status = status
@@ -221,6 +227,58 @@ class ProductRuntime:
             "prefetch_misses": self.replay_misses,
             **self._replay_prefetcher.status(),
         }
+
+    def _prepare_auto_replay(self) -> None:
+        """Reuse a matching cache or prepare one off the playback worker."""
+        if self._auto_replay_config is None:
+            return
+        from .auto_replay import cache_path, prepare, ready_cache
+
+        config = self._auto_replay_config
+        self._auto_replay_config = None
+        frames = self._frame_count()
+        if not frames:
+            return
+        path = cache_path(config, frames)
+        if ready_cache(path, config, frames):
+            self._auto_replay = {"state": "ready", "frames": frames, "path": str(path)}
+            self._publish_status()
+            return
+        self._auto_replay = {"state": "preparing", "done": 0, "frames": frames}
+        self._publish_status()
+        generation = self._auto_replay_generation
+        cancelled = self._auto_replay_cancel
+
+        def progress(done: int, total: int) -> None:
+            if generation != self._auto_replay_generation:
+                return
+            if done == total or done % max(1, total // 100) == 0:
+                self._auto_replay = {
+                    "state": "preparing", "done": done, "frames": total
+                }
+                self._publish_status()
+
+        def build() -> None:
+            try:
+                prepared = prepare(
+                    config, self.repo, frames, path, progress, cancelled.is_set
+                )
+                if generation == self._auto_replay_generation and not cancelled.is_set():
+                    self._auto_replay = {
+                        "state": "ready", "frames": frames, "path": str(prepared)
+                    }
+                    self._publish_status()
+            except Exception as error:  # noqa: BLE001 - report preparation failure without stopping Live.
+                if generation == self._auto_replay_generation and not cancelled.is_set():
+                    self._auto_replay = {
+                        "state": "failed", "frames": frames, "error": str(error)
+                    }
+                    self._publish_status()
+
+        self._auto_replay_thread = threading.Thread(
+            target=build, name="veyra-replay-prepare", daemon=True
+        )
+        self._auto_replay_thread.start()
 
     def _replay_open(self, args) -> dict:
         from .replay_cache import (
@@ -319,8 +377,6 @@ class ProductRuntime:
         started = time.perf_counter()
         metadata, payload = frame if frame is not None else self._replay_take(position)
         self._replay_waiting_position = None
-        if self.state == "running" and position == len(self.replay_reader) - 1:
-            self.state = "ended"
         # Stamp the live generation so stale live frames can never win over
         # the replay (and vice versa after replay closes).
         outgoing = dict(metadata)
@@ -441,9 +497,22 @@ class ProductRuntime:
             engine.close()
             raise
 
-    def _configure(self, config):
+    def _configure(self, config, *, prepare_replay=False):
         config = validate_config(config, self.repo)
         replacement = self._create_session(config)
+        self._auto_replay_cancel.set()
+        self._auto_replay_generation += 1
+        self._auto_replay_cancel = threading.Event()
+        self._auto_replay_config = (
+            copy.deepcopy(config)
+            if prepare_replay and config["playback"]["full_sequence"]
+            else None
+        )
+        self._auto_replay = (
+            {"state": "pending", "frames": replacement.status()["frames"]}
+            if self._auto_replay_config is not None
+            else {"state": "idle"}
+        )
         previous, self.session = self.session, replacement
         if previous:
             previous.close()
@@ -485,7 +554,7 @@ class ProductRuntime:
             build_pipeline(config["pipeline"], repo_root=self.repo)
             return {"config": config, "config_digest": config_digest(config)}
         if command == "configure":
-            return self._configure(args["config"])
+            return self._configure(args["config"], prepare_replay=True)
         if command == "layer":
             layer = args["layer"]
             if layer not in (
@@ -656,7 +725,7 @@ class ProductRuntime:
                 if args["policy"] not in POLICIES:
                     raise ValueError("unsupported map policy")
                 config["map"]["policy"] = args["policy"]
-            return self._configure(config)
+            return self._configure(config, prepare_replay=True)
         if command in ("step", "seek"):
             target = (
                 min(self.index + 1, self.status()["frames"] - 1)
@@ -669,6 +738,7 @@ class ProductRuntime:
                 self.generation += 1
             self.state = "paused"
             self._process(target, force_visual=True)
+            self._prepare_auto_replay()
             return None
         raise ValueError("unsupported command")
 
@@ -777,13 +847,10 @@ class ProductRuntime:
         if self.state != "running" or time.monotonic() < self.next_frame:
             return
         if self.replay_reader is not None:
-            if self.replay_position >= len(self.replay_reader) - 1:
-                self.state = "ended"
-                self._publish_status()
-                return
             started = time.monotonic()
-            target = self.replay_position + 1
-            self._replay_prefetch(self.replay_position)
+            wraps = self.replay_position >= len(self.replay_reader) - 1
+            target = 0 if wraps else self.replay_position + 1
+            self._replay_prefetch(-1 if wraps else self.replay_position)
             from .replay_cache import ReplayError
 
             try:
@@ -794,14 +861,20 @@ class ProductRuntime:
                 self._publish_status()
                 return
             if frame is None:
-                # Retry the same frame without busy-spinning or skipping it.
                 self.next_frame = started + 0.005
                 return
+            if wraps:
+                self.generation += 1
             self._process_replay(target, frame=frame)
             speed = (
                 self.config["playback"]["speed"] if self.config else self.replay_speed
             )
-            self.next_frame = started + 1 / (self.replay_fps * speed)
+            period = 1 / (self.replay_fps * speed)
+            self.next_frame += period
+            # After a stall, restart the cadence instead of bursting frames
+            # the latest-only transport would drop anyway.
+            if self.next_frame < started:
+                self.next_frame = started + period
             return
         if self.index >= self.status()["frames"] - 1:
             self.state = "ended"
@@ -925,6 +998,11 @@ class ProductRuntime:
         self._benchmark_thread.start()
         return {"state": "running"}
 
+    def _command_wait_timeout(self, now: float) -> float:
+        if self.state == "running":
+            return max(0.0, min(0.02, self.next_frame - now))
+        return 0.02
+
     def run(self):
         while not self.stopping.is_set():
             timeout = 0.02
@@ -946,6 +1024,9 @@ class ProductRuntime:
 
     def close(self):
         self.stopping.set()
+        self._auto_replay_cancel.set()
+        if self._auto_replay_thread:
+            self._auto_replay_thread.join(timeout=3)
         self._replay_close_locked()
         if self._benchmark is not None and self._benchmark.poll() is None:
             self._benchmark.terminate()

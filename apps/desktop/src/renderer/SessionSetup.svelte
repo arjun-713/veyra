@@ -89,12 +89,12 @@
         <div><span>View updates</span><strong>{number(config.visualization?.update_hz)} Hz</strong></div>
       </div>
       <label class="toggle full-sequence"><input type="checkbox" disabled={busy} checked={config.playback?.full_sequence ?? false} onchange={event => onConfig({...config, playback: {...config.playback, full_sequence: event.currentTarget.checked}})}/>Replay the full sequence</label>
-      <p class="field-help">{config.playback?.full_sequence ? 'All frames. This increases processing time and memory.' : `First ${config.playback?.frame_limit ?? 30} frames. Every point in each accepted frame still reaches the mapper.`}</p>
+      <p class="field-help">{config.playback?.full_sequence ? `All ${number(caps.frames)} frames available. Live processing still runs at measured compute speed; cached Smooth Replay presents them at the selected rate.` : `First ${config.playback?.frame_limit ?? 30} frames. Every point in each accepted frame still reaches the mapper.`}</p>
       <label for="playback-rate">Playback rate</label>
       <select id="playback-rate" value={config.playback?.fps ?? 10} disabled={busy} onchange={event => onConfig({...config, playback: {...config.playback, fps: Number(event.currentTarget.value)}})}>
         {#each [10, 15, 30, 60] as fps}<option value={fps}>{fps} FPS</option>{/each}
       </select>
-      <p class="field-help">Live tick rate — compute-bound in practice. Smooth Replay presents cached snapshots at 15/30/60 FPS when the configured rate is one of those.</p>
+      <p class="field-help">Live processing is compute bound. Cached Smooth Replay presents real snapshots at the selected 15/30/60 FPS rate.</p>
     </section>
   </div>
 
