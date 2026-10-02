@@ -20,7 +20,7 @@ struct CellStats;
 // a deferred backlog. Rasterising the scan once and asking each cell "was
 // anything measured beyond you along your own bearing?" is O(1) per cell after
 // an O(points) build, and needs none of that machinery. The approach is
-// D-Map's (HKU MaRS); see docs/prior-art.md.
+// D-Map-inspired visibility test: retain only the first return per bearing.
 //
 // Each bin stores the range of the NEAREST return that fell in it. Nearest,
 // not farthest or mean: free space may only be claimed up to the first surface

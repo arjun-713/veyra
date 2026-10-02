@@ -1,4 +1,4 @@
-# Contributing — Veyra (3-person team)
+# Contributing to Veyra
 
 ## No "works on my machine"
 

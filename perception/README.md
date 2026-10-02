@@ -1,4 +1,4 @@
-# Perception — Mallik (arjun-713)
+# Perception pipeline
 
 - `semantic/` — `SemanticProvider` interface + pretrained ONNX backends.
 - `ground/` — Patchwork++ integration, ground evidence.

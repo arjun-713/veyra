@@ -17,8 +17,8 @@ data/cache/      -> temporary local cache (LOCAL-ONLY, never committed)
   `velodyne/` + `labels/` (+ `calib.txt`, `poses.txt`). Adapter
   implementation: `semanticposs/`.
 - **SemanticKITTI v1.1** — sequential urban development/evaluation. The
-  adapter is supported by code and fixtures, but is **unvalidated locally in
-  this checkout** because no local asset is present. Root:
+  adapter supports the official layout; full local scan validation requires
+  the authenticated dataset assets. Root:
   `data/raw/semantickitti/dataset/`, with `sequences/<id>/velodyne/`, optional
   `labels/`, `poses.txt`, `times.txt`, and `calib.txt`. Use
   `datasets/download_semantickitti.sh --help` with authenticated official
@@ -30,7 +30,9 @@ data/cache/      -> temporary local cache (LOCAL-ONLY, never committed)
 
 Paths configured in `configs/datasets.yaml` (repository-relative).
 `data/` is local-only and must never be committed.
-See `docs/datasets-benchmarks.md`.
+Adapter-specific layout and metadata behavior are documented in each dataset
+directory. Generic manifest details are in `../docs/generic-dataset.md`;
+benchmark definitions are in `../docs/benchmark-contract.md`.
 
 Run `python scripts/validate_dataset_capabilities.py --dataset <name>` for a
 bounded JSON report. It exercises adapter code paths on local files, records

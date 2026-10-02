@@ -1,7 +1,6 @@
-# Map Correctness — Veyra
+# Map correctness
 
-Source: `AGENTS.md` §§6,17 and `README.md` Core Correctness Rules.
-These invariants are non-negotiable. A perf optimization that breaks
+These invariants are non-negotiable. A performance optimization that breaks
 one is not an optimization.
 
 ## Invariants
@@ -41,9 +40,8 @@ test_rolling_window, test_memory_accounting, test_near_field_protection
 
 ## Layer invariants
 
-`CellStats` carries three `HeightLayer` accumulators (ground, obstacle,
-overhead) alongside the pooled accumulator. Design and rationale:
-`docs/layered-map-design.md`.
+`CellStats` carries separate `HeightLayer` accumulators for ground, obstacle,
+and overhead. The pooled summary is derived from these layers.
 
 7. **Layer exhaustiveness** — every accepted return enters exactly one
    layer, so `ground.count + obstacle.count + overhead.count == count`.
@@ -78,17 +76,17 @@ overhead) alongside the pooled accumulator. Design and rationale:
     `Free`.
 13. **Bounded time to change state** — log-odds occupancy is clamped in
     both directions, so the observations needed to flip a saturated cell
-    are bounded (currently 10) regardless of how long it was observed.
+    are bounded by the configured evidence increments.
     A merge averages children's log-odds rather than summing, so
     coarsening buys no additional inertia.
 
-15. **Evidence fields must remain able to change** — the count-weighted
+14. **Evidence fields must remain able to change** — the count-weighted
     evidence averages are stored as `float`, not quantised. A running
     average whose per-update change falls below its storage quantum
     freezes silently. Guarded by
     `test_quantised_evidence_does_not_drift`.
 
-14. **Only a beam through the claimed extent clears a cell** — visibility
+15. **Only a beam through the claimed extent clears a cell** — visibility
     clearing compares a cell's obstacle extent against the scan at each
     beam's own elevation, using that beam's crossing range
     (`d / cos φ`), never a single range for the whole column. A beam
@@ -116,9 +114,6 @@ the measured per-cell memory cost so it cannot drift silently.
     `has_no_parent_descendant_overlap` use, while hand-built snapshots are
     scanned.
 
-Tests: `test_map_public_properties` checks ordered queries against full
-scans, catches injected overlaps and duplicates through both paths, and
-asserts exact evidence conservation under split/merge churn. The storage
-rewrite was also checked by a differential run against the previous
-implementation (three policies, 26 checkpoints, every leaf id and
-statistic hashed) and a byte-identical 40-frame PandaSet engine replay.
+`test_map_public_properties` checks ordered queries against full scans,
+detects injected overlaps and duplicates through both paths, and checks
+evidence conservation under split/merge churn.

@@ -1,7 +1,7 @@
 // Layered 2.5D map: ground / obstacle / overhead separation.
 //
-// The cases below are the ones docs/layered-map-design.md claims to fix. Each
-// one fails against a pooled elevation mean, which is the point.
+// These cases check that independent physical layers preserve evidence that a
+// pooled elevation mean would combine.
 
 #include <cmath>
 #include <cstdio>
@@ -354,9 +354,7 @@ void test_quantised_evidence_does_not_drift() {
 // 192 B respectively; Observation grows 80 -> 88 B. Quantising the evidence
 // floats was reverted -- see test_quantised_evidence_does_not_drift.
 //
-// Pinned here because an estimate is not a measurement: the first draft of
-// docs/layered-map-design.md guessed +60 B by hand and was wrong by most of a
-// factor of two, and this guard has already caught one silent drift.
+// Pin the layout here so changes to persistent map-state cost are explicit.
 void test_memory_cost_is_what_we_claim() {
   check(sizeof(veyra::map::HeightLayer) == 32, "HeightLayer stays 32 B, zero padding");
   check(sizeof(veyra::map::CellStats) == 176, "CellStats is 176 B with retained ground direction");

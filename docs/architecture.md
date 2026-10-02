@@ -1,22 +1,21 @@
 # Architecture — Veyra
 
-Source: condensed from `AGENTS.md` §§3–5,7,13 and `README.md` Architecture / Adaptive Map / Cell Information.
+This page describes the checked-in mapping/runtime structure. Setup is in
+`README.md`; desktop operation is in `apps/desktop/README.md`.
 
 ## Pipeline
 
 ```text
-LiDAR Scan + Pose/odometry
-  → Preprocessing / coordinate transform
-    → Ground segmentation (Patchwork++) → Terrain geometry
-    → Semantic segmentation (pretrained provider) → Semantic confidence
-      → Temporal evidence (static / moving)
-        → Importance Engine → Resolution Controller (distance + utility)
-          → Sparse world-aligned 2.5D map (5 / 10 / 20 / 40 cm)
-            → Traversability / Viewer / Metrics
+Dataset adapter + optional pose
+  → perception pipeline (semantic provider; optional ground, terrain, temporal)
+    → aligned ObservationFrame
+      → Python runtime → C++ resolution policy and sparse map engine
+        → bounded telemetry and visualization → desktop / benchmark consumers
 ```
 
-Point-to-cell fusion consumes the same transformed points the
-resolution controller configures. See `resolution-policies.md`.
+The runtime sends observations to the C++ engine through the binary
+ObservationFrame protocol. Desktop and batch benchmark mapping use the same
+engine. See `product-runtime.md` and `resolution-policies.md`.
 
 ## Dyadic hierarchy
 
@@ -27,9 +26,8 @@ resolution controller configures. See `resolution-policies.md`.
 | L2    |      20 cm | 30–60 m       |
 | L3    |      40 cm | 60–100 m      |
 
-`resolution(l) = 0.05 * 2^l`. Four children exactly cover one parent —
-no gaps, overlap, or fractional seams. L4 / 80 cm is reserved for
-extreme resource-constrained operation, not the normal map.
+`resolution(l) = 0.05 * 2^l`. The configured map levels are L0–L3. Four
+children exactly cover one parent — no gaps, overlap, or fractional seams.
 
 Distance sets the baseline; utility may only promote to finer cells.
 See `resolution-policies.md`.
@@ -47,26 +45,31 @@ See `resolution-policies.md`.
 Compact sufficient statistics only — never raw-point history:
 
 ```text
-elevation mean, variance / second moment, min/max z, point count,
-semantic class + confidence, traversability, motion evidence,
-last-seen time, flags
+pooled elevation statistics; ground, obstacle, and overhead height-layer
+statistics; point count; semantic class and confidence; traversability and
+occupancy evidence; motion evidence; timestamps and flags
 ```
 
-## Storage direction
+Cells hold sufficient statistics, not retained raw point histories. See
+`map-correctness.md` for layer and occupancy invariants.
 
-Implicit hierarchy, `sparse tile hash → fixed-size tile → compact
-cell arrays`. No millions of heap-allocated quadtree nodes. No
-unrestricted global 2:1 rebalance cascade; mixed-resolution neighbors
-must understand resolution. Any local balancing stays bounded with
-proven latency.
+## Storage
 
-## Repository layout (boundaries fixed, paths may evolve)
+The map uses sparse tile lookup and dense per-level cell storage with an
+index for locating entries. Snapshots are emitted in deterministic cell-ID
+order. This is a sparse hierarchical grid, not a pointer-per-cell quadtree.
+
+## Runtime components
 
 ```text
-veyra/ configs/ include/veyra/ src/ perception/{semantic,ground}
-datasets/{common,semantickitti,rellis,great_outdoors}
-apps/{player,benchmark,live} viewer/ ros2/ benchmarks/ tests/ scripts/
+datasets/       format adapters and common ObservationFrame
+perception/     semantic, ground, terrain, and temporal stages
+include/ src/   C++ map, policy, and runtime engine
+runtime/        replay, process, protocol, and product services
+apps/desktop/   Tauri + Svelte desktop application
+benchmarks/     reproducible policy and quality evaluation
+viewer/         standalone local browser viewer
 ```
 
-Subsystem boundaries (`perception → map → adaptive runtime`) must not
-be broken by layout changes. See `development.md`.
+ROS2 adapters are separate from the mapper. Pose is an external input; the
+repository does not implement SLAM or vehicle planning.

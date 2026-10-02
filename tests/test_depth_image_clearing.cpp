@@ -1,4 +1,4 @@
-// Depth-image visibility clearing (D-Map approach; see docs/prior-art.md).
+// Depth-image visibility clearing (D-Map-inspired first-return approach).
 //
 // The decisive case is test_beam_over_a_kerb_does_not_erase_it. A projected 2D
 // sweep clears every column it sees past, so a beam that flew over a 12 cm

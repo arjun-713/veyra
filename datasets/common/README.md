@@ -16,10 +16,9 @@ mapper, benchmark tools, and visualizer:
 - `DatasetAdapter` exposes sequence discovery, frame discovery, and replay
   without leaking a dataset's directory layout.
 
-The initial implementation is Python-first because the dataset visualizer and
-local data tools use Python and NumPy. The contract is language-neutral so the
-C++ mapper can consume an equivalent representation later without depending on
-SemanticPOSS internals.
+Dataset adapters and perception currently produce this contract in Python;
+the runtime passes the resulting observation frame to the C++ mapper. The
+language-neutral fields keep mapping independent of SemanticPOSS internals.
 
 The target semantic IDs are versioned as `veyra-semantic-kitti-learning-v1`.
 SemanticKITTI v1.1, SemanticPOSS v1.0, and RELLIS-3D v1.1 mappings are named
