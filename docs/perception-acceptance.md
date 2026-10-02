@@ -2,7 +2,7 @@
 
 ## Requirement and ownership
 
-The [official SIH26053 statement](https://www.sih.gov.in/sih2026PS), inspected on 2026-09-10, requires learned point-cloud semantics, terrain drivability, distance-dependent 2.5D mapping, visualization and accuracy/latency evidence across distances. Its 5 cm near/50 cm distant cells are examples, not a mandate for a non-dyadic hierarchy.
+The project requirements call for learned point-cloud semantics, terrain drivability, distance-dependent 2.5D mapping, visualization, and accuracy/latency evidence across distances. The example near/far cell sizes are not a mandate for a non-dyadic hierarchy.
 
 Mallik owns replay/transforms, ground, semantics, taxonomy, terrain, temporal evidence and ObservationFrame. The other contributors own map storage/fusion/topology and LOD/governor/renderer/telemetry. These PRs modify perception and its validation; downstream findings are handoffs, not permission to change those engines.
 

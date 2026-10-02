@@ -14,14 +14,14 @@ recorded; packaged demo rehearsal all policies/layers/telemetry").
 | # | Command (from docs) | Result in this worktree |
 |---|---|---|
 | 1 | `cmake -S . -B <dir> -DCMAKE_BUILD_TYPE=Release -DBUILD_TESTING=ON -DVEYRA_BUILD_APPS=ON` (README, product-runtime) | PASS — configure done, GCC 16.2.1, Python 3.14.7 found. Output to `/tmp/opencode/veyra-docs-demo-configure` |
-| 2 | Same + `-DCMAKE_CXX_FLAGS="-Wall -Wextra -Wpedantic -Werror"` (validate_sih.sh --ci flags) | PASS — strict-flags configure done (`/tmp/opencode/veyra-docs-demo-strict`) |
+| 2 | Same + `-DCMAKE_CXX_FLAGS="-Wall -Wextra -Wpedantic -Werror"` (CI validation flags) | PASS — strict-flags configure done (`/tmp/opencode/veyra-docs-demo-strict`) |
 | 3 | `cmake --build` / `ctest` | NOT RUN this slice (out of scope; full build not attempted) |
 | 4 | `python3 -m pytest --collect-only -q` (repo root) | PASS — **317 tests collected** (system python3, pytest 8.4.2) |
 | 5 | `python3 -m pytest --collect-only -q benchmarks` | PASS — **48 tests collected** |
 | 6 | `python3 scripts/validate_submission_closure.py reports/submission_closure.json` | PASS (structural) — `submission closure scorecard: 0/48 rows closed`, exit 0 |
 | 7 | `python3 scripts/check_docs_links.py` | PASS — `docs links OK` |
 | 8 | `bash benchmarks/run_local.sh --help` | PASS — usage prints, no network/download performed |
-| 9 | `bash scripts/validate_sih.sh --ci` (fresh-worktree equivalent of fresh-clone) | FAILS FAST (expected, informative): `Python interpreter is unavailable: .../worktrees/docs-demo/.venv/bin/python`, exit 2. No build attempted |
+| 9 | Run the project validation script in CI mode (fresh-worktree equivalent of fresh-clone) | FAILS FAST (expected, informative): `Python interpreter is unavailable: .../worktrees/docs-demo/.venv/bin/python`, exit 2. No build attempted |
 | 10 | `python -m pytest -q tests/test_rellis_adapter.py tests/test_semanticposs_adapter.py tests/test_semantickitti_adapter.py` (dataset-validation.md) | NOT RUN this slice (collect-only scope); listed for slice 2 |
 
 ### Fresh-clone gaps found (docs-only path does not reach green)
@@ -29,12 +29,12 @@ recorded; packaged demo rehearsal all policies/layers/telemetry").
 - G1. **README quick start omits dependency install.** It ends at
   `python -m venv .venv && source .venv/bin/activate` with no
   `pip install -r requirements.txt -r requirements-dev.txt` (that step exists
-  only in `docs/product-runtime.md:33`). `validate_sih.sh --ci` then fails at
+  only in `docs/product-runtime.md:33`). The validation script in CI mode then fails at
   its first gate (missing `.venv/bin/python`).
-- G2. **`validate_sih.sh --ci` hard-requires `apps/desktop/node_modules`**
-  (`scripts/validate_sih.sh:122-132`, exit 2 otherwise). Fresh clone has no
+- G2. **The validation script in CI mode hard-requires `apps/desktop/node_modules`**
+  (desktop dependency check, exit 2 otherwise). Fresh clone has no
   `node_modules`; no doc strings together the full order
-  (venv → pip install → `npm ci` in `apps/desktop/` → `validate_sih.sh --ci`).
+  (venv → pip install → `npm ci` in `apps/desktop/` → run validation in CI mode).
   The failure message is honest, but the prerequisite chain is not documented
   in one place.
 - G3. **`data/raw/` is empty in a fresh clone** (datasets gitignored, verified:
@@ -55,7 +55,7 @@ recorded; packaged demo rehearsal all policies/layers/telemetry").
 
 ## 2. What the validators gate (and what they do not)
 
-### `scripts/validate_sih.sh --ci | --full`
+### Project validation script (`--ci` or `--full`)
 
 - `--ci`: (a) `validate_submission_closure.py` structural check; (b) strict
   CMake configure+build (`-Werror`); (c) full `ctest`; (d) python unittest
@@ -151,7 +151,7 @@ seq 00 present (absent in fresh clone — G3); no KITTI asset (gated).
 
 Pre-rehearsal gate (all must be true): C++ build green; `.venv` + requirements
 installed; `apps/desktop/node_modules` present; SemanticPOSS seq 00 staged;
-`validate_sih.sh --ci` PASS; CENet/temporal caveats printed on the run sheet.
+CI validation PASS; CENet/temporal caveats printed on the run sheet.
 
 ## 5. Gaps / next slices (no fixes applied here)
 
@@ -174,6 +174,6 @@ installed; `apps/desktop/node_modules` present; SemanticPOSS seq 00 staged;
 - `pytest --collect-only -q benchmarks` → `48 tests collected in 0.16s`.
 - `validate_submission_closure.py` → `submission closure scorecard: 0/48 rows closed`.
 - `check_docs_links.py` → `docs links OK`.
-- `validate_sih.sh --ci` → `Python interpreter is unavailable:
+- CI validation → `Python interpreter is unavailable:
   .../worktrees/docs-demo/.venv/bin/python` (exit 2, pre-build).
 - `data/raw/` → empty; `benchmark-results/` → absent (this worktree).

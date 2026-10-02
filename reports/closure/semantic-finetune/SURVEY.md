@@ -20,8 +20,8 @@ negative result (mIoU 0.096) — kept as fallback evidence only.
 | Checkpoint | Location | Size / sha256 | Format |
 | --- | --- | --- | --- |
 | CENet `res/SENet_valid_best` (worktree copy) | `worktrees/semantic-finetune/data/cache/models/cenet-poss/SENet_valid_best` | 54,393,487 B / `9c07cead…ffbb0ce` (matches `configs/semantic-cenet-model.json`) | torch.save dict, strict state-dict match vs vendored arch |
-| CENet bundle (main checkout) | `/home/arjun/Captain/SIH/Lidar/data/cache/models/cenet-poss/cenet-poss-291MB.bin` | 291,128,300 B / `d466d387…09bc416c2` | upstream Drive bundle ("POSS Result") |
-| CENet unpacked (main checkout) | `/home/arjun/Captain/SIH/Lidar/data/cache/cenet-work/model/` | `SENet_valid_best` + `arch_cfg.yaml` + `data_cfg.yaml` | same weights + configs |
+| CENet bundle (main checkout) | `<repo-root>/data/cache/models/cenet-poss/cenet-poss-291MB.bin` | 291,128,300 B / `d466d387…09bc416c2` | upstream Drive bundle ("POSS Result") |
+| CENet unpacked (main checkout) | `<repo-root>/data/cache/cenet-work/model/` | `SENet_valid_best` + `arch_cfg.yaml` + `data_cfg.yaml` | same weights + configs |
 | Pandora MLP (worktree) | `worktrees/semantic-finetune/data/cache/models/pandora-mlp/pandora_mlp_seed0.npz` | 85 kB / sha in `configs/semantic-pandora-native-model.json` | NumPy-only MLP 128x64 |
 | SalsaNext KITTI ONNX (rejected) | `data/cache/models/salsanext-onnx-float/salsanext.onnx` | sha `067086f8…` | 64x2048, FOV -25..+3 |
 
@@ -60,7 +60,7 @@ Drive URL is not curl-friendly, which is why it was left manual.
 Only if the CENet checkpoint ever becomes unusable:
 
 - Dataset: SemanticPOSS v1.0, on disk
-  `/home/arjun/Captain/SIH/Lidar/data/raw/semanticposs/dataset/sequences/`
+  `<repo-root>/data/raw/semanticposs/dataset/sequences/`
   (`00`–`05`). Author split: train 0,1,3,4,5 / valid 2.
 - MLP reference (reproducible today):
   `python3 scripts/train_pandora_semantic.py --train-sequences 01 02 03`

@@ -22,7 +22,7 @@ On 16 real SemanticPOSS sequence-00 frames (1,029,238 labelled points), this
 asset measured **8.74% all-return Veyra-taxonomy mIoU** and **29.41% accuracy**.
 It also measured SalsaNext p50/p95 inference latency of **1.96 s / 2.07 s per
 frame** on the local CPU. This is an observed cross-domain baseline, not a
-quality result suitable for an SIH semantic-model claim.
+quality result suitable for a semantic-model claim.
 
 `scripts/validate_perception.py` now writes the full measurement artifact and
 then fails when the configured `quality_gate` is missed. The SalsaNext config

@@ -1,6 +1,6 @@
-# Veyra SIH Submission Closure Scorecard
+# Veyra Submission Closure Scorecard
 
-This is the authoritative closure register for SIH26053. A row stays here until its evidence is current, reproducible, and independently checkable. Initial values are deliberately **0% / UNVERIFIED** until the corresponding production-path evidence is collected.
+This is the authoritative project closure register. A row stays here until its evidence is current, reproducible, and independently checkable. Initial values are deliberately **0% / UNVERIFIED** until the corresponding production-path evidence is collected.
 
 | Capability | Current | Target | Status | Required closure evidence |
 | --- | ---: | ---: | --- | --- |

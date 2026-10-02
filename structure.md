@@ -1,6 +1,6 @@
 # Repository Structure — Veyra
 
-Current orientation guide for the SIH26053 repository. Generated datasets,
+Current orientation guide for the Veyra repository. Generated datasets,
 model weights, build trees, and local environments are intentionally excluded
 from version control.
 

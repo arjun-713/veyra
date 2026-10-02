@@ -20,7 +20,7 @@ Command:
 
 ```bash
 VEYRA_E2E_REPO="$PWD/src-tauri/resources/backend" \
-VEYRA_E2E_DATASET_ROOT=/home/arjun/Captain/SIH/Lidar/data/raw/semanticposs/dataset \
+VEYRA_E2E_DATASET_ROOT="$PWD/data/raw/semanticposs/dataset" \
 VEYRA_E2E_PYTHON="$PWD/src-tauri/resources/backend/python/bin/python3" \
 cargo test --manifest-path src-tauri/Cargo.toml --lib \
   packaged_e2e::packaged_tauri_session_runs_a_real_semanticposs_flow -- --nocapture

@@ -8,7 +8,7 @@
    bands (0–10/10–30/30–60/60–100 m, RMSE + coverage + mean owner level per band);
    `_fine_reference` carries per-bin mean range from retained-frame poses;
    `_finalize_policy_runs` prefers the point-built reference when frames retained.
-3. `scripts/validate_sih.sh`: gate failure now prints an explicit REAL DATA:
+3. The validation script: gate failure now prints an explicit REAL DATA:
    UNAVAILABLE verdict (fixes stale-expectation benchmark test; fail-closed kept).
 
 ## Measured (POSS 00 fr 0–9, identical digest, 2 reps; ablation status complete)
@@ -36,6 +36,6 @@ DistanceLOD band RMSE 0.02 → 0.24 → 0.63 → 0.72 tracks owner levels 0 → 
 Error grows exactly where resolution coarsens, by design, with coverage ≥0.993.
 
 ## Gates
-- New benchmark-harness test failure (stale SIH verdict expectation): fixed via script.
+- New benchmark-harness test failure (stale validation verdict expectation): fixed via script.
 - benchmarks/ suite: 20 passed 1 skipped after fix (was 1 failed).
 - Full gates + canonical rerun: iteration-05 (performance) then final.

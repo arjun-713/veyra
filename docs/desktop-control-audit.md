@@ -61,7 +61,7 @@ These display budgets never reduce the observations ingested by the mapper.
 | Screenshot | native save + renderer canvas | Captures current rendered view |
 | Governor override | `runtime_command(governor)` | Mapper control, restored selection on failure |
 | Stop / restart | `runtime_stop` / `runtime_command(restart)` | Clears stale view, restart requests new preview |
-| Session validation | `runtime_command(validation)` | Live dataset/perception/map smoke; not a full SIH certification |
+| Session validation | `runtime_command(validation)` | Live dataset/perception/map smoke; not a full deployment certification |
 | Benchmark frames / run | `runtime_command(benchmark)` | Async four-policy job; failure cannot remain a fake success |
 | Open report / previous report | native JSON dialog | Explicit offline artifacts, independent of live metrics |
 | Export report | scoped native save | Saves loaded/generated report only |

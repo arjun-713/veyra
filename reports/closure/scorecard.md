@@ -1,4 +1,4 @@
-# Closure DAG — Veyra SIH26053 (orchestrator-owned)
+# Closure DAG — Veyra (orchestrator-owned)
 
 `scorecard.json` is authoritative. This file is the human DAG view.
 

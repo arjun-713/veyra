@@ -19,7 +19,7 @@
   `config_validate` answered by real product code; playback commands
   (`start`/`pause`/`seek`/`policy`/`benchmark`) delegated to `ProductRuntime.handle`
   with no session configured, so the runtime's own typed errors came back live.
-- **Real local data**: `/home/arjun/Captain/SIH/Lidar/data/raw/semanticposs/dataset`
+- **Real local data**: `<repo-root>/data/raw/semanticposs/dataset`
   (59 B path, fits the daemon's 64 B bound). 6 sequences (`00`–`05`, 488–500
   frames each, labels 1:1, poses world-frame, **timestamps absent → catalog
   `status: "partial"`**, a real-data observation, not a failure).

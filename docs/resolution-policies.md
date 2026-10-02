@@ -8,7 +8,7 @@ Resolution Modes / Planned Advanced Features.
 - **Uniform5** — 5 cm everywhere. High-quality 2.5D baseline.
 - **Uniform40** — 40 cm everywhere. Shows aggressive-compression loss.
 - **DistanceLOD** — range-only baseline (`0–10 m → 5 cm, 10–30 m →
-  10 cm, 30–60 m → 20 cm, 60–100 m → 40 cm`). The basic SIH solution;
+  10 cm, 30–60 m → 20 cm, 60–100 m → 40 cm`). The distance-only baseline;
   the policy UtilityLOD must beat.
 - **UtilityLOD** — distance baseline + promotion on geometry
   complexity, semantic importance, motion, traversability risk, and

@@ -60,7 +60,7 @@ facts are listed below. Interpretive notes are explicitly labelled.
 
 - CPU-only execution is non-realtime at the timings above.
 - Patchwork++ is unavailable in this environment, so ground/terrain stages
-  are unavailable and the `validate_sih --full` gate is blocked.
+  are unavailable and the full real-data validation gate is blocked.
 - Interpretation (labelled): the `--full` blockage is environmental and
   separate from the #53 semantic scope.
 - Scratch artifacts from the validation run were not committed and are not

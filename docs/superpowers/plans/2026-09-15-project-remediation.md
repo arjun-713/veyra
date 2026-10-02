@@ -1,8 +1,8 @@
-# SIH26053 MVP Remediation Implementation Plan
+# Veyra MVP Remediation Implementation Plan
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Bring the merged Veyra checkout from a functional prototype to a measured, honest SIH26053 MVP without changing ownership of the core map hierarchy or adaptive policy engine.
+**Goal:** Bring the merged Veyra checkout from a functional prototype to a measured, honest MVP without changing ownership of the core map hierarchy or adaptive policy engine.
 
 **Architecture:** Preserve the existing canonical `ObservationFrame` boundary. Dataset adapters produce validated frames; `PerceptionPipeline` runs semantics, Patchwork++, terrain and optional temporal evidence; the existing V2 protocol carries aligned evidence into the C++ mapper; benchmark and desktop consumers use the same runtime outputs. Fix root causes at the owning boundary instead of adding silent fallbacks.
 
@@ -25,7 +25,7 @@
 
 **Files:**
 - Inspect only: `.github/workflows/*.yml`, `CMakeLists.txt`, `tests/`, `apps/desktop/package.json`, `runtime/`, `perception/`, `datasets/`.
-- Create/update only if needed: `docs/superpowers/plans/2026-09-15-sih-remediation.md`.
+- Create/update only if needed: `docs/superpowers/plans/2026-09-15-project-remediation.md`.
 
 **Acceptance:** Record current CTest, Python, desktop, formatting, and benchmark outcomes. Identify the exact failing GitHub job and command before editing its workflow. Do not alter tests to make the baseline green.
 
@@ -126,7 +126,7 @@
 
 **Files:**
 - Modify only documentation that contradicts verified behavior, including stale `structure.md` if still misleading.
-- Add: `scripts/validate_sih.sh` only if the existing commands cannot provide one reproducible entry point.
+- Add a validation script only if the existing commands cannot provide one reproducible entry point.
 
 **Acceptance:** Debug/Release builds, CTest, Python, formatting, compilation, desktop checks, real-data perception/map smoke and representative benchmark pass. ASan/UBSan are run when the toolchain is available. Every requirement is scored from evidence; unresolved external-heavy work is reported as a checkpoint, not marked 100%.
 

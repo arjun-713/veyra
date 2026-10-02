@@ -24,7 +24,7 @@
 ### Task 1: Establish a failure inventory
 
 **Files:**
-- Inspect only initially: `CMakePresets.json`, `CMakeLists.txt`, `requirements*.txt`, `apps/desktop/package.json`, `src-tauri/Cargo.toml`, `scripts/validate_sih.sh`.
+- Inspect only initially: `CMakePresets.json`, `CMakeLists.txt`, `requirements*.txt`, `apps/desktop/package.json`, `src-tauri/Cargo.toml`, and the project validation script.
 - Test/build output: temporary directories under `/tmp` or ignored build directories.
 
 **Interfaces:**

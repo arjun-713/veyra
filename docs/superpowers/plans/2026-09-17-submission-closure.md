@@ -1,8 +1,8 @@
-# SIH Submission Closure Implementation Plan
+# Project Submission Closure Implementation Plan
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Close every verified SIH26053 submission gap with implementation, real-data evidence, reproducible benchmarks, platform proof, and an independent final audit.
+**Goal:** Close every verified project gap with implementation, real-data evidence, reproducible benchmarks, platform proof, and an independent final audit.
 
 **Architecture:** Work in dependency waves: establish an authoritative scorecard and reproducible validation harness; repair perception quality and real sequential validation; prove map/LOD/resource behavior; complete Tauri and the shared control surface; then obtain native CI/package evidence. `reports/submission_closure.{md,json}` is the only completion authority and must retain every capability until its evidence is current.
 
@@ -26,12 +26,12 @@
 **Files:**
 - Create: `reports/submission_closure.md`
 - Create: `reports/submission_closure.json`
-- Modify: `scripts/validate_sih.sh`
+- Modify: the project validation script
 - Test: `benchmarks/test_product_benchmark.py`
 
 **Interfaces:**
 - `submission_closure.json` exposes one object per capability with `capability`, `current_percent`, `target_percent`, `acceptance_criteria`, `tests_required`, `real_data_evidence_required`, `benchmark_required`, `platform_evidence_required`, `status`, `blocking_issue`, `evidence_artifact`, and `closing_commit`.
-- `scripts/validate_sih.sh` must fail when required evidence is absent rather than emit a synthetic pass.
+- The project validation script must fail when required evidence is absent rather than emit a synthetic pass.
 
 - [ ] Write a failing test that rejects a scorecard with missing capability rows or a claimed-100 row without evidence.
 - [ ] Run the focused test and confirm the missing validator contract fails.
@@ -127,4 +127,3 @@
 - [ ] Verify package contents, manifest checksums, and installer launch evidence from native CI.
 - [ ] Run the scripted demo rehearsal and update only measured documentation claims.
 - [ ] Request an independent red-team audit; turn every non-100 finding into a new scorecard task.
-

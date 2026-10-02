@@ -12,7 +12,7 @@ malformed-path tests and records measured evidence.
 
 ## Real-data proof (measured, host `mallik-fedora`, x86_64, Python 3.14.7)
 
-Inspected actual layout under `/home/arjun/Captain/SIH/Lidar/data/raw/rellis3d/`
+Inspected actual layout under `<repo-root>/data/raw/rellis3d/`
 (do not guess — done via `ls`/`find`/byte-level reads):
 
 - Root: `data/raw/rellis3d/Rellis-3D/{00000,00001,00002,00003,00004}/`

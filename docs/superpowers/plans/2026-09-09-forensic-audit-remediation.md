@@ -2,7 +2,7 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use test-driven development for every behavior change. Each workstream is independently owned and reviewed before integration.
 
-**Goal:** Close every incomplete, partial, scaffolded, broken, missing, or unverified item identified by the 2026-09-09 forensic audit and produce a correct, measurable SIH MVP.
+**Goal:** Close every incomplete, partial, scaffolded, broken, missing, or unverified item identified by the 2026-09-09 forensic audit and produce a correct, measurable Veyra MVP.
 
 **Architecture:** Preserve the stable `ObservationFrame` boundary and world-aligned dyadic map. Implement perception, policy, mapping, metrics, and runtime as separate production components, then connect them through one versioned runtime protocol and verify with original local datasets.
 

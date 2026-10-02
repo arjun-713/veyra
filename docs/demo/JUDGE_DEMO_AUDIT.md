@@ -2,7 +2,7 @@
 
 Branch: `judge-demo-proof`. Date: 2026-09-22. App: `apps/desktop` (Electron+Svelte) + `runtime/service.py`.
 
-Method: for each SIH claim — can the judge SEE it, VERIFY it, understand WHY it matters — without source code or terminal.
+Method: for each project claim — can a reviewer SEE it, VERIFY it, understand WHY it matters — without source code or terminal.
 
 ## Summary verdicts (pre-pass)
 

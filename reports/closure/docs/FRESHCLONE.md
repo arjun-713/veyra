@@ -3,7 +3,7 @@
 Date (UTC): 2026-09-18. Operator: docs-demo subagent (bounded mission, <25 min).
 Scope: setup + build smoke ONLY. No benchmark runs, no ctest execution.
 
-- Source: local path clone `git clone /home/arjun/Captain/SIH/Lidar /tmp/opencode/veyra-freshclone` (no network for git).
+- Source: local repository clone `git clone <repo-root> /tmp/opencode/veyra-freshclone` (no network for git).
 - Clone HEAD: `50acb84` on `demo-readiness` (matches main-checkout tip at mission start).
 - Report checkout: `worktrees/docs-demo` (`agent/docs-demo`), FF-merged `demo-readiness` 880af2a..50acb84 before writing (clean FF, exit 0).
 - Clone left uncommitted in `/tmp` (outside repo; not committed by design).
@@ -17,7 +17,7 @@ Docs followed, in order: `README.md` Quick start, `AGENTS.md` Stack & commands,
 
 | # | Command | Exit | Result |
 | - | ------- | ---: | ------ |
-| 1 | `git clone /home/arjun/Captain/SIH/Lidar /tmp/opencode/veyra-freshclone` | 0 | clean clone at 50acb84, branch demo-readiness |
+| 1 | `git clone <repo-root> /tmp/opencode/veyra-freshclone` | 0 | clean clone at 50acb84, branch demo-readiness |
 | 2 | `gcc --version` / `cmake --version` / `ninja --version` / `python3 --version` | 0 each | GCC 16.2.1, CMake 4.3.0, Ninja 1.13.2, Python 3.14.7 |
 | 3 | `python3 -m venv .venv` | 0 | venv created (Python 3.14.7, pip 26.0.1) |
 | 4 | `.venv/bin/pip install -r requirements.txt -r requirements-dev.txt` (foreground) | TIMEOUT (>120 s, killed by tool) | no packages installed; only `pip` in venv afterwards |
@@ -88,7 +88,7 @@ Build time: Ninja `-j2` completed inside the default tool window (well under the
 - `ctest` not executed (build-smoke only; mission stops before heavy runs).
 - No strict-flags *build*, no `--preset dev` build variant beyond default `build/` (same dir).
 - No benchmark, dataset, or desktop steps (explicitly out of scope).
-- `validate_sih.sh --ci/--full` not run (out of scope; `--ci` would additionally need the venv).
+- Project validation not run (out of scope; CI mode would additionally need the venv).
 
 ## Bottom line
 

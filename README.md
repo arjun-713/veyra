@@ -4,7 +4,7 @@
 
 Veyra compresses sequential 3D LiDAR into a semantic,
 variable-resolution 2.5D elevation map — fine detail where it matters,
-coarse elsewhere. Built for **SIH26053**.
+coarse elsewhere. Built for adaptive semantic LiDAR mapping.
 
 > Preserve safety-relevant 3D info without paying uniform
 > high-resolution costs across full LiDAR range.
@@ -70,7 +70,7 @@ history. Details: `docs/architecture.md`,
 ## Modes & guarantees
 
 Modes: **Uniform5** (fine baseline), **Uniform40** (coarse reference),
-**DistanceLOD** (range-only SIH baseline), **UtilityLOD** (intelligent
+**DistanceLOD** (range-only baseline), **UtilityLOD** (importance-aware
 promotion). Always compare all four; key result is DistanceLOD vs
 UtilityLOD.
 

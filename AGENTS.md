@@ -1,7 +1,7 @@
 # Veyra — Agent Engineering Guide
 
 Adaptive semantic 2.5D LiDAR mapping for dynamic environments
-(SIH26053). Spend fine resolution where losing info matters; keep the
+(adaptive semantic 2.5D LiDAR mapping). Spend fine resolution where losing info matters; keep the
 map bounded, deterministic, real-time capable.
 
 Full detail lives in `docs/` — this file is the always-loaded index.

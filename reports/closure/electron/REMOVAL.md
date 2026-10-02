@@ -49,7 +49,7 @@
 
 Pre-existing/environmental failures (evidence, not assumptions):
 1. `benchmarks/test_product_benchmark.py::...test_ablation_report...` — fails identically on pristine base (needs `VEYRA_BENCHMARK_BINARY` C++ ablation smoke).
-2. `...test_full_sih_validator_resolves_project_modules_outside_checkout` — passes on base, fails here only with `Python interpreter is unavailable: .../worktrees/electron-rm/.venv/bin/python`; the main checkout has `.venv`, fresh worktrees do not (untracked dir). Environmental; no Python logic was touched (only a docstring).
+2. The full validation entry-point test resolves project modules outside the checkout — passes on base, fails here only with `Python interpreter is unavailable: .../worktrees/electron-rm/.venv/bin/python`; the main checkout has `.venv`, fresh worktrees do not (untracked dir). Environmental; no Python logic was touched (only a docstring).
 
 ## Gaps / follow-ups for orchestrator
 
