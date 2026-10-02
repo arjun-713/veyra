@@ -228,7 +228,10 @@ mod tests {
         // legacy event channel; at 30 FPS that froze the WebView.
         let transport = VisualizationTransport::default();
         let large = vec![5; super::MAX_LEGACY_PAYLOAD_BYTES + 1];
-        assert!(transport.prepare(frame(1, large.clone())).unwrap().is_none());
+        assert!(transport
+            .prepare(frame(1, large.clone()))
+            .unwrap()
+            .is_none());
         transport.set_raw(true).unwrap();
         assert_eq!(take_bytes(&transport).last(), Some(&5));
     }

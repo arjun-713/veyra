@@ -352,7 +352,10 @@ mod tests {
             }})
         };
         // Replay playing, then a status poll: must stay RUNNING so Pause works.
-        assert!(follow_runtime_status(&mut controller.state, &status("running", true)));
+        assert!(follow_runtime_status(
+            &mut controller.state,
+            &status("running", true)
+        ));
         assert_eq!(controller.status()["state"], "running");
         // Policy switch closes the replay and reconfigures; the preview step
         // leaves the runtime paused, and replay_open/start resume it.
@@ -363,7 +366,10 @@ mod tests {
         follow_runtime_status(&mut controller.state, &status("running", true));
         assert_eq!(controller.state.status().state, RuntimeState::Running);
         // Responses without a runtime status leave the mirror untouched.
-        assert!(!follow_runtime_status(&mut controller.state, &json!({"ok": true})));
+        assert!(!follow_runtime_status(
+            &mut controller.state,
+            &json!({"ok": true})
+        ));
         assert_eq!(controller.state.status().state, RuntimeState::Running);
     }
 

@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import {spawnSync} from 'node:child_process';
-import {mkdtempSync, mkdirSync, copyFileSync, writeFileSync, rmSync} from 'node:fs';
+import {mkdtempSync, mkdirSync, copyFileSync, writeFileSync, rmSync, realpathSync} from 'node:fs';
 import {tmpdir} from 'node:os';
 import path from 'node:path';
 import test from 'node:test';
@@ -16,7 +16,10 @@ test('launches the Tauri JS entrypoint without an npm shell shim, preserving arg
     const args = ['build', '--config', 'config with spaces.json', '--bundles', 'deb,rpm', 'literal;&value'];
     const result = spawnSync(process.execPath, [path.join(root, 'tools', 'tauri.mjs'), ...args], {encoding:'utf8', cwd:tmpdir()});
     assert.equal(result.status, 0, result.stderr);
-    assert.deepEqual(JSON.parse(result.stdout), {args, cwd:root});
+    const launched = JSON.parse(result.stdout);
+    assert.deepEqual(launched.args, args);
+    // macOS may return /private/var for a temporary directory created as /var.
+    assert.equal(realpathSync(launched.cwd), realpathSync(root));
     const failed = spawnSync(process.execPath, [path.join(root, 'tools', 'tauri.mjs'), '--version'], {encoding:'utf8', env:{...process.env, CLI_EXIT:'7'}});
     assert.equal(failed.status, 7, failed.stderr);
   } finally {
