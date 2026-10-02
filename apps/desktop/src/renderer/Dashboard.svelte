@@ -5,7 +5,14 @@
  import {POLICY_COLORS} from './benchmark-quality';
  import {sessionActive} from './setup';
  import type {Json,WireFrame} from '../core';
- let {status,telemetry,frame,report,events,openDataset,openPerformance,openMap,openBenchmarks,busy=false,awaitingFrame=false}=$props<{status:Json;telemetry:Json;frame:WireFrame|null;report:Json|null;events:DashboardEvent[];openDataset:()=>void;openPerformance:()=>void;openMap:()=>void;openBenchmarks:()=>void;busy?:boolean;awaitingFrame?:boolean}>();
+ import {overviewSession,replayCards} from './overview-replay';
+ import {formatRecorded} from './replay-metrics';
+ // replay: Smooth Replay is active — the canvases show the same cached frames
+ // as the Viewer, and every metric here reads the replay header / RECORDED
+ // cache-build values instead of (stale) live telemetry.
+ let {status,telemetry,frame,report,events,openDataset,openPerformance,openMap,openBenchmarks,busy=false,awaitingFrame=false,replay=false,replayUi=null,onReplayPlayPause=()=>{}}=$props<{status:Json;telemetry:Json;frame:WireFrame|null;report:Json|null;events:DashboardEvent[];openDataset:()=>void;openPerformance:()=>void;openMap:()=>void;openBenchmarks:()=>void;busy?:boolean;awaitingFrame?:boolean;replay?:boolean;replayUi?:{enabled:boolean;playing:boolean;label:string;hint:string}|null;onReplayPlayPause?:()=>void}>();
+ let session=$derived(overviewSession(status,replay,awaitingFrame));
+ let recorded=$derived(replay?frame?.metadata.recorded_telemetry??null:null);
  let rawView=$state('orbit'),semanticView=$state('orbit'),mapView=$state('top'),eventFilter=$state('all');
  const f=(n:any,d=1)=>typeof n==='number'&&Number.isFinite(n)?n.toLocaleString(undefined,{maximumFractionDigits:d}):'—';
  const memory=(n:any)=>typeof n==='number'?n>=1073741824?f(n/1073741824,2)+' GB':f(n/1048576,1)+' MB':'—';
@@ -13,16 +20,16 @@
  let rss=$derived(processRss(telemetry.processes??[]));
  let storyLayers=$derived(frame?.metadata.layers??{});
  const storyDot=(v:string)=>v==='available'||v==='model'||v==='ground_truth'?'ok':v==='unavailable'||v==='disabled'||!v?'off':'warn';
- let storySteps=$derived([['Raw LiDAR',frame?'live':'empty',frame?(typeof frame.metadata.n_points==='number'?`${frame.metadata.n_points.toLocaleString()} pts`:'frame live'):status.frames?'waiting':'no dataset'],['Perception',storyDot(storyLayers.semantic),storyLayers.semantic??'—'],['Terrain',storyDot(storyLayers.terrain),storyLayers.terrain??'—'],...(MOTION_FEATURE_ENABLED?[['Motion',storyDot(storyLayers.motion),storyLayers.motion??'—']]:[]),['Adaptive 2.5D',(frame?.metadata.cells?.count??0)>0?'live':'empty',telemetry.map?.active_cells!=null?`${telemetry.map.active_cells.toLocaleString()} cells`:'—'],['Evidence',report?'ready':'none',report?'benchmark loaded':'run or open a report']]);
+ let storySteps=$derived([['Raw LiDAR',frame?'live':'empty',frame?(typeof frame.metadata.n_points==='number'?`${frame.metadata.n_points.toLocaleString()} pts`:'frame live'):status.frames?'waiting':'no dataset'],['Perception',storyDot(storyLayers.semantic),storyLayers.semantic??'—'],['Terrain',storyDot(storyLayers.terrain),storyLayers.terrain??'—'],...(MOTION_FEATURE_ENABLED?[['Motion',storyDot(storyLayers.motion),storyLayers.motion??'—']]:[]),['Adaptive 2.5D',(frame?.metadata.cells?.count??0)>0?'live':'empty',replay?formatRecorded(recorded?.active_cells,(v)=>`${v.toLocaleString()} cells`):telemetry.map?.active_cells!=null?`${telemetry.map.active_cells.toLocaleString()} cells`:'—'],['Evidence',report?'ready':'none',report?'benchmark loaded':'run or open a report']]);
 
  let proc=$derived(processingDisplay(status,telemetry));
  let e2eCount=$derived(telemetry.latency_ms?.end_to_end?.count);
  let e2eP95=$derived(gateStatistic(telemetry.latency_ms?.end_to_end?.p95,e2eCount,MIN_SAMPLES.p95));
- let cards=$derived([{icon:'speed',label:'Processing',value:proc.label,unit:'',detail:proc.sub},{icon:'bolt',label:'Rolling E2E p95',value:e2eP95.text,unit:e2eP95.ok?'ms':'',detail:`Backend rolling percentile · ${e2eP95.sub}`},{icon:'chip',label:'Backend RSS',value:typeof rss==='number'?f(rss/1048576,0):'—',unit:'MB',detail:'Python runtime + mapper · excludes desktop shell'},{icon:'grid',label:'Active Cells',value:f(telemetry.map?.active_cells,0),unit:'',detail:'Live map leaves'}]);
+ let cards=$derived(replay?replayCards(recorded,status):[{icon:'speed',label:'Processing',value:proc.label,unit:'',detail:proc.sub},{icon:'bolt',label:'Rolling E2E p95',value:e2eP95.text,unit:e2eP95.ok?'ms':'',detail:`Backend rolling percentile · ${e2eP95.sub}`},{icon:'chip',label:'Backend RSS',value:typeof rss==='number'?f(rss/1048576,0):'—',unit:'MB',detail:'Python runtime + mapper · excludes desktop shell'},{icon:'grid',label:'Active Cells',value:f(telemetry.map?.active_cells,0),unit:'',detail:'Live map leaves'}]);
  function width(value:any,reference:any){return typeof value==='number'&&typeof reference==='number'&&reference>0?Math.max(1,Math.min(100,value/reference*100)):0;}
 </script>
 <div class="dashboard">
- {#if !frame&&!sessionActive(status)&&!awaitingFrame}
+ {#if !frame&&!sessionActive(status)&&!awaitingFrame&&!replay}
   <section class="welcome" aria-labelledby="welcome-title">
    <div class="welcome-mark"><Icon name="map" size={40}/></div>
    <h2 id="welcome-title">Your environment, mapped.</h2>
@@ -35,7 +42,7 @@
    </ol>
   </section>
  {:else}
-  <div class="overview-session"><div><h2>{awaitingFrame?'Preparing your preview':status.dataset??'Current session'}</h2><p>Sequence {status.sequence??'—'} · {f(status.frames,0)} frames · {status.policy?.replaceAll('_',' ')??'No policy'}</p></div><button class="primary" disabled={busy} onclick={openMap}><Icon name="map" size={18}/>Open Viewer</button></div>
+  <div class="overview-session"><div><h2>{session.title}{#if replay}<span class="overview-replay-badge" title="Cached snapshots presented at the replay rate — not processing throughput. Metrics are RECORDED during the cache build.">REPLAY · CACHED{typeof status.replay?.fps==='number'?` · ${f(status.replay.fps,0)} FPS`:''}</span>{/if}</h2><p>{session.line}</p></div><div class="overview-actions">{#if replayUi}<div class="overview-playback" role="group" aria-label="Smooth replay playback"><button class="play-button" disabled={!replayUi.enabled} aria-label={replayUi.label} title={replayUi.hint} onclick={onReplayPlayPause}><Icon name={replayUi.playing?'pause':'play'} size={18}/>{replayUi.playing?'Pause':'Play'} Smooth Replay</button><small>{replayUi.hint}</small></div>{/if}<button class="primary" disabled={busy} onclick={openMap}><Icon name="map" size={18}/>Open Viewer</button></div></div>
  <div class="demo-story" aria-label="Demo story">
   {#each storySteps as [label,state,detail]}
    <span class="story-step"><i class={state}></i><b>{label}</b><small>{detail}</small></span>{#if label!=='Evidence'}<span class="story-arrow"><Icon name="chevron" size={14}/></span>{/if}
@@ -47,7 +54,7 @@
    <section class="dashboard-panel visualization-panel"><div class="dashboard-panel-title"><Icon name={panel.icon}/><h2>{panel.title}</h2><select aria-label={`${panel.title} camera`} value={i===0?rawView:i===1?semanticView:mapView} onchange={e=>{if(i===0)rawView=e.currentTarget.value;else if(i===1)semanticView=e.currentTarget.value;else mapView=e.currentTarget.value;}}><option value="orbit">3D View</option><option value="top">Top-Down</option><option value="driver">Driver</option></select></div>
     <div class="dashboard-map"><MapCanvas {frame} mode={panel.mode} showPoints={!panel.cells} showCells={panel.cells} accumulate={panel.cells?1:20} boundaries={false} view={i===0?rawView:i===1?semanticView:mapView} follow={true}/>{#if !frame}<div class="dashboard-map-empty"><Icon name={panel.icon} size={34}/><strong>{awaitingFrame?'Processing first frame…':status.frames?'Waiting for visualization':'No dataset preview'}</strong><span>{status.frames?'Open Viewer to inspect session status.':'Choose a directory and open a preview.'}</span><button disabled={busy} onclick={status.frames?openMap:openDataset}>{status.frames?'Open Viewer':'Choose dataset'}</button></div>{/if}{#if panel.cells}<div class="map-mini-legend">{#each [['#33d9f2','5 cm'],['#4dd980','10 cm'],['#ffb340','20 cm'],['#d966d9','40 cm']] as [color,label]}<span><i style:background={color}></i>{label}</span>{/each}</div>{/if}<div class="axis-marker"><span>Z</span><b>Z</b><small>Y / X</small></div></div>
     {#if i===1}<div class="semantic-legend"><span><i style:background=" #388cfa"></i>Road</span><span><i style:background=" #f14d62"></i>Vehicle</span><span><i style:background=" #a457ec"></i>Person</span><span><i style:background=" #38b34c"></i>Terrain</span></div>{/if}
-    <div class="visualization-caption">{#if panel.cells}<span>Cells shown: <b>{f(frame?.metadata.cells?.count,0)}</b> / {f(frame?.metadata.total_leaves,0)}</span><span>{status.policy?.replaceAll('_',' ')??'No policy'}</span>{:else}<span>Points shown: <b>{f(frame?.metadata.points?.count,0)}</b> / {f(frame?.metadata.n_points,0)}</span><span>{i===0?'World coordinates':`Semantic classes: ${summary.length||'—'}`}</span>{/if}</div>
+    <div class="visualization-caption">{#if panel.cells}<span>Cells shown: <b>{f(frame?.metadata.cells?.count,0)}</b> / {f(frame?.metadata.total_leaves,0)}</span><span>{session.policy?.replaceAll('_',' ')??'No policy'}{replay?' · replay cache':''}</span>{:else}<span>Points shown: <b>{f(frame?.metadata.points?.count,0)}</b> / {f(frame?.metadata.n_points,0)}</span><span>{i===0?'World coordinates':`Semantic classes: ${summary.length||'—'}`}</span>{/if}</div>
    </section>
   {/each}
   <section class="dashboard-panel policy-panel"><div class="dashboard-panel-title"><Icon name="settings"/><h2>Resolution Policy</h2></div><table><thead><tr><th>Range</th><th>Cell Size</th><th>Logic</th></tr></thead><tbody>{#each [['Near Field','0–10 m','5 cm','Protected safety detail'],['Mid Field','10–30 m','10 cm','Balanced detail and efficiency'],['Outer Field','30–60 m','20 cm','Coarser mapping for large structures'],['Far Field','60–100 m','40 cm','Bounded distant terrain']] as row}<tr><td><strong>{row[0]}</strong><span>({row[1]})</span></td><td><strong>{row[2]}</strong></td><td>{row[3]}</td></tr>{/each}</tbody></table><div class="policy-utility"><p>These are the DistanceLOD base bands. UtilityLOD may promote cells when evidence permits.</p><button onclick={openMap}><Icon name="settings" size={16}/>Change policy in Viewer</button></div></section>

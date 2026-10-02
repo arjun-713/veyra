@@ -36,6 +36,18 @@ export function smoothReplayPath(
   return preparation?.state === 'ready' && preparation.path ? preparation.path : null;
 }
 
+/** Cache to reopen after a policy switch during Smooth Replay: only the
+ * auto-prepared cache of the *requested* policy, never a manual path (that
+ * cache is recorded under the previous policy and would be rejected) and
+ * never a late status event still describing the previous policy. */
+export function policyReplayPath(
+  requestedPolicy: string | null | undefined,
+  status: {policy?: string; replay?: {active?: boolean} | null; auto_replay?: {state?: string; path?: string} | null},
+): string | null {
+  if (!requestedPolicy || status.policy !== requestedPolicy || status.replay?.active === true) return null;
+  return smoothReplayPath('', status.auto_replay);
+}
+
 export interface ReplayClockSample {
   presentedIndex: number;
   atMs: number;

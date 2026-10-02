@@ -150,6 +150,14 @@ def pack_visualization(frame, cells, generation):
         "pipeline_status": status,
         "n_points": frame["n_points"],
         "total_leaves": cells.get("total_leaves", 0),
+        # How the engine fit the map into the display budget: "all" leaves,
+        # "recent" (every leaf seen in the newest cell_recent_scans scans),
+        # "folded" (newest scan, coarser tiles beyond native_radius_m) or
+        # "folded_nearest" (coarsest tiles nearest the vehicle). Absent in
+        # older caches, whose cells were the nearest-N disc.
+        "cell_selection": cells.get("selection", "nearest"),
+        "cell_native_radius_m": cells.get("native_radius_m", 0.0),
+        "cell_recent_scans": cells.get("recent_scans", 0),
         # Active mapping configuration as reported by the mapper for this
         # frame (policy name, level ladder, distance bands, radii). The
         # viewer derives range-band explanations from this descriptor;

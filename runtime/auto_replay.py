@@ -18,6 +18,12 @@ from .replay_cache import (
 from .visualization import pack_visualization
 
 
+# Display-cell selection the mapper used when the cache was built. Caches
+# from before recent-scan selection hold a nearest-N disc (or a coarse fold)
+# of cells and must be rebuilt rather than replayed.
+CELL_SELECTION = "recent-v1"
+
+
 def cache_directory() -> Path:
     """Keep generated data outside the installed, read-only app bundle."""
     configured = os.environ.get("VEYRA_REPLAY_CACHE_DIR")
@@ -40,6 +46,7 @@ def ready_cache(path: Path, config: dict, frames: int) -> Path | None:
                 or header.get("sequence") != config["sequence"]
                 or header.get("start") != 0
                 or header.get("count") != frames
+                or header.get("cell_selection") != CELL_SELECTION
                 or check_compatible(
                     header,
                     policy=config["map"]["policy"],
@@ -91,6 +98,7 @@ def prepare(
             perception_config_digest=digest_mapping(config["pipeline"]),
             config_digest=config_digest(config),
             repo=repo,
+            extra={"cell_selection": CELL_SELECTION},
         )
         writer = ReplayWriter(temporary, header, frames)
         for index in range(frames):

@@ -423,6 +423,9 @@ class PersistentMapEngine:
             "status": "available",
             "cell_count": response["cell_count"],
             "total_leaves": response.get("total_leaves", 0),
+            "selection": response.get("selection", "nearest"),
+            "native_radius_m": response.get("native_radius_m", 0.0),
+            "recent_scans": response.get("recent_scans", 0),
             "cells_binary": payload[:cell_bytes],
         }
         if has_layers:

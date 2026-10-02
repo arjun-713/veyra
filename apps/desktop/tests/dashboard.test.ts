@@ -160,3 +160,14 @@ test('inspector derives LOD from resolution and reports dataset capabilities hon
   assert.equal(sessionPhase({sequences:[]},{state:'ready',frames:10},false),'READY');
   assert.ok(Object.keys(GLOSSARY).length>=6);
 });
+
+test('cell selection footer states recent-scan and folded selection honestly',async()=>{
+ const {cellSelectionLabel}=await import('../src/renderer/dashboard.ts');
+ const f=(v:unknown,d=1)=>typeof v==='number'?v.toLocaleString('en-US',{maximumFractionDigits:d}):'—';
+ assert.equal(cellSelectionLabel('all',900,900,0,f),'all 900 map leaves');
+ assert.equal(cellSelectionLabel('recent',36046,634091,0,f,1),'36,046 of 634,091 map leaves seen in the last scan');
+ assert.equal(cellSelectionLabel('recent',48000,634091,0,f,3),'48,000 of 634,091 map leaves seen in the last 3 scans');
+ assert.equal(cellSelectionLabel('folded',10000,107526,12.34,f),'newest scan folded into 10,000 display tiles of 107,526 map leaves · native detail within 12.3 m');
+ assert.equal(cellSelectionLabel('folded_nearest',40,3600,0,f),'nearest 40 3.2 m tiles of 3,600 leaves — map exceeds display budget');
+ assert.equal(cellSelectionLabel(undefined,10000,107526,undefined,f),'nearest 10,000 of 107,526 to vehicle');
+});

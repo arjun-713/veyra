@@ -1,6 +1,6 @@
 import {test} from 'node:test';
 import assert from 'node:assert/strict';
-import {ReplayClock, PrefetchWindow, REPLAY_DEFAULT_FPS, percentile, resolveReplayFps, smoothReplayPath} from '../src/renderer/replay-clock.ts';
+import {ReplayClock, PrefetchWindow, REPLAY_DEFAULT_FPS, percentile, policyReplayPath, resolveReplayFps, smoothReplayPath} from '../src/renderer/replay-clock.ts';
 import {validateCommand} from '../src/core.ts';
 
 // 488 SemanticPOSS frames at 30 FPS present as ~16.3 s of demo playback.
@@ -122,6 +122,16 @@ test('ordinary Play uses a prepared cache unless a manual path was entered',()=>
  assert.equal(smoothReplayPath(' /manual.veyra-replay ',{state:'ready',path:'/cache/session.veyra-replay'}),'/manual.veyra-replay');
  assert.equal(smoothReplayPath('',{state:'preparing',done:10,frames:488}),null);
  assert.equal(smoothReplayPath('',{state:'failed',error:'disk full'}),null);
+});
+
+test('policy switch resumes only the requested policy cache, never a stale or manual one',()=>{
+ const ready={state:'ready',path:'/cache/utility.veyra-replay'};
+ assert.equal(policyReplayPath('utility_lod',{policy:'utility_lod',replay:{active:false},auto_replay:ready}),'/cache/utility.veyra-replay');
+ // A late status event still describing the previous policy's open replay.
+ assert.equal(policyReplayPath('utility_lod',{policy:'distance_lod',replay:{active:false},auto_replay:{state:'ready',path:'/cache/distance.veyra-replay'}}),null);
+ assert.equal(policyReplayPath('utility_lod',{policy:'utility_lod',replay:{active:true},auto_replay:ready}),null);
+ assert.equal(policyReplayPath('utility_lod',{policy:'utility_lod',auto_replay:{state:'preparing'}}),null);
+ assert.equal(policyReplayPath(null,{policy:'utility_lod',auto_replay:ready}),null);
 });
 
 test('60 FPS presentation clock advances every 16.667 ms',()=>{

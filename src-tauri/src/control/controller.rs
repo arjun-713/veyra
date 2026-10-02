@@ -57,7 +57,11 @@ impl RuntimeController {
 
     pub fn refresh_status(&mut self) -> Result<Value, String> {
         let response = self.request("status", Value::Object(Default::default()))?;
-        self.state.mark_ready();
+        // A status poll must never overwrite RUNNING/PAUSED with READY: that
+        // made the next Pause fail "not valid from READY".
+        if !follow_runtime_status(&mut self.state, &response) {
+            self.state.mark_ready();
+        }
         let mut status = response
             .get("status")
             .cloned()
@@ -144,16 +148,11 @@ impl RuntimeController {
             self.restart()?
         } else {
             let response = self.request(command, args)?;
-            match command {
-                "start" => self.state.play().map_err(|error| error.to_string())?,
-                "pause" => self.state.pause().map_err(|error| error.to_string())?,
-                "reset" | "sequence" | "policy" if self.state.status().dataset_open => {
-                    self.state
-                        .open_dataset()
-                        .map_err(|error| error.to_string())?;
-                }
-                _ => {}
-            }
+            // The runtime accepted and performed the command; mirror its
+            // authoritative state. Re-validating here rejected completed
+            // commands (e.g. Pause/Play around Smooth Replay and policy
+            // switches) with "not valid from READY" / "dataset is required".
+            follow_runtime_status(&mut self.state, &response);
             response
         };
         Ok(response)
@@ -318,10 +317,55 @@ fn supervisor_error(error: SupervisorError) -> String {
     error.to_string()
 }
 
+/// Mirror the runtime's `status` (carried on every Python response) into the
+/// shell state. Returns false when the response carries no runtime status.
+fn follow_runtime_status(state: &mut AppState, response: &Value) -> bool {
+    let Some(status) = response.get("status") else {
+        return false;
+    };
+    let Some(runtime_state) = status.get("state").and_then(Value::as_str) else {
+        return false;
+    };
+    let configured = status.get("dataset").is_some_and(|value| !value.is_null());
+    let replaying = status
+        .get("replay")
+        .and_then(|replay| replay.get("active"))
+        .and_then(Value::as_bool)
+        .unwrap_or(false);
+    state.follow_runtime(runtime_state, configured || replaying);
+    true
+}
+
 #[cfg(test)]
 mod tests {
     use super::RuntimeController;
     use serde_json::json;
+
+    #[test]
+    fn runtime_status_drives_shell_state_through_replay_and_policy_switches() {
+        use super::follow_runtime_status;
+        use crate::control::state::RuntimeState;
+        let mut controller = RuntimeController::new("/tmp/veyra-test-follow");
+        let status = |state: &str, replay: bool| {
+            json!({"type": "response", "ok": true, "status": {
+                "state": state, "dataset": "semanticposs", "replay": {"active": replay}
+            }})
+        };
+        // Replay playing, then a status poll: must stay RUNNING so Pause works.
+        assert!(follow_runtime_status(&mut controller.state, &status("running", true)));
+        assert_eq!(controller.status()["state"], "running");
+        // Policy switch closes the replay and reconfigures; the preview step
+        // leaves the runtime paused, and replay_open/start resume it.
+        follow_runtime_status(&mut controller.state, &status("ready", false));
+        follow_runtime_status(&mut controller.state, &status("paused", false));
+        assert_eq!(controller.state.status().state, RuntimeState::Paused);
+        assert!(controller.state.status().dataset_open);
+        follow_runtime_status(&mut controller.state, &status("running", true));
+        assert_eq!(controller.state.status().state, RuntimeState::Running);
+        // Responses without a runtime status leave the mirror untouched.
+        assert!(!follow_runtime_status(&mut controller.state, &json!({"ok": true})));
+        assert_eq!(controller.state.status().state, RuntimeState::Running);
+    }
 
     #[test]
     fn rejected_requests_do_not_latch_error_but_process_failures_do() {

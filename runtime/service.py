@@ -13,6 +13,7 @@ import threading
 import time
 from pathlib import Path
 
+from . import benchmark_cache
 from .config import POLICIES, PRESETS, _keys, config_digest, number, validate_config
 from .datasets import inspect_dataset, open_adapter
 from .protocol import Outbox
@@ -48,6 +49,7 @@ COMMANDS = {
         "repetitions",
         "warmup_frames",
         "hardware_profile",
+        "force",
     ),
     "validation": (),
     "presets": (),
@@ -949,11 +951,44 @@ class ProductRuntime:
         profile = args.get("hardware_profile", "auto")
         if not isinstance(profile, str) or len(profile) > 128:
             raise ValueError("invalid hardware profile")
+        force = args.get("force", False)
+        if not isinstance(force, bool):
+            raise ValueError("benchmark force must be a boolean")
+        binary = self._benchmark_binary()
+        # Everything that can change the measured numbers keys the durable
+        # cache; a hit replays the stored report, labelled CACHED, instead of
+        # remeasuring. ``force`` always remeasures (and refreshes the entry).
+        cache_material = benchmark_cache.key_material(
+            config=self.config,
+            sequence=sequence,
+            start=start,
+            count=count,
+            warmup_frames=warmup,
+            repetitions=repetitions,
+            hardware_profile=profile,
+            binary=binary,
+            repo=self.repo,
+        )
+        cache_key = benchmark_cache.cache_key(cache_material)
+        cached = None if force else benchmark_cache.lookup(cache_key)
+        if cached is not None:
+            self.state = "paused"
+            self._benchmark_thread = threading.Thread(
+                target=lambda: benchmark_cache.serve_cached(
+                    cached,
+                    self.outbox.publish,
+                    benchmark_completion_event,
+                    self.stopping,
+                    benchmark_cache.present_delay,
+                ),
+                daemon=True,
+            )
+            self._benchmark_thread.start()
+            return {"state": "running", "cached": True}
         directory = Path(self._artifacts.name)
         config_file = directory / "perception.json"
         config_file.write_text(json.dumps(self.config["pipeline"]))
         output, csv = directory / "benchmark.json", directory / "benchmark.csv"
-        binary = self._benchmark_binary()
         command = [
             sys.executable,
             "-m",
@@ -997,7 +1032,24 @@ class ProductRuntime:
                     code = self._benchmark.wait()
                 if code:
                     raise RuntimeError(log.read_text(errors="replace")[-4096:])
-                self.outbox.publish(benchmark_completion_event(output, csv))
+                event = benchmark_completion_event(output, csv)
+                stored = None
+                cache_error = None
+                if not self.stopping.is_set():
+                    try:
+                        # Only complete four-policy runs are stored (see store()).
+                        stored = benchmark_cache.store(
+                            cache_key, cache_material, output, csv, count=count
+                        )
+                    except OSError as error:
+                        cache_error = str(error)
+                event["cache"] = {
+                    "hit": False,
+                    "key": cache_key,
+                    "stored": stored is not None,
+                    **({"error": cache_error} if cache_error else {}),
+                }
+                self.outbox.publish(event)
             except Exception as error:  # noqa: BLE001 - worker boundary reports benchmark failure.
                 self.outbox.publish(
                     {"type": "benchmark", "state": "error", "error": str(error)}

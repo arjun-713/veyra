@@ -126,6 +126,25 @@ impl AppState {
     pub fn fail(&mut self) {
         self.state = RuntimeState::Error;
     }
+
+    /// Mirror the Python runtime's authoritative session state after a
+    /// successful request. The runtime already performed the command, so the
+    /// shell must follow it rather than re-validate (a stale local mirror
+    /// used to reject Pause "from READY" after a status poll, and Smooth
+    /// Replay's start/pause/policy flow after the runtime changed state).
+    pub fn follow_runtime(&mut self, runtime_state: &str, dataset_open: bool) {
+        if self.state == RuntimeState::Stopping {
+            return;
+        }
+        self.dataset_open = dataset_open;
+        self.state = match runtime_state {
+            "running" => RuntimeState::Running,
+            "paused" | "ended" => RuntimeState::Paused,
+            // A failed session keeps the process healthy; reset/policy or a
+            // new dataset recovers it, so do not latch the shell into ERROR.
+            _ => RuntimeState::Ready,
+        };
+    }
 }
 
 impl Default for AppState {
@@ -181,5 +200,21 @@ mod tests {
         assert_eq!(state.status().state, RuntimeState::Ready);
         state.play().unwrap();
         assert_eq!(state.status().state, RuntimeState::Running);
+    }
+
+    #[test]
+    fn follows_the_runtime_state_instead_of_rejecting_completed_commands() {
+        let mut state = AppState::new();
+        state.follow_runtime("running", true);
+        assert_eq!(state.status().state, RuntimeState::Running);
+        // Smooth replay ends or pauses on the runtime side.
+        state.follow_runtime("ended", true);
+        assert_eq!(state.status().state, RuntimeState::Paused);
+        state.follow_runtime("ready", true);
+        assert_eq!(state.status().state, RuntimeState::Ready);
+        assert!(state.status().dataset_open);
+        state.follow_runtime("unconfigured", false);
+        assert_eq!(state.status().state, RuntimeState::Ready);
+        assert!(!state.status().dataset_open);
     }
 }

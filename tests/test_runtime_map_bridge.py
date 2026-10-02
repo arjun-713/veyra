@@ -123,7 +123,125 @@ class RuntimeMapBridgeTests(unittest.TestCase):
         self.assertEqual(report["status"], "available")
         self.assertEqual(report["snapshot"]["point_count"], 1)
 
-    def test_engine_map_cells_over_budget_keep_the_cells_nearest_the_vehicle(self):
+    def _dense_patch_cells(self, *budgets):
+        from viewer.runtime import PersistentMapEngine
+
+        engine = PersistentMapEngine(_benchmark_binary(), policy="uniform5")
+        try:
+            engine.process_frame(_dense_patch_frame())
+            return [engine.map_cells(budget=budget) for budget in budgets]
+        finally:
+            engine.close()
+
+    def test_display_cells_under_budget_are_every_leaf_unfolded(self):
+        (cells,) = self._dense_patch_cells(100000)
+        self.assertEqual(cells["status"], "available")
+        self.assertEqual(cells["selection"], "all")
+        self.assertEqual(cells["cell_count"], cells["total_leaves"])
+        self.assertTrue(all(cell["l"] == 0 for cell in cells["cells"]))
+
+    def test_display_cells_over_budget_cover_the_whole_map_by_folding(self):
+        full, folded = self._dense_patch_cells(100000, 1000)
+        self.assertEqual(folded["status"], "available")
+        self.assertEqual(folded["selection"], "folded")
+        self.assertEqual(folded["total_leaves"], full["total_leaves"])
+        self.assertLessEqual(folded["cell_count"], 1000)
+        # A nearest-N disc would drop most of this 6 m patch; folding must
+        # keep every mapped return and every mapped place.
+        self.assertEqual(
+            sum(cell["n"] for cell in folded["cells"]),
+            sum(cell["n"] for cell in full["cells"]),
+        )
+        covered = {}
+        for cell in folded["cells"]:
+            self.assertIn(cell["l"], range(7))
+            scale = 2 ** cell["l"]
+            for ix in range(cell["ix"] * scale, (cell["ix"] + 1) * scale):
+                for iy in range(cell["iy"] * scale, (cell["iy"] + 1) * scale):
+                    self.assertNotIn((ix, iy), covered, "display tiles overlap")
+                    covered[(ix, iy)] = cell["l"]
+        for cell in full["cells"]:
+            self.assertIn((cell["ix"], cell["iy"]), covered)
+        # Folding is graded by range: native 5 cm near the vehicle, coarse
+        # far away -- never a uniformly coarse or uniformly thinned map.
+        radius = folded["native_radius_m"]
+        self.assertGreater(radius, 0.0)
+
+        def distance(cell):
+            size = 0.05 * 2 ** cell["l"]
+            return np.hypot((cell["ix"] + 0.5) * size, (cell["iy"] + 0.5) * size)
+
+        nearest = min(folded["cells"], key=distance)
+        farthest = max(folded["cells"], key=distance)
+        self.assertEqual(nearest["l"], 0)
+        self.assertEqual(farthest["l"], 3)
+        self.assertTrue(
+            all(cell["l"] == 0 for cell in folded["cells"] if distance(cell) < radius)
+        )
+        # Pooled height statistics survive the fold.
+        self.assertAlmostEqual(
+            min(cell["zmin"] for cell in folded["cells"]),
+            min(cell["zmin"] for cell in full["cells"]),
+            places=5,
+        )
+
+    def test_display_cells_over_budget_show_the_newest_whole_scans_natively(self):
+        from viewer.runtime import PersistentMapEngine
+
+        engine = PersistentMapEngine(_benchmark_binary(), policy="uniform5")
+        try:
+            engine.process_frame(_dense_patch_frame())
+            newest = _dense_patch_frame(timestamp=4.0, offset_x=20.0)
+            engine.process_frame(newest)
+            full = engine.map_cells(budget=100000)
+            recent = engine.map_cells(budget=4000)
+            binary = engine.map_cells_binary(budget=4000)
+        finally:
+            engine.close()
+        self.assertEqual(full["cell_count"], 7200)
+        # The older scan no longer fits, the newest one does: it is sent
+        # whole, at native 5 cm, never folded or cut to a disc.
+        self.assertEqual(recent["selection"], "recent")
+        self.assertEqual(recent["recent_scans"], 1)
+        self.assertEqual(recent["cell_count"], 3600)
+        self.assertTrue(all(cell["l"] == 0 for cell in recent["cells"]))
+        self.assertTrue(all(cell["ix"] * 0.05 > 15.0 for cell in recent["cells"]))
+        self.assertEqual(binary["selection"], "recent")
+        self.assertEqual(binary["recent_scans"], 1)
+        self.assertEqual(binary["cell_count"], 3600)
+
+    def test_display_cells_fold_deterministically_and_match_binary_rows(self):
+        from viewer.runtime import PersistentMapEngine
+
+        engine = PersistentMapEngine(_benchmark_binary(), policy="uniform5")
+        try:
+            engine.process_frame(_dense_patch_frame())
+            first = engine.map_cells(budget=700)
+            second = engine.map_cells(budget=700)
+            binary = engine.map_cells_binary(budget=700)
+        finally:
+            engine.close()
+        self.assertEqual(first, second)
+        self.assertEqual(binary["selection"], "folded")
+        self.assertEqual(binary["cell_count"], first["cell_count"])
+        self.assertAlmostEqual(binary["native_radius_m"], first["native_radius_m"], places=5)
+        rows = np.frombuffer(binary["cells_binary"], "<f4").reshape(-1, 17)
+        np.testing.assert_allclose(
+            rows[:, 13], [cell["n"] for cell in first["cells"]], atol=0
+        )
+
+    def test_display_cells_beyond_the_coarsest_fold_keep_the_nearest_tiles(self):
+        # The 6 m patch spans 2 x 2 display-only 3.2 m tiles (level 6).
+        full, clipped = self._dense_patch_cells(100000, 2)
+        self.assertEqual(clipped["selection"], "folded_nearest")
+        self.assertEqual(clipped["cell_count"], 2)
+        self.assertTrue(all(cell["l"] == 6 for cell in clipped["cells"]))
+        self.assertLess(
+            sum(cell["n"] for cell in clipped["cells"]),
+            sum(cell["n"] for cell in full["cells"]),
+        )
+
+    def test_engine_map_cells_over_budget_still_cover_every_mapped_return(self):
         from viewer.runtime import PersistentMapEngine
 
         engine = PersistentMapEngine(_benchmark_binary())
@@ -134,18 +252,12 @@ class RuntimeMapBridgeTests(unittest.TestCase):
             engine.close()
 
         self.assertEqual(cells["status"], "available")
-        self.assertEqual(cells["cell_count"], 3)
+        self.assertLessEqual(cells["cell_count"], 3)
         self.assertGreater(cells["total_leaves"], 3)
-        # Identity pose: the vehicle is at the origin, so the retained cells
-        # must be the three closest to it, not an even stride through the map.
-        distances = sorted(
-            np.hypot(
-                (cell["ix"] + 0.5) * 0.05 * 2 ** cell["l"],
-                (cell["iy"] + 0.5) * 0.05 * 2 ** cell["l"],
-            )
-            for cell in cells["cells"]
-        )
-        self.assertLess(distances[-1], 1.5)
+        # Folding, not a nearest-N disc: all nine returns of the 3 m grid
+        # stay on screen, pooled into coarser display tiles.
+        self.assertEqual(cells["selection"], "folded")
+        self.assertEqual(sum(cell["n"] for cell in cells["cells"]), 9)
 
     def test_binary_map_cells_match_the_json_rows_they_replace(self):
         from runtime.visualization import pack_visualization
@@ -335,6 +447,43 @@ def _grid_frame() -> ObservationFrame:
         dataset="fixture",
         sequence="00",
         frame_id="000003",
+    )
+
+
+def _dense_patch_frame(timestamp: float = 3.0, offset_x: float = 0.0) -> ObservationFrame:
+    """One return per 5 cm cell every 10 cm over a 6 m patch around the vehicle.
+
+    3,600 level-0 leaves that fold to 15 x 15 = 225 level-3 tiles; the patch
+    straddles the origin so negative indices exercise floor division.
+    """
+    axis = np.arange(-3.0, 3.0, 0.1) + 0.025
+    xs, ys = np.meshgrid(axis, axis, indexing="ij")
+    count = xs.size
+    z = 0.2 + 0.01 * np.hypot(xs, ys).ravel()
+    points = np.column_stack(
+        [xs.ravel() + offset_x, ys.ravel(), z, np.full(count, 0.5)]
+    ).astype(np.float32)
+    return ObservationFrame(
+        timestamp=timestamp,
+        pose=PoseSE3.identity(timestamp),
+        points=points,
+        semantic_class=np.full(count, 7, dtype=np.int32),
+        semantic_confidence=np.full(count, 1.0, dtype=np.float32),
+        ground=np.full(count, True),
+        drivable=np.full(count, "drivable"),
+        slope=np.full(count, 0.01, dtype=np.float32),
+        roughness=np.full(count, 0.02, dtype=np.float32),
+        height_complexity=np.full(count, 0.03, dtype=np.float32),
+        motion_probability=np.zeros(count, dtype=np.float32),
+        velocity_xy=np.zeros((count, 2), dtype=np.float32),
+        terrain_confidence=np.full(count, 0.9, dtype=np.float32),
+        step=np.zeros(count, dtype=np.float32),
+        motion_state=np.full(count, "static"),
+        observation_quality=np.full(count, 0.9, dtype=np.float32),
+        raw_semantic_class=np.full(count, 7, dtype=np.int32),
+        dataset="fixture",
+        sequence="00",
+        frame_id=f"{int(timestamp):06d}",
     )
 
 

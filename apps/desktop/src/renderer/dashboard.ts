@@ -175,6 +175,18 @@ export function clampRenderCounts(pointCount:unknown,cellCount:unknown,capacity=
  const points=clamp(pointCount),cells=clamp(cellCount);
  return {points, cells, truncated:points.truncated||cells.truncated};
 }
+// Footer wording for how the engine fit the map into the display budget.
+// "recent" is every leaf seen in the newest whole scans (native resolution);
+// "folded" is the newest scan with distant leaves pooled into coarser tiles;
+// caches that predate folding carry no mode and were a nearest-N disc.
+export function cellSelectionLabel(mode:unknown,wire:unknown,source:unknown,nativeRadiusM:unknown,format:(value:unknown,decimals?:number)=>string,recentScans?:unknown):string{
+ const w=format(wire,0),t=format(source,0);
+ if(mode==='all')return `all ${t} map leaves`;
+ if(mode==='recent'){const n=typeof recentScans==='number'&&recentScans>0?recentScans:null;return `${w} of ${t} map leaves seen in the last ${n===1?'scan':n?`${format(n,0)} scans`:'scans'}`;}
+ if(mode==='folded'){const r=typeof nativeRadiusM==='number'&&Number.isFinite(nativeRadiusM)&&nativeRadiusM>0?` · native detail within ${format(nativeRadiusM,1)} m`:'';return `newest scan folded into ${w} display tiles of ${t} map leaves${r}`;}
+ if(mode==='folded_nearest')return `nearest ${w} 3.2 m tiles of ${t} leaves — map exceeds display budget`;
+ return `nearest ${w} of ${t} to vehicle`;
+}
 // Sampling transparency: the engine sends the nearest-budget disc around
 // the vehicle (spatially coherent, snapshot-ordered — never random first-N),
 // and the renderer additionally clamps to GPU capacity. Both stages are

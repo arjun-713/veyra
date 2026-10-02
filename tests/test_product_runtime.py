@@ -493,9 +493,18 @@ class ProductServiceTests(unittest.TestCase):
         from runtime.service import ProductRuntime
         from tests.test_runtime_player import _write_frame
 
+        import os
+        from unittest import mock
+
         mapper = require_binary(self, "VEYRA_BENCHMARK_BINARY", BENCHMARK_RELATIVE)
         with tempfile.TemporaryDirectory() as raw:
             root = Path(raw)
+            # Never read or pollute the user's durable benchmark cache.
+            isolate = mock.patch.dict(
+                os.environ, {"VEYRA_BENCHMARK_CACHE_DIR": str(root / "cache")}
+            )
+            isolate.start()
+            self.addCleanup(isolate.stop)
             for index in range(5):
                 _write_frame(root, "00000", f"{index:06d}", index)
             service = ProductRuntime(Path.cwd())

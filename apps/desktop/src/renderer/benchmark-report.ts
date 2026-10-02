@@ -396,3 +396,34 @@ export function benchmarkFrameCount(requested: number | null, sessionFrames: unk
   const wanted = requested === null || !Number.isFinite(requested) ? frames : Math.floor(requested);
   return Math.max(1, Math.min(Math.floor(frames), wanted));
 }
+
+export interface BenchmarkCacheInfo {
+  hit: true;
+  key: string | null;
+  measuredAt: string | null;
+  host: string | null;
+  processor: string | null;
+}
+
+/**
+ * Cache provenance of a benchmark completion event. Only a runtime-declared
+ * cache hit yields a value; a fresh measurement (or an event without cache
+ * fields) returns null so it can never be mislabelled as cached.
+ */
+export function benchmarkCacheInfo(event: unknown): BenchmarkCacheInfo | null {
+  if (!isObject(event) || !isObject(event.cache) || event.cache.hit !== true) return null;
+  return {hit: true, key: text(event.cache.key), measuredAt: text(event.cache.measured_at), host: text(event.cache.host), processor: text(event.cache.processor)};
+}
+
+function measuredTime(value: string): string {
+  const time = Date.parse(value);
+  return Number.isFinite(time) ? new Date(time).toISOString().replace('T', ' ').replace(/\.\d+Z$|Z$/, ' UTC') : value;
+}
+
+/** "CACHED · measured <UTC time> on <host> (<cpu>)" — never a fresh-measurement label. */
+export function cachedReportLabel(info: BenchmarkCacheInfo | null): string | null {
+  if (!info) return null;
+  const when = info.measuredAt ? `measured ${measuredTime(info.measuredAt)}` : 'measured at an unrecorded time';
+  const where = info.host && info.processor ? `${info.host} (${info.processor})` : info.host ?? info.processor;
+  return `CACHED · ${when}${where ? ` on ${where}` : ''}`;
+}

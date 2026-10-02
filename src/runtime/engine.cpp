@@ -9,6 +9,7 @@
 #include <cstdint>
 #include <cstring>
 #include <fstream>
+#include <functional>
 #include <iomanip>
 #include <iostream>
 #include <limits>
@@ -2260,35 +2261,216 @@ int run_binary(const Options& options) {
 // that CellStats actually stores. cell_count reports what is actually
 // returned so the caller can distinguish a decimated view from the map.
 //
-// Over budget, send the leaves nearest the vehicle rather than every n-th
-// leaf: a uniform stride thinned the whole map into a sparse checkerboard,
-// while the near field is what the display is for. Snapshot order is kept.
-std::vector<std::size_t> select_display_cells(const veyra::map::MapSnapshot& snapshot,
-                                              std::size_t budget, std::array<double, 2> center) {
+// Over budget, the display shows the leaves observed in the newest whole
+// scans that fit -- the sensor's full current surroundings at native
+// resolution -- instead of a nearest-N disc of the accumulated map. When even
+// the newest scan exceeds the budget, its leaves are folded into coarser
+// display tiles by range, pooling evidence with CellStats::merge (the
+// mapper's own merge): tiles nearer than the native radius R keep their
+// leaves, tiles beyond R fold to 20 cm, beyond 2R to 40 cm, and so on up to
+// display-only 3.2 m tiles. R is the largest radius whose fold fits the
+// budget; only when even every 3.2 m tile exceeds it are the tiles nearest
+// the vehicle kept.
+struct DisplayCells {
+  std::vector<veyra::map::Leaf> folded;       // owned tiles when folding
+  std::vector<const veyra::map::Leaf*> cells;  // what is sent, in order
+  std::string_view selection = "all";
+  double native_radius_m = 0.0;
+  std::size_t recent_scans = 0;  // whole scans shown when selection == "recent"
+};
+
+namespace display_fold {
+constexpr int kTop = 6;  // 3.2 m display tiles; the mapper's own ladder stops at L3
+struct Item {
+  std::int64_t x0, y0;  // lower-left corner in level-0 (5 cm) units
+  std::uint32_t morton;  // x/y bits below kTop interleaved, x bit first
+  std::uint32_t index;
+};
+inline std::int64_t tile(std::int64_t value, int level) { return value >> level; }
+// Beyond R leaves fold straight to 20 cm (then 40 cm beyond 2R, 80 cm beyond
+// 4R, ...) rather than stepping through 10 cm first: the budget then goes to
+// native cells, so full detail reaches ~5 m instead of ~3 m at 50k cells on
+// a 600k-leaf SemanticPOSS map.
+constexpr int kFirstFold = 2;
+inline double band_scale(int level) { return std::ldexp(1.0, std::max(0, level - kFirstFold)); }
+inline double tile_distance(std::int64_t tx, std::int64_t ty, int level,
+                            std::array<double, 2> center) {
+  const double size = 0.05 * std::ldexp(1.0, level);
+  const double x0 = static_cast<double>(tx) * size, y0 = static_cast<double>(ty) * size;
+  const double dx = std::max({x0 - center[0], 0.0, center[0] - (x0 + size)});
+  const double dy = std::max({y0 - center[1], 0.0, center[1] - (y0 + size)});
+  return std::hypot(dx, dy);
+}
+// End of the run of items [begin, end) sharing the level-`level` tile of *begin.
+inline std::size_t run_end(const std::vector<Item>& items, std::size_t begin, std::size_t end,
+                           int level) {
+  const auto tx = tile(items[begin].x0, level), ty = tile(items[begin].y0, level);
+  std::size_t cursor = begin + 1;
+  while (cursor < end && tile(items[cursor].x0, level) == tx &&
+         tile(items[cursor].y0, level) == ty)
+    ++cursor;
+  return cursor;
+}
+}  // namespace display_fold
+
+DisplayCells select_display_cells(const veyra::map::MapSnapshot& snapshot, std::size_t budget,
+                                  std::array<double, 2> center) {
+  using namespace display_fold;
+  DisplayCells out;
   const std::size_t total = snapshot.leaves.size();
-  std::vector<std::size_t> selected(total);
-  for (std::size_t index = 0; index < total; ++index) selected[index] = index;
-  if (total > budget) {
-    // Per-frame scratch sized by the whole map; reused so a growing map does
-    // not leave a slightly larger freed block behind on every frame.
-    thread_local std::vector<double> distance;
-    distance.resize(total);
-    for (std::size_t index = 0; index < total; ++index) {
-      const auto& id = snapshot.leaves[index].id;
-      const double size = 0.05 * std::ldexp(1.0, id.level);
-      const double dx = (static_cast<double>(id.ix) + 0.5) * size - center[0];
-      const double dy = (static_cast<double>(id.iy) + 0.5) * size - center[1];
-      distance[index] = dx * dx + dy * dy;
-    }
-    std::nth_element(selected.begin(), selected.begin() + static_cast<std::ptrdiff_t>(budget),
-                     selected.end(), [&](std::size_t left, std::size_t right) {
-                       return distance[left] < distance[right] ||
-                              (distance[left] == distance[right] && left < right);
-                     });
-    selected.resize(budget);
-    std::sort(selected.begin(), selected.end());
+  out.cells.reserve(std::min(total, budget));
+  if (total <= budget) {
+    for (const auto& leaf : snapshot.leaves) out.cells.push_back(&leaf);
+    return out;
   }
-  return selected;
+  // Over budget, show what the sensor sees now: every leaf observed in the
+  // newest whole scans that fit, at native resolution. One SemanticPOSS scan
+  // already spans the full ~100 m range (~36k leaves), while the accumulated
+  // map behind the vehicle grows past 600k leaves.
+  std::vector<std::pair<std::uint64_t, std::size_t>> scans;  // newest first
+  {
+    std::vector<std::uint64_t> stamps(total);
+    for (std::size_t index = 0; index < total; ++index)
+      stamps[index] = snapshot.leaves[index].stats.last_seen;
+    std::sort(stamps.begin(), stamps.end(), std::greater<>());
+    for (const auto stamp : stamps) {
+      if (scans.empty() || scans.back().first != stamp) scans.emplace_back(stamp, 0);
+      ++scans.back().second;
+    }
+  }
+  std::size_t kept = 0, whole = 0;
+  while (whole < scans.size() && kept + scans[whole].second <= budget) kept += scans[whole++].second;
+  if (whole > 0) {
+    const auto cutoff = scans[whole - 1].first;
+    for (const auto& leaf : snapshot.leaves)
+      if (leaf.stats.last_seen >= cutoff) out.cells.push_back(&leaf);
+    out.selection = "recent";
+    out.recent_scans = whole;
+    return out;
+  }
+  // Even the newest scan exceeds the budget (small display budgets): fold
+  // that scan by range instead of cutting it to a nearest-N disc.
+  std::vector<std::uint32_t> candidates;
+  for (std::size_t index = 0; index < total; ++index)
+    if (snapshot.leaves[index].stats.last_seen == scans.front().first)
+      candidates.push_back(static_cast<std::uint32_t>(index));
+  const std::size_t folding = candidates.size();
+  // Morton-style order: every tile at every level is one contiguous run.
+  std::vector<Item> items(folding);
+  for (std::size_t slot = 0; slot < folding; ++slot) {
+    const auto index = candidates[slot];
+    const auto& id = snapshot.leaves[index].id;
+    const auto x0 = static_cast<std::int64_t>(id.ix) << id.level;
+    const auto y0 = static_cast<std::int64_t>(id.iy) << id.level;
+    std::uint32_t morton = 0;
+    for (int bit = kTop - 1; bit >= 0; --bit)
+      morton = (morton << 2) | static_cast<std::uint32_t>(((x0 >> bit) & 1) << 1) |
+               static_cast<std::uint32_t>((y0 >> bit) & 1);
+    items[slot] = {x0, y0, morton, index};
+  }
+  // Coarsest tile first, then the interleaved finer bits: every tile at
+  // every level becomes one contiguous run.
+  std::sort(items.begin(), items.end(), [](const Item& a, const Item& b) {
+    const auto ax = tile(a.x0, kTop), bx = tile(b.x0, kTop);
+    if (ax != bx) return ax < bx;
+    const auto ay = tile(a.y0, kTop), by = tile(b.y0, kTop);
+    if (ay != by) return ay < by;
+    if (a.morton != b.morton) return a.morton < b.morton;
+    return a.index < b.index;
+  });
+  const auto divisible = [&](std::size_t begin, std::size_t end, int level) {
+    if (level == 0) return false;
+    for (std::size_t i = begin; i < end; ++i)
+      if (snapshot.leaves[items[i].index].id.level >= level) return false;
+    return true;
+  };
+  // Pass 1: each divisible tile opens when R > t = distance / band_scale
+  // and adds (children - 1) display cells. t never decreases toward finer
+  // levels, so a tile's parent is always open before it.
+  std::vector<std::pair<double, std::size_t>> opens;
+  std::size_t roots = 0;
+  const auto survey = [&](auto&& self, std::size_t begin, std::size_t end, int level) -> void {
+    if (!divisible(begin, end, level)) return;
+    std::size_t children = 0;
+    for (std::size_t cursor = begin; cursor < end;) {
+      const auto next = run_end(items, cursor, end, level - 1);
+      self(self, cursor, next, level - 1);
+      cursor = next, ++children;
+    }
+    const double t = tile_distance(tile(items[begin].x0, level), tile(items[begin].y0, level),
+                                   level, center) /
+                     band_scale(level);
+    opens.emplace_back(t, children - 1);
+  };
+  for (std::size_t cursor = 0; cursor < folding; ++roots) {
+    const auto next = run_end(items, cursor, folding, kTop);
+    survey(survey, cursor, next, kTop);
+    cursor = next;
+  }
+  const auto emit = [&](std::size_t begin, std::size_t end, int level) {
+    if (end - begin == 1 && snapshot.leaves[items[begin].index].id.level == level) {
+      out.cells.push_back(&snapshot.leaves[items[begin].index]);
+      return;
+    }
+    veyra::map::Leaf merged;
+    merged.id = {level, static_cast<std::int32_t>(tile(items[begin].x0, level)),
+                 static_cast<std::int32_t>(tile(items[begin].y0, level))};
+    for (std::size_t i = begin; i < end; ++i)
+      merged.stats.merge(snapshot.leaves[items[i].index].stats);
+    out.folded.push_back(std::move(merged));
+    out.cells.push_back(nullptr);  // resolved once `folded` stops growing
+  };
+  if (roots > budget) {
+    // Even the coarsest fold is over budget: nearest 3.2 m tiles.
+    struct Root { double distance; std::size_t begin, end; };
+    std::vector<Root> all;
+    for (std::size_t cursor = 0; cursor < folding;) {
+      const auto next = run_end(items, cursor, folding, kTop);
+      all.push_back({tile_distance(tile(items[cursor].x0, kTop), tile(items[cursor].y0, kTop),
+                                   kTop, center), cursor, next});
+      cursor = next;
+    }
+    std::stable_sort(all.begin(), all.end(),
+                     [](const Root& a, const Root& b) { return a.distance < b.distance; });
+    all.resize(budget);
+    std::sort(all.begin(), all.end(), [](const Root& a, const Root& b) { return a.begin < b.begin; });
+    for (const auto& root : all) emit(root.begin, root.end, kTop);
+    out.selection = "folded_nearest";
+  } else {
+    std::stable_sort(opens.begin(), opens.end(),
+                     [](const auto& a, const auto& b) { return a.first < b.first; });
+    double radius = std::numeric_limits<double>::infinity();
+    std::size_t count = roots;
+    for (const auto& [t, added] : opens) {
+      if (count + added > budget) { radius = t; break; }
+      count += added;
+    }
+    const auto place = [&](auto&& self, std::size_t begin, std::size_t end, int level) -> void {
+      const bool open = divisible(begin, end, level) &&
+                        tile_distance(tile(items[begin].x0, level), tile(items[begin].y0, level),
+                                      level, center) / band_scale(level) < radius;
+      if (!open) {
+        emit(begin, end, std::max(level, snapshot.leaves[items[begin].index].id.level));
+        return;
+      }
+      for (std::size_t cursor = begin; cursor < end;) {
+        const auto next = run_end(items, cursor, end, level - 1);
+        self(self, cursor, next, level - 1);
+        cursor = next;
+      }
+    };
+    for (std::size_t cursor = 0; cursor < folding;) {
+      const auto next = run_end(items, cursor, folding, kTop);
+      place(place, cursor, next, kTop);
+      cursor = next;
+    }
+    out.selection = "folded";
+    out.native_radius_m = radius;
+  }
+  std::size_t owned = 0;
+  for (auto& cell : out.cells)
+    if (cell == nullptr) cell = &out.folded[owned++];
+  return out;
 }
 
 double display_cell_utility(const veyra::map::Leaf& leaf,
@@ -2323,7 +2505,8 @@ double display_cell_utility(const veyra::map::Leaf& leaf,
 void write_cells_binary(std::ostream& out, const veyra::map::MapSnapshot& snapshot,
                         std::size_t budget, const veyra::policy::UtilityConfig& config,
                         std::array<double, 2> center, bool with_layers = false) {
-  const auto selected = select_display_cells(snapshot, budget, center);
+  const auto display = select_display_cells(snapshot, budget, center);
+  const auto& selected = display.cells;
   constexpr std::size_t kFloats = 17;
   constexpr std::size_t kLayerFloats = 15;
   const auto cell_bytes = selected.size() * kFloats * sizeof(float);
@@ -2338,8 +2521,8 @@ void write_cells_binary(std::ostream& out, const veyra::map::MapSnapshot& snapsh
     std::memcpy(cursor, bytes.data(), bytes.size());
     cursor += bytes.size();
   };
-  for (const std::size_t index : selected) {
-    const auto& leaf = snapshot.leaves[index];
+  for (const auto* cell : selected) {
+    const auto& leaf = *cell;
     const double size = 0.05 * std::ldexp(1.0, leaf.id.level);
     put((static_cast<double>(leaf.id.ix) + 0.5) * size);
     put((static_cast<double>(leaf.id.iy) + 0.5) * size);
@@ -2360,8 +2543,8 @@ void write_cells_binary(std::ostream& out, const veyra::map::MapSnapshot& snapsh
     put(leaf.stats.variance_z());
   }
   if (with_layers) {
-    for (const auto index : selected) {
-      const auto& stats = snapshot.leaves[index].stats;
+    for (const auto* cell : selected) {
+      const auto& stats = cell->stats;
       for (const auto* layer : {&stats.ground, &stats.obstacle, &stats.overhead}) {
         const auto absent = std::numeric_limits<double>::quiet_NaN();
         put(layer->count);
@@ -2373,7 +2556,10 @@ void write_cells_binary(std::ostream& out, const veyra::map::MapSnapshot& snapsh
     }
   }
   out << "{\"status\":\"available\",\"cell_count\":" << selected.size()
-      << ",\"total_leaves\":" << snapshot.leaves.size() << ",\"binary_bytes\":" << rows.size()
+      << ",\"total_leaves\":" << snapshot.leaves.size() << ",\"selection\":\"" << display.selection
+      << "\",\"native_radius_m\":" << (std::isfinite(display.native_radius_m) ? display.native_radius_m : 0.0)
+      << ",\"recent_scans\":" << display.recent_scans
+      << ",\"binary_bytes\":" << rows.size()
       << (with_layers ? ",\"physical_layers_version\":1" : "") << "}\n";
   out.write(reinterpret_cast<const char*>(rows.data()), static_cast<std::streamsize>(rows.size()));
 }
@@ -2382,7 +2568,8 @@ std::string render_cells(const veyra::map::MapSnapshot& snapshot, std::size_t bu
                          const veyra::policy::UtilityConfig& config,
                          std::array<double, 2> center = {}) {
   const std::size_t total = snapshot.leaves.size();
-  const auto selected = select_display_cells(snapshot, budget, center);
+  const auto display = select_display_cells(snapshot, budget, center);
+  const auto& selected = display.cells;
   const std::size_t shown = selected.size();
   // Formatted with std::to_chars: identical "%.6f" text, without the
   // locale-aware ostream path that dominated this response at 50k cells.
@@ -2407,10 +2594,16 @@ std::string render_cells(const veyra::map::MapSnapshot& snapshot, std::size_t bu
   integer(static_cast<std::int64_t>(shown));
   out += ",\"total_leaves\":";
   integer(static_cast<std::int64_t>(total));
+  out += ",\"selection\":\"";
+  out += display.selection;
+  out += "\",\"native_radius_m\":";
+  real(std::isfinite(display.native_radius_m) ? display.native_radius_m : 0.0);
+  out += ",\"recent_scans\":";
+  integer(static_cast<std::int64_t>(display.recent_scans));
   out += ",\"cells\":[";
   bool first = true;
-  for (const std::size_t index : selected) {
-    const auto& leaf = snapshot.leaves[index];
+  for (const auto* cell : selected) {
+    const auto& leaf = *cell;
     const double utility = display_cell_utility(leaf, config);
     if (!std::exchange(first, false)) out += ',';
     out += "{\"l\":";

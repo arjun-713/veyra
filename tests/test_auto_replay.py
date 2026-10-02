@@ -5,7 +5,7 @@ import unittest
 from pathlib import Path
 from unittest import mock
 
-from runtime.auto_replay import cache_path, prepare, ready_cache
+from runtime.auto_replay import CELL_SELECTION, cache_path, prepare, ready_cache
 from runtime.config import config_digest
 from runtime.replay_cache import ReplayReader, ReplayWriter, build_header
 from runtime.service import ProductRuntime
@@ -60,10 +60,17 @@ class AutoReplayTests(unittest.TestCase):
                 config_digest=config_digest(config),
                 repo=None,
             )
-            writer = ReplayWriter(path, header, 2)
-            for index in range(2):
-                writer.add_frame(index, {"type": "visualization", "index": index}, b"frame")
-            writer.close()
+
+            def write(extra):
+                writer = ReplayWriter(path, {**header, **extra}, 2)
+                for index in range(2):
+                    writer.add_frame(index, {"type": "visualization", "index": index}, b"frame")
+                writer.close()
+
+            # A cache from before whole-map folding holds a nearest-N disc.
+            write({})
+            self.assertIsNone(ready_cache(path, config, 2))
+            write({"cell_selection": CELL_SELECTION})
             self.assertEqual(ready_cache(path, config, 2), path)
             changed = make_config()
             changed["playback"]["fps"] = 60.0
