@@ -113,7 +113,18 @@ jobs:
       - name: Build Tauri package
         working-directory: apps/desktop
         shell: bash
-        run: npm run tauri:build -- --bundles "${{ matrix.bundles }}"
+        # Hosted macOS runners have no reliable Finder automation session.
+        # Keep the CI-safe unstyled DMG path explicit, and retain verbose
+        # bundler output on Intel so a failed disk-image command is diagnosable.
+        env:
+          CI: "true"
+          TAURI_BUNDLER_DMG_IGNORE_CI: "false"
+        run: |
+          args=()
+          if [ "${{ matrix.platform }}-${{ matrix.arch }}" = "darwin-x64" ]; then
+            args+=(--verbose)
+          fi
+          npm run tauri:build -- --bundles "${{ matrix.bundles }}" "${args[@]}"
       # CI-hardening: assert the expected installer artifacts exist BEFORE
       # writing provenance (survey §5.8). Cheap per-leg gate, no secrets:
       # maps each requested bundle target to its file suffix and fails the
