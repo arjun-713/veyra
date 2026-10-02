@@ -172,9 +172,15 @@ fn forwardable_runtime_event(
 /// directory (for example a bare `.gitkeep` placeholder shipped by a build
 /// that skipped staging) must never masquerade as a runnable backend.
 fn runtime_root(resource_dir: &Path) -> PathBuf {
+    runtime_root_with_executable_dir(resource_dir, resource_dir)
+}
+
+fn runtime_root_with_executable_dir(resource_dir: &Path, executable_dir: &Path) -> PathBuf {
     for staged_backend in [
         resource_dir.join("backend"),
         resource_dir.join("resources/backend"),
+        executable_dir.join("backend"),
+        executable_dir.join("resources/backend"),
     ] {
         if staged_backend.join("manifest.json").is_file()
             && staged_backend.join("runtime/__main__.py").is_file()
@@ -189,7 +195,13 @@ fn application_runtime_root(resource_dir: &Path, development_repo: Option<&Path>
     if let Some(repo) = development_repo.filter(|repo| repo.join("runtime/__main__.py").is_file()) {
         return repo.to_path_buf();
     }
-    runtime_root(resource_dir)
+    let executable_dir = std::env::current_exe()
+        .ok()
+        .and_then(|executable| executable.parent().map(Path::to_path_buf));
+    executable_dir.as_deref().map_or_else(
+        || runtime_root(resource_dir),
+        |executable_dir| runtime_root_with_executable_dir(resource_dir, executable_dir),
+    )
 }
 
 fn development_runtime_root() -> Option<PathBuf> {
@@ -284,6 +296,29 @@ mod tests {
         fs::write(backend.join("runtime/__main__.py"), "# staged").unwrap();
 
         assert_eq!(super::runtime_root(&root), backend);
+
+        fs::remove_dir_all(root).unwrap();
+    }
+
+    #[test]
+    fn per_user_install_resolves_backend_beside_the_executable() {
+        let root = std::env::temp_dir().join(format!(
+            "veyra-user-install-resource-root-test-{}",
+            std::process::id()
+        ));
+        let tauri_resource_dir = root.join("usr/lib/veyra");
+        let executable_dir = root.join("home/user/.local/opt/veyra");
+        let backend = executable_dir.join("resources/backend");
+        fs::create_dir_all(backend.join("runtime")).unwrap();
+        fs::create_dir_all(backend.join("python/bin")).unwrap();
+        fs::write(backend.join("manifest.json"), "{\"schema_version\":1}").unwrap();
+        fs::write(backend.join("runtime/__main__.py"), "# staged").unwrap();
+        fs::write(backend.join("python/bin/python3"), "python").unwrap();
+
+        assert_eq!(
+            super::runtime_root_with_executable_dir(&tauri_resource_dir, &executable_dir),
+            backend
+        );
 
         fs::remove_dir_all(root).unwrap();
     }
