@@ -70,6 +70,15 @@ Tauri builds the Linux deb/rpm/AppImage, Windows NSIS, and macOS DMG bundles
 Run `npm run tauri:build` on the target OS. A release package must stage a
 backend directory with `scripts/stage_tauri_backend.py` (built on
 `scripts/package_backend.py`).
+For a standalone executable without installer bundles, run
+`npm run tauri:build -- --no-bundle` from `apps/desktop`. Use the Tauri production
+build, not plain `cargo build --release`: the production build enables Tauri's
+custom protocol and embeds the frontend instead of loading the development URL
+at `127.0.0.1:1420`. No Vite server is needed to launch the installed app.
+On Linux, a per-user standalone installation can place `resources/backend/`
+beside the executable; the app resolves that bundle when system resources are
+not installed.
+
 The staging command copies only the allowlisted application packages, configs,
 native mapper and supplied Python runtime. It rejects mapper paths outside the
 checkout and writes a size/SHA-256 manifest. `verify_backend` validates that
@@ -99,6 +108,36 @@ runners, stages the backend, runs product checks, creates an aggregate
 `release-manifest.json` and `SHA256SUMS`, and publishes installers to a GitHub
 Release. Signing/notarization is separate from a successful build or publish;
 do not describe a bundle as signed unless release provenance verifies it.
+
+### Automatic releases
+
+Every push to `main` starts the native release workflow. Its run number provides
+the automatic patch increment: with a checked-in version of `0.1.0`, workflow
+run 12 builds `0.1.12` and publishes tag `v0.1.12`. Retries retain the same
+version; skipped/failed runs can leave version gaps. Keep the checked-in version
+as the release-series baseline, rather than stamping it back into Git after
+each build. Explicit `v*` tags and manual versions remain supported; semantic
+prerelease versions do not become the stable download.
+
+The version is stamped before staging so the backend manifest and installer
+agree. Each native job verifies a relocated bundled Python runtime, its
+dependencies and mapper before the production Tauri build. Only after all four
+platform jobs succeed are the Linux `.deb`/`.rpm`/`.AppImage`, Windows NSIS
+installer and both macOS DMGs assembled with checksums. Uploads go into a draft
+pinned to the built commit; publication exposes the complete release. Published
+assets are not overwritten on retries. A failed build leaves the previous
+stable release available.
+
+Running releases are not cancelled by new pushes. GitHub concurrency retains
+one pending run per ref, so rapid pushes can supersede a pending build; the
+latest queued main state is built after the active run finishes. This does not
+automatically update apps already installed on user machines.
+
+No Python installation or development server is required by the packaged app.
+Datasets/model weights remain user-provided; Intel macOS currently lacks the
+Patchwork++ backend. Native install/launch testing and OS signing/notarization
+are distinct from these packaging checks. Windows/macOS security warnings can
+remain until signing credentials are configured.
 
 ### macOS specifics
 

@@ -23,6 +23,7 @@ on:
       - 'apps/desktop/**'
       - 'src-tauri/**'
       - 'tools/tauri.mjs'
+      - 'tools/tauri.test.mjs'
   pull_request:
     paths:
       - '.github/workflows/**'
@@ -44,6 +45,7 @@ on:
       - 'apps/desktop/**'
       - 'src-tauri/**'
       - 'tools/tauri.mjs'
+      - 'tools/tauri.test.mjs'
 
 permissions:
   contents: read
@@ -93,6 +95,7 @@ jobs:
               - 'apps/desktop/**'
               - 'src-tauri/**'
               - 'tools/tauri.mjs'
+              - 'tools/tauri.test.mjs'
             shared:
               - '.github/workflows/**'
               - 'protocol/**'
@@ -166,6 +169,7 @@ jobs:
         run: |
           python -m unittest discover -s benchmarks -p 'test*.py' -v
           python -m unittest discover -s tests -p 'test*.py' -v
+          python -m unittest discover -s tests/scripts -p 'test*.py' -v
 
   desktop:
     name: Desktop frontend and Rust checks
@@ -201,6 +205,8 @@ jobs:
           npm test
           npm run check
           npm run build
+      - name: Tauri CLI invocation regression
+        run: node --test tools/tauri.test.mjs
       - name: Prepare resource path for Rust checks
         run: mkdir -p src-tauri/resources/backend
       - name: Install runtime dependencies for supervisor tests

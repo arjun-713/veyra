@@ -26,7 +26,12 @@ works fully offline.
 Import the repository, set **Root Directory** to `landing-page`, keep defaults
 (`npm run build`, output `.next`). No environment variables required.
 The public `/api/releases` route reads published assets from the GitHub Releases
-API and caches the result for five minutes. It does not need a GitHub token.
+API's `/releases/latest` endpoint and caches the result for five minutes. It does
+not need a GitHub token. It enables downloads only for a published stable release
+containing all six supported installers, never a draft, prerelease or partial
+upload. Successful main releases therefore update download links without a
+website redeploy. Cached responses can lag publication; the route allows ten
+minutes of stale-while-revalidate on top of its five-minute cache lifetime.
 
 ## Asset replacement
 

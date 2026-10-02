@@ -26,7 +26,9 @@ def sha256(path: Path) -> str:
     return digest.hexdigest()
 
 
-def build_manifest(root: Path, version: str) -> dict[str, object]:
+def build_manifest(
+    root: Path, version: str, *, require_complete: bool = False
+) -> dict[str, object]:
     root = root.resolve(strict=True)
     artifacts: list[dict[str, object]] = []
     seen_names: set[str] = set()
@@ -56,6 +58,25 @@ def build_manifest(root: Path, version: str) -> dict[str, object]:
             )
     if not artifacts:
         raise ValueError("no Tauri installer assets were found")
+    if require_complete:
+        required = {
+            ("linux", "x64", ".deb"),
+            ("linux", "x64", ".rpm"),
+            ("linux", "x64", ".appimage"),
+            ("win32", "x64", ".exe"),
+            ("darwin", "arm64", ".dmg"),
+            ("darwin", "x64", ".dmg"),
+        }
+        found = {
+            (
+                item["platform"],
+                item["architecture"],
+                Path(item["filename"]).suffix.lower(),
+            )
+            for item in artifacts
+        }
+        if missing := required - found:
+            raise ValueError(f"incomplete native release; missing: {sorted(missing)}")
     return {
         "schema_version": 1,
         "version": version,
@@ -64,12 +85,14 @@ def build_manifest(root: Path, version: str) -> dict[str, object]:
     }
 
 
-def stage_release(root: Path, output: Path, version: str) -> Path:
+def stage_release(
+    root: Path, output: Path, version: str, *, require_complete: bool = False
+) -> Path:
     root = root.resolve(strict=True)
     output.mkdir(parents=True, exist_ok=True)
     if any(output.iterdir()):
         raise ValueError(f"release output directory is not empty: {output}")
-    manifest = build_manifest(root, version)
+    manifest = build_manifest(root, version, require_complete=require_complete)
     for artifact in manifest["artifacts"]:
         source = (
             root
@@ -92,8 +115,13 @@ def main() -> int:
     parser.add_argument("root", type=Path)
     parser.add_argument("--version", required=True)
     parser.add_argument("--output", type=Path, required=True)
+    parser.add_argument("--require-complete", action="store_true")
     args = parser.parse_args()
-    print(stage_release(args.root, args.output, args.version))
+    print(
+        stage_release(
+            args.root, args.output, args.version, require_complete=args.require_complete
+        )
+    )
     return 0
 
 

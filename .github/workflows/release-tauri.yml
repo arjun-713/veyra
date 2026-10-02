@@ -4,21 +4,50 @@ on:
   workflow_dispatch:
     inputs:
       version:
-        description: Release version (for example v0.2.0-rc.1)
-        required: true
+        description: Optional explicit version (empty uses the automatic main version)
+        required: false
         type: string
       prerelease:
         description: Publish to the prerelease channel
         type: boolean
         default: true
   push:
+    branches: [main]
     tags: ["v*"]
 
 permissions:
   contents: read
 
+# Finish a running release rather than cancelling builds on the next push.
+# GitHub keeps one pending run per group; rapid pushes may supersede pending runs.
+concurrency:
+  group: veyra-release-${{ github.ref }}
+  cancel-in-progress: false
+
 jobs:
+  prepare:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    outputs:
+      version: ${{ steps.identity.outputs.version }}
+      tag: ${{ steps.identity.outputs.tag }}
+      prerelease: ${{ steps.identity.outputs.prerelease }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+      - name: Release helper regression tests
+        run: python -m unittest discover -s tests/scripts -p 'test*.py' -v
+      - id: identity
+        name: Resolve release version and channel
+        env:
+          REQUESTED_VERSION: ${{ inputs.version }}
+          REQUESTED_PRERELEASE: ${{ inputs.prerelease }}
+        run: python scripts/prepare_tauri_release.py
+
   package:
+    needs: prepare
     name: ${{ matrix.label }}
     runs-on: ${{ matrix.os }}
     # CI-hardening: bound hosted-runner spend (mirrors release.yml).
@@ -47,6 +76,11 @@ jobs:
           cache: pip
           cache-dependency-path: requirements.txt
       - uses: dtolnay/rust-toolchain@stable
+      - name: Stamp product and backend version before staging
+        env:
+          RELEASE_VERSION: ${{ needs.prepare.outputs.version }}
+        run: python scripts/prepare_tauri_release.py --stamp "$RELEASE_VERSION"
+        shell: bash
       - name: Install Linux packaging dependencies
         if: runner.os == 'Linux'
         run: |
@@ -65,86 +99,26 @@ jobs:
           "$py" -m pip install --disable-pip-version-check -r requirements.txt
           if [ "${{ matrix.platform }}" = "win32" ]; then bench="build/apps/benchmark/Release/veyra_benchmark.exe"; else bench="build/apps/benchmark/veyra_benchmark"; fi
           python scripts/stage_tauri_backend.py --repo . --mapper "${{ matrix.mapper }}" --benchmark "$bench" --python-runtime "$RUNNER_TEMP/veyra-python" --platform "${{ matrix.platform }}" --arch "${{ matrix.arch }}"
-      # CI-hardening: smoke-test the staged backend BEFORE bundling (mirrors
-      # release.yml's `VYRA`-magic assert). Runs matrix-wide (Linux/Windows/
-      # macOS, no secrets): proves the relocatable interpreter + runtime
-      # package answer `status` from the exact resources dir the bundler
-      # embeds. A green build with a dead backend must fail here, not ship.
+      # Relocate and verify the exact staged files, import dependencies, start
+      # the native mapper and require a successful framed runtime response.
       - name: Smoke-test staged backend
         shell: bash
-        run: |
-          if [ "${{ matrix.platform }}" = "win32" ]; then py="src-tauri/resources/backend/python/python.exe"; else py="src-tauri/resources/backend/python/bin/python3"; fi
-          printf '{"id":"release-smoke","command":"status","args":{}}\n' | "$py" -u -m runtime --repo src-tauri/resources/backend > "$RUNNER_TEMP/runtime-smoke.bin"
-          python -c "from pathlib import Path; data=Path(r'$RUNNER_TEMP/runtime-smoke.bin').read_bytes(); assert len(data)>16 and data[:4]==b'VYRA'"
+        run: python scripts/smoke_tauri_backend.py src-tauri/resources/backend
       - name: Install desktop dependencies
         working-directory: apps/desktop
         run: npm ci
-      # CI-hardening: stamp the bundle version from the release tag BEFORE
-      # building. Tauri takes the bundle version from
-      # src-tauri/tauri.conf.json (kept in sync with src-tauri/Cargo.toml);
-      # RELEASE_VERSION was previously passed but never consumed, so every
-      # bundle shipped 0.1.0 regardless of tag. apps/desktop/package.json is
-      # intentionally NOT stamped here — it is the Electron track's input
-      # (`npm version` in release.yml) and no Tauri input reads it.
-      # No signing here by design (gated: needs secrets + Tauri updater
-      # key decisions, survey §5.2) — bundles ship unsigned until then.
-      - name: Stamp bundle version from release tag
-        shell: bash
-        env:
-          RELEASE_VERSION: ${{ inputs.version || github.ref_name }}
-        run: |
-          python - <<'PY'
-          import json
-          import os
-          import re
-          from pathlib import Path
-
-          raw = os.environ["RELEASE_VERSION"].strip()
-          match = re.fullmatch(r"(?:tauri-)?v?(\d+\.\d+\.\d+(?:[-+][0-9A-Za-z.-]+)?)", raw)
-          if not match:
-              raise SystemExit(
-                  f"cannot derive bundle version from RELEASE_VERSION={raw!r} "
-                  "(expected like 0.2.0, v0.2.0, or tauri-v0.2.0)"
-              )
-          version = match.group(1)
-
-          conf_path = Path("src-tauri/tauri.conf.json")
-          conf = json.loads(conf_path.read_text(encoding="utf-8"))
-          conf["version"] = version
-          conf_path.write_text(json.dumps(conf, indent=2) + "\n", encoding="utf-8")
-
-          # Only the [package] version sits at column 0; dependency
-          # `version = ...` entries are indented inside inline tables.
-          cargo_path = Path("src-tauri/Cargo.toml")
-          text = cargo_path.read_text(encoding="utf-8")
-          updated, count = re.subn(
-              r'^version\s*=\s*"[^"]*"',
-              f'version = "{version}"',
-              text,
-              count=1,
-              flags=re.MULTILINE,
-          )
-          if count != 1:
-              raise SystemExit("expected exactly one column-0 version field in src-tauri/Cargo.toml")
-          cargo_path.write_text(updated, encoding="utf-8")
-
-          with open(os.environ["GITHUB_ENV"], "a", encoding="utf-8") as env:
-              env.write(f"VEYRA_BUNDLE_VERSION={version}\n")
-          print(f"stamped bundle version {version}")
-          PY
+      - name: Check native CLI invocation
+        run: node --test tools/tauri.test.mjs
+      # Tauri CLI production build embeds the frontend; do not substitute cargo build.
       - name: Build Tauri package
         working-directory: apps/desktop
         shell: bash
-        env:
-          RELEASE_VERSION: ${{ inputs.version || github.ref_name }}
         run: npm run tauri:build -- --bundles "${{ matrix.bundles }}"
       # CI-hardening: assert the expected installer artifacts exist BEFORE
       # writing provenance (survey §5.8). Cheap per-leg gate, no secrets:
       # maps each requested bundle target to its file suffix and fails the
       # leg when the bundler silently emits nothing (or the wrong set).
-      # Backend-payload depth (manifest inside deb/rpm) is verified
-      # off-runner by MANIFEST.md inspection; installer install-and-launch
-      # still needs native runners (see CI-STATUS.md).
+      # This checks build output, not end-user install-and-launch acceptance.
       - name: Assert bundle artifacts present
         shell: bash
         run: |
@@ -192,7 +166,7 @@ jobs:
           retention-days: 30
 
   publish:
-    needs: package
+    needs: [prepare, package]
     runs-on: ubuntu-24.04
     timeout-minutes: 15
     permissions:
@@ -206,33 +180,42 @@ jobs:
         with:
           path: artifacts
           merge-multiple: false
+          pattern: veyra-tauri-*
       - name: Build aggregate release manifest and checksums
         shell: bash
         env:
-          RELEASE_VERSION: ${{ inputs.version || github.ref_name }}
+          RELEASE_VERSION: ${{ needs.prepare.outputs.version }}
         run: |
           python scripts/build_tauri_release_manifest.py artifacts \
             --version "$RELEASE_VERSION" \
-            --output "$RUNNER_TEMP/veyra-release-assets"
+            --output "$RUNNER_TEMP/veyra-release-assets" --require-complete
           python scripts/release_checksums.py "$RUNNER_TEMP/veyra-release-assets"
       - name: Publish installer files to GitHub Release
         shell: bash
         env:
           GH_TOKEN: ${{ github.token }}
-          RELEASE_TAG: ${{ inputs.version || github.ref_name }}
-          PRERELEASE: ${{ github.event_name == 'workflow_dispatch' && inputs.prerelease || contains(inputs.version || github.ref_name, '-') }}
+          RELEASE_TAG: ${{ needs.prepare.outputs.tag }}
+          PRERELEASE: ${{ needs.prepare.outputs.prerelease }}
+          SOURCE_SHA: ${{ github.sha }}
         run: |
           channel=stable
-          release_flags=()
           if [ "$PRERELEASE" = true ]; then
             channel=prerelease
-            release_flags=(--prerelease)
           fi
-          printf 'Veyra native Tauri installers. Channel: %s. Verify files with SHA256SUMS; see release-manifest.json for platform, architecture, size, and SHA-256.\n' "$channel" > release-notes.md
+          printf 'Veyra native desktop installers.\n\nChannel: %s\nSource commit: %s\n\nIncludes the production UI, Python dependencies and native mapper. No development server or separate Python installation is required. Datasets and semantic model weights remain user-provided.\n\nVerify downloads with SHA256SUMS and release-manifest.json. Windows builds are unsigned; macOS builds are ad-hoc signed, not Developer ID signed/notarized. OS security warnings may apply.\n' "$channel" "$SOURCE_SHA" > release-notes.md
           mapfile -d '' assets < <(find "$RUNNER_TEMP/veyra-release-assets" -maxdepth 1 -type f -print0 | sort -z)
           if gh release view "$RELEASE_TAG" >/dev/null 2>&1; then
-            gh release upload "$RELEASE_TAG" --clobber "${assets[@]}"
-            gh release edit "$RELEASE_TAG" --title "Veyra $RELEASE_TAG" --notes-file release-notes.md
+            draft=$(gh release view "$RELEASE_TAG" --json isDraft --jq .isDraft)
+            target=$(gh release view "$RELEASE_TAG" --json targetCommitish --jq .targetCommitish)
+            if [ "$draft" != true ] || [ "$target" != "$SOURCE_SHA" ]; then
+              echo 'Refusing to overwrite a published release or a draft from another commit.' >&2
+              exit 1
+            fi
           else
-            gh release create "$RELEASE_TAG" --title "Veyra $RELEASE_TAG" --notes-file release-notes.md "${release_flags[@]}" "${assets[@]}"
+            gh release create "$RELEASE_TAG" --target "$SOURCE_SHA" --draft --title "Veyra $RELEASE_TAG" --notes-file release-notes.md
           fi
+          gh release upload "$RELEASE_TAG" --clobber "${assets[@]}"
+          # Only expose downloads after every installer, checksum and manifest uploaded.
+          latest=true
+          if [ "$PRERELEASE" = true ]; then latest=false; fi
+          gh release edit "$RELEASE_TAG" --draft=false --prerelease="$PRERELEASE" --latest="$latest" --notes-file release-notes.md

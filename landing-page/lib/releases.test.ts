@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { formatAssetSize, matchReleaseAssets } from "./releases.ts";
+import { formatAssetSize, matchReleaseAssets, parsePublishedRelease } from "./releases.ts";
 
 const assets = [
   { name: "Veyra_0.1.0_amd64.deb", browser_download_url: "https://github.com/arjun-713/veyra/releases/download/v0.1.0/veyra.deb", size: 1048576 },
@@ -45,4 +45,26 @@ test("formats real byte sizes without showing placeholders", () => {
   assert.equal(formatAssetSize(0), "0 B");
   assert.equal(formatAssetSize(1048576), "1.0 MB");
   assert.equal(formatAssetSize(1073741824), "1.0 GB");
+});
+
+test("only a complete published stable release enables the latest downloads", () => {
+  const release = { tag_name:"v0.1.12", html_url:"https://github.com/arjun-713/veyra/releases/tag/v0.1.12", draft:false, prerelease:false, assets:assets.map(asset => ({...asset, browser_download_url:asset.browser_download_url.replace("/v0.1.0/", "/v0.1.12/")})) };
+  const parsed = parsePublishedRelease(release);
+  assert.equal(parsed.status, "available");
+  if (parsed.status === "available") {
+    assert.equal(parsed.release.tag_name, "v0.1.12");
+    assert.equal(parsed.release.assets.length, 6);
+  }
+  for (const invalid of [
+    null,
+    { ...release, draft:true },
+    { ...release, prerelease:true },
+    { ...release, assets:assets.slice(1) },
+    { ...release, assets:assets.map(asset => ({ ...asset, size:0 })) },
+    { ...release, assets },
+    { ...release, html_url:"https://example.com/release" },
+    { ...release, assets:assets.map(asset => ({ ...asset, browser_download_url:"http://example.com/file" })) },
+  ]) {
+    assert.deepEqual(parsePublishedRelease(invalid), {status:"empty"});
+  }
 });

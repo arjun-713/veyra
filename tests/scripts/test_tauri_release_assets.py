@@ -9,6 +9,30 @@ from scripts.stage_tauri_release_assets import stage_installers
 
 
 class StageTauriReleaseAssetsTests(unittest.TestCase):
+    def test_publish_requires_all_six_native_downloads(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            files = {
+                "veyra-tauri-linux-x64": [
+                    "Veyra_0.1.12_amd64.deb",
+                    "Veyra-0.1.12-1.x86_64.rpm",
+                    "Veyra_0.1.12_amd64.AppImage",
+                ],
+                "veyra-tauri-win32-x64": ["Veyra_0.1.12_x64-setup.exe"],
+                "veyra-tauri-darwin-arm64": ["Veyra_0.1.12_aarch64.dmg"],
+                "veyra-tauri-darwin-x64": ["Veyra_0.1.12_x64.dmg"],
+            }
+            for target, names in files.items():
+                folder = root / target
+                folder.mkdir()
+                for name in names:
+                    (folder / name).write_bytes(b"installer")
+            manifest = build_manifest(root, "0.1.12", require_complete=True)
+            self.assertEqual(len(manifest["artifacts"]), 6)
+            (root / "veyra-tauri-win32-x64/Veyra_0.1.12_x64-setup.exe").unlink()
+            with self.assertRaisesRegex(ValueError, "incomplete"):
+                build_manifest(root, "0.1.12", require_complete=True)
+
     def test_stages_only_final_installer_files(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)

@@ -71,6 +71,34 @@ export function matchReleaseAssets(
   return matches;
 }
 
+/** Validate the GitHub /releases/latest response before enabling downloads. */
+export function parsePublishedRelease(value: unknown): ReleaseLookupResponse {
+  if (typeof value !== "object" || value === null) return { status:"empty" };
+  const item = value as Record<string, unknown>;
+  if (
+    item.draft !== false || item.prerelease !== false ||
+    typeof item.tag_name !== "string" || !item.tag_name ||
+    typeof item.html_url !== "string" || !item.html_url.startsWith(`${RELEASES_URL}/tag/`) ||
+    !Array.isArray(item.assets)
+  ) return { status:"empty" };
+  const releaseAssetPrefix = `${RELEASES_URL}/download/${encodeURIComponent(item.tag_name)}/`;
+  const assets: PublishedReleaseAsset[] = [];
+  for (const raw of item.assets) {
+    if (typeof raw !== "object" || raw === null) continue;
+    const asset = raw as Record<string, unknown>;
+    if (
+      typeof asset.name === "string" &&
+      typeof asset.browser_download_url === "string" &&
+      asset.browser_download_url.startsWith(releaseAssetPrefix) &&
+      typeof asset.size === "number" && Number.isFinite(asset.size) && asset.size > 0
+    ) assets.push({name:asset.name, browser_download_url:asset.browser_download_url, size:asset.size});
+  }
+  const matched = Object.values(matchReleaseAssets(assets));
+  // Publish is all-or-nothing: never combine installers from different versions.
+  if (matched.length !== RELEASES.length) return { status:"empty" };
+  return { status:"available", release:{tag_name:item.tag_name, html_url:item.html_url, assets:matched} };
+}
+
 export function formatAssetSize(bytes: number): string {
   if (bytes < 1024) return `${bytes} B`;
   const units = ["KB", "MB", "GB", "TB"];
