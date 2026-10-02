@@ -1,4 +1,4 @@
-# Judge View — live and replay foveation proof (issue #95)
+# Judge View
 
 One click in the Map toolbar — **Judge View** — configures the Viewer to
 explain Veyra's core idea in ~20–30 seconds. It works on **live
@@ -53,8 +53,8 @@ stored level from measured inputs only, with per-policy semantics:
   per-cell decision (base/requested/reason flags) is not on the
   visualization wire, so refinement always carries the explicit note
   "Utility decision attribution unavailable for this frame" alongside
-  the measured utility signals. UtilityLOD ships `OFF/disabled-by-default`
-  (see `docs/resolution-policies.md`); no win is ever claimed.
+  the measured utility signals. DistanceLOD is the default policy; a UtilityLOD
+  quality advantage is not claimed without matching benchmark evidence.
 
 Semantic classes render by taxonomy name (`Road · ID 9`), never a bare
 ID. The selection re-resolves by world key on every new frame — updated

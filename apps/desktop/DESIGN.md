@@ -3,7 +3,8 @@
 Refine the existing light application shell and dark spatial viewports. The
 reference is a calm Apple desktop utility: precise alignment, readable system
 type, quiet separators, consistent line icons, and a clear primary action.
-This document applies to `src/renderer`; the root design describes Veyra Scope.
+This document applies to `src/renderer`; the landing page has its own design
+tokens in `landing-page/DESIGN.md`.
 
 - UI type: `-apple-system, BlinkMacSystemFont, Inter, Segoe UI, sans-serif`.
   Monospace is reserved for measured numbers, paths and configuration.

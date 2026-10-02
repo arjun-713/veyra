@@ -1,10 +1,10 @@
 # Veyra
 
-### Adaptive Semantic 2.5D LiDAR Mapping for Dynamic Environments
+### Adaptive semantic 2.5D LiDAR mapping
 
-Veyra compresses sequential 3D LiDAR into a semantic,
-variable-resolution 2.5D elevation map — fine detail where it matters,
-coarse elsewhere. Built for adaptive semantic LiDAR mapping.
+Veyra turns sequential 3D LiDAR into a sparse, world-aligned 2.5D map.
+Each map cell stores elevation and surface evidence; mapping policies choose
+the spatial resolution used to represent observations.
 
 > Preserve safety-relevant 3D info without paying uniform
 > high-resolution costs across full LiDAR range.
@@ -21,8 +21,11 @@ potholes, and obstacles. Veyra keeps elevation + semantics in 2.5D:
 | 30–60 m | 20 cm |
 | 60–100 m | 40 cm |
 
-Distance is the baseline; terrain, semantics, motion, and risk promote
-important regions finer. Details: `docs/resolution-policies.md`.
+DistanceLOD is the range-based baseline. UtilityLOD can request local
+refinement using configured geometry, semantic, motion, traversability-risk,
+and uncertainty evidence, subject to observation-quality gates. The policy
+design does not itself establish a measured quality advantage. See
+`docs/resolution-policies.md`.
 
 ## Quick start
 
@@ -34,11 +37,9 @@ python -m venv .venv && source .venv/bin/activate
 python -m pip install -r requirements.txt -r requirements-dev.txt
 ```
 
-Core needs only C++20/CMake; CUDA optional. The long-running runtime and
-Tauri desktop application are documented in `docs/product-runtime.md`; engineering
-rules remain in `docs/development.md`.
-The shared benchmark artifact contract is documented in
-`docs/benchmark-contract.md`.
+Core needs only C++20/CMake; CUDA is optional. Runtime details are in
+`docs/product-runtime.md`, desktop operation in `apps/desktop/README.md`, and
+the benchmark artifact contract in `docs/benchmark-contract.md`.
 
 ## Run with Docker
 
@@ -56,23 +57,22 @@ Services, data layout and caveats: `docs/docker.md`.
 
 ## How it works
 
-`Scan + pose → ground (Patchwork++) + semantics (pretrained provider)
-→ terrain + confidence → temporal (STATIC / POSSIBLY_MOVING / MOVING)
-→ importance → resolution controller → world-aligned adaptive map →
-traversability / viewer / metrics`.
+`Dataset adapter → perception pipeline (semantic provider; optional ground,
+terrain and temporal stages) → ObservationFrame → Python runtime → C++ map
+engine and governor → telemetry / visualization → desktop or benchmark`.
 
 Map uses fixed `odom` lattice (`resolution(l) = 0.05 * 2^l`), implicit
-`(level,ix,iy)` tiles, and per-cell sufficient statistics (mean,
-variance, min/max z, count, class, traversability, motion). No raw
-history. Details: `docs/architecture.md`,
+`(level,ix,iy)` tiles and per-cell sufficient statistics, including separate
+ground, obstacle, and overhead height layers. Raw point history is not stored
+in map cells. Details: `docs/architecture.md` and
 `docs/perception-terrain-temporal.md`.
 
 ## Modes & guarantees
 
-Modes: **Uniform5** (fine baseline), **Uniform40** (coarse reference),
-**DistanceLOD** (range-only baseline), **UtilityLOD** (importance-aware
-promotion). Always compare all four; key result is DistanceLOD vs
-UtilityLOD.
+Modes: **Uniform5** (fine reference), **Uniform40** (coarse reference),
+**DistanceLOD** (range-only baseline), and **UtilityLOD** (quality-gated
+local promotion). Policy comparisons should use the same input stream; the key
+adaptive comparison is DistanceLOD vs UtilityLOD.
 
 Guarantees: one point → one leaf; no parent/child overlap; exact 4:1
 merge-preserving hierarchy; stable rolling window; protected
@@ -80,18 +80,19 @@ near-field. Tests: `docs/map-correctness.md`.
 
 ## Data & evaluation
 
-Primary: SemanticKITTI; plus RELLIS-3D (off-road) and Great Outdoors
-(UGV). Data/weights/maps never committed. Metrics: memory/RSS, active
-cells, p50/p95/p99 update latency, FPS, range-wise semantics,
-traversability, elevation error, churn. Analytical vs measured numbers
-reported separately. Details: `docs/datasets-benchmarks.md`.
+Adapters cover SemanticPOSS, RELLIS-3D, SemanticKITTI, and a generic manifest
+format; PandaSet conversion targets the generic format. Local data availability
+and metadata vary. Dataset files, weights, and maps are not committed. Metrics
+and reference definitions are in `docs/benchmark-contract.md`; adapter guides
+are under `datasets/`.
 
 ## Status
 
-The repository includes the four map policies, long-running replay runtime,
-resource governor, measured telemetry, binary observation transport and a
-Tauri/Svelte operator application. No FPS/accuracy/RAM claim is published
-until a reproducible benchmark on named hardware supports it. Scope excludes
+The repository includes four map policies, a replay runtime, an optional
+resource governor, measured telemetry, binary observation transport, and a
+Tauri/Svelte desktop application. Performance claims require a reproducible
+benchmark with named hardware and provenance. Scope excludes
 SLAM, planning, control, camera fusion and LLMs. Pose is external.
 
-See `AGENTS.md` for contributor constraints.
+See `AGENTS.md` for repository guidance and `CONTRIBUTING.md` for contribution
+workflow.

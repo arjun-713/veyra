@@ -1,5 +1,7 @@
-# Benchmarks — Vinay. Compare Uniform5/40, DistanceLOD, UtilityLOD.
-# Report analytical vs measured separately. See docs/datasets-benchmarks.md
+# Benchmarks
+
+Compare Uniform5, Uniform40, DistanceLOD, and UtilityLOD. Report analytical
+and measured values separately. See docs/benchmark-contract.md.
 # Results/dumps are git-ignored; only harnesses + summaries land here.
 
 ## Offline local run
@@ -28,14 +30,15 @@ Pass
 to run the complete UtilityLOD signal experiment. Its structured result,
 delta directions, CSV behavior, and compatibility rules are defined in
 [`docs/benchmark-contract.md`](../docs/benchmark-contract.md). Scheduled CI
-runs this full matrix; pull requests retain the four-policy comparison.
+runs are not configured for this workflow; start it manually when the selected
+data and runtime permit.
 
 ## Legacy standalone scan harness
 
 `benchmarks/regression.py` remains available for debugging a single raw scan,
-but it is not part of CI's primary validation path. CI uses the official
-SemanticPOSS archive and runs the adapter, real perception stages, map policies,
-and correctness/performance reporting together. Older four-policy schema-v2
+but it is not part of the manual SemanticPOSS benchmark workflow. That workflow
+uses the official archive and can run adapter, perception, map-policy, and
+correctness/performance checks together. Older four-policy schema-v2
 artifacts remain valid regression baselines; comparisons use policy keys
 present in both artifacts.
 
@@ -70,19 +73,16 @@ bounded, world-aligned 5 cm ROI selected from Uniform5 bounds; crops are
 reported in the artifact provenance. The complete metric and planner definitions are in
 [`docs/benchmark-contract.md`](../docs/benchmark-contract.md).
 
-## SemanticPOSS CI benchmark
+## Manual SemanticPOSS benchmark
 
-The `semanticposs-benchmark` job uses the official SemanticPOSS archive from
-the POSS website. The current archive is approximately 2.41 GB compressed and
-extracts to approximately 4 GB. It is part of ordinary PR checks through a
-digest-keyed cache, with a smaller deterministic frame selection on PRs.
+The `SemanticPOSS benchmark` workflow is started with `workflow_dispatch`.
+It uses the official SemanticPOSS archive from the POSS website. Archive size
+and SHA-256 are pinned in the workflow and checked before use.
 
-The workflow runs on every pull request, daily at 02:17 UTC, or by manual
-dispatch. Pull requests use a deterministic 64-frame SemanticPOSS selection;
-daily/manual runs default to all 488 frames of sequence `00`. The same job
-validates the real perception pipeline and sends its configured perception
-output through `Uniform5`, `Uniform40`, `DistanceLOD`, and `UtilityLOD`,
-preserving fair shared-input comparisons.
+The operator selects sequence, frame count, perception mode, policies, and
+repetitions at dispatch. Defaults select 488 frames of sequence `00` and the
+four public policies. One configured perception output is sent through each
+selected policy, preserving shared-input comparisons.
 
 The archive URL, byte count, and trusted SHA-256 are pinned in the workflow;
 any upstream archive mutation fails verification. Each JSON artifact records

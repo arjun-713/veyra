@@ -1,133 +1,82 @@
-# Resolution Policies — Veyra
+# Resolution policies
 
-Source: `AGENTS.md` §§8,15,22 and `README.md` Core Idea /
-Resolution Modes / Planned Advanced Features.
+Veyra provides four map policies. The production desktop starts with
+DistanceLOD; UtilityLOD is selectable, but its intended behavior is not
+evidence that it improves map quality. Benchmark comparisons must use the same
+input stream and report quality beside resource cost. See
+[`benchmark-contract.md`](benchmark-contract.md).
 
-## Modes
+## Policies
 
-- **Uniform5** — 5 cm everywhere. High-quality 2.5D baseline.
-- **Uniform40** — 40 cm everywhere. Shows aggressive-compression loss.
-- **DistanceLOD** — range-only baseline (`0–10 m → 5 cm, 10–30 m →
-  10 cm, 30–60 m → 20 cm, 60–100 m → 40 cm`). The distance-only baseline;
-  the policy UtilityLOD must beat.
-- **UtilityLOD** — distance baseline + promotion on geometry
-  complexity, semantic importance, motion, traversability risk, and
-  gated uncertainty. Observation quality / density must gate semantic
-  uncertainty — never refine noisy distant returns just because
-  uncertainty is high.
+| Policy | Behavior | Evaluation role |
+| --- | --- | --- |
+| uniform5 | Represent observations at 5 cm resolution. | Fine 2.5D reference. |
+| uniform40 | Represent observations at 40 cm resolution. | Coarse, low-detail reference. |
+| distance_lod | Select a level by range using the configured distance boundaries. | Stable adaptive baseline and desktop default. |
+| utility_lod | Start from the distance level; eligible evidence may request local promotion to finer cells. | Experimental in quality terms; no superiority claim without current-source results. |
 
-## Baselines
+The default distance boundaries are 10, 30, and 60 m, with a 100 m maximum
+range:
 
-Always compare `Uniform5 / Uniform40 / DistanceLOD / UtilityLOD`
-(+ PS-requested high-res 3D where required). The critical comparison
-is **DistanceLOD vs UtilityLOD**. Do not compare only against a
-strawman dense 3D map.
+| Range | Level | Resolution |
+| --- | --- | --- |
+| 0–10 m | L0 | 5 cm |
+| 10–30 m | L1 | 10 cm |
+| 30–60 m | L2 | 20 cm |
+| 60–100 m | L3 | 40 cm |
 
-The benchmark runner also accepts `ablation_distance`,
-`ablation_geometry`, `ablation_semantics`, `ablation_motion`, and
-`ablation_traversability`.
-These isolate each promotion signal with the same frame selection,
-thresholds, hysteresis, and resource governor; `utility_lod` is the
-full weighted policy. A detail delta proves only that promotion
-occurred. Quality and resource measurements decide whether the full
-policy improves the trade-off.
+The policy computes a level; the map engine owns point fusion and topology.
+Grid coordinates are world-aligned. A policy decision does not itself prove
+that a split improves retained map evidence.
 
-## Advanced (only after DistanceLOD + benchmarks work)
+## UtilityLOD signals and temporal state
 
-- **Utility-foveated LOD** — spend resolution where loss matters.
-- **Predictive refinement** — refine ahead of moving important objects.
-- **Resource governor** — merge low-value distant regions first;
-  protect near-field / safety-critical cells.
-- **Reversible detail cache** — small bounded residual in selected
-  coarse cells so refinement does not restart empty. Never cache
-  everywhere.
+configs/utility_lod.yaml supplies the configured class priorities, signal
+weights, observation-quality and point-density gates, split/merge thresholds,
+dwell, cooldown, maximum level change, promotion depth, and state limits.
+The C++ loader validates the configuration in src/policy/policy.cpp.
 
-## Runtime adaptation contract
+The implementation combines geometry complexity, semantic importance,
+motion, traversability risk, and quality-gated uncertainty with distance as the
+baseline. Semantic class priorities are multiplied by semantic confidence;
+critical semantic evidence also has configured threshold and confidence
+requirements. Measured local point support is range-normalized. Missing or
+low-quality evidence must not be interpreted as a reason to refine.
 
-`LodPolicy::begin_frame(id)` advances a monotonic runtime frame ordinal;
-reset the policy before replaying from an earlier frame. The runtime adapter
-keys adaptation by the world-aligned 40 cm ancestor, so splitting an active
-leaf does not erase its hysteresis. Callers that omit `begin_frame` retain
-legacy one-decision-per-step behavior.
+Utility policy state is keyed to world-aligned regions. With explicit frame
+IDs, evidence is accumulated per frame before hysteresis is updated; repeated
+points within one frame do not count as separate dwell frames. Split and merge
+thresholds differ, and cooldown limits oscillation. Policy metadata has a
+configured maximum size and TTL; it is separate from map storage and does not
+retain raw observations.
 
-Within an explicit frame, maximum evidence is accumulated and temporal state
-is recomputed from the frame-start state. Repeated points cannot consume
-multiple promotion or cooldown frames. Demotion waits until the complete
-frame's evidence is available; a late hazard can cancel an early low-value
-observation. Gaps in observations reset consecutive-evidence counters.
+These are implementation mechanisms, not proof that the resulting allocation
+is task-selective. The frozen UtilityLOD benchmark and its limitations are
+documented in [`benchmarks/UTILITY_HARDCORE.md`](../benchmarks/UTILITY_HARDCORE.md);
+benchmark results must retain
+their own code/data provenance.
 
-All optional utility signals require configured observation quality and
-point density. Safety evidence may promote without that gate. Predictive
-refinement additionally requires motion probability at least 0.5 and
-semantic importance or traversability risk. `max_promotion_depth` limits
-refinement relative to the current radial baseline (0 disables optional
-promotion), while `max_level_changes_per_decision` limits incremental
-utility changes. The radial baseline is restored immediately when the
-vehicle approaches; the step limit cannot delay near-field resolution.
+## Resource governor
 
-`max_state_cells` bounds adaptation records and `state_ttl_frames` expires
-unseen regions. At capacity, new regions use the radial baseline, with
-safety refinement still allowed. This is bounded policy metadata, separate
-from map cells; no raw observations are retained. Expiry scans the bounded
-state table once per frame and must be included in runtime measurement.
+The optional governor observes active-cell count, logical map bytes, frame
+time, and mapper RSS when available. Missing RSS is unavailable evidence, not
+zero. Configured pressure and recovery ratios use consecutive-frame
+requirements. Under sustained pressure, the governor can request merges of
+eligible optional regions; safety-protected near-field and hazardous sibling
+groups are protected. Requested and applied topology changes are reported
+separately.
 
-## Governor controls
+The deterministic benchmark mode withholds wall-clock frame time and RSS from
+the governor; live runtime feedback remains wall-clock based. Resource profiles
+are configurable starting budgets, not device-capacity guarantees. If
+protected state exceeds the configured budget, preserving that state takes
+precedence over claiming the budget was met.
 
-The governor compares active cells, logical map bytes, optional measured
-mapper-process RSS, and frame time with configured budgets. Missing RSS is
-unavailable evidence, not a zero measurement. `max_rss_bytes: 0` disables
-that budget. A telemetry frame-time target overrides the configured target
-only when positive.
+## Quality and evidence
 
-Approaching the pressure ratio stops new optional utility splits. Actual
-merge requests require sustained overload for
-`overload_consecutive_frames`; restoration requires consecutive samples
-below `recovery_ratio`. Manual `Disabled` and `Conserve` modes support
-debugging. Neither mode permits a protected candidate to be merged.
-
-Merge candidates are complete, disjoint sibling groups. Any hazardous
-sibling protects the entire group, and distance is the minimum distance to
-the parent square, protecting groups that intersect the 10 m safety disk.
-Candidates are ranked by maximum sibling utility first, then distance,
-then cell ID for deterministic ties. Near-field radius below 10 m is invalid.
-
-Frame time and RSS are wall-clock/process measurements, so feeding them back
-makes two runs of one stream produce different maps. `veyra_benchmark
---deterministic-governor` withholds both (frame time contributes no load; RSS
-is unavailable), leaving the cell and logical-byte budgets in force. The
-benchmark harness passes it by default and records `governor_feedback` in
-provenance; `run_benchmark.py --wall-clock-governor` restores live behavior.
-The live runtime keeps wall-clock feedback.
-
-Status exposes the state, optional-split permission, overload/recovery
-counts, intervention count, and requested/applied merge totals. These
-counters distinguish requested work from successful topology operations;
-the runtime should record their per-frame deltas in benchmark artifacts.
-
-`resource_governor-performance.yaml`, `resource_governor-balanced.yaml`, and
-`resource_governor-quality.yaml` are configurable starting budgets, not
-measured capacity claims. They cover mapper resources; perception and the
-desktop renderer require separate process measurements. If the protected
-map alone exceeds the budget, the governor reports pressure and preserves
-safety rather than promising an unattainable frame rate or memory ceiling.
-
-## UtilityLOD verdict — REFUTED on SemanticPOSS seq00 f0–29 (2026-09-18)
-
-Four controlled matrices on one pinned stream (digest `4cd60ac5`, 3 reps,
-`--retain-frames`): default budget, 750k-cell/500 ms recipe, 750k/1200 ms,
-and governor-disabled diagnostic (100M cells/1000000 ms). Evidence:
-`reports/closure/utility/{RESULT,RERUN,RUN3_A,RUN3_B}.md` + matrices.
-
-Result: full UtilityLOD is byte-identical to DistanceLOD (ΔRMSE 0.00000 m,
-±0 bins, ±0 leaves, ×3 reps) with the governor provably absent — the
-composition's combined gate rejects 100% of promotable evidence. The
-isolated semantics signal is real (ped +1170 bins, RMSE −0.103 m) but costs
-~Uniform5 resources for mixed overall quality; geometry promoted nothing
-with a clean live shot. Motion/traversability/hazard legs were structurally
-untestable on this selection (no timestamps, terrain unavailable, 0
-non-drivable bins).
-
-Standing: DistanceLOD remains the shipping baseline. UtilityLOD ships
-OFF/disabled-by-default pending a re-gated composition proven on a
-hazard/motion-bearing selection with this same committed recipe. Revival is
-a new claim, not a rerun.
+Uniform5 is an observed high-resolution representation reference, not surveyed
+ground truth. See [`benchmark-contract.md`](benchmark-contract.md) for the
+exact accuracy, completion,
+Chamfer, common-support, latency, memory, and provenance definitions. Historical
+artifacts remain tied to their recorded commit and must not be presented as
+measurements of the current source unless the provenance matches.

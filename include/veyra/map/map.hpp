@@ -270,7 +270,8 @@ struct MapConfig {
   // A contradicting return must lie beyond the cell's footprint exit by
   // max(clearing_margin_m, clearing_range_sigmas * sigma(r)), and cross the
   // claimed extent at least clearing_height_sigmas * sigma(r) inside its
-  // edges. Measured on SemanticPOSS 00 (docs/p02-bounded-clearing-contract.md):
+  // edges. Real-data acceptance evidence is recorded in
+  // reports/closure/p02-pr68/RESULT.md:
   // without these, beams ending a few cm past a static surface, or grazing
   // the top of a parked car, eroded it.
   SensorNoiseModel clearing_noise{};

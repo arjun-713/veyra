@@ -5,12 +5,13 @@ Terrain Understanding.
 
 ## Semantic provider
 
-The live provider boundary is the Python `perception.semantic.SemanticProvider`
+The provider boundary is the Python `perception.semantic.SemanticProvider`
 protocol. It consumes XYZI arrays plus optional dataset labels and returns an
 aligned `SemanticResult` containing unified class IDs, confidence, and backend
-mode. Implementations currently include `GroundTruthSemanticProvider`,
-`OnnxSemanticProvider`, and the SalsaNext adapter; the mapper consumes only the
-result fields and does not depend on a network-specific implementation.
+mode. Implementations include `GroundTruthSemanticProvider` and ONNX-backed
+neural providers, including the SalsaNext integration. Ground-truth labels are
+an explicit data/evaluation provider, not neural inference. The mapper consumes
+the aligned result fields and does not depend on a network-specific model.
 
 CENet (`mode: cenet`) takes `device: auto | cpu | mps` (default `cpu`).
 `auto` runs the unchanged fp32 graph on Apple-silicon MPS only after a
@@ -19,9 +20,9 @@ stays on CPU and records why in `pipeline_status.semantic_device_fallback_reason
 (also in telemetry and diagnostics). `mps` fails closed. A device fallback
 still runs the model; it is never a `ground_truth` fallback.
 
-Mapper must not depend on one network. Candidates: SalsaNext, FRNet,
-Cylinder3D, compatible ONNX models. Pretrained first; custom LiDAR
-training is out of scope.
+The ONNX boundary allows compatible model providers; model availability and
+dataset suitability depend on the installed checkpoint and configuration.
+Custom LiDAR training is not part of the mapper runtime.
 
 ## Terrain
 

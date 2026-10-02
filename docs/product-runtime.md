@@ -68,7 +68,7 @@ the current budget and intervention counters.
 
 ## Packaging boundary
 
-Tauri creates the OS-specific shell (see `docs/tauri.md`). `scripts/package_backend.py`
+Tauri creates the OS-specific shell (see `apps/desktop/README.md`). `scripts/package_backend.py`
 creates the versioned `backend/` contract documented in
 `apps/desktop/README.md` from a native C++ runtime and a prepared, relocatable
 Python environment. Datasets and model weights stay external and are never

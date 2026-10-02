@@ -3,7 +3,7 @@
 // These two mechanisms are standard in mature mapping systems and were absent
 // from Veyra: log-odds occupancy with clamping (OctoMap, UFOMap, ROG-Map) and
 // a sensor noise model with Mahalanobis outlier rejection (ETH/ANYbotics
-// elevation_mapping). See docs/prior-art.md.
+// elevation_mapping).
 
 #include <cmath>
 #include <cstdio>
@@ -102,8 +102,7 @@ void test_only_visibility_produces_free() {
         "ageing never gives drivable");
 }
 
-// The walk-stop-walk case from docs/layered-map-design.md 3.4, now executable
-// rather than a prose claim.
+// A walk-stop-walk sequence checks the stored physical-layer behavior.
 void test_pedestrian_clears_without_eroding_the_kerb() {
   // A cell the pedestrian stood in: ground plus torso-height returns.
   veyra::map::CellStats person_cell;

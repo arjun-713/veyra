@@ -1,16 +1,15 @@
 # Veyra — Agent Engineering Guide
 
-Adaptive semantic 2.5D LiDAR mapping for dynamic environments
-(adaptive semantic 2.5D LiDAR mapping). Spend fine resolution where losing info matters; keep the
-map bounded, deterministic, real-time capable.
+Adaptive semantic 2.5D LiDAR mapping. Keep the map bounded and deterministic;
+measure resource use and map quality rather than assuming a policy is better.
 
 Full detail lives in `docs/` — this file is the always-loaded index.
 Keep it under ~150 lines.
 
 ## Stack & commands
 
-- Core: C++20, CMake. Perception/research: Python, PyTorch,
-  ONNX Runtime, Patchwork++, PCL/Open3D, ROS2. CUDA/TensorRT optional;
+- Core: C++20, CMake. Runtime/perception: Python, ONNX Runtime,
+  optional Patchwork++ bindings. ROS2 adapters are separate. CUDA/TensorRT optional;
   core mapper must run without CUDA.
 
 ```bash
@@ -32,15 +31,13 @@ Details: `docs/architecture.md`.
 - Cells hold sufficient statistics only (mean, variance, min/max z,
   count, class + confidence, traversability, motion, last-seen).
   No raw-point history. No pointer-heavy quadtree; no global rebalance.
-- Elevation is split into three `HeightLayer` accumulators per cell:
-  ground / obstacle / overhead. Occluded ground is `unknown`, never
-  drivable. Details: `docs/layered-map-design.md`.
+- Each cell has pooled statistics and separate ground, obstacle, and
+  overhead `HeightLayer` evidence. Missing ground is not treated as drivable.
+  See `docs/map-correctness.md`.
 - Occupancy is clamped log-odds (`unknown/free/occupied`); only an
   observed beam through a cell's claimed vertical extent may make it
-  `free`, never a timeout. Clearing uses a spherical depth image, not
-  ray casting, and compares each beam at its own elevation. Ingestion
-  gates returns on a range-dependent noise model. Prior art and
-  remaining gaps: `docs/prior-art.md`.
+  `free`, never a timeout. Visibility clearing uses a spherical depth image
+  and beam elevation. See `docs/map-correctness.md`.
 
 ## Map invariants (non-negotiable)
 
@@ -66,10 +63,10 @@ contaminate terrain. Details: `docs/perception-terrain-temporal.md`.
 
 ## Workflow
 
-Order: loader → Uniform5 → height stats → DistanceLOD → split/merge
-tests → semantic+terrain → temporal → UtilityLOD → optimize →
-governor → advanced. Datasets/benchmarks: `docs/datasets-benchmarks.md`.
-Standards, DoD, checklists: `docs/development.md`.
+Read `README.md` for setup, `docs/architecture.md` for system structure,
+`docs/resolution-policies.md` for policy behavior, and
+`docs/benchmark-contract.md` for evaluation definitions. Dataset guides live
+under `datasets/`.
 
 - Never invent perf numbers; report analytical vs measured (RSS, p50 /
   p95 / p99) separately on named hardware.
@@ -77,8 +74,8 @@ Standards, DoD, checklists: `docs/development.md`.
 ## Boundaries
 
 - Always: run tests for map changes; preserve subsystem interfaces.
-- Ask first: architecture changes (answer 8-question checklist in
-  `docs/development.md`); new deps; touching safety floor.
+- Ask first: architecture changes, new dependencies, or changes to the
+  safety-protected near-field floor.
 - Never: commit datasets, weights, maps, dumps, engines, bags, secrets
   (see `.gitignore`); retain raw points in cells; train a custom LiDAR
   net as the main effort; add SLAM/planning/control/camera/LLM scope.
@@ -86,9 +83,6 @@ Standards, DoD, checklists: `docs/development.md`.
 
 ## Docs index
 
-`architecture.md`, `map-correctness.md`, `layered-map-design.md`,
-`prior-art.md`,
-`resolution-policies.md`,
-`perception-terrain-temporal.md`, `datasets-benchmarks.md`,
-`development.md`, `desktop-electron-audit.md` (Tauri migration reference),
-`docker.md` (containerised tests, runtime, viewer).
+`architecture.md`, `map-correctness.md`, `resolution-policies.md`,
+`perception-terrain-temporal.md`, `product-runtime.md`,
+`benchmark-contract.md`, `smooth-replay.md`, and `docker.md`.

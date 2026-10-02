@@ -157,6 +157,9 @@ prompt.md
 rule.md
 observation.md
 
+# Superpowers execution plans are local task artifacts, not project docs.
+docs/superpowers/plans/
+
 # agent worktrees (scratch checkouts, never commit)
 worktrees/
 

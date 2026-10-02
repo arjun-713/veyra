@@ -95,12 +95,10 @@ The supervisor escalates to killing/reaping the Python child after a bounded
 wait. Forced whole-process-tree cleanup on every OS is not claimed verified.
 
 `.github/workflows/release-tauri.yml` builds the Tauri bundles on their native
-runners, stages the backend, runs product checks, emits `SHA256SUMS`, and
-uploads the bundles as CI artifacts. GitHub Release publishing and bundle
-signing remain future work there. Tags with a suffix and manual prerelease
-runs require separate channel/publishing verification. Signing/notarization is
-not proven by these build commands; Tauri bundles remain unsigned until the
-release workflow implements and validates signing with real credentials.
+runners, stages the backend, runs product checks, creates an aggregate
+`release-manifest.json` and `SHA256SUMS`, and publishes installers to a GitHub
+Release. Signing/notarization is separate from a successful build or publish;
+do not describe a bundle as signed unless release provenance verifies it.
 
 ### macOS specifics
 
