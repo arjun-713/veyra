@@ -15,6 +15,15 @@ test('rejects arbitrary commands, traversal capabilities, and invalid numeric co
   assert.throws(()=>validateCommand('governor',{mode:'shell'}));
 });
 
+test('benchmark requests carry frames, warm-up and repetitions; cancel takes no fields', () => {
+  const args={dataset:'semanticposs',sequence:'00',count:110,warmup_frames:10,repetitions:3};
+  assert.deepEqual(validateCommand('benchmark',args),{command:'benchmark',args});
+  assert.deepEqual(validateCommand('benchmark_cancel',{}),{command:'benchmark_cancel',args:{}});
+  assert.throws(()=>validateCommand('benchmark_cancel',{force:true}));
+  assert.throws(()=>validateCommand('benchmark',{count:1.5}));
+  assert.throws(()=>validateCommand('benchmark',{repetitions:-1}));
+});
+
 test('decodes split and concatenated frames without trusting unbounded lengths', () => {
   const meta = Buffer.from('{"type":"status","state":"ready"}');
   const wire = Buffer.alloc(16 + meta.length); wire.write('VYRA'); wire.writeUInt16LE(1,4); wire.writeUInt16LE(1,6); wire.writeUInt32LE(meta.length,8); meta.copy(wire,16);

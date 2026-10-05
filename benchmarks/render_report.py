@@ -366,6 +366,10 @@ def render(
         "",
         _reference_summary(mapping),
         "",
+        "### Storage: 3D vs 2.5D",
+        "",
+        _storage_table(mapping),
+        "",
         "### UtilityLOD ablation",
         "",
         _ablation_table(mapping),
@@ -399,6 +403,53 @@ def render(
         )
     lines.append(f"Correctness gate: **{'HARD FAILURE' if hard_fail else 'PASS'}**")
     return "\n".join(lines) + "\n"
+
+
+def _times_smaller(ratio: float | None) -> str:
+    if ratio is None or ratio <= 0:
+        return "n/a"
+    inverse = 1.0 / ratio
+    return f"{inverse:,.1f}x smaller" if inverse >= 1 else f"{ratio:,.2f}x larger"
+
+
+def _storage_table(report: dict[str, Any] | None) -> str:
+    storage = (report or {}).get("storage_comparison")
+    if not isinstance(storage, dict):
+        return "Storage comparison: unavailable (report predates storage_comparison)."
+    sparse = storage.get("sparse_3d") or {}
+    dense = storage.get("dense_3d") or {}
+    lines = [
+        "| Representation | Evidence | Logical | Allocated | Cells/voxels | vs sparse 3D | vs dense 3D |",
+        "| --- | --- | ---: | ---: | ---: | ---: | ---: |",
+        f"| Dense 5 cm 3D grid (window) | ANALYTICAL | {_mb(dense.get('estimated_dense_bytes'))} | not allocated | "
+        f"{_count(dense.get('dense_voxel_count'))} | — | — |",
+        f"| Sparse 5 cm 3D voxel hash ({sparse.get('basis', 'final_window')}) | MEASURED count, accounted bytes | "
+        f"{_mb(sparse.get('logical_bytes'))} | {_mb(sparse.get('accounted_allocated_bytes'))} | "
+        f"{_count(sparse.get('occupied_voxels'))} | — | — |",
+    ]
+    for name, row in (storage.get("policies") or {}).items():
+        lines.append(
+            f"| {name} (2.5D) | MEASURED | {_mb(row.get('logical_map_bytes'))} | "
+            f"{_mb(row.get('allocated_map_bytes'))} | {_count(row.get('active_cells'))} | "
+            f"{_times_smaller(row.get('logical_over_sparse_3d_logical'))} | "
+            f"{_times_smaller(row.get('logical_over_dense_3d'))} |"
+        )
+    lines.append("")
+    lines.append(
+        "Ratios compare logical bytes. The sparse 3D reference is occupancy-only "
+        "(no height statistics, class or motion); its bytes are accounted from a "
+        "measured voxel count, not malloc-hooked. The dense grid is an analytical "
+        "estimate and was never allocated."
+    )
+    return "\n".join(lines)
+
+
+def _count(value: Any) -> str:
+    return (
+        f"{int(value):,}"
+        if isinstance(value, (int, float)) and not isinstance(value, bool)
+        else "n/a"
+    )
 
 
 def _reference_summary(report: dict[str, Any] | None) -> str:

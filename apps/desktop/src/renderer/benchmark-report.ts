@@ -175,9 +175,13 @@ export function referenceBaselines(report: Json | null): ReferenceBaseline[] {
     .find(([, policy]) => isObject(policy) && policy.adapter?.suite === 'reference');
   const rows: ReferenceBaseline[] = [];
   rows.push(dense && dense.status === 'analytical_only'
-    ? {key: 'uniform_5cm_3d', label: 'Dense 5 cm 3D grid', kind: 'analytical', detail: text(dense.warning) ?? 'memory estimate only; not allocated or timed', bytes: nonNegative(dense.estimated_dense_bytes), cells: nonNegative(dense.dense_voxel_count)}
+    ? {key: 'uniform_5cm_3d', label: 'Dense 5 cm 3D grid (stream bounds)', kind: 'analytical', detail: text(dense.warning) ?? 'memory estimate only; not allocated or timed', bytes: nonNegative(dense.estimated_dense_bytes), cells: nonNegative(dense.dense_voxel_count)}
     : {key: 'uniform_5cm_3d', label: 'Dense 5 cm 3D grid', kind: 'unavailable', detail: 'not recorded in this report', bytes: null, cells: null});
-  if (measured3d) {
+  const sparse = isObject(baselines.sparse_5cm_3d) && baselines.sparse_5cm_3d.status === 'measured' ? baselines.sparse_5cm_3d : null;
+  if (sparse) {
+    const basis = isObject(sparse[sparse.comparison_basis]) ? sparse[sparse.comparison_basis] : sparse.final_window;
+    rows.push({key: 'sparse_5cm_3d', label: 'Measured sparse 3D baseline', kind: 'measured', detail: 'occupied 5 cm voxels on the same stream; bytes accounted per voxel', bytes: nonNegative(basis?.logical_bytes), cells: nonNegative(basis?.occupied_voxels)});
+  } else if (measured3d) {
     const [key, policy] = measured3d;
     const run = Array.isArray(policy.runs) ? policy.runs.at(-1) : null;
     rows.push({key, label: 'Measured sparse 3D baseline', kind: 'measured', detail: 'executed on the same selection', bytes: nonNegative(run?.metrics?.memory?.logical_map_bytes ?? policy.aggregate?.logical_map_bytes), cells: null});
@@ -188,6 +192,76 @@ export function referenceBaselines(report: Json | null): ReferenceBaseline[] {
     rows.push({key: 'uniform_5cm_2d', label: 'Uniform5 quality reference', kind: 'measured', detail: 'observed 5 cm support from the identical stream; not surveyed ground truth', bytes: null, cells: nonNegative(fine.reference_bins)});
   }
   return rows;
+}
+
+export type StorageKey = 'dense_3d' | 'sparse_3d' | PublicPolicy;
+export interface StorageRow {
+  key: StorageKey;
+  label: string;
+  kind: EvidenceKind;
+  /** Bytes compared across rows (logical payload; the dense grid is an estimate). */
+  bytes: number | null;
+  allocatedBytes: number | null;
+  cells: number | null;
+  detail: string;
+  /** 3D bytes / this row's bytes: above 1 means this 2.5D map is that many times smaller. */
+  timesSmallerThanSparse: number | null;
+  timesSmallerThanDense: number | null;
+}
+
+const ratio = (numerator: number | null, denominator: number | null) =>
+  numerator !== null && denominator !== null && denominator > 0 && numerator > 0 ? numerator / denominator : null;
+
+/**
+ * Storage of a high-resolution 3D map beside each policy's 2.5D map, all on
+ * the same accepted input (`storage_comparison`, docs/benchmark-contract.md).
+ * Reports that predate the block fall back to the analytical stream-bounds
+ * dense estimate and show the sparse 3D row as unavailable.
+ */
+export function storageComparison(report: Json | null): StorageRow[] {
+  const storage = isObject(report?.storage_comparison) ? report!.storage_comparison : null;
+  const baselines = isObject(report?.reference_baselines) ? report!.reference_baselines : {};
+  const denseSource = isObject(storage?.dense_3d) ? storage!.dense_3d : null;
+  const legacyDense = isObject(baselines.uniform_5cm_3d) && baselines.uniform_5cm_3d.status === 'analytical_only' ? baselines.uniform_5cm_3d : null;
+  const windowDense = isObject(baselines.dense_5cm_3d_window) ? baselines.dense_5cm_3d_window : null;
+  const denseBytes = nonNegative(denseSource?.estimated_dense_bytes) ?? (storage ? null : nonNegative(legacyDense?.estimated_dense_bytes));
+  const denseCells = nonNegative(denseSource?.dense_voxel_count) ?? (storage ? null : nonNegative(legacyDense?.dense_voxel_count));
+  const denseDetail = denseBytes === null ? 'not recorded in this report'
+    : storage ? `estimate over the ${finite(windowDense?.window_radius_m) !== null ? `${Math.round(windowDense!.window_radius_m)} m ` : ''}map window footprint × measured height span at 16 B/voxel; never allocated`
+      : 'estimate over the stream XYZ bounds at 16 B/voxel; never allocated';
+  const sparseSource = isObject(storage?.sparse_3d) ? storage!.sparse_3d : null;
+  const sparseBytes = nonNegative(sparseSource?.logical_bytes);
+  const rows: StorageRow[] = [
+    {key: 'dense_3d', label: 'Dense 5 cm 3D grid', kind: denseBytes === null ? 'unavailable' : 'analytical', bytes: denseBytes, allocatedBytes: null, cells: denseCells, detail: denseDetail, timesSmallerThanSparse: null, timesSmallerThanDense: null},
+    {key: 'sparse_3d', label: 'Sparse 5 cm 3D voxel hash', kind: sparseBytes === null ? 'unavailable' : 'measured',
+      bytes: sparseBytes, allocatedBytes: nonNegative(sparseSource?.accounted_allocated_bytes), cells: nonNegative(sparseSource?.occupied_voxels),
+      detail: sparseBytes === null ? 'not executed by this benchmark run' : 'measured occupied voxels in the final map window; bytes accounted per voxel (occupancy only, no height/class)',
+      timesSmallerThanSparse: null, timesSmallerThanDense: ratio(denseBytes, sparseBytes)},
+  ];
+  const policyRows = qualityResourceRows(report);
+  const storagePolicies = isObject(storage?.policies) ? storage!.policies : {};
+  for (const policy of PUBLIC_POLICIES) {
+    const stored = isObject(storagePolicies[policy]) ? storagePolicies[policy] : null;
+    const fallback = policyRows.find(row => row.policy === policy);
+    const bytes = stored ? nonNegative(stored.logical_map_bytes) : fallback?.logicalBytes ?? null;
+    rows.push({
+      key: policy, label: POLICY_LABELS[policy], kind: bytes === null ? 'unavailable' : 'measured', bytes,
+      allocatedBytes: stored ? nonNegative(stored.allocated_map_bytes) : fallback?.allocatedBytes ?? null,
+      cells: stored ? nonNegative(stored.active_cells) : fallback?.activeCells ?? null,
+      detail: bytes === null ? 'not measured in this report' : '2.5D map, final state',
+      timesSmallerThanSparse: ratio(sparseBytes, bytes), timesSmallerThanDense: ratio(denseBytes, bytes),
+    });
+  }
+  return rows;
+}
+
+const POLICY_LABELS: Record<PublicPolicy, string> = {uniform5: 'Uniform5', uniform40: 'Uniform40', distance_lod: 'DistanceLOD', utility_lod: 'UtilityLOD'};
+
+/** "12.3× smaller" / "1.4× larger"; unavailable ratios read as unavailable. */
+export function timesSmaller(value: number | null): string {
+  if (value === null) return 'unavailable';
+  if (value >= 1) return `${value.toLocaleString(undefined, {maximumFractionDigits: value >= 100 ? 0 : 1})}× smaller`;
+  return `${(1 / value).toLocaleString(undefined, {maximumFractionDigits: 2})}× larger`;
 }
 
 export interface QualityResourceRow {
@@ -356,8 +430,8 @@ export function millimetres(metres: number | null, decimals = 1): string {
 }
 
 /** Normalize benchmark lifecycle states; the runtime reports failures as `error`. */
-export function benchmarkLifecycle(state: unknown): 'idle' | 'running' | 'loading' | 'complete' | 'failed' {
-  if (state === 'running' || state === 'loading' || state === 'complete') return state;
+export function benchmarkLifecycle(state: unknown): 'idle' | 'running' | 'loading' | 'complete' | 'failed' | 'cancelled' {
+  if (state === 'running' || state === 'loading' || state === 'complete' || state === 'cancelled') return state;
   if (state === 'error' || state === 'failed') return 'failed';
   return 'idle';
 }
@@ -385,16 +459,74 @@ export function paretoFrontier(report: Json | null, resource: TradeoffResource, 
   return {available: true, frontier, reason: ''};
 }
 
+export const BENCHMARK_DEFAULT_FRAMES = 110;
+export const BENCHMARK_DEFAULT_WARMUP = 10;
+export const BENCHMARK_DEFAULT_REPETITIONS = 3;
+export const BENCHMARK_MAX_REPETITIONS = 20;
+/** Nearest-rank tail gates shared with the harness: p95 >= 20, p99 >= 100. */
+export const TAIL_SAMPLE_GATES = {p95: 20, p99: 100} as const;
+
+export interface BenchmarkInput {frames: number | null; warmup: number | null; repetitions: number | null}
+export interface BenchmarkPlan {
+  count: number; warmup: number; repetitions: number; sequenceFrames: number;
+  measured: number; p95Reliable: boolean; p99Reliable: boolean; hint: string;
+}
+
 /**
- * Frames the four-policy benchmark may request: the session's frame count
- * (already capped by the playback frame limit). A request above it is
- * clamped; no session means no valid request.
+ * Frames the benchmark may select: the whole dataset sequence. The benchmark
+ * replays the dataset itself, so it is not bound by the playback preview
+ * frame limit. Older runtimes that do not report `sequence_frames` fall back
+ * to the session frame count.
  */
-export function benchmarkFrameCount(requested: number | null, sessionFrames: unknown): number | null {
-  const frames = nonNegative(sessionFrames);
-  if (frames === null || frames < 1) return null;
-  const wanted = requested === null || !Number.isFinite(requested) ? frames : Math.floor(requested);
-  return Math.max(1, Math.min(Math.floor(frames), wanted));
+export function benchmarkSequenceFrames(status: Json): number | null {
+  const frames = nonNegative(status?.sequence_frames) ?? nonNegative(status?.frames);
+  return frames === null || frames < 1 ? null : Math.floor(frames);
+}
+
+const whole = (value: number | null, fallback: number) => value === null || !Number.isFinite(value) ? fallback : Math.floor(value);
+
+/**
+ * The validated request the Evaluation controls send. Frames default to
+ * min(110, sequence), warm-up to 10 and repetitions to 3; each is clamped to
+ * what the runtime accepts (frames <= sequence, warm-up < frames,
+ * repetitions 1-20). Measured samples per policy = (frames - warm-up) x reps.
+ */
+export function benchmarkPlan(input: BenchmarkInput, sequenceFrames: number | null): BenchmarkPlan | null {
+  if (sequenceFrames === null || sequenceFrames < 1) return null;
+  const count = Math.max(1, Math.min(sequenceFrames, whole(input.frames, Math.min(BENCHMARK_DEFAULT_FRAMES, sequenceFrames))));
+  const warmup = Math.max(0, Math.min(count - 1, whole(input.warmup, BENCHMARK_DEFAULT_WARMUP)));
+  const repetitions = Math.max(1, Math.min(BENCHMARK_MAX_REPETITIONS, whole(input.repetitions, BENCHMARK_DEFAULT_REPETITIONS)));
+  const measured = (count - warmup) * repetitions;
+  const p95Reliable = measured >= TAIL_SAMPLE_GATES.p95, p99Reliable = measured >= TAIL_SAMPLE_GATES.p99;
+  const gate = p99Reliable ? 'p95 and p99 are reliable'
+    : p95Reliable ? `p99 stays descriptive (needs ${TAIL_SAMPLE_GATES.p99})`
+    : `p95 and p99 stay descriptive (need ${TAIL_SAMPLE_GATES.p95} / ${TAIL_SAMPLE_GATES.p99})`;
+  const hint = `(${count} − ${warmup}) × ${repetitions} = ${measured} measured samples per policy · ${gate}. `
+    + `p95 needs ≥${TAIL_SAMPLE_GATES.p95} and p99 ≥${TAIL_SAMPLE_GATES.p99} measured samples per policy. `
+    + `Frames 0–${count - 1} of ${sequenceFrames} in this sequence; every policy replays the same frames.`;
+  return {count, warmup, repetitions, sequenceFrames, measured, p95Reliable, p99Reliable, hint};
+}
+
+const PROGRESS_POLICY_LABELS: Record<PublicPolicy, string> = {uniform5: 'Uniform 5 cm', uniform40: 'Uniform 40 cm', distance_lod: 'Distance LOD', utility_lod: 'Utility LOD'};
+
+/** One-line description of a running benchmark from its runtime progress event. */
+export function benchmarkProgressText(event: Json | null): string {
+  const plan = event?.plan, progress = event?.progress;
+  const scope = isObject(plan) ? `${plan.count} frames × ${plan.repetitions} repetitions × ${plan.policies ?? 4} policies` : 'four policies';
+  if (!isObject(progress)) return `Starting · ${scope}`;
+  if (progress.phase === 'staging') return `Running perception and staging frames ${progress.frame ?? 0}/${progress.frames ?? '?'} · ${scope}`;
+  if (progress.phase === 'policy') {
+    const label = PROGRESS_POLICY_LABELS[progress.policy as PublicPolicy] ?? String(progress.policy);
+    return `${label} · repetition ${progress.repetition}/${progress.repetitions} · run ${progress.run}/${progress.runs} · ${scope}`;
+  }
+  if (progress.phase === 'report') return `Writing the report · ${scope}`;
+  return scope;
+}
+
+/** Elapsed wall time as m:ss. */
+export function elapsedText(seconds: number): string {
+  const total = Math.max(0, Math.floor(seconds));
+  return `${Math.floor(total / 60)}:${String(total % 60).padStart(2, '0')}`;
 }
 
 export interface BenchmarkCacheInfo {

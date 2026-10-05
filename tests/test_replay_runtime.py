@@ -410,6 +410,8 @@ class ReplayRuntimeTests(unittest.TestCase):
                 path = build_small_cache(directory)
                 self.open_replay(runtime, path)
                 runtime.session = mock.Mock()
+                # Status reads the sequence length; that is not processing.
+                runtime.session.status.return_value = {"frames": 2}
                 runtime._execute("start", {})
                 wait_until(lambda: runtime._replay_status()["prefetch_frames"] >= 3)
                 for _ in range(3):

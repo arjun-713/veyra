@@ -64,46 +64,17 @@ from benchmarks.run_benchmark import (
     tail_reliability,
 )
 
-VOXEL_SIZE_M = 0.05
-# 8 B packed key + 8 B payload + 16 B hash-slot overhead. Documented
-# accounting unit, not a malloc hook (see module docstring).
-BYTES_PER_ENTRY = 32
-_BIAS = 1 << 20  # covers +/- ~52 km at 5 cm; real spans are ~+/-100 m
+# Voxel key packing and the 32 B/entry accounting unit are shared with the
+# in-benchmark storage comparison (benchmarks/storage_3d.py).
+from benchmarks.storage_3d import (
+    BYTES_PER_ENTRY,
+    VOXEL_SIZE_M,
+    frame_voxel_keys,
+    pack_voxel_keys as pack_voxel_keys,  # re-exported for callers and tests
+    unpack_voxel_keys as unpack_voxel_keys,  # re-exported
+)
+
 EXPECTED_DIGEST_PREFIX = "4cd60ac5"
-
-
-def pack_voxel_keys(indices: np.ndarray) -> np.ndarray:
-    """Pack (N,3) int64 voxel indices into one uint64 key per voxel."""
-    biased = indices.astype(np.int64, copy=False) + _BIAS
-    if np.any(biased < 0) or np.any(biased >= (1 << 21)):
-        raise ValueError("voxel index outside 21-bit packing range")
-    packed = (
-        (biased[:, 0].astype(np.uint64) << 42)
-        | (biased[:, 1].astype(np.uint64) << 21)
-        | biased[:, 2].astype(np.uint64)
-    )
-    return packed
-
-
-def unpack_voxel_keys(packed: np.ndarray) -> np.ndarray:
-    """Inverse of :func:`pack_voxel_keys` (used by unit tests)."""
-    packed = np.asarray(packed, dtype=np.uint64)
-    indices = np.empty((packed.shape[0], 3), dtype=np.int64)
-    indices[:, 0] = ((packed >> 42) & np.uint64((1 << 21) - 1)).astype(np.int64) - _BIAS
-    indices[:, 1] = ((packed >> 21) & np.uint64((1 << 21) - 1)).astype(np.int64) - _BIAS
-    indices[:, 2] = (packed & np.uint64((1 << 21) - 1)).astype(np.int64) - _BIAS
-    return indices
-
-
-def frame_voxel_keys(points_xyz: np.ndarray) -> np.ndarray:
-    """Unique packed 5 cm voxel keys occupied by one frame's XYZ points."""
-    xyz = np.asarray(points_xyz, dtype=np.float64)
-    if xyz.ndim != 2 or xyz.shape[1] < 3 or xyz.shape[0] == 0:
-        raise ValueError("frame voxelization requires non-empty XYZ points")
-    if not np.isfinite(xyz[:, :3]).all():
-        raise ValueError("frame points must be finite")
-    indices = np.floor(xyz[:, :3] / VOXEL_SIZE_M).astype(np.int64)
-    return np.unique(pack_voxel_keys(indices))
 
 
 def vmhwm_bytes() -> int | None:

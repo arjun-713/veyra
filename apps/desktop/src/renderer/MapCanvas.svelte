@@ -7,6 +7,7 @@
  import {ScanHistory,colorInput,ACCUMULATION_POINT_CAPACITY,HISTORY_STRIDE} from './accumulation';
  import {decodePhysicalLayers,type WireFrame,type Json} from '../core';
  import {inspectorFromRow} from './cell-lookup';
+ import {drawableSize,presetPose,worldRowBounds,type Vec3} from './viewport';
  import {createChaseState,observePose,chaseTargets,chaseAlpha,resetChase} from './chase-camera';
  let {frame=null,mode='semantic',showPoints=true,showCells=true,boundaries=false,view='orbit',follow=false,accumulate=1,showRings=false,selectedCell=null,onStats=()=>{},onInspect=()=>{}}=$props<{frame:WireFrame|null;mode:string;showPoints:boolean;showCells:boolean;boundaries:boolean;view:string;follow:boolean;accumulate?:number;showRings?:boolean;selectedCell?:{x:number;y:number;z:number;size:number}|null;onStats?:(value:Json)=>void;onInspect?:(value:Json)=>void}>();
  let host:HTMLDivElement,ready=$state(false),failure=$state('');
@@ -38,9 +39,31 @@
   return lastLayerKey;
  }
  let lastGeneration=-1,lastIndex=-1,inspectionFrame:WireFrame|null=null;
+ // Drawable size actually applied to the renderer; 0 until the host has a
+ // real layout box. Nothing is rendered before that.
+ let width=0,height=0;
+ // A camera fit is owed to the first frame of each session (and on mount).
+ let fitPending=true,vehicle:Vec3|null=null;
+ function resize():boolean{
+  const size=drawableSize(host.clientWidth,host.clientHeight);if(!size)return false;
+  if(size.width===width&&size.height===height)return true;
+  width=size.width;height=size.height;renderer.setSize(width,height);camera.aspect=width/height;camera.updateProjectionMatrix();return true;
+ }
+ // Frames the current map extent for the active preset. Bounds come from the
+ // retained cell rows (<=100k), else the live scan: one pass, only on a fit
+ // request (first frame, preset change), never per rendered frame.
+ function fitView(){
+  if(!ready)return;
+  // Cells bound the mapped extent even in point-only views; raw scans carry
+  // far sparse returns that would zoom the camera out to nothing.
+  let bounds=mesh.count>0?worldRowBounds(cellData,mesh.count,17):null;
+  if(!bounds){const live=history.list().at(-1);if(live)bounds=worldRowBounds(live.rows,live.count,HISTORY_STRIDE);}
+  const t=controls.target;const pose=presetPose(view,bounds,camera.fov,width&&height?width/height:camera.aspect,[t.x,t.y,t.z],vehicle);
+  camera.up.set(0,1,0);controls.target.set(...pose.target);camera.position.set(...pose.position);controls.update();
+ }
  function update(){
   if(!ready)return;points.visible=showPoints;mesh.visible=showCells;(mesh.material as THREE.MeshBasicMaterial).wireframe=boundaries;
-  if(!frame){pointGeo.setDrawRange(0,0);mesh.count=0;cellDataCount=0;inspectionFrame=null;lastGeneration=-1;lastIndex=-1;history.clear();resetChase(chase);chaseReady=false;return;}
+  if(!frame){pointGeo.setDrawRange(0,0);mesh.count=0;cellDataCount=0;inspectionFrame=null;lastGeneration=-1;lastIndex=-1;history.clear();resetChase(chase);chaseReady=false;fitPending=true;vehicle=null;return;}
   const meta=frame.metadata;
   if(meta.generation<lastGeneration||(meta.generation===lastGeneration&&meta.index<lastIndex))return;
   lastGeneration=meta.generation;lastIndex=meta.index;
@@ -79,6 +102,8 @@
   mesh.boundingSphere=null;
   onStats({status:'available',source_points:meta.n_points??meta.points.count,source_cells:meta.total_leaves??meta.cells.count,wire_cells:meta.cells.count,rendered_points:history.pointCount,accumulated_scans:history.frameCount,rendered_cells:cellCount,sampling_active:clamped.truncated||(meta.n_points??0)>pointCount||(meta.total_leaves??0)>cellCount});
   if(meta.pose?.length===16){if(observePose(chase,meta.generation,meta.index,meta.pose))chaseSnap=true;chaseTargets(chase,chaseOut);chasePos.set(chaseOut[0],chaseOut[1],chaseOut[2]);chaseLook.set(chaseOut[3],chaseOut[4],chaseOut[5]);chaseReady=true;}
+  if(meta.pose?.length===16)vehicle=displayPosition(meta.pose[3],meta.pose[7],meta.pose[11]) as Vec3;
+  if(fitPending&&(cellCount>0||history.pointCount>0)){fitPending=false;fitView();}
   // Driver view chases the vehicle itself; follow only translates other views.
   if(follow&&view!=='driver'&&meta.pose?.length===16){followTarget.set(meta.pose[3],meta.pose[11],-meta.pose[7]);followDelta.subVectors(followTarget,controls.target);camera.position.add(followDelta);controls.target.copy(followTarget);}
   // Range rings sit on the vehicle, through the same world->display mapping.
@@ -142,11 +167,16 @@
   highlight.visible=true;
  }
  $effect(()=>{const scans=Math.max(1,Math.round(accumulate));untrack(()=>{history.setWindow(scans);if(ready&&frame)paintPoints(true,frame.metadata.layers??{});});});
- $effect(()=>{if(!ready)return;const target=controls.target.clone();camera.up.set(0,1,0);if(view==='top'){camera.position.copy(target).add(new THREE.Vector3(0,100,.01));}else if(view==='driver'){chaseSnap=true;if(!chaseReady)camera.position.copy(target).add(new THREE.Vector3(0,3,8));}else camera.position.copy(target).add(new THREE.Vector3(-32,25,36));controls.update();});
+ $effect(()=>{view;if(!ready)return;untrack(()=>{if(view==='driver'){chaseSnap=true;if(chaseReady)return;}fitView();});});
  onMount(()=>{
   try{
-   renderer=new THREE.WebGLRenderer({antialias:true,preserveDrawingBuffer:true});renderer.setPixelRatio(Math.min(devicePixelRatio,1.75));host.appendChild(renderer.domElement);
-   scene=new THREE.Scene();scene.background=new THREE.Color('#0b1219');camera=new THREE.PerspectiveCamera(55,1,.05,3000);camera.position.set(-32,25,36);controls=new OrbitControls(camera,renderer.domElement);controls.enableDamping=true;
+   renderer=new THREE.WebGLRenderer({antialias:true,preserveDrawingBuffer:true});renderer.setPixelRatio(Math.min(devicePixelRatio,1.75));
+   scene=new THREE.Scene();scene.background=new THREE.Color('#0b1219');camera=new THREE.PerspectiveCamera(55,1,.05,3000);camera.position.set(-32,25,36);
+   // Size the drawing buffer to the laid-out host before the canvas is shown
+   // or drawn: a first draw at the default 300x150 followed by a resize could
+   // leave WebKit presenting an empty canvas until an unrelated repaint.
+   resize();host.appendChild(renderer.domElement);
+   controls=new OrbitControls(camera,renderer.domElement);controls.enableDamping=true;
    scene.add(new THREE.GridHelper(200,40,0x2d4b5e,0x172b39));
    pointGeo=new THREE.BufferGeometry();pointGeo.setAttribute('position',new THREE.BufferAttribute(position,3).setUsage(THREE.DynamicDrawUsage));pointGeo.setAttribute('color',new THREE.BufferAttribute(colors,3).setUsage(THREE.DynamicDrawUsage));pointGeo.setDrawRange(0,0);
    points=new THREE.Points(pointGeo,new THREE.PointsMaterial({size:.09,sizeAttenuation:true,vertexColors:true,map:roundSprite(),alphaTest:.5}));points.frustumCulled=false;scene.add(points);
@@ -169,9 +199,11 @@
    const locator=new THREE.Line(locatorGeo,new THREE.LineBasicMaterial({color:0xffffff,transparent:true,opacity:0.7}));
    locator.frustumCulled=false;highlight.add(locator);
    highlight.visible=false;highlight.frustumCulled=false;scene.add(highlight);
-   const resize=new ResizeObserver(()=>{const w=host.clientWidth,h=host.clientHeight;renderer.setSize(w,h);camera.aspect=w/h;camera.updateProjectionMatrix();});resize.observe(host);
+   // 0x0 reports (hidden/unlaid host) are skipped rather than applied: they
+   // would zero the canvas and poison the projection with a NaN aspect.
+   const observer=new ResizeObserver(()=>{resize();});observer.observe(host);
    let animation=0,frames=0,last=performance.now(),duration=0,previous=last;
-   const draw=()=>{animation=requestAnimationFrame(draw);const start=performance.now();const dt=Math.min(.25,(start-previous)/1000);previous=start;
+   const draw=()=>{animation=requestAnimationFrame(draw);if(!width&&!resize())return;const start=performance.now();const dt=Math.min(.25,(start-previous)/1000);previous=start;
     if(view==='driver'&&chaseReady){if(chaseSnap){camera.position.copy(chasePos);controls.target.copy(chaseLook);chaseSnap=false;}else{const a=chaseAlpha(dt);camera.position.lerp(chasePos,a);controls.target.lerp(chaseLook,a);}}
     controls.update();renderer.render(scene,camera);duration+=performance.now()-start;frames++;if(start-last>1000){onStats({fps:frames*1000/(start-last),latency_ms:duration/frames,entities:mesh.count+pointGeo.drawRange.count});last=start;frames=0;duration=0;}};draw();
    const pick=(event:MouseEvent)=>{const rect=host.getBoundingClientRect();const ray=new THREE.Raycaster();ray.setFromCamera(new THREE.Vector2((event.clientX-rect.left)/rect.width*2-1,-(event.clientY-rect.top)/rect.height*2+1),camera);const hit=ray.intersectObject(mesh)[0];if(hit?.instanceId!==undefined&&hit.instanceId<cellDataCount){const inspected=inspectorFromRow(cellData.subarray(hit.instanceId*17,hit.instanceId*17+17));onInspect({...inspected,physical_layers:inspectionFrame?decodePhysicalLayers(inspectionFrame,hit.instanceId):null});}};
@@ -181,7 +213,7 @@
    renderer.domElement.addEventListener('webglcontextlost',lost,false);
    renderer.domElement.addEventListener('webglcontextrestored',restored,false);
    ready=true;onStats({status:'available'});
-   return()=>{cancelAnimationFrame(animation);resize.disconnect();host.removeEventListener('click',pick);renderer.domElement.removeEventListener('webglcontextlost',lost);renderer.domElement.removeEventListener('webglcontextrestored',restored);controls.dispose();highlight.traverse(obj=>{if(obj instanceof THREE.Line||obj instanceof THREE.LineLoop){obj.geometry.dispose();(obj.material as THREE.Material).dispose();}});scene.traverse(obj=>{if(obj instanceof THREE.Mesh||obj instanceof THREE.Points){obj.geometry.dispose();const materials=Array.isArray(obj.material)?obj.material:[obj.material];materials.forEach(m=>m.dispose());}});renderer.dispose();renderer.domElement.remove();};
+   return()=>{cancelAnimationFrame(animation);observer.disconnect();host.removeEventListener('click',pick);renderer.domElement.removeEventListener('webglcontextlost',lost);renderer.domElement.removeEventListener('webglcontextrestored',restored);controls.dispose();highlight.traverse(obj=>{if(obj instanceof THREE.Line||obj instanceof THREE.LineLoop){obj.geometry.dispose();(obj.material as THREE.Material).dispose();}});scene.traverse(obj=>{if(obj instanceof THREE.Mesh||obj instanceof THREE.Points){obj.geometry.dispose();const materials=Array.isArray(obj.material)?obj.material:[obj.material];materials.forEach(m=>m.dispose());}});renderer.dispose();renderer.domElement.remove();};
   }catch(error){failure=String(error);onStats({status:'unavailable',error:failure});}
  });
 </script>

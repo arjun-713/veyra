@@ -273,6 +273,7 @@ class ServiceCacheTests(unittest.TestCase):
         }
         service.session = mock.MagicMock()
         service.session.adapter.list_sequences.return_value = ["00"]
+        service.session.status.return_value = {"frames": 10}
         service._cached_status = {"frames": 10}
         return service
 
@@ -290,9 +291,36 @@ class ServiceCacheTests(unittest.TestCase):
         events = []
         while (item := self.service.outbox.take(timeout=0.01)) is not None:
             events.append(item[0])
-        benchmark = [event for event in events if event.get("type") == "benchmark"]
+        # Progress ("running") events precede the single terminal event.
+        benchmark = [
+            event
+            for event in events
+            if event.get("type") == "benchmark" and event.get("state") != "running"
+        ]
         self.assertEqual(len(benchmark), 1, benchmark)
         return result, benchmark[0]
+
+    def test_cancel_during_the_presentation_delay_withholds_the_cached_report(self):
+        self.run_benchmark()
+        self.close_service()
+        self.service = self.make_service()
+        released = threading.Event()
+
+        def delay(_stopping):
+            released.wait(timeout=5)
+            return True
+
+        self.delay_mock.side_effect = delay
+        result = self.service._start_benchmark({"count": 5})
+        self.assertTrue(result["cached"])
+        self.assertEqual(self.service._cancel_benchmark(), {"state": "cancelling"})
+        released.set()
+        self.service._benchmark_thread.join(timeout=10)
+        events = []
+        while (item := self.service.outbox.take(timeout=0.01)) is not None:
+            events.append(item[0])
+        states = [event["state"] for event in events if event.get("type") == "benchmark"]
+        self.assertEqual(states, ["cancelled"])
 
     def test_second_run_is_served_from_cache_after_the_presentation_delay(self):
         result, fresh = self.run_benchmark()

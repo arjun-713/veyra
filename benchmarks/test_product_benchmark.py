@@ -661,6 +661,28 @@ class ProductBenchmarkTests(unittest.TestCase):
             csv_header = csv_output.read_text().splitlines()[0]
             self.assertIn("semantic_miou", csv_header)
             self.assertIn("analytical_3d_estimated_bytes", csv_header)
+            self.assertIn("sparse_3d_logical_bytes", csv_header)
+            # 3D storage comparators are emitted by default on the same stream.
+            sparse = result["reference_baselines"]["sparse_5cm_3d"]
+            self.assertEqual(sparse["status"], "measured")
+            self.assertEqual(
+                sparse["input"]["selection_digest"],
+                result["provenance"]["selection_digest"],
+            )
+            self.assertEqual(sparse["input"]["points"], 4)
+            self.assertEqual(sparse["cumulative"]["occupied_voxels"], 2)
+            self.assertEqual(sparse["final_window"]["occupied_voxels"], 2)
+            dense = result["reference_baselines"]["dense_5cm_3d_window"]
+            self.assertEqual(dense["status"], "analytical_only")
+            storage = result["storage_comparison"]
+            self.assertEqual(storage["sparse_3d"]["logical_bytes"], 32)
+            for policy in UTILITY_ABLATION_POLICY_NAMES:
+                row = storage["policies"][policy]
+                self.assertGreater(row["logical_map_bytes"], 0)
+                self.assertAlmostEqual(
+                    row["logical_over_dense_3d"],
+                    row["logical_map_bytes"] / dense["estimated_dense_bytes"],
+                )
             self.assertEqual(
                 set(result["utility_ablation"]["members"]),
                 set(UTILITY_ABLATION_POLICY_NAMES),

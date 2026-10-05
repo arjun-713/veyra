@@ -80,3 +80,71 @@ export function qualityParetoPolicies(report: Json | null, resource: 'memory' | 
 export function latencyAxisLabel(report: Json | null): string {
   return comparisonScope(report).latencyMetric === 'p95' ? 'Map-update p95 (ms) ↓' : 'Map-update p50 (ms) ↓';
 }
+
+/**
+ * A zero-based linear axis with round tick steps (1, 2, 2.5 or 5 × 10^k) whose
+ * top tick covers `maxValue`. Never returns a fractional-looking step like
+ * 405,261.9 cells or 5.47 ms.
+ */
+export function niceAxis(maxValue: number, intervals = 4): {max: number; ticks: number[]} {
+  const target = Number.isFinite(maxValue) && maxValue > 0 ? maxValue : 1;
+  const raw = target / intervals;
+  const magnitude = 10 ** Math.floor(Math.log10(raw));
+  const step = [1, 2, 2.5, 5, 10].map(factor => factor * magnitude).find(candidate => candidate >= raw * (1 - 1e-9)) ?? 10 * magnitude;
+  const count = Math.max(1, Math.ceil(target / step - 1e-9));
+  const ticks = Array.from({length: count + 1}, (_, index) => Number((index * step).toPrecision(12)));
+  return {max: ticks.at(-1)!, ticks};
+}
+
+/** Compact, locale-independent tick text: 1.2M, 400k, 12.5, 0. */
+export function formatAxisValue(value: number): string {
+  const abs = Math.abs(value);
+  const trim = (number: number) => Number(number.toFixed(1)).toString();
+  if (abs >= 1e6) return `${trim(value / 1e6)}M`;
+  if (abs >= 1e4) return `${trim(value / 1e3)}k`;
+  return trim(value);
+}
+
+export interface PlacedLabel {policy: string; text: string; x: number; y: number; anchor: 'start' | 'end' | 'middle'}
+
+/**
+ * Direct policy labels beside plotted points, greedily moved (right, left,
+ * above, below, then further out) so no two labels overlap and none leaves
+ * the plot box. Close points (DistanceLOD vs UtilityLOD) stay identifiable
+ * without hovering. Approximates 11px UI text at 6.2px per character.
+ */
+export function placePointLabels(
+  points: {policy: string; cx: number; cy: number}[],
+  box: {left: number; right: number; top: number; bottom: number},
+): PlacedLabel[] {
+  const charWidth = 6.2, height = 12, gap = 12;
+  const placed: {x0: number; x1: number; y0: number; y1: number}[] = [];
+  const markers = points.map(point => ({x0: point.cx - 6, x1: point.cx + 6, y0: point.cy - 6, y1: point.cy + 6}));
+  const overlaps = (a: {x0: number; x1: number; y0: number; y1: number}, b: typeof a) => a.x0 < b.x1 && b.x0 < a.x1 && a.y0 < b.y1 && b.y0 < a.y1;
+  return [...points].sort((a, b) => a.cx - b.cx || a.cy - b.cy).map(point => {
+    const text = PUBLIC_POLICY_LABELS[point.policy] ?? point.policy;
+    const width = text.length * charWidth;
+    const candidates: {x: number; y: number; anchor: PlacedLabel['anchor']}[] = [];
+    for (const offset of [0, 12, 24, 36]) {
+      candidates.push(
+        {x: point.cx + gap, y: point.cy + 4 - offset, anchor: 'start'},
+        {x: point.cx + gap, y: point.cy + 4 + offset, anchor: 'start'},
+        {x: point.cx - gap, y: point.cy + 4 - offset, anchor: 'end'},
+        {x: point.cx - gap, y: point.cy + 4 + offset, anchor: 'end'},
+        {x: point.cx, y: point.cy - gap - offset, anchor: 'middle'},
+        {x: point.cx, y: point.cy + gap + height - 2 + offset, anchor: 'middle'},
+      );
+    }
+    const rect = (candidate: typeof candidates[number]) => {
+      const x0 = candidate.anchor === 'start' ? candidate.x : candidate.anchor === 'end' ? candidate.x - width : candidate.x - width / 2;
+      return {x0, x1: x0 + width, y0: candidate.y - height + 2, y1: candidate.y + 2};
+    };
+    const inside = (r: ReturnType<typeof rect>) => r.x0 >= box.left && r.x1 <= box.right && r.y0 >= box.top && r.y1 <= box.bottom;
+    const free = (r: ReturnType<typeof rect>) => !placed.some(other => overlaps(r, other)) && !markers.some(marker => overlaps(r, marker));
+    const choice = candidates.find(candidate => inside(rect(candidate)) && free(rect(candidate)))
+      ?? candidates.find(candidate => inside(rect(candidate)))
+      ?? candidates[0];
+    placed.push(rect(choice));
+    return {policy: point.policy, text, ...choice};
+  });
+}

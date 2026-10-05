@@ -51,6 +51,7 @@ COMMANDS = {
         "hardware_profile",
         "force",
     ),
+    "benchmark_cancel": (),
     "validation": (),
     "presets": (),
     "diagnostics": (),
@@ -67,6 +68,84 @@ REPLAY_MAX_FPS = 60.0
 # holds ~70 LowResource frames (~1.7 MB) or ~12 Quality frames (~10 MB).
 REPLAY_PREFETCH_BYTES = 128 * 1024 * 1024
 REPLAY_PREFETCH_FRAMES = 64
+
+# Defaults sized so every policy gets >=100 measured samples (p99-reliable):
+# (110 - 10) frames x 3 repetitions = 300 when the sequence is long enough.
+BENCHMARK_DEFAULT_FRAMES = 110
+BENCHMARK_DEFAULT_WARMUP = 10
+BENCHMARK_DEFAULT_REPETITIONS = 3
+BENCHMARK_PROGRESS_PREFIX = "VEYRA_BENCHMARK_PROGRESS "
+
+
+def parse_benchmark_progress(text: str) -> dict | None:
+    """Return the last well-formed progress record in ``text`` (or ``None``)."""
+    latest = None
+    for line in text.splitlines():
+        if not line.startswith(BENCHMARK_PROGRESS_PREFIX):
+            continue
+        try:
+            record = json.loads(line[len(BENCHMARK_PROGRESS_PREFIX) :])
+        except json.JSONDecodeError:
+            continue
+        if isinstance(record, dict):
+            latest = record
+    return latest
+
+
+def benchmark_selection(sequence_frames: int, args: dict) -> tuple[int, int, int, int]:
+    """Validate a benchmark frame selection against the whole sequence.
+
+    The benchmark replays the dataset itself, so it is bounded by the
+    sequence length the adapter reports, not by the playback preview
+    ``frame_limit``. Returns ``(start, count, warmup_frames, repetitions)``.
+    """
+    if sequence_frames < 1:
+        raise ValueError("the configured sequence has no frames to benchmark")
+    start = number(args.get("start", 0), "start", 0, sequence_frames - 1, True)
+    available = sequence_frames - start
+    count = number(
+        args.get("count", min(BENCHMARK_DEFAULT_FRAMES, available)),
+        "count",
+        1,
+        100000,
+        True,
+    )
+    if count > available:
+        raise ValueError(
+            f"benchmark requests {count} frames from frame {start}, but the "
+            f"sequence provides {sequence_frames} frames (at most {available} "
+            f"from frame {start})"
+        )
+    repetitions = number(
+        args.get("repetitions", BENCHMARK_DEFAULT_REPETITIONS),
+        "repetitions",
+        1,
+        20,
+        True,
+    )
+    warmup = number(
+        args.get("warmup_frames", min(BENCHMARK_DEFAULT_WARMUP, count - 1)),
+        "warmup_frames",
+        0,
+        count - 1,
+        True,
+    )
+    return start, count, warmup, repetitions
+
+
+def frames_processed(current: int, target: int) -> int:
+    """Observations the session maps to reach ``target`` from ``current``.
+
+    Mirrors ``RuntimeSession._payload_locked``: the same index re-serializes
+    (0), forward targets replay each intermediate frame, and backward targets
+    reset and replay from frame 0.
+    """
+
+    if target == current:
+        return 0
+    if target > current:
+        return target - current
+    return target + 1
 
 
 def benchmark_completion_event(output: Path, csv: Path) -> dict:
@@ -134,6 +213,7 @@ class ProductRuntime:
         self._cached_status = {}
         self._benchmark = None
         self._benchmark_thread = None
+        self._benchmark_cancelled = threading.Event()
         self._artifacts = tempfile.TemporaryDirectory(prefix="veyra-session-")
         # Smooth-replay state. When active, ticks serve precomputed cached
         # snapshots with no perception/mapping work (see _publish_replay_frame).
@@ -170,6 +250,7 @@ class ProductRuntime:
             "sequence": self.config["sequence"] if self.config else None,
             "index": self.replay_position if reader is not None else self.index,
             "frames": frames,
+            "sequence_frames": self._sequence_frames(),
             "policy": self.config["map"]["policy"] if self.config else "distance_lod",
             "layer": self.layer,
             "speed": (
@@ -190,10 +271,16 @@ class ProductRuntime:
             self._cached_status = status
         self.outbox.publish({"type": "status", **status})
 
+    def _sequence_frames(self):
+        """Frames the configured sequence holds, independent of frame_limit."""
+        if self.session is None:
+            return 0
+        return int(self.session.status()["frames"])
+
     def _frame_count(self):
         if self.session is None:
             return 0
-        total = self.session.status()["frames"]
+        total = self._sequence_frames()
         playback = self.config["playback"] if self.config else {}
         if playback.get("full_sequence", False):
             return total
@@ -650,6 +737,8 @@ class ProductRuntime:
             raise ValueError("configure a dataset before playback")
         if command == "benchmark":
             return self._start_benchmark(args)
+        if command == "benchmark_cancel":
+            return self._cancel_benchmark()
         if command == "validation":
             if self.session is None or self.config is None:
                 raise ValueError("configure a dataset before validation")
@@ -782,6 +871,7 @@ class ProductRuntime:
 
     def _process_locked(self, target, force_visual=False):
         started = time.perf_counter()
+        processed = frames_processed(self.index, target)
         try:
             frame = self.session.frame_payload(
                 target, budget=self.config["visualization"]["point_budget"], binary=True
@@ -828,7 +918,10 @@ class ProductRuntime:
                 self.outbox.publish(metadata, payload)
                 visual_ms = (time.perf_counter() - visual_start) * 1000
                 self.last_visual = time.monotonic()
-            self.telemetry.record((time.perf_counter() - started) * 1000)
+            # A seek replays every intermediate frame in one call; its duration
+            # is not a per-frame latency and would swamp the rolling p95/p99.
+            if processed == 1:
+                self.telemetry.record((time.perf_counter() - started) * 1000)
             self._publish_status()
             self.last_telemetry = self.telemetry.report(
                 self.status(),
@@ -928,26 +1021,12 @@ class ProductRuntime:
             or sequence not in self.session.adapter.list_sequences()
         ):
             raise ValueError("benchmark selection must use the configured dataset")
-        start = number(
-            args.get("start", 0), "start", 0, self.status()["frames"] - 1, True
+        sequence_frames = (
+            self._sequence_frames()
+            if sequence == self.config["sequence"]
+            else len(self.session.adapter.list_frames(sequence))
         )
-        count = number(
-            args.get("count", min(10, self.status()["frames"] - start)),
-            "count",
-            1,
-            100000,
-            True,
-        )
-        repetitions = number(args.get("repetitions", 1), "repetitions", 1, 20, True)
-        warmup = number(
-            args.get("warmup_frames", 0), "warmup_frames", 0, count - 1, True
-        )
-        if count > self.status()["frames"] - start:
-            raise ValueError(
-                f"benchmark requests {count} frames from frame {start}, but this "
-                f"session provides {self.status()['frames']} (the playback frame "
-                "limit applies unless full_sequence is enabled)"
-            )
+        start, count, warmup, repetitions = benchmark_selection(sequence_frames, args)
         profile = args.get("hardware_profile", "auto")
         if not isinstance(profile, str) or len(profile) > 128:
             raise ValueError("invalid hardware profile")
@@ -973,16 +1052,23 @@ class ProductRuntime:
         cached = None if force else benchmark_cache.lookup(cache_key)
         if cached is not None:
             self.state = "paused"
-            self._benchmark_thread = threading.Thread(
-                target=lambda: benchmark_cache.serve_cached(
+            self._benchmark_cancelled.clear()
+            cancelled = self._benchmark_cancelled
+
+            def serve_cached():
+                # Cancel during the presentation delay withholds the report.
+                benchmark_cache.serve_cached(
                     cached,
                     self.outbox.publish,
                     benchmark_completion_event,
                     self.stopping,
-                    benchmark_cache.present_delay,
-                ),
-                daemon=True,
-            )
+                    lambda stop: benchmark_cache.present_delay(stop)
+                    and not cancelled.is_set(),
+                )
+                if cancelled.is_set():
+                    self.outbox.publish({"type": "benchmark", "state": "cancelled"})
+
+            self._benchmark_thread = threading.Thread(target=serve_cached, daemon=True)
             self._benchmark_thread.start()
             return {"state": "running", "cached": True}
         directory = Path(self._artifacts.name)
@@ -1019,8 +1105,33 @@ class ProductRuntime:
             str(csv),
             "--perception-config",
             str(config_file),
+            "--progress",
         ]
+        for stale in (output, csv):
+            stale.unlink(missing_ok=True)
         self.state = "paused"
+        plan = {
+            "dataset": dataset,
+            "sequence": sequence,
+            "start": start,
+            "count": count,
+            "warmup_frames": warmup,
+            "repetitions": repetitions,
+            "policies": 4,
+            "measured_samples_per_policy": (count - warmup) * repetitions,
+        }
+        started_at = time.time()
+        self._benchmark_cancelled.clear()
+
+        def running_event(progress=None):
+            return {
+                "type": "benchmark",
+                "state": "running",
+                "plan": plan,
+                "started_at": started_at,
+                "elapsed_s": round(time.time() - started_at, 3),
+                "progress": progress,
+            }
 
         def run():
             log = directory / "benchmark.log"
@@ -1029,9 +1140,44 @@ class ProductRuntime:
                     self._benchmark = subprocess.Popen(
                         command, cwd=self.repo, stdout=stream, stderr=stream
                     )
-                    code = self._benchmark.wait()
+                    last = None
+                    while True:
+                        try:
+                            code = self._benchmark.wait(timeout=0.5)
+                            break
+                        except subprocess.TimeoutExpired:
+                            pass
+                        if self._benchmark_cancelled.is_set():
+                            # Cancel may land before Popen published the handle.
+                            self._benchmark.terminate()
+                            continue
+                        progress = parse_benchmark_progress(
+                            log.read_text(errors="replace")
+                        )
+                        if progress is not None and progress != last:
+                            last = progress
+                            self.outbox.publish(running_event(progress))
+                    progress = parse_benchmark_progress(log.read_text(errors="replace"))
+                    if code == 0 and progress is not None and progress != last:
+                        self.outbox.publish(running_event(progress))
+                if self._benchmark_cancelled.is_set():
+                    self.outbox.publish(
+                        {
+                            "type": "benchmark",
+                            "state": "cancelled",
+                            "elapsed_s": round(time.time() - started_at, 3),
+                        }
+                    )
+                    return
                 if code:
-                    raise RuntimeError(log.read_text(errors="replace")[-4096:])
+                    tail = "\n".join(
+                        line
+                        for line in log.read_text(errors="replace").splitlines()
+                        if not line.startswith(BENCHMARK_PROGRESS_PREFIX)
+                    )
+                    raise RuntimeError(
+                        tail[-4096:].strip() or f"benchmark exited with status {code}"
+                    )
                 event = benchmark_completion_event(output, csv)
                 stored = None
                 cache_error = None
@@ -1057,9 +1203,24 @@ class ProductRuntime:
             finally:
                 self._benchmark = None
 
+        self.outbox.publish(running_event())
         self._benchmark_thread = threading.Thread(target=run, daemon=True)
         self._benchmark_thread.start()
-        return {"state": "running"}
+        return {"state": "running", "plan": plan}
+
+    def _cancel_benchmark(self):
+        """Stop a running benchmark; its partial output is discarded."""
+        process = self._benchmark
+        if not (self._benchmark_thread and self._benchmark_thread.is_alive()):
+            raise ValueError("no benchmark is running")
+        self._benchmark_cancelled.set()
+        if process is not None and process.poll() is None:
+            process.terminate()
+            try:
+                process.wait(timeout=5)
+            except subprocess.TimeoutExpired:
+                process.kill()
+        return {"state": "cancelling"}
 
     def _command_wait_timeout(self, now: float) -> float:
         if self.state == "running":

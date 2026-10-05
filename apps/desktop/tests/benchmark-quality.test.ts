@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
 import test from 'node:test';
-import {policyQuality, qualityParetoPolicies, qualityPlotPoints} from '../src/renderer/benchmark-quality.ts';
+import {formatAxisValue, niceAxis, placePointLabels, policyQuality, qualityParetoPolicies, qualityPlotPoints} from '../src/renderer/benchmark-quality.ts';
 
 const reportFixture = JSON.parse(readFileSync(new URL('./fixtures/benchmark-v2-generic.json', import.meta.url), 'utf8'));
 
@@ -73,4 +73,35 @@ test('reconstruction Pareto frontier minimizes resource and distance error only 
   assert.deepEqual(qualityParetoPolicies(report, 'rss', 'inputAccuracy'), ['uniform5', 'distance_lod', 'utility_lod']);
   report.quality_resource.same_input_for_all_policies = false;
   assert.deepEqual(qualityParetoPolicies(report, 'rss', 'inputAccuracy'), []);
+});
+
+test('axes use round zero-based ticks that cover the data', () => {
+  assert.deepEqual(niceAxis(100), {max: 100, ticks: [0, 25, 50, 75, 100]});
+  assert.deepEqual(niceAxis(1_621_047.6), {max: 2_000_000, ticks: [0, 500_000, 1_000_000, 1_500_000, 2_000_000]});
+  assert.deepEqual(niceAxis(20.05), {max: 30, ticks: [0, 10, 20, 30]});
+  assert.deepEqual(niceAxis(19.9), {max: 20, ticks: [0, 5, 10, 15, 20]});
+  assert.deepEqual(niceAxis(953.4), {max: 1000, ticks: [0, 250, 500, 750, 1000]});
+  for (const bad of [0, -3, NaN, -Infinity]) assert.deepEqual(niceAxis(bad), {max: 1, ticks: [0, 0.25, 0.5, 0.75, 1]});
+  assert.deepEqual([0, 12.5, 250, 40_000, 1_500_000, 0.25].map(formatAxisValue), ['0', '12.5', '250', '40k', '1.5M', '0.3']);
+});
+
+test('point labels never overlap each other or markers and stay inside the plot', () => {
+  const box = {left: 66, right: 476, top: 32, bottom: 219};
+  // DistanceLOD and UtilityLOD measured ~6 px apart on the active-cells axis.
+  const points = [
+    {policy: 'uniform5', cx: 406, cy: 50}, {policy: 'uniform40', cx: 79, cy: 120},
+    {policy: 'distance_lod', cx: 172.6, cy: 106.9}, {policy: 'utility_lod', cx: 179.1, cy: 107.1},
+  ];
+  const labels = placePointLabels(points, box);
+  assert.deepEqual(labels.map(label => label.text).sort(), ['DistanceLOD', 'Uniform40', 'Uniform5', 'UtilityLOD']);
+  const rects = labels.map(label => {
+    const width = label.text.length * 6.2;
+    const x0 = label.anchor === 'start' ? label.x : label.anchor === 'end' ? label.x - width : label.x - width / 2;
+    return {x0, x1: x0 + width, y0: label.y - 10, y1: label.y + 2};
+  });
+  for (const [index, rect] of rects.entries()) {
+    assert.ok(rect.x0 >= box.left && rect.x1 <= box.right && rect.y0 >= box.top && rect.y1 <= box.bottom, labels[index].text);
+    for (const other of rects.slice(index + 1)) assert.ok(!(rect.x0 < other.x1 && other.x0 < rect.x1 && rect.y0 < other.y1 && other.y0 < rect.y1), 'labels overlap');
+    for (const point of points) assert.ok(!(rect.x0 < point.cx + 6 && point.cx - 6 < rect.x1 && rect.y0 < point.cy + 6 && point.cy - 6 < rect.y1), `${labels[index].text} covers a marker`);
+  }
 });

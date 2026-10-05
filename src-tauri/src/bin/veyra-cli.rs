@@ -125,6 +125,12 @@ fn parse_args(args: &[String]) -> Result<CliOperation, ControlClientError> {
             validate_layer(layer)?;
             Ok(command_request("layer", json!({"layer": layer})))
         }
+        [command, action] if command == "playback" && action == "step" => {
+            Ok(command_request("step", json!({})))
+        }
+        // `metrics` stays the historical status alias; `telemetry` returns the
+        // runtime's last per-frame telemetry (latencies, perception device).
+        [command] if command == "telemetry" => Ok(command_request("metrics", json!({}))),
         [command] if command == "diagnostics" => Ok(request("diagnostics", json!({}))),
         [command, action] if command == "benchmark" && action == "run" => {
             Ok(command_request("benchmark", json!({})))
@@ -138,10 +144,10 @@ fn parse_args(args: &[String]) -> Result<CliOperation, ControlClientError> {
         }
         _ => Err(ControlClientError::Configuration(
             concat!(
-                "usage: veyra-cli status | metrics [--json] | runtime start|stop|restart | ",
+                "usage: veyra-cli status | metrics [--json] | telemetry | runtime start|stop|restart | ",
                 "configure <json> | config validate <json> | dataset info <format> <root> | ",
                 "dataset open <format> <root> [sequence] | ",
-                "playback play|pause|seek <frame> | policy set <policy> | ",
+                "playback play|pause|step|seek <frame> | policy set <policy> | ",
                 "layer set <layer> | diagnostics | benchmark run | validation run"
             )
             .to_owned(),
@@ -266,6 +272,24 @@ mod tests {
             Ok(CliOperation::Request {
                 command: "status",
                 args: json!({}),
+            })
+        );
+    }
+
+    #[test]
+    fn telemetry_and_step_map_to_runtime_commands() {
+        assert_eq!(
+            parse_args(&["telemetry".to_owned()]),
+            Ok(CliOperation::Request {
+                command: "command",
+                args: json!({"name": "metrics", "args": {}}),
+            })
+        );
+        assert_eq!(
+            parse_args(&["playback".to_owned(), "step".to_owned()]),
+            Ok(CliOperation::Request {
+                command: "command",
+                args: json!({"name": "step", "args": {}}),
             })
         );
     }

@@ -1,7 +1,7 @@
 <script lang="ts">
   import type {Json} from '../core';
   import {comparisonScope} from './benchmark-report';
-  import {latencyAxisLabel, POLICY_COLORS, PUBLIC_POLICY_LABELS, qualityMetricDirection, qualityParetoPolicies, qualityPlotPoints, type QualityMetric} from './benchmark-quality';
+  import {formatAxisValue, latencyAxisLabel, niceAxis, placePointLabels, POLICY_COLORS, PUBLIC_POLICY_LABELS, qualityMetricDirection, qualityParetoPolicies, qualityPlotPoints, type QualityMetric} from './benchmark-quality';
   let {report} = $props<{report: Json | null}>();
   let metric = $state<QualityMetric>('heightAccuracy');
 
@@ -14,23 +14,28 @@
     inputChamfer: 'Input reconstruction Chamfer-L1 (mm) ↓',
   };
   const scopes = $derived(comparisonScope(report));
+  const PLOT = {left: 65, right: 444, top: 50, bottom: 220};
+  const LABEL_BOX = {left: 66, right: 476, top: 32, bottom: 219};
+  const isPercent = (selected: QualityMetric) => selected === 'heightAccuracy' || selected === 'completion';
   function shown(value: number, selected: QualityMetric) {
-    return (selected === 'surfaceChamfer' || selected === 'inputAccuracy' || selected === 'inputCompletion' || selected === 'inputChamfer' ? value * 1000 : value * 100);
+    return isPercent(selected) ? value * 100 : value * 1000;
   }
-  function maxValue(points: {y:number}[], selected: QualityMetric) {
-    return selected === 'heightAccuracy' || selected === 'completion' ? 100 : Math.max(1, ...points.map(point => shown(point.y, selected))) * 1.15;
+  function yAxis(points: {y:number}[], selected: QualityMetric) {
+    return isPercent(selected) ? niceAxis(100) : niceAxis(Math.max(...points.map(point => shown(point.y, selected))) * 1.1);
   }
-  function yPosition(value: number, max: number, selected: QualityMetric) {
-    const normalized = Math.max(0, Math.min(1, shown(value, selected) / max));
+  // Lower-is-better metrics put zero at the top so "up" always means better.
+  function yFor(shownValue: number, max: number, selected: QualityMetric) {
+    const normalized = Math.max(0, Math.min(1, shownValue / max));
     const progress = qualityMetricDirection(selected) === 'lower' ? 1 - normalized : normalized;
-    return 220 - progress * 170;
+    return PLOT.bottom - progress * (PLOT.bottom - PLOT.top);
   }
+  function xFor(value: number, max: number) { return PLOT.left + Math.max(0, Math.min(1, value / max)) * (PLOT.right - PLOT.left); }
   function xUnit(resource: string) {
-    return resource === 'rss' ? 'RSS memory (MB) ↓'
-      : resource === 'latency' ? `${latencyAxisLabel(report)} (same benchmark run)`
+    return resource === 'rss' ? 'Peak RSS memory (MB) ↓'
+      : resource === 'latency' ? latencyAxisLabel(report)
         : 'Active map cells ↓';
   }
-  function xScale(points: {x:number}[]) { return Math.max(1, ...points.map(point => point.x)) * 1.2; }
+  const unitSuffix = (resource: string) => resource === 'rss' ? ' MB' : resource === 'latency' ? ' ms' : ' cells';
   function format(value: number) { return value.toLocaleString(undefined, {maximumFractionDigits: 1}); }
   function resourcePlots() {
     return [
@@ -63,28 +68,33 @@
     {#each resourcePlots() as plot}
       {@const points = qualityPlotPoints(report, plot.resource as 'rss'|'latency'|'activeCells', plot.metric as QualityMetric)}
       {@const frontier = qualityParetoPolicies(report, plot.resource as 'rss'|'latency'|'activeCells', plot.metric as QualityMetric)}
-      {@const maxX = xScale(points)}
-      {@const maxY = maxValue(points, plot.metric as QualityMetric)}
-      {@const plotDirection = qualityMetricDirection(plot.metric as QualityMetric)}
+      {@const selected = plot.metric as QualityMetric}
+      {@const xAxis = niceAxis(Math.max(...points.map(point => point.x), 0) * 1.1)}
+      {@const yScale = yAxis(points, selected)}
+      {@const marks = points.map(point => ({...point, cx: xFor(point.x, xAxis.max), cy: yFor(shown(point.y, selected), yScale.max, selected)}))}
+      {@const labels = placePointLabels(marks, LABEL_BOX)}
       <div class="tradeoff-plot">
         <h4>{plot.title}</h4>
         {#if points.length}
-          <svg viewBox="0 0 480 275" role="img" aria-label={`${titles[plot.metric as QualityMetric]} versus ${xUnit(plot.resource)}`}>
-            <title>{titles[plot.metric as QualityMetric]} versus {xUnit(plot.resource)}</title>
-            {#each [0, .25, .5, .75, 1] as step}
-              <line x1="65" x2="444" y1={220-step*170} y2={220-step*170} stroke="var(--line)"/>
-              <text x="53" y={224-step*170} text-anchor="end">{format(plotDirection==='lower'?maxY*(1-step):maxY*step)}</text>
-              <text x={65+step*379} y="242" text-anchor="middle">{format(maxX*step)}</text>
+          <svg viewBox="0 0 480 275" role="img" aria-label={`${titles[selected]} versus ${xUnit(plot.resource)}`}>
+            <title>{titles[selected]} versus {xUnit(plot.resource)}</title>
+            {#each yScale.ticks as tick}
+              <line class="grid-y" x1={PLOT.left} x2={PLOT.right} y1={yFor(tick, yScale.max, selected)} y2={yFor(tick, yScale.max, selected)} stroke="var(--line)"/>
+              <text class="tick-y" x="53" y={yFor(tick, yScale.max, selected)+4} text-anchor="end">{formatAxisValue(tick)}</text>
             {/each}
-            <path d="M65 48V220H444" fill="none" stroke="var(--secondary)"/>
-            <text x="65" y="25">{titles[plot.metric as QualityMetric]}</text>
-            <text x="250" y="267" text-anchor="middle">{xUnit(plot.resource)}</text>
-            {#each points as point}
-              {@const cx = 65 + point.x/maxX*379}
-              {@const cy = yPosition(point.y,maxY,plot.metric as QualityMetric)}
+            {#each xAxis.ticks as tick}
+              <text class="tick-x" x={xFor(tick, xAxis.max)} y="238" text-anchor="middle">{formatAxisValue(tick)}</text>
+            {/each}
+            <path d={`M${PLOT.left} ${PLOT.top-2}V${PLOT.bottom}H${PLOT.right}`} fill="none" stroke="var(--secondary)"/>
+            <text class="axis-title-y" x={PLOT.left} y="25">{titles[selected]}</text>
+            <text class="axis-title-x" x={(PLOT.left+PLOT.right)/2} y="262" text-anchor="middle">{xUnit(plot.resource)}</text>
+            {#each marks as point}
               {@const onFrontier = frontier.includes(point.policy)}
-              {#if onFrontier}<circle cx={cx} cy={cy} r="9" fill="none" stroke={POLICY_COLORS[point.policy]} stroke-width="1.5"/>{/if}
-              <circle cx={cx} cy={cy} r="5" fill={POLICY_COLORS[point.policy]}><title>{PUBLIC_POLICY_LABELS[point.policy]} · {format(point.x)} {plot.resource==='rss'?'MB':plot.resource==='latency'?'ms':'cells'} · {format(shown(point.y,plot.metric as QualityMetric))} {plot.metric==='heightAccuracy'||plot.metric==='completion'?'%':'mm'}{onFrontier?' · Pareto-optimal':''}</title></circle>
+              {#if onFrontier}<circle cx={point.cx} cy={point.cy} r="9" fill="none" stroke={POLICY_COLORS[point.policy]} stroke-width="1.5"/>{/if}
+              <circle cx={point.cx} cy={point.cy} r="5" fill={POLICY_COLORS[point.policy]} fill-opacity="0.85"><title>{PUBLIC_POLICY_LABELS[point.policy]} · {format(point.x)}{unitSuffix(plot.resource)} · {format(shown(point.y,selected))}{isPercent(selected)?'%':' mm'}{onFrontier?' · Pareto-optimal':''}</title></circle>
+            {/each}
+            {#each labels as label}
+              <text class="point-label" x={label.x} y={label.y} text-anchor={label.anchor} style:fill={POLICY_COLORS[label.policy]}>{label.text}</text>
             {/each}
           </svg>
           {#if scopes.status==='measured'&&scopes.sameInput===true}<p class="hint pareto-note">Ringed points are non-dominated for this resource and metric; no combined score.</p>{:else}<p class="hint pareto-note">Missing policy measurements are omitted. Incomplete input identity prevents a Pareto claim.</p>{/if}
