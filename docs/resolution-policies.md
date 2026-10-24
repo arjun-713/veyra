@@ -52,9 +52,8 @@ retain raw observations.
 
 These are implementation mechanisms, not proof that the resulting allocation
 is task-selective. The frozen UtilityLOD benchmark and its limitations are
-documented in [`benchmarks/UTILITY_HARDCORE.md`](../benchmarks/UTILITY_HARDCORE.md);
-benchmark results must retain
-their own code/data provenance.
+documented in the [frozen challenge methodology](../benchmarks/README.md#frozen-utilitylod-challenges);
+benchmark results must retain their own code/data provenance.
 
 ## Resource governor
 

@@ -90,8 +90,9 @@ near-field. Tests: `docs/map-correctness.md`.
 Adapters cover SemanticPOSS, RELLIS-3D, SemanticKITTI, and a generic manifest
 format; PandaSet conversion targets the generic format. Local data availability
 and metadata vary. Dataset files, weights, and maps are not committed. Metrics
-and reference definitions are in `docs/benchmark-contract.md`; adapter guides
-are under `datasets/`.
+and reference definitions are in the [benchmark contract](docs/benchmark-contract.md).
+The [dataset guide](datasets/README.md) owns all supported layouts, metadata,
+manifest conversion and validation commands.
 
 Reports under `reports/` describe their recorded source, inputs and hardware.
 They are historical evidence, not measurements of the latest source unless

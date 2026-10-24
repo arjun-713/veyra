@@ -30,8 +30,8 @@ the existing manifest adapter; real external poses remain required by mapping.
    Files are read in place; selecting a folder does not yet process the map.
 2. Review the discovered sequence, frames, labels, poses and timestamps.
    Missing timestamps mean temporal motion evidence is unavailable, not measured.
-3. Keep **Low resource** for laptop replay (first 30 frames by default). Choose
-   a resolution policy. **Replay the full sequence** is an explicit override.
+3. Review the resource profile, selected frame limit and full-sequence setting;
+   choose a resolution policy before opening the session.
 4. Select **Open dataset & preview**. The backend validates configuration,
    starts the session and processes the first frame; Viewer opens automatically.
 5. Play, pause, seek, change speed/layers/policy in **Viewer**. **Overview**
@@ -48,6 +48,38 @@ which emit no `desktop_telemetry`. Missing measurements remain unavailable.
 Evaluation consumes existing schema-2 reports. Session setup imports, validates
 and saves session JSON; all display budgets are bounded independently from map
 input. The Utility heatmap displays the normalized score exported by the engine.
+
+## Judge View and cell inspection
+
+In Viewer, select **Map** or **Both**, then enable **Judge View** in the map
+toolbar. It turns on semantic display and range rings without changing policy,
+perception or telemetry. Camera/follow/visibility settings remain selected;
+exiting restores the preceding display state. Live and Smooth Replay are
+labelled separately; [runtime replay](../../docs/product-runtime.md#smooth-replay)
+defines recorded metrics and presentation FPS.
+
+Range bands and resolution explanations come from the engine's
+`policy_descriptor` (level ladder, boundaries and protected/window radii).
+Older caches without it show unavailable configuration. Click a rendered cell
+to highlight its world-space footprint and open the inspector:
+
+- **Resolution:** Uniform policies explain their fixed level; DistanceLOD
+  compares configured range with stored level. UtilityLOD shows refinement
+  direction and stored signals; absent decision attribution remains explicit.
+- **2.5D anatomy:** separate ground, obstacle and overhead profiles show
+  count/mean/min/max, with unavailable empty layers. Pooled elevation is a
+  summary, not a physical surface. Ground absent beside obstacle support is
+  unobserved; it is not proof of backend visibility or free space.
+- **Perception/state:** taxonomy names, confidence, motion, traversability,
+  observations and quality use measured fields. Unsupported surface/visibility
+  evidence stays unavailable. Selection re-resolves by world key each frame
+  and reports when that leaf is no longer active.
+
+Layer transport is defined in the [visualization contract](../../docs/product-runtime.md#visualization-contract).
+The coordinate bar discloses cell selection mode, displayed/total counts and
+renderer clamps. Unknown is never presented as drivable. Same-frame policy
+comparisons need benchmark artifacts, and ghost-cleanup demonstrations need
+real timestamps and usable motion evidence.
 
 ## Checks
 
@@ -165,20 +197,33 @@ remain until signing credentials are configured.
   `bundle/dmg/bundle_dmg.sh --skip-jenkins` produces an unstyled image.
 
 The configured native runners do not prove latest macOS, Windows 11 or Ubuntu
-install-and-launch compatibility. The [recorded Linux packaged-runtime checks](../../reports/closure/tauri/PHASE_B_PACKAGED_RUNTIME.md)
+install-and-launch compatibility. The [recorded Linux packaged-runtime checks](../../reports/closure/tauri/RESULT.md#phase-b-packaged-runtime)
 describe their own build and verification scope; repeat installation and launch
 checks for the release and platform being distributed.
 
-## Boundaries
+## Runtime boundaries
 
-The Tauri frontend talks to named Rust commands only (`open_dataset`,
-`command`, event subscription over `veyra://event`). Renderer requests carry
-no shell or process APIs; the Svelte side cannot launch programs. The Rust
-side owns native pickers, export paths and the trusted backend command.
-Diagnostics preserve bounded recent process context; log rotation is not claimed.
+Rust owns native pickers, export paths, process launch and named commands
+(`open_dataset`, `command`, `veyra://event`). The renderer has no shell/process
+API. Bounded diagnostics, telemetry windows, GPU/display budgets and coalescing
+are documented in the [product runtime](../../docs/product-runtime.md).
 
-Runtime stdout is decoded with version and length limits. Visualization has a
-coalesced latest update in the native relay; slow UI may supersede visualization,
-not mapper ingestion. Three.js reuses bounded point/instancing GPU buffers and
-discloses rendering sampling. Live telemetry charts retain a trailing 60 seconds
-with at most 3,600 samples; pause freezes the recorded history.
+## Visual conventions
+
+The desktop uses a light shell and dark spatial viewports: precise alignment,
+system typography, quiet separators and one primary action per task. Navigation
+is Overview / Viewer / Session setup / Performance / Evaluation; source settings
+belong to setup, playback to Viewer. Advanced settings are disclosed progressively.
+
+- Font: `-apple-system, BlinkMacSystemFont, Inter, Segoe UI, sans-serif`;
+  monospace for measurements/paths/config. Type: 9–11 px viewport labels,
+  12–15 px controls, 17–21 px panels, 24 px pages, 32–40 px empty states.
+- Palette: canvas `#f5f5f7`, surface `#ffffff`, sidebar `#ededf0`, ink `#1d1d1f`,
+  secondary `#626269`, separator `#dedee3`, accent `#0069df`.
+- Radius: controls 8 px, panels 14 px, toolbars 12 px. Spacing: 4/8/12/16/24/32/48 px.
+- Icons: authored 24 px SVGs, rounded 1.7 px strokes. Motion: 140 ms feedback,
+  200 ms ease-out entry; only busy indicators loop, respecting reduced motion/transparency.
+
+Empty screens explain the next action; active Overview uses the three real
+spatial previews. Ground truth stays labelled, missing values stay unavailable,
+and resource savings do not imply map-quality superiority.

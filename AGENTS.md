@@ -87,4 +87,4 @@ under `datasets/`.
 [resolution policies](docs/resolution-policies.md),
 [perception/terrain/temporal](docs/perception-terrain-temporal.md),
 [product runtime](docs/product-runtime.md), [benchmark contract](docs/benchmark-contract.md),
-[smooth replay](docs/smooth-replay.md), and [Docker](docs/docker.md).
+[smooth replay](docs/product-runtime.md#smooth-replay), and [Docker](docs/docker.md).

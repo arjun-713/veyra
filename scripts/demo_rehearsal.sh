@@ -663,7 +663,7 @@ step_desktop() {
         record_check "desktop.launch" "SKIP" "bundle present + display available, but auto-launch is opt-in (VEYRA_REHEARSAL_LAUNCH=1); artifacts verified only"
       fi
     else
-      # Headless packaged smoke: owns the REBUILD.md §3 exit-101 assertion.
+      # Headless packaged smoke follows reports/closure/platform/MANIFEST.md.
       # Display-isolated GUI binary must reach window creation and fail ONLY
       # on the absent display (tao gtk-init exit 101). Any other exit (missing
       # libs, backend errors, timeout) = FAIL. No window is ever opened here.

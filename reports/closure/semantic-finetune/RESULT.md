@@ -104,6 +104,8 @@ Range-binned Veyra mIoU (labelled, same bins as closure):
 Near-field and far-field bins are the known-weak regions (collision
 density near, sparsity far); mid-field carries the score.
 
+### Grouped quality and range support
+
 Coarse groups (8, committed artifact `group_prf`; group mIoU **0.6195**,
 accuracy 0.8702):
 
@@ -122,6 +124,17 @@ Non-drivable suffers rare-class recall (821 support points); unknown IoU
 is low by construction (unlabeled GT vs predicted-known, same as closure).
 Range-binned group mIoU: 0–10 m **0.359** / 10–30 m **0.707** /
 30–60 m **0.532** / 60 m+ **0.265**.
+
+`quality-ranges.json` consolidates this 16-frame seq00 provider run: 1,065,314
+returns, 1,029,238 labelled. Rider is grouped with vehicle; the pedestrian
+group is person. Bin labelled accuracies are 0.945/0.907/0.852/0.692.
+Thin-object/pedestrian quality weakens at 30–60 m (pole-group IoU 0.400,
+pedestrian 0.458); beyond 60 m, vehicle/ground/pedestrian IoUs are
+0.070/0.091/0.016. The final bin includes 10,660 raw returns beyond 100 m;
+it is not a 60–100 m metric. In 0–10 m, pedestrian/vegetation/unknown support
+is absent; null/zero entries cannot establish those classes' near-field quality.
+Seq02 exact-projection reference mIoUs by range are 0.364/0.678/0.397/0.271,
+with overall accuracy 0.8651 and mIoU 0.6473; this is a separate input path.
 
 ### Exact-projection reference (author tags, no provider projection loss)
 

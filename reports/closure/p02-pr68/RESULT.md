@@ -103,7 +103,31 @@ override the observer/output paths. The replay never writes datasets or models.
 
 PR68 is deliberately **not merged** and issue54 is not closed by this result.
 
-## Follow-up: current two-strike PR head, fresh paired replay
+## Intermediate clearing correction
+
+`paired-real-kitti08-fixed.json` repeats the same seq08 frames 43–54, real
+poses/times and GT + Patchwork++/terrain/temporal pipeline. It corrected
+same-frame self-clearing, beam-centre elevation approximation and rays that
+never crossed the cell's XY footprint. Current-frame obstacle hits are
+protected; measured angles and square-entry/exit tests constrain clearing,
+with occlusion winning conflicting through-beams. Cells retain no point history;
+two fixed-raster angle arrays supply the extra scan evidence.
+
+| Seed bins | Original ON first/final | Corrected ON first/final | OFF final |
+| --- | ---: | ---: | ---: |
+| Moving car, raw252 instance4 | 1102 / 243 | 1200 / 25 | 1200 |
+| Parked cars, raw10 | 641 / 368 | 664 / 584 | 664 |
+
+Residual moving support was 2.08%; parked retention 87.95%, versus 20.25% and
+55.42% originally. These are first-frame XY bins, not object IoU or visibility
+GT. At frame54, 967/13151 currently observed obstacle cells remained below
+Occupied after earlier negative evidence (zero with clearing off). The result
+remained partial; the 80 parked-bin losses were not all proven false clearing.
+Point conservation/topology passed and both processes exited. This revision's
+CTest passed 24/24 in 231.95 s; Python discovery ran 427 tests with 417 passes
+and 10 optional skips. Twelve frame samples do not establish tail latency.
+
+## Follow-up: two-strike PR head, fresh paired replay
 
 The final PR head adds a two-consecutive-contradiction arm before decrementing
 occupied log odds. I rebuilt the observer and runtime libraries from this

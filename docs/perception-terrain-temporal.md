@@ -1,42 +1,68 @@
-# Perception, Terrain, Temporal — Veyra
+# Perception, terrain and temporal processing
 
-Implementation: `perception/pipeline.py` and the `semantic/`, `ground/`,
-`terrain/` and `temporal/` packages under `perception/`.
+`perception/pipeline.py` composes the `semantic/`, `ground/`, `terrain/` and
+`temporal/` packages into `PipelineOutput`: an aligned `ObservationFrame`,
+backend status, diagnostics and stage timings. Dataset/type conventions are
+in the [dataset guide](../datasets/README.md); the mapper receives the same
+contract regardless of provider.
 
-## Semantic provider
+## Configuration and semantics
 
-The provider boundary is the Python `perception.semantic.SemanticProvider`
-protocol. It consumes XYZI arrays plus optional dataset labels and returns an
-aligned `SemanticResult` containing unified class IDs, confidence, and backend
-mode. The config factory supports ground truth, PyTorch CENet, ONNX SalsaNext,
-and an ONNX model with an explicit raw-class mapping. Ground-truth labels are
-an explicit data/evaluation provider, not neural inference. The mapper consumes
-the aligned result fields and does not depend on a network-specific model.
+Load `configs/perception.yaml` with `load_perception_pipeline(path)`. Its
+checked-in defaults use dataset ground truth, enable ground/terrain, and disable
+temporal processing. The `SemanticProvider` consumes XYZI plus optional labels
+and returns mapped class IDs, confidence and source mode in `SemanticResult`.
 
-CENet (`mode: cenet`) takes `device: auto | cpu | mps` (default `cpu`).
-`auto` runs the unchanged fp32 graph on Apple-silicon MPS only after a
-fixed-seed CPU-parity probe passes; otherwise, or if MPS fails mid-run, it
-stays on CPU and records why in `pipeline_status.semantic_device_fallback_reason`
-(also in telemetry and diagnostics). `mps` fails closed. A device fallback
-still runs the model; it is never a `ground_truth` fallback.
+| Mode | Backend / requirement |
+| --- | --- |
+| `ground_truth` | Mapped dataset labels; an oracle/evaluation source, not model inference. |
+| `cenet` | PyTorch CENet, compatible SemanticPOSS checkpoint. |
+| `salsanext` | Compatible local SalsaNext ONNX checkpoint. |
+| `onnx` | Local ONNX model plus explicit raw-ID mapping and execution providers. |
 
-The ONNX boundary allows compatible model providers; model availability and
-dataset suitability depend on the installed checkpoint and configuration.
-Custom LiDAR training is not part of the mapper runtime.
+Configured neural backends must initialize; they do not download or fabricate
+weights. CENet's explicit ground-truth fallback option is separate from device
+fallback and must remain visible in status.
 
-## Terrain
+CENet accepts `device: auto | cpu | mps` (default `cpu`). `auto` uses Apple
+Silicon MPS only after a fixed-seed CPU-parity probe; a failed probe or mid-run
+MPS failure records `pipeline_status.semantic_device_fallback_reason` and runs
+CPU inference. Explicit `mps` fails closed. Dataset compatibility and checkpoint
+availability must be validated before interpreting predictions.
 
-Reuse Patchwork++ for ground segmentation. Combine geometric +
-semantic evidence. Geometric features: slope, roughness, height
-spread, step response, local elevation gradient. Output:
-`drivable / non-drivable / unknown`. `unknown` must never silently
-become free/drivable.
+## Ground and terrain
 
-## Temporal (class ≠ motion)
+Patchwork++ supplies ground evidence through an installed binding exposing
+`Parameters` / `patchworkpp`; it needs no model asset. The default config sets
+its range explicitly to the mapper's 100 m envelope. Missing binding support is
+reported as unavailable. Terrain needs enabled ground and combines semantic
+and geometric evidence: slope, roughness, height spread, steps and local ground
+gradients. Its output is `drivable / non_drivable / unknown`; missing ground
+support leaves terrain unknown. The mapper's layer/occupancy rules are in
+[map correctness](map-correctness.md).
 
-Keep `semantic_class` separate from `motion_probability /
-motion_state`. Class `car` / `pedestrian` does not imply moving.
-Initial pipeline: semantic cluster → ego-motion compensation →
-association → centroid displacement → `STATIC / POSSIBLY_MOVING /
-MOVING`. Dynamic observations must not permanently contaminate the
-persistent terrain map.
+## Temporal evidence
+
+The tracker uses semantic clusters, ego-motion compensation, association and
+centroid displacement. `semantic_class` is separate from `motion_probability`
+and `motion_state` (`static / possibly_moving / moving / unknown`): a car or
+person class alone does not establish motion.
+
+Processing requires world-frame coordinates and genuine dataset pose/timestamp
+provenance; unavailable metadata is reported rather than inferred. Enabled
+trackers reset when dataset/sequence changes. Dynamic observations must not
+permanently contaminate terrain. Ground, terrain and motion UI layers follow
+the reported backend availability.
+
+## Dependencies and packaging
+
+Install the platform-selected `requirements.txt` dependencies into a venv.
+Packaged Python is 3.13, except Windows x64 uses 3.12 for the published
+Patchwork++ wheel. Intel macOS omits Patchwork++ because no upstream wheel is
+available; ground/terrain remain unavailable there. ONNX still needs a supplied
+compatible model. Torch is an explicit optional CENet dependency.
+
+The runtime is headless; Tauri owns the UI. macOS staging omits unused Tcl/Tk
+and `tkinter`. If using `uv`, select a writable `UV_CACHE_DIR` in managed
+environments. Build and release instructions live in the
+[desktop guide](../apps/desktop/README.md#packaging).

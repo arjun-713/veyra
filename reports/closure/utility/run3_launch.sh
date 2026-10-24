@@ -3,7 +3,7 @@
 #
 # Context: default-budget and 750k/500ms-recipe matrices both stayed clamped --
 # the latency path latches on the semantics leg (frame spikes ~900 ms).
-# RERUN.md gap 1 + governor SURVEY.md section 5 prescribe sizing from the
+# The experiment summarized in RESULT.md sizes this diagnostic from the
 # unclamped spikes (1200 ms target here) and/or a Disabled-override diagnostic
 # for pure-policy deltas.
 #

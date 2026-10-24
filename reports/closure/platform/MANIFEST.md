@@ -1,70 +1,73 @@
-# Veyra desktop bundles — artifact manifest + verify log (closure packaging lane)
+# Historical Linux package inspection
 
-Historical package inspection from 2026-09-20, limited to the hashes below.
-Current packaging instructions are in the [desktop guide](../../../apps/desktop/README.md).
+This combines the 2026-09-18 rebuild and 2026-09-20 archive inspection.
+Host: Fedora, Linux 7.2.5-200.fc44.x86_64, unprivileged user. It is evidence
+for the exact packages below, not acceptance of a current release. Current
+build/install instructions are in the [desktop guide](../../../apps/desktop/README.md#packaging).
 
-Branch: `closure/opencode-packaging` (from `closure/opencode-product @ cf9e71d`).
-Date: 2026-09-20. Host: Fedora (Linux-7.2.5-200.fc44.x86_64), uid=1000, no root.
-Scope: **inspection + provenance only — no rebuilds.** deb/rpm artifacts are the
-Sep 18 rebuild from the main checkout (same machine); the worktree holds only
-evidence + workflow hardening. No cmake/cargo/npm invocations in this lane.
+## Provenance
 
-## 1. Provenance
+The rebuild used `demo-readiness` at `7d3b116`, branch `agent/bundle-rebuild`.
+The inspection used `closure/opencode-packaging` from
+`closure/opencode-product` at `cf9e71d`. Between those revisions, only
+`apps/desktop/src/renderer/App.svelte` changed among the inspected backend,
+mapper, Rust and packaging inputs. Packages therefore match that backend,
+while their frontend predates the workspace fix. No rebuild ran in the
+inspection lane; manifest/checksum commands used copies in
+`/tmp/opencode/veyra-bundles/`.
 
-- Bundles built in main checkout at `7d3b116` (see [rebuild evidence](REBUILD.md));
-  main checkout is now at `cf9e71d` (same commit as this worktree's base).
-- `git diff --name-only 7d3b116..cf9e71d` filtered to
-  `runtime/ src/ apps/ scripts/package_backend* scripts/stage_tauri_backend* src-tauri/src benchmarks/ perception/`:
-  **only `apps/desktop/src/renderer/App.svelte` changed** (frontend
-  statically-always-true workspace fix, no packaging impact). Mapper binary,
-  Python runtime, staging scripts, and Rust side are byte-identical inputs —
-  the Sep 18 bundles remain representative of the backend/mapper payload at
-  `cf9e71d`. Frontend content differs by that one Svelte fix; CI release legs
-  rebuild the frontend from source, so this caveat is local-only.
-- Inspection was read-only against the main checkout; manifest/checksum
-  provenance was produced against **copies** in `/tmp/opencode/veyra-bundles/`
-  (never wrote into either checkout's `src-tauri/target/`).
+## Build and launch record
 
-## 2. Artifact table (version 0.1.0, platform linux, arch x64)
+On Sep 18, `cmake --build build --config Release -j4` was a no-op with apps
+enabled. Mapper `build/apps/runtime/veyra_runtime` was 313,472 bytes, SHA-256
+`1bf465d1…82075b299eb`. Staging used `scripts/stage_tauri_backend.py` with
+`--mapper`, `--python-runtime .venv`, `--platform linux` and `--arch x64`.
+The venv used Python 3.13.15. Staged manifest schema 1 listed 5,638 files,
+with SHA-256 `0c6377ba1d6894d4c3127e1b79706d96f833aeeac72ff3376c0c9a6cf4e63b8d`.
 
-Produced by `scripts/release_manifest.py … --version 0.1.0 --target linux-x64`
-then `scripts/release_checksums.py` (canonical order: manifest first,
-SHA256SUMS covers the manifest). Full JSON: `/tmp/opencode/veyra-bundles/`
-(`release-manifest.json`, `SHA256SUMS`); rerun deterministically from the
-copies with the two commands in §4.
+`npm run tauri:build -- --bundles deb,rpm` rebuilt frontend in 5.98 s and Rust
+release in 2m51s; deb/rpm were emitted after staging. AppImage was not built.
+`cargo test --release` passed 63 tests (52 library, 9 CLI, 2 control); dataset
+E2E self-skips without assets. No new C++ run was claimed for the no-op mapper build.
 
-| Version | Platform | Arch | Filename | Size (B) | SHA-256 |
-|---|---|---|---|---|---|
-| 0.1.0 | linux | x64 | `Veyra_0.1.0_amd64.deb` | 91606314 | `9913e3fca7d35e7e1fc4e4da4cb1e10d00861662a7dc31737118f7cf9b325b32` |
-| 0.1.0 | linux | x64 | `Veyra-0.1.0-1.x86_64.rpm` | 91937474 | `614a20c9104d1bf3e841ac207563e72a9ce64b99264404b5fee894d48fbcbf62` |
+Extracted-package checks found no missing shared libraries. CLI/control sidecars
+printed usage. A display-isolated GUI launch exited 101 at GTK initialization,
+which only establishes loading up to an absent display, not a successful UI.
+No Veyra process remained. No installed or live-window acceptance was claimed.
 
-## 3. Verify log (all PASS)
+## Package hashes
 
-| Check | Method | Result |
-|---|---|---|
-| deb member layout | `ar x` → `debian-binary` + `control.tar.gz` + `data.tar.gz` | PASS |
-| deb control | `tar tzf control.tar.gz` → `control`, `md5sums` | PASS |
-| deb launchers | `usr/bin/veyra`, `veyra-cli`, `veyra-control` in `data.tar.gz` | PASS, all three |
-| deb backend manifest | `…/resources/backend/manifest.json` present, `schema_version=1`, `platform=linux`, `arch=x64`, 5638 files | PASS, sha256 `0c6377ba…9cf4e63b8d` == REBUILD.md staged-manifest hash |
-| deb mapper identity | `…/backend/bin/veyra_runtime` sha256 `1bf465d1…82075b299eb` == `build/apps/runtime/veyra_runtime` | PASS (exact match) |
-| deb backend entry count | `tar tzf data.tar.gz \| grep -c resources/backend/` | 6179 == REBUILD.md §2 |
-| deb gitkeep | `grep -c backend/.gitkeep` → 0 | PASS (absent, staged payload only) |
-| deb runtime entry | `…/backend/runtime/__main__.py` present | PASS |
-| rpm payload | `rpm -qlp` → 5649 entries; `/usr/bin/veyra{,-cli,-control}` + `/usr/lib/Veyra` tree | PASS |
-| rpm backend slice | entries under `resources/backend/` | 5639 (= 5638 manifest files + dir) == REBUILD.md §2 |
-| rpm manifest identity | `rpm2cpio \| cpio -idm` (unprivileged) → manifest sha256 | `0c6377ba…9cf4e63b8d` == deb-embedded manifest (deb↔rpm match) |
-| rpm mapper identity | extracted `bin/veyra_runtime` sha256 | `1bf465d1…82075b299eb` == built mapper (deb↔rpm↔build match) |
-| rpm metadata | `rpm -qip` → `veyra-0.1.0-1.x86_64`, unsigned (`Signature: (none)`), built Sep 18 | recorded (unsigned by design, no secrets in lane) |
-| checksum self-verify | `sha256sum -c SHA256SUMS` on the copies dir | 3/3 OK (deb, rpm, release-manifest.json) |
-| manifest self-consistency | independent python re-hash vs `release-manifest.json` entries | all MATCH; `schema_version=1`, `version=0.1.0`, `target=linux-x64` |
+Both packages are version 0.1.0, Linux x64. Hashes were produced by
+`scripts/release_manifest.py`, then `scripts/release_checksums.py` so
+`SHA256SUMS` also covers the manifest.
 
-## 4. Reproduction (no build required)
+| Package | Bytes | SHA-256 |
+| --- | ---: | --- |
+| `Veyra_0.1.0_amd64.deb` | 91606314 | `9913e3fca7d35e7e1fc4e4da4cb1e10d00861662a7dc31737118f7cf9b325b32` |
+| `Veyra-0.1.0-1.x86_64.rpm` | 91937474 | `614a20c9104d1bf3e841ac207563e72a9ce64b99264404b5fee894d48fbcbf62` |
+
+## Archive verification
+
+| Check | Recorded result |
+| --- | --- |
+| deb structure | `debian-binary`, control/data tarballs, control and md5sums present. |
+| Launchers | `usr/bin/veyra`, `veyra-cli`, `veyra-control` present. |
+| Backend | Manifest and `runtime/__main__.py` present; no bare `.gitkeep`. |
+| Mapper identity | deb/rpm mapper hashes match the built mapper above. |
+| Manifest identity | Same SHA-256 in staged tree, deb and extracted rpm. |
+| Payload entries | deb backend 6,179 including directories; rpm payload 5,649, of which backend 5,639 = 5,638 files plus root. |
+| rpm metadata | Unsigned `veyra-0.1.0-1.x86_64`, built Sep 18. |
+| Checksums | 3/3 pass (deb, rpm, release manifest); manifest entries independently rehashed. |
+
+## Reproduce archive checks
+
+Use copies of those exact historical bundles; current builds will have different
+hashes. The original manifest/checksum files were temporary outputs, so their
+location is a reproduction recipe, not a committed artifact.
 
 ```bash
 mkdir -p /tmp/opencode/veyra-bundles
-cp <main-checkout>/src-tauri/target/release/bundle/deb/Veyra_0.1.0_amd64.deb \
-   <main-checkout>/src-tauri/target/release/bundle/rpm/Veyra-0.1.0-1.x86_64.rpm \
-   /tmp/opencode/veyra-bundles/
+cp <historical-deb> <historical-rpm> /tmp/opencode/veyra-bundles/
 python3 scripts/release_manifest.py /tmp/opencode/veyra-bundles \
   --output /tmp/opencode/veyra-bundles/release-manifest.json \
   --version 0.1.0 --target linux-x64
@@ -72,35 +75,10 @@ python3 scripts/release_checksums.py /tmp/opencode/veyra-bundles
 (cd /tmp/opencode/veyra-bundles && sha256sum -c SHA256SUMS)
 ```
 
-## 5. AppImage feasibility note
+## Limits
 
-- **Declared? Yes, in both places that matter:** `src-tauri/tauri.conf.json`
-  `"targets": ["deb", "rpm", "appimage", "nsis", "dmg"]`, and the CI Linux leg
-  builds `--bundles "deb,rpm,appimage"` (`release-tauri.yml` matrix). No repo
-  change is needed to *declare* it.
-- **Built locally? No — deliberately.** REBUILD.md D3: local rebuild used
-  `--bundles "deb,rpm"` only. AppImage stays a CI-side property: it needs the
-  `ubuntu-24.04` runner toolchain (plus FUSE/libfuse2 at *test* time, which
-  this Fedora host cannot provide without root), and no AppImage has ever been
-  install-launched anywhere in this repo.
-- **Why deb/rpm suffice for local evidence:** both are full installer payloads
-  embedding the identical staged backend (proven byte-identical above:
-  manifest `0c6377ba…`, mapper `1bf465d1…` in both). The bundler-specific
-  wrapper (AppImage runtime squashfs) adds no new backend content; what is
-  unproven about AppImage is the *wrapper* (mount + launch), which only a
-  native Ubuntu runner with FUSE can exercise anyway.
-- **Gap recorded at inspection:** no AppImage artifact was available locally,
-  and AppImage mount/launch was untested in this experiment. The current
-  [desktop packaging guide](../../../apps/desktop/README.md) describes release
-  checks; this old inspection does not establish current installer acceptance.
-
-## 6. Known limits of this evidence
-
-1. Bundles predate the `App.svelte` workspace fix by frontend content only
-   (§1); backend/mapper payload is current.
-2. No install (dpkg/rpm -i) was performed — no root on this host; payload
-   verified by archive inspection only.
-3. No Windows (`nsis`) or macOS (`dmg`) bundles were inspected in this run;
-   native platform acceptance is outside this experiment.
-4. rpm is Ubuntu-built, never install-tested on Fedora/RHEL (no Fedora runner
-   anywhere; dnf-install test remains open).
+No `dpkg`/`rpm` installation was performed. AppImage, Windows NSIS and macOS
+DMGs were not inspected or install-launched in this experiment. A valid Linux
+backend payload does not prove another installer wrapper or OS works. The
+Ubuntu-built rpm was not installed on Fedora/RHEL. Signing/notarization and
+native GUI acceptance remain separate from archive/checksum verification.

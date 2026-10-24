@@ -1,4 +1,4 @@
 # Dev tooling — pinned so 3 machines behave identically.
 ruff==0.16.8
 pre-commit==4.6.2
-pytest==9.1.1  # test runner invoked by docs/dataset-validation.md and plan docs
+pytest==9.1.1  # validation commands: datasets/README.md

@@ -46,7 +46,7 @@ as unavailable with diagnostics. Missing evidence is never synthesized.
 The persistent mapper uses `VEYRA_ENGINE 4`, matching the canonical V4
 observation stream. Session reset clears perception and map state together;
 shutdown closes the mapper. A malformed frame returns one unavailable response
-and is drained to the next command boundary. See the [field contract](../docs/field-mapping.md)
+and is drained to the next command boundary. See the [field contract](../docs/architecture.md#observation-protocol)
 and [product runtime](../docs/product-runtime.md) for protocol and metric details.
 
 ## What it does
@@ -77,3 +77,14 @@ from browser timing or placeholder values.
 SemanticPOSS returns both `labels` (raw dataset IDs for the current legend) and
 `semantic_labels` (Veyra taxonomy IDs). The adapter supplies its versioned
 dataset mapping by default; unmapped IDs remain class `0` (unknown).
+
+## Visual conventions
+
+The standalone viewer uses a charcoal instrument surface, bone-white labels,
+steel hairlines, square controls and semantic red/amber/green status LEDs.
+Hierarchy: point cloud, frame identity, then provenance/class distribution.
+Use system sans for UI and monospace for values; sizes are 11 px labels,
+12 px measurements, 13 px scope/errors, 14 px body and 20 px wordmark.
+Loading, missing pair/pose and error states are explicit. Motion is limited to
+loading/frame progression with a reduced-motion path. Avoid decorative
+gradients and invented measurements; the desktop's light shell is a separate UI.

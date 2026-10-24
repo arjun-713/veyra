@@ -41,7 +41,7 @@ until an operator supplies authenticated archive URLs via `--data-url`.
 - `datasets/download_semantickitti.sh` (`--labels-only`, provenance notes)
 - `tests/test_semantickitti_adapter.py` (+3 metadata/taxonomy tests)
 - Historical dataset-status documentation; current contract:
-  [dataset validation](../../../docs/dataset-validation.md).
+  [dataset validation](../../../datasets/README.md#metadata-and-validation).
 - `reports/closure/kitti/validation_seq08.json` (new evidence artifact)
 
 Untouched: `perception/semantic/*`, `src/map/*`, `src-tauri/*`.
