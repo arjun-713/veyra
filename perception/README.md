@@ -1,17 +1,18 @@
 # Perception pipeline
 
-- `semantic/` — `SemanticProvider` interface + pretrained ONNX backends.
+- `semantic/` — `SemanticProvider` interface, PyTorch CENet, ONNX SalsaNext,
+  and an explicit ONNX model/mapping provider.
 - `ground/` — Patchwork++ integration, ground evidence.
 - `terrain/` — local geometric slope, roughness, step and traversability
   evidence.
 - `temporal/` — world-frame cluster association and motion evidence.
 - `pipeline.py` — composes these stages into `PipelineOutput`, containing one
-  aligned `ObservationFrame` plus explicit backend status. Missing optional
-  Patchwork++/ONNX backends remain `unavailable`; no fallback evidence is
-  fabricated.
+  aligned `ObservationFrame` plus explicit backend status. Missing Patchwork++
+  is reported as unavailable. A configured neural backend must initialize
+  successfully; ground-truth mode is distinct from model inference.
 
-`configs/perception.yaml` is the checked-in production-safe default: it uses
-dataset ground truth and explicitly disables optional stages. Load it with
+`configs/perception.yaml` is the checked-in default: it uses dataset ground
+truth, enables ground and terrain, and disables temporal processing. Load it with
 `load_perception_pipeline(path)`. To enable ONNX, configure a local model path
 and an explicit raw-ID mapping; the provider never downloads weights. To enable
 Patchwork++, explicitly install a binding with `Parameters`/`patchworkpp`, then
@@ -37,4 +38,4 @@ imply motion. Terrain stays `unknown` without valid ground support.
 
 The viewer exposes the same aligned fields when present. Ground, terrain and
 motion layers are intentionally rendered as unavailable when their backend
-status says unavailable. See `docs/perception-terrain-temporal.md`.
+status says unavailable. See [perception, terrain and temporal processing](../docs/perception-terrain-temporal.md).

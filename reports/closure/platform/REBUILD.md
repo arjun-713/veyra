@@ -4,8 +4,8 @@ HEAD: `7d3b116` (`demo-readiness`, confirmed `git rev-parse HEAD` ==
 `git rev-parse demo-readiness` before branching).
 Branch: `agent/bundle-rebuild`, worktree `worktrees/bundle-rebuild`.
 Date: 2026-09-18 ~14:41–14:55 IST. Host: Fedora, uid=1000 (not root).
-Prior evidence: `/tmp/opencode/desktop-launch/REPORT.md` (stale-local-bundle
-diagnosis: bundles built 13:09 Sep 17, backend staged 14:40 Sep 17).
+Prior evidence: a temporary stale-local-bundle diagnosis (not retained):
+bundles built 13:09 Sep 17, backend staged 14:40 Sep 17.
 
 ## 0. Build location note
 

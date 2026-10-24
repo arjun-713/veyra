@@ -9,7 +9,7 @@ Keep it under ~150 lines.
 ## Stack & commands
 
 - Core: C++20, CMake. Runtime/perception: Python, ONNX Runtime,
-  optional Patchwork++ bindings. ROS2 adapters are separate. CUDA/TensorRT optional;
+  optional Patchwork++ bindings. ROS2 adapters are not implemented. CUDA/TensorRT optional;
   core mapper must run without CUDA.
 
 ```bash
@@ -55,8 +55,8 @@ DistanceLOD vs UtilityLOD. Details: `docs/resolution-policies.md`.
 
 ## Perception / terrain / temporal
 
-Modular `SemanticProvider`; pretrained first (SalsaNext, FRNet,
-Cylinder3D, ONNX). Patchwork++ for ground. `drivable /
+Modular `SemanticProvider`: ground truth, CENet (PyTorch), SalsaNext
+(ONNX), or an explicitly configured ONNX model. Patchwork++ for ground. `drivable /
 non-drivable / unknown`; unknown ≠ free. `semantic_class` ≠
 `motion_state` (`STATIC / POSSIBLY_MOVING / MOVING`); dynamics must not
 contaminate terrain. Details: `docs/perception-terrain-temporal.md`.
@@ -83,6 +83,8 @@ under `datasets/`.
 
 ## Docs index
 
-`architecture.md`, `map-correctness.md`, `resolution-policies.md`,
-`perception-terrain-temporal.md`, `product-runtime.md`,
-`benchmark-contract.md`, `smooth-replay.md`, and `docker.md`.
+[Architecture](docs/architecture.md), [map correctness](docs/map-correctness.md),
+[resolution policies](docs/resolution-policies.md),
+[perception/terrain/temporal](docs/perception-terrain-temporal.md),
+[product runtime](docs/product-runtime.md), [benchmark contract](docs/benchmark-contract.md),
+[smooth replay](docs/smooth-replay.md), and [Docker](docs/docker.md).

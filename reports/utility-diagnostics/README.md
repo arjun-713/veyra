@@ -49,19 +49,14 @@ requests are classified separately even when their input quality is low.
 
 ## Integration prerequisite and next gate
 
-Arjun subsequently authorized the narrow `perception/pipeline.py` correction
-after confirming it was absent from Samay's PRs. Its contract and regression
-fixtures are in `docs/utility-signal-integration-contract.md`. Ground still uses
+The subsequent narrow `perception/pipeline.py` correction preserves the
+quality-boundary contract. Ground still uses
 conservative terrain quality; valid non-ground semantic evidence is no longer
 erased solely because ground-fit confidence is zero. Unknown terrain stays unknown.
 
-Review this correction before the overlapping mapper-side class-importance/support
-correction. Temporal PR #68 is independently held for parked-support loss; do not
-merge that defect as an integration prerequisite. Keep DistanceLOD,
-safety floor, production defaults and frozen challenge selection unchanged.
-Only then test actual critical-region retention against DistanceLOD; report
-NO-GO if the advantage is not demonstrated. Final benchmark evidence must be
-generated separately from approved, integrated, clean main.
+The [current policy contract](../../docs/resolution-policies.md) covers class
+importance and support gates. The later correction is recorded below; these
+historical captures do not establish integrated-main acceptance.
 
 ## Reproduce
 
@@ -145,7 +140,7 @@ and `production-policy-smoke-initial.csv` remain separate preliminary captures.
 The existing production UtilityLOD now uses configurable canonical-class
 importance, measured scan-local support, and an independently reachable
 critical-semantic condition subject to the existing support, dwell, cooldown,
-depth and governor gates. See `docs/utility-production-signal-correction.md`
+depth and governor gates. See the [current resolution-policy contract](../../docs/resolution-policies.md)
 for formulas and limitations. DistanceLOD, defaults, existing weights and
 thresholds are unchanged. Experimental V2 is not included.
 

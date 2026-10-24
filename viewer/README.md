@@ -1,7 +1,7 @@
-# Viewer — Veyra Scope (Vinay + team)
+# Viewer — Veyra Scope
 
 Local dataset visualizer. Real files only: it serves decimated observations
-from the repository's dataset adapters. SemanticPOSS now flows through
+from the repository's dataset adapters. SemanticPOSS flows through
 `datasets.semanticposs.SemanticPOSSDataset`, so pose transforms, timestamps,
 label pairing, and the 100 m crop are the same inputs the mapper will consume.
 RELLIS-3D and SemanticPOSS both use their repository dataset adapters.
@@ -23,15 +23,31 @@ The viewer can run one selected local sequence through the configured public
 `PerceptionPipeline`, rather than serving adapter defaults:
 
 ```bash
-veyra_player --runtime-config viewer/runtime.example.json
+./build/apps/player/veyra_player --runtime-config viewer/runtime.example.json
 # or: python3 -m viewer.server --runtime-config viewer/runtime.example.json
 ```
 
 `runtime.example.json` is viewer-owned. It selects the dataset/sequence and
 enables real perception stages; `configs/datasets.yaml` remains read-only and
-continues to own dataset roots, sequence banks, and range limits. See
-`RUNTIME_INTEGRATION.md` for backend availability behavior and the persistent
-per-frame map-engine protocol.
+continues to own dataset roots, sequence banks, and range limits. Build the
+example's player and persistent mapper before running it:
+
+```bash
+cmake -S . -B build -DVEYRA_BUILD_APPS=ON
+cmake --build build --target veyra_player veyra_benchmark -j
+```
+
+`RuntimeSession` runs `PerceptionPipeline.process()` on every full source frame
+before display sampling. Its config supports `ground_truth`, `cenet`,
+`salsanext`, and `onnx` semantic modes; neural modes require a compatible local
+checkpoint and dataset. Missing ground or temporal prerequisites are reported
+as unavailable with diagnostics. Missing evidence is never synthesized.
+
+The persistent mapper uses `VEYRA_ENGINE 4`, matching the canonical V4
+observation stream. Session reset clears perception and map state together;
+shutdown closes the mapper. A malformed frame returns one unavailable response
+and is drained to the next command boundary. See the [field contract](../docs/field-mapping.md)
+and [product runtime](../docs/product-runtime.md) for protocol and metric details.
 
 ## What it does
 
@@ -59,6 +75,5 @@ configured map executable returned those actual fields. They are never derived
 from browser timing or placeholder values.
 
 SemanticPOSS returns both `labels` (raw dataset IDs for the current legend) and
-`semantic_labels` (Veyra taxonomy IDs). Until the taxonomy mapping is supplied
-in configuration, unmapped IDs are explicitly reported as class `0` by the
-common adapter; the viewer does not silently invent a mapping.
+`semantic_labels` (Veyra taxonomy IDs). The adapter supplies its versioned
+dataset mapping by default; unmapped IDs remain class `0` (unknown).

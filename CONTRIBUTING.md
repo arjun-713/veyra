@@ -2,9 +2,9 @@
 
 ## No "works on my machine"
 
-- Use the project toolchain: GCC, CMake ≥3.22, Ninja, and Python 3.11 where applicable.
-- Build via preset: `cmake --preset dev && cmake --build --preset dev` (fallback in PR template).
-- Python in a venv from pinned `requirements*.txt`. Never commit data/weights/maps (see `.gitignore`).
+- Use a C++20 compiler, CMake ≥3.22, and Ninja for the checked-in presets.
+- Build via preset: `cmake --preset dev && cmake --build build` (fallback in PR template).
+- Use a Python venv with the platform-compatible `requirements*.txt` dependencies. Never commit data/weights/maps (see `.gitignore`).
 - LF line endings enforced by `.gitattributes` + pre-commit. Run `pre-commit install` once.
 
 ## Branches + PRs

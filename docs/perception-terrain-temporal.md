@@ -1,15 +1,15 @@
 # Perception, Terrain, Temporal — Veyra
 
-Source: `AGENTS.md` §§9–11 and `README.md` Perception / Dynamic /
-Terrain Understanding.
+Implementation: `perception/pipeline.py` and the `semantic/`, `ground/`,
+`terrain/` and `temporal/` packages under `perception/`.
 
 ## Semantic provider
 
 The provider boundary is the Python `perception.semantic.SemanticProvider`
 protocol. It consumes XYZI arrays plus optional dataset labels and returns an
 aligned `SemanticResult` containing unified class IDs, confidence, and backend
-mode. Implementations include `GroundTruthSemanticProvider` and ONNX-backed
-neural providers, including the SalsaNext integration. Ground-truth labels are
+mode. The config factory supports ground truth, PyTorch CENet, ONNX SalsaNext,
+and an ONNX model with an explicit raw-class mapping. Ground-truth labels are
 an explicit data/evaluation provider, not neural inference. The mapper consumes
 the aligned result fields and does not depend on a network-specific model.
 

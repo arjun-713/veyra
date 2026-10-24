@@ -18,8 +18,8 @@ npm start
 ```
 
 `next build` must pass with zero TypeScript/ESLint errors. Fonts ship as local
-woff2 (Fontsource); no runtime Google Fonts dependency, so the packaged page
-works fully offline.
+woff2 (Fontsource), with no runtime Google Fonts dependency. Release discovery
+and installer downloads require network access.
 
 ## Vercel deployment
 

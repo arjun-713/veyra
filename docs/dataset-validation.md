@@ -4,24 +4,22 @@ This document records the metadata truth and validation boundary for the three
 dataset adapters. Adapters accept an already-present local root; they do not
 download or synthesize timestamps, poses, or calibration.
 
-## Metadata truth in this checkout
+## Metadata contract
 
-- **RELLIS-3D:** the local root contains five sequences (`00000`--`00004`).
-  Sequence `00000` has 2,842 `.bin` scans and 2,842 matching `.label` files;
-  the other sequences contain 2,315, 4,139, 2,180, and 2,056 matching pairs.
-  No `poses.txt`, `timestamps.txt`, or calibration metadata is present in the
-  local tree. Numeric scan filenames are therefore stable frame identifiers,
-  not fabricated timestamps. Missing metadata remains `absent` or
-  `identity_absent` in provenance.
-- **SemanticPOSS:** the local root has sequences `00`--`05`. Sequence `00`
-  contains 488 scans, 488 labels, and 488 pose rows. It has `calib.txt` with a
-  `Tr` transform, but no `times.txt` or `timestamps.txt`; timestamps remain
-  absent. The adapter aligns pose/time rows to the deterministic numeric scan
-  order, and rejects short, malformed, or non-finite metadata.
-- **SemanticKITTI:** no configured local `data/raw/semantickitti` asset is
-  present. The adapter supports the official `sequences/<id>/velodyne`,
-  `labels`, `poses.txt`, `calib.txt`, and `times.txt` layout, plus the local
-  `timestamps.txt` conversion name. It never invents missing time or pose.
+- **RELLIS-3D:** numeric scan filenames are frame identifiers, not timestamps.
+  Optional pose/time metadata must have a valid association to the selected
+  scans; missing metadata remains `absent` or `identity_absent` in provenance.
+- **SemanticPOSS:** pose, calibration and timestamp files are consumed when
+  supplied. Missing timestamps stay absent. Metadata association is validated
+  against frame IDs and available rows; malformed or non-finite values fail.
+- **SemanticKITTI:** the adapter supports `sequences/<id>/velodyne`, `labels`,
+  `poses.txt`, `calib.txt`, and `times.txt`, plus the `timestamps.txt` conversion
+  name. Available subsets must retain their real frame IDs and metadata rows.
+
+Local availability is not a repository guarantee. The commands below inspect
+the supplied root. Historical [RELLIS validation](../reports/closure/rellis/RESULT.md)
+and [SemanticKITTI temporal evidence](../reports/closure/temporal/RESULT.md)
+retain the exact inputs and limitations of those experiments.
 
 Official RELLIS pose metadata was acquired on 2026-09-10 after approval:
 <https://drive.google.com/file/d/1V3PT_NJhA41N7TBLp5AbW31d0ztQDQOX/view>.
@@ -105,9 +103,8 @@ Focused adapter checks:
 python -m pytest -q tests/test_rellis_adapter.py tests/test_semanticposs_adapter.py tests/test_semantickitti_adapter.py
 ```
 
-Real-data checks are conditional: RELLIS and SemanticPOSS load representative
-local frames; SemanticKITTI reports an unavailable local asset rather than
-downloading data. The bounded machine-readable report is produced with:
+Real-data checks are conditional on local assets. The bounded machine-readable
+report is produced with:
 
 ```bash
 python scripts/validate_dataset_capabilities.py --dataset semanticposs \
@@ -118,13 +115,6 @@ python scripts/validate_dataset_capabilities.py --dataset semantickitti \
   --root data/raw/semantickitti/dataset --sample-limit 3
 ```
 
-On the local checkout, those reports record `validated_local` for RELLIS-3D
-(13,532 total frames, 15 representative samples) and SemanticPOSS (2,988
-total frames, 18 representative samples). Both pass point/label alignment,
-finite byte-scale intensity checks, taxonomy/instance-array alignment,
-deterministic ordering, and deterministic replay. SemanticPOSS reports
-dataset pose and calibration but unavailable timestamps. RELLIS reports
-dataset labels, but unavailable pose, timestamp, and calibration metadata.
-SemanticKITTI reports `unvalidated_local` with reason
-`local_root_unavailable`; fixture coverage is not real-data evidence. No large
-dataset or sample was downloaded for this change.
+Inspect the generated report's status, counts, point/label alignment, intensity,
+taxonomy, replay and provenance checks for the current root. An unavailable
+local asset is reported explicitly; fixture coverage is not real-data evidence.

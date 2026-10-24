@@ -1,5 +1,8 @@
 # Clearing investigation: reproduced defects fixed; acceptance still partial
 
+Historical intermediate result. The later two-strike experiment is recorded in
+[the paired-replay report](RESULT.md); these findings are not current-main acceptance.
+
 The original evidence is preserved in `paired-real-kitti08.json`. The new
 `paired-real-kitti08-fixed.json` records the exact same KITTI 08 frames 43–54,
 GT semantics (evaluation only), Patchwork++/terrain/temporal, real poses/times,
@@ -34,7 +37,7 @@ These are first-frame XY support bins, NOT object IoU or visibility ground truth
 The first-frame self-clearing failure is eliminated. Every frame passes point
 conservation and parent/descendant ownership; both processes exit cleanly.
 
-## Remaining limitation — do not close issue54
+## Intermediate acceptance limitation
 
 After earlier negative evidence, some reacquired obstacle cells remain below
 the occupied log-odds threshold: 967/13151 current obstacle cells on frame54,
@@ -42,8 +45,8 @@ versus zero without clearing. Same-frame protection stops another miss; it does
 not reset their Bayesian history. Resampling/aggregated extent contradiction
 and recovery require further visibility-grounded validation. The 80 parked
 seed-bin losses cannot all be labelled false clearing from this experiment.
-Full safe temporal-demo acceptance remains PARTIAL; keep PR68 unmerged until
-that gate and interactive temporal visualization are independently accepted.
+Safe temporal-demo acceptance remained PARTIAL at this intermediate revision;
+the experiment did not establish interactive temporal visualization acceptance.
 
 The JSON includes actual SHA/dirty provenance and input digests. It is branch
 evidence, not current-main proof. Twelve samples are descriptive, not p95/p99

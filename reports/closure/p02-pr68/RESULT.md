@@ -1,5 +1,8 @@
 # PR68 independent real-data acceptance: HOLD / NOT CLOSED
 
+Historical acceptance record for the source and paired JSON artifacts below.
+PR/issue decisions in this record describe that review, not current GitHub state.
+
 Real SemanticKITTI sequence 08 is locally available: 220 aligned scans/labels
 (27,219,030 points), calibration, 4,071 poses and 4,071 increasing dataset
 timestamps. The subset contains frames 0–99, 400–459 and 3990–4049.
@@ -130,5 +133,5 @@ claim is made from this paired concurrent replay.
 The full Release CTest gate on this exact branch passed 25/25 with the freshly
 built benchmark and runtime binaries explicitly supplied to the Python test
 target. The actual temporal layer still needs a desktop pixel/render proof;
-the existing `UI_EVIDENCE.md` entries describing code bindings are not live
-GUI evidence. Keep issue #54 open until that is captured and reviewed.
+code-binding inspection did not capture live GUI evidence. This experiment
+therefore does not establish desktop rendering acceptance.

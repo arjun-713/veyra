@@ -52,7 +52,8 @@ kept.
   sensor pins).
 - `tests/test_semantic_provider.py` — extended (unknown->0 confidence
   despite backend value; known passthrough).
-- `docs/semantic-model-evidence.md` — verification table + closure run.
+- Historical semantic-evidence documentation; current provider contract:
+  [perception, terrain and temporal processing](../../../docs/perception-terrain-temporal.md).
 - `reports/closure/semantic/salsanext-poss-metrics.json` — raw artifact.
 - Untouched per ownership: `src/map/*`, `src-tauri/src/control/*`,
   `datasets/*/adapter.py`, `viewer/*`.

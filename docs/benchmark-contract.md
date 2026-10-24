@@ -132,9 +132,9 @@ source frames are retained (`--retain-frames`); otherwise `unavailable`.
 The reference is the accepted world-frame input inside the final map window,
 voxel-averaged at 5 cm. The reconstruction is the voxel centres each active
 leaf claims at its own resolution: the ground layer at its mean height,
-obstacle and overhead layers across `[min_z, max_z]`. Both sets are identical
-across policies, so the comparison isolates resolution policy. Reference
-points are the map's own input, not independent survey ground truth.
+obstacle and overhead layers across `[min_z, max_z]`. The input reference is
+shared across policies; each policy's reconstruction reflects its own leaves.
+Reference points are the map's own input, not independent survey ground truth.
 
 `benchmarks/tradeoff_plot.py` plots one point per policy with a
 reconstruction metric on the y axis against measured map update p50 and
@@ -240,9 +240,10 @@ benchmarks/run_local.sh --dataset generic --dataset-root /path/to/dataset \
   ablation_distance,ablation_geometry,ablation_semantics,ablation_motion,utility_lod
 ```
 
-Scheduled CI includes the complete matrix. Pull requests retain the smaller
-four-policy comparison, while product CI exercises the matrix against a tiny
-generic-manifest fixture through the real C++ benchmark executable.
+The SemanticPOSS benchmark workflow is manual (`workflow_dispatch`); its
+policy input selects the four public policies or a larger ablation matrix.
+See [benchmark commands](../benchmarks/README.md). A dormant schedule expression
+inside a workflow is not a configured schedule.
 
 ## Measured high-resolution 3D baseline (reference leg)
 

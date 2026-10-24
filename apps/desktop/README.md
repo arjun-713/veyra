@@ -165,8 +165,9 @@ remain until signing credentials are configured.
   `bundle/dmg/bundle_dmg.sh --skip-jenkins` produces an unstyled image.
 
 The configured native runners do not prove latest macOS, Windows 11 or Ubuntu
-install-and-launch compatibility. See `../../reports/desktop-ui-review/README.md`
-for locally observed results and explicit cross-platform verification gaps.
+install-and-launch compatibility. The [recorded Linux packaged-runtime checks](../../reports/closure/tauri/PHASE_B_PACKAGED_RUNTIME.md)
+describe their own build and verification scope; repeat installation and launch
+checks for the release and platform being distributed.
 
 ## Boundaries
 
@@ -179,4 +180,5 @@ Diagnostics preserve bounded recent process context; log rotation is not claimed
 Runtime stdout is decoded with version and length limits. Visualization has a
 coalesced latest update in the native relay; slow UI may supersede visualization,
 not mapper ingestion. Three.js reuses bounded point/instancing GPU buffers and
-discloses rendering sampling. uPlot retains at most 300 samples.
+discloses rendering sampling. Live telemetry charts retain a trailing 60 seconds
+with at most 3,600 samples; pause freezes the recorded history.

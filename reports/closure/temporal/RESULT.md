@@ -210,8 +210,9 @@ The precision residual (§6) costs static-wall recall, never safety.
   baselines cited in the table above.)
 - `metrics_temporal_evidence.json` — machine-generated roll-up (script
   `gen_metrics.py`, /tmp; numbers copied by code from the artifacts).
-- `gap_99_400.json`, `validate_kitti220.json`, `SURVEY.md` — prior
-  session's probes (kept; relocation/gap numbers cited in §7).
+- `gap_99_400.json`, `validate_kitti220.json` — prior session's probes
+  (kept; relocation/gap numbers cited in §7). The temporary survey was removed;
+  measurements remain in the JSON artifacts.
 
 ## 10. Tests
 

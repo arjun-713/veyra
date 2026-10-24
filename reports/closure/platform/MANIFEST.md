@@ -1,5 +1,8 @@
 # Veyra desktop bundles — artifact manifest + verify log (closure packaging lane)
 
+Historical package inspection from 2026-09-20, limited to the hashes below.
+Current packaging instructions are in the [desktop guide](../../../apps/desktop/README.md).
+
 Branch: `closure/opencode-packaging` (from `closure/opencode-product @ cf9e71d`).
 Date: 2026-09-20. Host: Fedora (Linux-7.2.5-200.fc44.x86_64), uid=1000, no root.
 Scope: **inspection + provenance only — no rebuilds.** deb/rpm artifacts are the
@@ -8,7 +11,7 @@ evidence + workflow hardening. No cmake/cargo/npm invocations in this lane.
 
 ## 1. Provenance
 
-- Bundles built in main checkout at `7d3b116` (see `platform/REBUILD.md`);
+- Bundles built in main checkout at `7d3b116` (see [rebuild evidence](REBUILD.md));
   main checkout is now at `cf9e71d` (same commit as this worktree's base).
 - `git diff --name-only 7d3b116..cf9e71d` filtered to
   `runtime/ src/ apps/ scripts/package_backend* scripts/stage_tauri_backend* src-tauri/src benchmarks/ perception/`:
@@ -86,12 +89,10 @@ python3 scripts/release_checksums.py /tmp/opencode/veyra-bundles
   wrapper (AppImage runtime squashfs) adds no new backend content; what is
   unproven about AppImage is the *wrapper* (mount + launch), which only a
   native Ubuntu runner with FUSE can exercise anyway.
-- **Gap recorded:** no AppImage artifact exists locally; AppImage mount/launch
-  is untested on every OS (see CI-STATUS.md native-runner checklist). Do NOT
-  add a local AppImage build to this lane — it would need root/FUSE and would
-  still not be install-tested. The correct fix is the CI bundle-assertion step
-  (added this lane: fails the Linux leg if any of deb/rpm/appimage is missing)
-  plus a future native launch check.
+- **Gap recorded at inspection:** no AppImage artifact was available locally,
+  and AppImage mount/launch was untested in this experiment. The current
+  [desktop packaging guide](../../../apps/desktop/README.md) describes release
+  checks; this old inspection does not establish current installer acceptance.
 
 ## 6. Known limits of this evidence
 
@@ -99,7 +100,7 @@ python3 scripts/release_checksums.py /tmp/opencode/veyra-bundles
    (§1); backend/mapper payload is current.
 2. No install (dpkg/rpm -i) was performed — no root on this host; payload
    verified by archive inspection only.
-3. Windows (`nsis`) and macOS (`dmg`) bundles do not exist anywhere in-repo;
-   only native CI runners can produce them (CI-STATUS.md §3).
+3. No Windows (`nsis`) or macOS (`dmg`) bundles were inspected in this run;
+   native platform acceptance is outside this experiment.
 4. rpm is Ubuntu-built, never install-tested on Fedora/RHEL (no Fedora runner
    anywhere; dnf-install test remains open).

@@ -2,7 +2,8 @@
 
 Status: **done**. Scope kept to owned files only:
 `perception/terrain/features.py`, `tests/test_terrain_features.py`,
-`docs/ground-terrain-evidence.md`, `reports/closure/terrain/*`.
+historical terrain documentation, `reports/closure/terrain/*`.
+Current contract: [perception, terrain and temporal processing](../../../docs/perception-terrain-temporal.md).
 Untouched as required: `perception/semantic/*`, `perception/temporal/*`,
 `src/map/*`, `src-tauri/*`.
 

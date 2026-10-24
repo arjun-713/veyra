@@ -1,14 +1,16 @@
 # Field mapping: ObservationFrame → protocol → map/policy/summary
 
-Version: VEYRA_STREAM v3 (`benchmarks/protocol.py`, `PROTOCOL_VERSION = 3`).
+Version: VEYRA_STREAM v4 (`benchmarks/protocol.py`, `PROTOCOL_VERSION = 4`).
 Single mapping implementation: `parse_observation_record` in
 `src/runtime/engine.cpp`, consumed identically by batch runs and the
 persistent engine. No viewer-specific conversion exists.
 
-V3 adds one trailing field, `height_above_ground`. V2 streams are still
-accepted; their points arrive with that field as NaN and are counted in
-`snapshot.layers.unmodelled_returns` rather than assumed to be at ground
-level.
+V3 added `height_above_ground`; V4 adds `ground_gradient_x` and
+`ground_gradient_y`. Older V2/V3 streams remain readable with unavailable
+fields represented as NaN. Missing height-above-ground evidence is counted in
+`snapshot.layers.unmodelled_returns`, never assumed to be at ground level.
+The binary V4 observation row is 79 bytes; display rows use a separate format
+documented in [product runtime](product-runtime.md).
 
 **Every writer must announce the version of the records it writes.** The
 batch path reads the version from the `VEYRA_STREAM` header and the
@@ -20,7 +22,7 @@ from the actual fault. `tests/test_layered_end_to_end.py` guards this.
 
 ## Per-field path
 
-| Field | Python source | V3 record | C++ consumer |
+| Field | Python source | V4 record | C++ consumer |
 |---|---|---|---|
 | frame timestamp | `ObservationFrame.timestamp` | `F` µs / `NA` | frame ordering, late detection, per-point fallback |
 | pose timestamp | `PoseSE3.timestamp` | `F` µs / `NA` | reported; ordering uses frame time |
@@ -42,6 +44,7 @@ from the actual fault. `tests/test_layered_end_to_end.py` guards this.
 | velocity XY | m/s, zeros when untracked | `P` ×2 | radial range rate → predictive refinement; never retained |
 | observation quality | `[0, 1]` | `P` | uncertainty gate, cell quality, governor utility |
 | height above ground | `perception.ground.height_above_ground`, NaN when no ground model | `P` / `NA` | **layer routing**: ground / obstacle / overhead. NaN routes to obstacle (fail-safe) and increments `unmodelled_returns` |
+| ground gradient X/Y | supported local ground-plane gradient, NaN when unavailable | `P` ×2 / `NA` | confidence-weighted ground direction retained in cell statistics |
 
 ## Retention rule
 
@@ -49,7 +52,7 @@ Cells keep sufficient statistics only (`CellStats`): count, Welford
 mean/M2/min/max z, last-seen, semantic class/evidence/confidence,
 drivable/ground evidence, terrain confidence, motion evidence,
 observation quality, three `HeightLayer` accumulators (ground, obstacle,
-overhead), clamped log-odds occupancy, and the unmodelled/outlier
+overhead), supported ground gradients, clamped log-odds occupancy, and the unmodelled/outlier
 counters. Velocity, raw ids, slope/roughness/step, intensity,
 and motion-state labels are transient evidence: parsed, validated,
 consumed or summarized, then dropped. No raw point arrays are retained.

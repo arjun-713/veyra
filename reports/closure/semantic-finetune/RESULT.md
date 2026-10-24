@@ -125,8 +125,8 @@ Range-binned group mIoU: 0–10 m **0.359** / 10–30 m **0.707** /
 
 ### Exact-projection reference (author tags, no provider projection loss)
 
-Same 16 frames through stock projection + tag unprojection (scratch,
-method in `docs/semantic-model-evidence.md`): Veyra mIoU **0.8089**,
+Same 16 frames through stock projection + tag unprojection (historical scratch
+experiment; its temporary method note is no longer tracked): Veyra mIoU **0.8089**,
 accuracy **0.9570**. The ~0.16 gap to the provider path quantifies the
 tag-free projection cost (column ±1 jitter + pixel collisions).
 
@@ -208,8 +208,8 @@ gate, as it should.
   `configs/semantic-pandora-native-model.json` — new.
 - `tests/test_semantic_provider.py` — extended (render/projection/
   taxonomy/CENet contract tests; salsanext untouched).
-- `docs/semantic-model-evidence.md` — appended (CENet verification +
-  beleid; MLP section pending below).
+- Historical semantic verification notes; current provider documentation is in
+  [perception, terrain and temporal processing](../../../docs/perception-terrain-temporal.md).
 - `reports/closure/semantic-finetune/cenet-poss-metrics.json` (provider
   path), `cenet-poss-seq02-metrics.json` (exact-projection valid),
   `pandora-native-metrics.json` (MLP) — committed artifacts.

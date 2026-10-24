@@ -13,7 +13,7 @@
   (`schema_version`/`id`/`authorization`/`command`/`args` per `\n`-framed JSON;
   `{ok,id,result}` | `{ok:false,id,error:{code,message[,details]}}`), bound to
   `127.0.0.1:<ephemeral>`, temp 0600 token file. Faithful bounds mirrored,
-  including the 64 B `required_string` cap (R3 in `reports/closure/security/SURVEY.md`).
+  including the 64 B `required_string` cap recorded in the historical survey.
 - **Product runtime**: the REAL `runtime/service.py:ProductRuntime` (import 0.17 s,
   init ~0 s — lightweight, no mapper spawn). `status`/`diagnostics`/`datasets`/
   `config_validate` answered by real product code; playback commands

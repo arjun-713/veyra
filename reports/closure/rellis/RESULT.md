@@ -54,7 +54,7 @@ the official RELLIS-3D release (Texas A&M, UGV rosbags) — not vendored here;
 ## Files changed (ownership-respecting)
 
 - `tests/test_rellis_adapter.py` — added malformed-path test only
-- `docs/datasets-benchmarks.md` — RELLIS bullet only (layout, counts, validation, absent-metadata note)
+- Historical dataset-status documentation — current [dataset-validation contract](../../../docs/dataset-validation.md) covers layout and absent metadata.
 - `reports/closure/rellis/replay.json` + this `RESULT.md` — new evidence
 - Untouched: `perception/semantic/*`, `src/map/*`, `src-tauri/*`, `mcp/*`; no data committed
 

@@ -21,12 +21,10 @@ Use `datasets/download_semantickitti.sh --help` to install authenticated
 official archives into the ignored local root. The real-data smoke test skips
 only when that root is absent.
 
-Validation status (see `reports/closure/kitti/RESULT.md`):
-official `data_odometry_labels.zip` sequence 08 (val split, 4071 labels +
-4071 SuMa poses) is verified for label format, v1.1 taxonomy coverage
-(including moving IDs 252-254/259), pose rigidity, and smooth sequential
-motion through the adapter's pose parser. Velodyne scans, `calib.txt`, and
-`times.txt` remain gated on KITTI benchmark login, so full scan replay and
-dataset timestamps stay honestly absent — never generated. Sequential replay
-mechanics (ordering, world-frame provenance, determinism) are proven on the
-same KITTI-contract adapter path with local SemanticPOSS sequence 00.
+Historical validation includes the [official labels/pose check](../../reports/closure/kitti/RESULT.md)
+and the later [220-scan sequence-08 temporal experiment](../../reports/closure/temporal/RESULT.md),
+which records scan acquisition, calibration, measured timestamps, frame gaps,
+and input provenance. These are subset results, not full-sequence acceptance.
+Current local availability depends on the supplied assets; use
+`scripts/validate_dataset_capabilities.py` to inspect it rather than relying on
+an old report's filesystem snapshot.

@@ -93,6 +93,11 @@ and metadata vary. Dataset files, weights, and maps are not committed. Metrics
 and reference definitions are in `docs/benchmark-contract.md`; adapter guides
 are under `datasets/`.
 
+Reports under `reports/` describe their recorded source, inputs and hardware.
+They are historical evidence, not measurements of the latest source unless
+their provenance matches it. Use the current [benchmark commands](benchmarks/README.md)
+to produce a new comparison.
+
 ## Status
 
 The repository includes four map policies, a replay runtime, an optional

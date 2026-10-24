@@ -19,9 +19,11 @@ ordered and bounded.
 The local protocol starts each message with a 16-byte little-endian `VYRA`
 header containing version, message kind, JSON metadata length and typed payload
 length. Observation points cross Python to C++ in a packed binary frame. UI
-visuals use fixed float rows: eight floats per displayed point and nine per map
-cell. Telemetry, full benchmark artifacts and sampled visualization data remain
-separate products.
+visualization schema 3 uses 17 little-endian float32 values per displayed point
+and 17 per map cell (68 bytes each). An optional physical-layer section adds
+15 floats per displayed cell. The desktop also accepts older schema-2 visuals.
+Telemetry, full benchmark artifacts and sampled visualization data remain
+separate products; see [physical-layer transport](physical-layer-inspection.md).
 
 ## Run
 
@@ -44,13 +46,14 @@ error rather than fabricated labels.
 
 ## Raw LiDAR accumulation (display only)
 
-The Raw LiDAR view can overlay the last 10/20/50 pose-aligned scans
+The Raw LiDAR view can overlay a bounded number of recent pose-aligned scans
 (`apps/desktop/src/renderer/accumulation.ts`). It never feeds back into the
 mapper, which still ingests one scan per frame. Only world-frame scans
 accumulate; seeking backwards or changing sequence resets the history, and
 older scans drop classes 1–8 (vehicles, riders, people) so moving traffic
-does not smear. When the leaf count exceeds the cell display budget, the
-engine returns the leaves nearest the vehicle rather than a uniform stride.
+does not smear. Cell display selection is bounded separately: the engine can
+return recent leaves or fold them to coarser display cells, reporting the
+selection mode and native-resolution radius in visualization metadata.
 
 ## Measurement scope
 
@@ -58,8 +61,9 @@ The runtime reports perception, binary bridge, C++ mapping, visualization
 preparation and renderer timing independently. Process RSS is reported where
 the host exposes it; unavailable OS/GPU counters remain null. Latency history is
 limited to 600 frames in Python and map percentiles are limited to 600 samples
-in C++. The desktop retains 300 chart samples. No target in the UI is presented
-as achieved until a named-machine benchmark measures it.
+in C++. Live desktop charts retain a trailing 60 seconds with a 3,600-sample cap.
+No target in the UI is presented as achieved until a named-machine benchmark
+measures it.
 
 Performance, Balanced and Quality profiles set playback/visual budgets and the
 governor's active-cell, logical-memory, RSS and frame-time limits. Automatic,

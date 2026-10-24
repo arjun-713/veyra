@@ -71,5 +71,5 @@ benchmarks/     reproducible policy and quality evaluation
 viewer/         standalone local browser viewer
 ```
 
-ROS2 adapters are separate from the mapper. Pose is an external input; the
+ROS2 adapters are not implemented in this tree. Pose is an external input; the
 repository does not implement SLAM or vehicle planning.

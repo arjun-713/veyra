@@ -7,7 +7,7 @@ point-wise semantic labels for 76 of its 103 sequences (80 sweeps at 10 Hz,
 quantitative benchmark remains SemanticKITTI / SemanticPOSS.
 
 There is no dedicated adapter. PandaSet is converted once into the
-[generic manifest](../common/README.md) and replayed through
+[generic manifest](../../docs/generic-dataset.md) and replayed through
 `datasets.generic.ManifestDataset`, so the desktop's `generic` dataset type
 opens it directly.
 

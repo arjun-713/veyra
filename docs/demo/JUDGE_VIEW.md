@@ -82,11 +82,11 @@ per click.
 
 ## Sampling honesty
 
-The engine sends the nearest-budget cell disc around the vehicle
-(spatially coherent, never random first-N); the renderer additionally
-clamps to GPU capacity. The coordinate bar reports both stages —
-"X cells drawn (nearest Y of Z to vehicle)" plus a viewport-clamp note —
-so a large map never silently masquerades as a small one.
+The engine reports its bounded display selection per frame: all leaves,
+recent leaves, or folded/coarser display cells, with a nearest-window fallback
+when necessary. The renderer additionally clamps to GPU capacity. The coordinate
+bar reports the selection mode, displayed count and total leaves, with a
+viewport-clamp note where needed. Display sampling does not change map ingestion.
 
 ## Deliberately deferred (do not expand this view into them)
 
