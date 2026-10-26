@@ -280,5 +280,89 @@ class StageTauriReleaseAssetsTests(unittest.TestCase):
                 stage_release(root / "artifacts", output, "0.2.0")
 
 
+class MacosDiskImageTests(unittest.TestCase):
+    def test_signed_app_is_copied_then_image_is_created_and_verified(self):
+        from unittest.mock import patch
+
+        from scripts.package_macos_dmg import package_dmg
+
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            app = root / "Veyra.app"
+            (app / "Contents").mkdir(parents=True)
+            (app / "Contents" / "Info.plist").write_text("app")
+            output = root / "output" / "Veyra_0.1.12_x64.dmg"
+            calls = []
+
+            def run(args, *, check, timeout):
+                self.assertTrue(check)
+                self.assertGreater(timeout, 0)
+                calls.append(args)
+                if args[:2] == ["hdiutil", "create"]:
+                    folder = Path(args[args.index("-srcfolder") + 1])
+                    self.assertEqual(
+                        (folder / "Applications").readlink(), Path("/Applications")
+                    )
+                    self.assertEqual(Path(args[-1]), output)
+                    output.write_bytes(b"verified image")
+
+            with patch("scripts.package_macos_dmg.subprocess.run", side_effect=run):
+                self.assertEqual(package_dmg(app, output), output)
+            self.assertEqual(
+                [args[:2] for args in calls],
+                [
+                    ["codesign", "--verify"],
+                    ["ditto", str(app)],
+                    ["hdiutil", "create"],
+                    ["hdiutil", "verify"],
+                ],
+            )
+            self.assertFalse(
+                any("attach" in args or "detach" in args for args in calls)
+            )
+
+    def test_failed_image_creation_removes_partial_output(self):
+        import subprocess
+        from unittest.mock import patch
+
+        from scripts.package_macos_dmg import package_dmg
+
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            app = root / "Veyra.app"
+            (app / "Contents").mkdir(parents=True)
+            (app / "Contents" / "Info.plist").write_text("app")
+            output = root / "Veyra.dmg"
+
+            def run(args, **_kwargs):
+                if args[:2] == ["hdiutil", "create"]:
+                    output.write_bytes(b"partial")
+                    raise subprocess.CalledProcessError(1, args)
+
+            with patch("scripts.package_macos_dmg.subprocess.run", side_effect=run):
+                with self.assertRaises(subprocess.CalledProcessError):
+                    package_dmg(app, output)
+            self.assertFalse(output.exists())
+
+    def test_invalid_bundles_and_existing_images_fail_before_commands(self):
+        from unittest.mock import patch
+
+        from scripts.package_macos_dmg import package_dmg
+
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            app = root / "Veyra.app"
+            output = root / "Veyra.dmg"
+            with patch("scripts.package_macos_dmg.subprocess.run") as run:
+                with self.assertRaises(ValueError):
+                    package_dmg(app, output)
+                (app / "Contents").mkdir(parents=True)
+                (app / "Contents" / "Info.plist").write_text("app")
+                output.write_bytes(b"existing")
+                with self.assertRaises(FileExistsError):
+                    package_dmg(app, output)
+                run.assert_not_called()
+
+
 if __name__ == "__main__":
     unittest.main()

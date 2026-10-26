@@ -113,18 +113,29 @@ jobs:
       - name: Build Tauri package
         working-directory: apps/desktop
         shell: bash
-        # Hosted macOS runners have no reliable Finder automation session.
-        # Keep the CI-safe unstyled DMG path explicit, and retain verbose
-        # bundler output on Intel so a failed disk-image command is diagnosable.
         env:
           CI: "true"
-          TAURI_BUNDLER_DMG_IGNORE_CI: "false"
         run: |
           args=()
           if [ "${{ matrix.platform }}-${{ matrix.arch }}" = "darwin-x64" ]; then
             args+=(--verbose)
           fi
-          npm run tauri:build -- --bundles "${{ matrix.bundles }}" "${args[@]}"
+          bundles="${{ matrix.bundles }}"
+          # Build/sign the app normally, then create the DMG without the
+          # mounted-image editing/detach path that stalls on Intel runners.
+          if [ "${{ matrix.platform }}" = "darwin" ]; then bundles=app; fi
+          npm run tauri:build -- --bundles "$bundles" "${args[@]}"
+      - name: Create and verify macOS disk image
+        if: runner.os == 'macOS'
+        shell: bash
+        env:
+          RELEASE_VERSION: ${{ needs.prepare.outputs.version }}
+        run: |
+          arch="${{ matrix.arch }}"
+          if [ "$arch" = arm64 ]; then arch=aarch64; fi
+          python scripts/package_macos_dmg.py \
+            src-tauri/target/release/bundle/macos/Veyra.app \
+            "src-tauri/target/release/bundle/dmg/Veyra_${RELEASE_VERSION}_${arch}.dmg"
       # CI-hardening: assert the expected installer artifacts exist BEFORE
       # writing provenance (survey §5.8). Cheap per-leg gate, no secrets:
       # maps each requested bundle target to its file suffix and fails the
