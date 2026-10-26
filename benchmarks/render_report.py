@@ -421,11 +421,15 @@ def _storage_table(report: dict[str, Any] | None) -> str:
     lines = [
         "| Representation | Evidence | Logical | Allocated | Cells/voxels | vs sparse 3D | vs dense 3D |",
         "| --- | --- | ---: | ---: | ---: | ---: | ---: |",
-        f"| Dense 5 cm 3D grid (window) | ANALYTICAL | {_mb(dense.get('estimated_dense_bytes'))} | not allocated | "
-        f"{_count(dense.get('dense_voxel_count'))} | — | — |",
-        f"| Sparse 5 cm 3D voxel hash ({sparse.get('basis', 'final_window')}) | MEASURED count, accounted bytes | "
-        f"{_mb(sparse.get('logical_bytes'))} | {_mb(sparse.get('accounted_allocated_bytes'))} | "
-        f"{_count(sparse.get('occupied_voxels'))} | — | — |",
+        (
+            f"| Dense 5 cm 3D grid (window) | ANALYTICAL | {_mb(dense.get('estimated_dense_bytes'))} | not allocated | "
+            f"{_count(dense.get('dense_voxel_count'))} | — | — |"
+        ),
+        (
+            f"| Sparse 5 cm 3D voxel hash ({sparse.get('basis', 'final_window')}) | MEASURED count, accounted bytes | "
+            f"{_mb(sparse.get('logical_bytes'))} | {_mb(sparse.get('accounted_allocated_bytes'))} | "
+            f"{_count(sparse.get('occupied_voxels'))} | — | — |"
+        ),
     ]
     for name, row in (storage.get("policies") or {}).items():
         lines.append(

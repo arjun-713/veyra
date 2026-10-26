@@ -53,6 +53,7 @@ import numpy as np
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
+from benchmarks import storage_3d
 from benchmarks.protocol import binary_stream_file
 from benchmarks.regression import max_rss_bytes
 from benchmarks.run_benchmark import (
@@ -70,9 +71,10 @@ from benchmarks.storage_3d import (
     BYTES_PER_ENTRY,
     VOXEL_SIZE_M,
     frame_voxel_keys,
-    pack_voxel_keys as pack_voxel_keys,  # re-exported for callers and tests
-    unpack_voxel_keys as unpack_voxel_keys,  # re-exported
 )
+
+pack_voxel_keys = storage_3d.pack_voxel_keys
+unpack_voxel_keys = storage_3d.unpack_voxel_keys
 
 EXPECTED_DIGEST_PREFIX = "4cd60ac5"
 
