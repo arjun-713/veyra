@@ -1,3 +1,6 @@
+"""Terrain features regression suite."""
+
+import importlib.util
 import time
 import unittest
 from pathlib import Path
@@ -5,10 +8,21 @@ from pathlib import Path
 import numpy as np
 
 from datasets.semanticposs import SemanticPOSSDataset
+from perception.ground.patchworkpp import (
+    GroundEvidence,
+    PatchworkPPGroundSegmenter,
+    PatchworkPPUnavailableError,
+)
+from perception.ground.quality import (
+    aggregate_ground_quality_reports,
+    ground_quality_report,
+)
 from perception.terrain.features import TerrainAnalyzer, TerrainEvidence
 
+# Terrain features
 
-class GroundEvidence:
+
+class SyntheticGroundEvidence:
     def __init__(self, mask, confidence):
         self.mask = np.asarray(mask, dtype=bool)
         self.confidence = np.asarray(confidence, dtype=np.float32)
@@ -29,7 +43,7 @@ class TerrainAnalyzerTests(unittest.TestCase):
         frames = list(SemanticPOSSDataset(root).replay("00", end=3, max_range_m=100.0))
         elapsed_s = []
         for frame in frames:
-            ground = GroundEvidence(
+            ground = SyntheticGroundEvidence(
                 np.isin(frame.semantic_class, [9, 10, 11, 12, 17]),
                 np.ones(len(frame.points), dtype=np.float32),
             )
@@ -52,7 +66,7 @@ class TerrainAnalyzerTests(unittest.TestCase):
     def test_flat_ground_is_drivable_with_negligible_geometry(self):
         points = grid()
         evidence = TerrainAnalyzer().analyze(
-            points, GroundEvidence(np.ones(len(points)), np.ones(len(points)))
+            points, SyntheticGroundEvidence(np.ones(len(points)), np.ones(len(points)))
         )
 
         self.assertIsInstance(evidence, TerrainEvidence)
@@ -68,15 +82,19 @@ class TerrainAnalyzerTests(unittest.TestCase):
     def test_ground_plane_direction_is_retained_not_only_slope_magnitude(self):
         points = grid(size=11, spacing=0.5, height=lambda x, y: 0.4 * x - 0.2 * y)
         evidence = TerrainAnalyzer(min_ground_neighbors=3).analyze(
-            points, GroundEvidence(np.ones(len(points)), np.ones(len(points)))
+            points, SyntheticGroundEvidence(np.ones(len(points)), np.ones(len(points)))
         )
 
-        self.assertAlmostEqual(float(np.nanmedian(evidence.gradient_x)), 0.4, delta=0.02)
-        self.assertAlmostEqual(float(np.nanmedian(evidence.gradient_y)), -0.2, delta=0.02)
+        self.assertAlmostEqual(
+            float(np.nanmedian(evidence.gradient_x)), 0.4, delta=0.02
+        )
+        self.assertAlmostEqual(
+            float(np.nanmedian(evidence.gradient_y)), -0.2, delta=0.02
+        )
 
     def test_steep_rough_ground_is_non_drivable(self):
         points = grid(height=lambda x, y: 0.9 * x + 0.12 * np.sin(9.0 * x + 3.0 * y))
-        ground = GroundEvidence(np.ones(len(points)), np.ones(len(points)))
+        ground = SyntheticGroundEvidence(np.ones(len(points)), np.ones(len(points)))
 
         evidence = TerrainAnalyzer().analyze(points, ground)
 
@@ -86,7 +104,7 @@ class TerrainAnalyzerTests(unittest.TestCase):
 
     def test_height_discontinuity_marks_step_indicator(self):
         points = grid(height=lambda x, y: np.where(x >= 0.0, 0.6, 0.0))
-        ground = GroundEvidence(np.ones(len(points)), np.ones(len(points)))
+        ground = SyntheticGroundEvidence(np.ones(len(points)), np.ones(len(points)))
 
         evidence = TerrainAnalyzer().analyze(points, ground)
 
@@ -98,7 +116,7 @@ class TerrainAnalyzerTests(unittest.TestCase):
             size=17, spacing=0.25, height=lambda x, y: np.where(x >= 0.0, 0.8, 0.0)
         )
         evidence = TerrainAnalyzer().analyze(
-            points, GroundEvidence(np.ones(len(points)), np.ones(len(points)))
+            points, SyntheticGroundEvidence(np.ones(len(points)), np.ones(len(points)))
         )
 
         self.assertGreater(float(np.nanmax(evidence.step)), 0.5)
@@ -106,7 +124,7 @@ class TerrainAnalyzerTests(unittest.TestCase):
     def test_height_complexity_is_bounded_for_map_evidence(self):
         points = grid(height=lambda x, y: 2.0 * x)
         evidence = TerrainAnalyzer().analyze(
-            points, GroundEvidence(np.ones(len(points)), np.ones(len(points)))
+            points, SyntheticGroundEvidence(np.ones(len(points)), np.ones(len(points)))
         )
 
         self.assertTrue(np.all(np.isfinite(evidence.height_complexity)))
@@ -115,7 +133,7 @@ class TerrainAnalyzerTests(unittest.TestCase):
     def test_sparse_or_missing_ground_stays_unknown(self):
         points = grid(size=3)
         mask = np.zeros(len(points), dtype=bool)
-        ground = GroundEvidence(mask, np.zeros(len(points)))
+        ground = SyntheticGroundEvidence(mask, np.zeros(len(points)))
 
         evidence = TerrainAnalyzer().analyze(points, ground)
 
@@ -125,14 +143,16 @@ class TerrainAnalyzerTests(unittest.TestCase):
 
     def test_empty_and_nonfinite_inputs_are_not_silently_classified(self):
         empty = np.empty((0, 3), dtype=np.float32)
-        empty_ground = GroundEvidence(np.empty(0, dtype=bool), np.empty(0))
+        empty_ground = SyntheticGroundEvidence(np.empty(0, dtype=bool), np.empty(0))
         evidence = TerrainAnalyzer().analyze(empty, empty_ground)
         self.assertEqual(evidence.drivable.shape, (0,))
 
         invalid = np.zeros((3, 3), dtype=np.float32)
         invalid[0, 0] = np.nan
         with self.assertRaises(ValueError):
-            TerrainAnalyzer().analyze(invalid, GroundEvidence(np.ones(3), np.ones(3)))
+            TerrainAnalyzer().analyze(
+                invalid, SyntheticGroundEvidence(np.ones(3), np.ones(3))
+            )
 
     def test_duck_typed_ground_mask_without_confidence_is_supported(self):
         points = grid(size=5)
@@ -155,7 +175,7 @@ class TerrainAnalyzerTests(unittest.TestCase):
         mask[-1] = False
 
         evidence = TerrainAnalyzer(min_ground_neighbors=3).analyze(
-            points, GroundEvidence(mask, np.ones(len(points)))
+            points, SyntheticGroundEvidence(mask, np.ones(len(points)))
         )
 
         self.assertEqual(evidence.drivable[-1], "unknown")
@@ -167,7 +187,7 @@ class TerrainAnalyzerTests(unittest.TestCase):
         points = np.column_stack((x, np.zeros_like(x), np.zeros_like(x)))
 
         evidence = TerrainAnalyzer(min_ground_neighbors=3).analyze(
-            points, GroundEvidence(np.ones(len(points)), np.ones(len(points)))
+            points, SyntheticGroundEvidence(np.ones(len(points)), np.ones(len(points)))
         )
 
         self.assertTrue(np.all(evidence.drivable == "unknown"))
@@ -190,7 +210,7 @@ class TerrainAnalyzerTests(unittest.TestCase):
         points = grid()
 
         evidence = TerrainAnalyzer().analyze(
-            points, GroundEvidence(np.ones(len(points)), np.zeros(len(points)))
+            points, SyntheticGroundEvidence(np.ones(len(points)), np.zeros(len(points)))
         )
 
         self.assertTrue(np.all(evidence.drivable == "unknown"))
@@ -204,7 +224,7 @@ class TerrainAnalyzerTests(unittest.TestCase):
         points = np.column_stack((x, y, z))
 
         evidence = TerrainAnalyzer(min_ground_neighbors=3).analyze(
-            points, GroundEvidence(np.ones(len(points)), np.ones(len(points)))
+            points, SyntheticGroundEvidence(np.ones(len(points)), np.ones(len(points)))
         )
 
         self.assertEqual(evidence.drivable[1], "non_drivable")
@@ -216,7 +236,7 @@ class TerrainAnalyzerTests(unittest.TestCase):
         points = np.column_stack((xx.ravel(), yy.ravel(), (0.1 * xx).ravel()))
 
         evidence = TerrainAnalyzer().analyze(
-            points, GroundEvidence(np.ones(len(points)), np.ones(len(points)))
+            points, SyntheticGroundEvidence(np.ones(len(points)), np.ones(len(points)))
         )
 
         # A 10% grade is well inside the default 0.45 rad slope budget.
@@ -233,7 +253,7 @@ class TerrainAnalyzerTests(unittest.TestCase):
         points = np.column_stack((xx.ravel(), yy.ravel(), zz.ravel()))
 
         evidence = TerrainAnalyzer().analyze(
-            points, GroundEvidence(np.ones(len(points)), np.ones(len(points)))
+            points, SyntheticGroundEvidence(np.ones(len(points)), np.ones(len(points)))
         )
 
         # Plane-fit residual must see the 0.15 m washboard while the fitted
@@ -251,7 +271,7 @@ class TerrainAnalyzerTests(unittest.TestCase):
         points = np.column_stack((xx.ravel(), yy.ravel(), zz.ravel()))
 
         evidence = TerrainAnalyzer().analyze(
-            points, GroundEvidence(np.ones(len(points)), np.ones(len(points)))
+            points, SyntheticGroundEvidence(np.ones(len(points)), np.ones(len(points)))
         )
 
         self.assertGreater(float(np.nanmax(evidence.step)), 0.29)
@@ -269,7 +289,7 @@ class TerrainAnalyzerTests(unittest.TestCase):
         points = np.column_stack((xx.ravel(), yy.ravel(), np.full(xx.size, 5.0)))
 
         evidence = TerrainAnalyzer().analyze(
-            points, GroundEvidence(np.ones(len(points)), np.ones(len(points)))
+            points, SyntheticGroundEvidence(np.ones(len(points)), np.ones(len(points)))
         )
 
         self.assertLess(float(np.nanmax(evidence.height_complexity)), 1e-6)
@@ -285,7 +305,7 @@ class TerrainAnalyzerTests(unittest.TestCase):
         points = np.column_stack((xx.ravel(), yy.ravel(), np.zeros(xx.size)))
 
         evidence = TerrainAnalyzer().analyze(
-            points, GroundEvidence(np.ones(len(points)), np.ones(len(points)))
+            points, SyntheticGroundEvidence(np.ones(len(points)), np.ones(len(points)))
         )
 
         self.assertEqual(float(np.nanmax(evidence.step)), 0.0)
@@ -295,7 +315,7 @@ class TerrainAnalyzerTests(unittest.TestCase):
         points = grid(size=2, spacing=2.0)
 
         evidence = TerrainAnalyzer(min_ground_neighbors=6).analyze(
-            points, GroundEvidence(np.ones(len(points)), np.ones(len(points)))
+            points, SyntheticGroundEvidence(np.ones(len(points)), np.ones(len(points)))
         )
 
         # Four isolated returns cannot form a supported neighborhood.
@@ -311,7 +331,7 @@ class TerrainAnalyzerTests(unittest.TestCase):
         mask[len(ground_points) :] = False
 
         evidence = TerrainAnalyzer().analyze(
-            points, GroundEvidence(mask, np.ones(len(points)))
+            points, SyntheticGroundEvidence(mask, np.ones(len(points)))
         )
 
         slab_labels = evidence.drivable[len(ground_points) :]
@@ -334,7 +354,7 @@ class TerrainAnalyzerTests(unittest.TestCase):
                 rng.normal(0.0, 0.02, 60_000),
             )
         )
-        ground = GroundEvidence(np.ones(len(points)), np.ones(len(points)))
+        ground = SyntheticGroundEvidence(np.ones(len(points)), np.ones(len(points)))
 
         evidence = TerrainAnalyzer().analyze(points, ground)
 
@@ -368,11 +388,12 @@ class TerrainAnalyzerTests(unittest.TestCase):
         analyzer = TerrainAnalyzer()
 
         alone = analyzer.analyze(
-            ground_points, GroundEvidence(np.ones(len(ground_points)), confidence)
+            ground_points,
+            SyntheticGroundEvidence(np.ones(len(ground_points)), confidence),
         )
         mixed = analyzer.analyze(
             points[order],
-            GroundEvidence(
+            SyntheticGroundEvidence(
                 mask[order], np.concatenate((confidence, np.ones(len(clutter))))[order]
             ),
         )
@@ -406,8 +427,254 @@ class TerrainAnalyzerTests(unittest.TestCase):
         for mask in (with_ground, np.zeros(len(points))):
             with self.assertRaisesRegex(ValueError, "too large"):
                 TerrainAnalyzer().analyze(
-                    points, GroundEvidence(mask, np.ones(len(points)))
+                    points, SyntheticGroundEvidence(mask, np.ones(len(points)))
                 )
+
+
+# Patchworkpp ground
+
+
+class GroundEvidenceTests(unittest.TestCase):
+    def test_ground_quality_report_is_explicit_for_binary_predictions(self):
+        report = ground_quality_report(
+            np.array([True, True, False, False]),
+            np.array([True, False, False, True]),
+        )
+
+        self.assertEqual(report["evaluated_points"], 4)
+        self.assertEqual(report["true_positive"], 1)
+        self.assertEqual(report["false_positive"], 1)
+        self.assertEqual(report["false_negative"], 1)
+        self.assertAlmostEqual(report["precision"], 0.5)
+        self.assertAlmostEqual(report["recall"], 0.5)
+        self.assertAlmostEqual(report["f1"], 0.5)
+        self.assertAlmostEqual(report["iou"], 1 / 3)
+
+    def test_ground_quality_rejects_misaligned_masks(self):
+        with self.assertRaises(ValueError):
+            ground_quality_report(np.array([True]), np.array([True, False]))
+
+    def test_ground_quality_aggregation_uses_micro_counts(self):
+        report = aggregate_ground_quality_reports(
+            [
+                ground_quality_report([True, False], [True, False]),
+                ground_quality_report([False, False, True], [True, False, False]),
+            ]
+        )
+
+        self.assertEqual(report["evaluated_points"], 5)
+        self.assertEqual(report["true_positive"], 1)
+        self.assertEqual(report["false_negative"], 1)
+        self.assertAlmostEqual(report["recall"], 0.5)
+
+    def test_evidence_is_point_aligned_and_preserves_backend_metadata(self):
+        evidence = GroundEvidence(
+            mask=np.array([True, False, True]),
+            confidence=np.array([0.9, 0.1, 1.0], dtype=np.float32),
+            backend="test-backend",
+        )
+
+        self.assertEqual(evidence.mask.shape, (3,))
+        self.assertEqual(evidence.confidence.shape, (3,))
+        self.assertEqual(evidence.backend, "test-backend")
+
+    def test_evidence_rejects_misaligned_outputs(self):
+        with self.assertRaises(ValueError):
+            GroundEvidence(
+                mask=np.array([True, False]),
+                confidence=np.array([0.5]),
+                backend="test-backend",
+            )
+
+    def test_official_binding_api_is_used(self):
+        class Parameters:
+            pass
+
+        class Backend:
+            def __init__(self, params):
+                self.params = params
+                self.points = None
+
+            def estimateGround(self, points):
+                self.points = points
+
+            def getGroundIndices(self):
+                return [0, 2]
+
+        segmenter = PatchworkPPGroundSegmenter(module_names=("fake",))
+        import sys
+        import types
+
+        module = types.ModuleType("fake")
+        module.Parameters = Parameters
+        module.patchworkpp = Backend
+        sys.modules["fake"] = module
+        evidence = segmenter.segment(np.zeros((3, 4), dtype=np.float32))
+        np.testing.assert_array_equal(evidence.mask, [True, False, True])
+
+    def test_parameter_overrides_are_applied_to_official_binding(self):
+        class Parameters:
+            max_range = 80.0
+            min_range = 2.7
+
+        class Backend:
+            def __init__(self, params):
+                self.params = params
+
+            def estimateGround(self, points):
+                del points
+
+            def getGroundIndices(self):
+                return [0]
+
+        import sys
+        import types
+
+        module = types.ModuleType("fake_parameters")
+        module.Parameters = Parameters
+        module.patchworkpp = Backend
+        sys.modules["fake_parameters"] = module
+        segmenter = PatchworkPPGroundSegmenter(
+            module_names=("fake_parameters",),
+            parameter_overrides={"max_range": 100.0, "min_range": 0.0},
+        )
+
+        segmenter.segment(np.zeros((1, 4), dtype=np.float32))
+
+        self.assertEqual(segmenter._binding.params.max_range, 100.0)
+        self.assertEqual(segmenter._binding.params.min_range, 0.0)
+
+    def test_unknown_parameter_is_a_configuration_error(self):
+        class Parameters:
+            max_range = 80.0
+
+        class Backend:
+            def __init__(self, params):
+                del params
+
+            def estimateGround(self, points):
+                del points
+
+            def getGroundIndices(self):
+                return []
+
+        import sys
+        import types
+
+        module = types.ModuleType("fake_invalid_parameters")
+        module.Parameters = Parameters
+        module.patchworkpp = Backend
+        sys.modules["fake_invalid_parameters"] = module
+
+        with self.assertRaisesRegex(ValueError, "not supported"):
+            PatchworkPPGroundSegmenter(
+                module_names=("fake_invalid_parameters",),
+                parameter_overrides={"not_a_parameter": 1},
+            ).segment(np.zeros((1, 4), dtype=np.float32))
+
+
+class PatchworkPPGroundSegmenterTests(unittest.TestCase):
+    def test_availability_reports_a_fail_closed_diagnostic(self):
+        availability = PatchworkPPGroundSegmenter(
+            module_names=("module-that-is-not-installed",)
+        ).availability()
+
+        self.assertFalse(availability.available)
+        self.assertIn("module-that-is-not-installed", availability.diagnostic)
+
+    @unittest.skipUnless(
+        importlib.util.find_spec("pypatchworkpp"),
+        "optional pypatchworkpp dependency is not installed",
+    )
+    def test_installed_official_backend_smoke(self):
+        points = np.column_stack(
+            (
+                np.linspace(1.0, 30.0, 2048),
+                np.zeros(2048),
+                np.zeros(2048),
+                np.ones(2048),
+            )
+        ).astype(np.float32)
+        evidence = PatchworkPPGroundSegmenter().segment(points)
+        self.assertEqual(evidence.mask.shape, (2048,))
+        self.assertEqual(evidence.backend, "pypatchworkpp.patchworkpp")
+
+    def test_missing_backend_has_actionable_error(self):
+        segmenter = PatchworkPPGroundSegmenter(
+            module_names=("module-that-is-not-installed",),
+            executable_names=(),
+        )
+
+        with self.assertRaises(PatchworkPPUnavailableError) as context:
+            segmenter.segment(np.zeros((2, 4), dtype=np.float32))
+
+        self.assertIn("Patchwork++", str(context.exception))
+        self.assertIn("module-that-is-not-installed", str(context.exception))
+
+    def test_real_rellis_frame_executes_patchworkpp_on_cpu(self):
+        if not importlib.util.find_spec("pypatchworkpp"):
+            self.skipTest("requires pypatchworkpp for real RELLIS smoke test")
+
+        dataset_root = Path("data/raw/rellis3d/Rellis-3D")
+        if not dataset_root.is_dir():
+            self.skipTest("original local RELLIS-3D data is unavailable")
+
+        from datasets.rellis import Rellis3DDataset
+
+        dataset = Rellis3DDataset(dataset_root, sequences=["00000"])
+        frame = dataset.load_frame("00000", dataset.list_frames("00000")[0].frame_id)
+
+        started = time.perf_counter()
+        evidence = PatchworkPPGroundSegmenter().segment(frame.points)
+        elapsed_s = time.perf_counter() - started
+
+        self.assertEqual(evidence.mask.shape, (frame.points.shape[0],))
+        self.assertEqual(evidence.confidence.shape, evidence.mask.shape)
+        self.assertTrue(np.all(np.isfinite(evidence.confidence)))
+        ground_ratio = float(np.mean(evidence.mask))
+        self.assertGreater(ground_ratio, 0.001)
+        self.assertLess(ground_ratio, 0.999)
+        self.assertGreater(elapsed_s, 0.0)
+        print(
+            "real RELLIS Patchwork++: "
+            f"points={frame.points.shape[0]} ground_ratio={ground_ratio:.4f} "
+            f"elapsed_s={elapsed_s:.6f}"
+        )
+
+    def test_real_semanticposs_ground_quality_is_measurable(self):
+        if not importlib.util.find_spec("pypatchworkpp"):
+            self.skipTest("requires pypatchworkpp for real SemanticPOSS validation")
+        dataset_root = Path("data/raw/semanticposs/dataset")
+        if not dataset_root.is_dir():
+            self.skipTest("original local SemanticPOSS data is unavailable")
+
+        from datasets.semanticposs import SemanticPOSSDataset
+
+        reports = []
+        dataset = SemanticPOSSDataset(dataset_root, sequences=["00"])
+        segmenter = PatchworkPPGroundSegmenter(
+            parameter_overrides={"min_range": 0.0, "max_range": 100.0}
+        )
+        for frame in dataset.replay("00", end=3, max_range_m=100.0):
+            sensor = frame.points.copy()
+            sensor[:, :3] = (
+                sensor[:, :3] - frame.pose.matrix[:3, 3]
+            ) @ frame.pose.matrix[:3, :3]
+            evidence = segmenter.segment(sensor)
+            reports.append(
+                ground_quality_report(evidence.mask, frame.raw_semantic_class == 22)
+            )
+
+        aggregate = aggregate_ground_quality_reports(reports)
+        self.assertGreater(aggregate["recall"], 0.85)
+        self.assertGreater(aggregate["precision"], 0.65)
+        self.assertGreater(aggregate["f1"], 0.75)
+        print(
+            "real SemanticPOSS Patchwork++ ground quality: "
+            f"frames={aggregate['frames']} precision={aggregate['precision']:.4f} "
+            f"recall={aggregate['recall']:.4f} f1={aggregate['f1']:.4f} "
+            f"iou={aggregate['iou']:.4f}"
+        )
 
 
 if __name__ == "__main__":

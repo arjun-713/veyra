@@ -268,7 +268,7 @@ nice -n 19 python3 benchmarks/baseline_3d.py --dataset semanticposs \
   --sequence 00 --start 0 --count 30 \
   --dataset-root "$PWD/data/raw/semanticposs/dataset" \
   --output reports/closure/baseline-3d/MEASURED.json
-python3 -m pytest benchmarks/test_baseline_3d.py -q
+python3 -m pytest benchmarks/test_storage_3d.py -q
 ```
 
 ## Storage: 3D vs 2.5D (always emitted)

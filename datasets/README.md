@@ -161,7 +161,7 @@ Run bounded checks against the current local assets:
 python scripts/validate_dataset_capabilities.py --dataset semanticposs --root data/raw/semanticposs/dataset --sample-limit 3
 python scripts/validate_dataset_capabilities.py --dataset rellis3d --root data/raw/rellis3d/Rellis-3D --sample-limit 3
 python scripts/validate_dataset_capabilities.py --dataset semantickitti --root data/raw/semantickitti/dataset --sample-limit 3
-python -m pytest -q tests/test_rellis_adapter.py tests/test_semanticposs_adapter.py tests/test_semantickitti_adapter.py
+python -m pytest -q tests/test_dataset_adapters.py
 ```
 
 Reports disclose counts, alignment, finite intensity, taxonomy, replay and

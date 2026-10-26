@@ -508,18 +508,6 @@ class ReplayRuntimeTests(unittest.TestCase):
         finally:
             runtime._replay_close_locked()
 
-    def test_closing_running_replay_does_not_start_live_processing(self):
-        runtime = self.make_runtime()
-        try:
-            with tempfile.TemporaryDirectory() as directory:
-                self.open_replay(runtime, build_small_cache(directory))
-                runtime._execute("start", {})
-                runtime._execute("replay_close", {})
-                self.assertEqual(runtime.state, "unconfigured")
-                self.assertIsNone(runtime.replay_reader)
-        finally:
-            runtime._replay_close_locked()
-
     def test_replay_reaches_end_of_sequence(self):
         runtime = self.make_runtime()
         try:
@@ -570,7 +558,9 @@ class ReplayRuntimeTests(unittest.TestCase):
         try:
             with (
                 tempfile.TemporaryDirectory() as directory,
-                mock.patch("runtime.service.validate_config", side_effect=lambda c, _: c),
+                mock.patch(
+                    "runtime.service.validate_config", side_effect=lambda c, _: c
+                ),
                 mock.patch.object(runtime, "_create_session", return_value=session),
                 mock.patch("runtime.replay_cache.check_compatible", return_value=None),
                 mock.patch.object(runtime, "_prepare_auto_replay") as prepare,

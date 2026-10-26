@@ -224,7 +224,9 @@ class RuntimeMapBridgeTests(unittest.TestCase):
         self.assertEqual(first, second)
         self.assertEqual(binary["selection"], "folded")
         self.assertEqual(binary["cell_count"], first["cell_count"])
-        self.assertAlmostEqual(binary["native_radius_m"], first["native_radius_m"], places=5)
+        self.assertAlmostEqual(
+            binary["native_radius_m"], first["native_radius_m"], places=5
+        )
         rows = np.frombuffer(binary["cells_binary"], "<f4").reshape(-1, 17)
         np.testing.assert_allclose(
             rows[:, 13], [cell["n"] for cell in first["cells"]], atol=0
@@ -289,7 +291,12 @@ class RuntimeMapBridgeTests(unittest.TestCase):
             "velocity_xy": np.empty((0, 2)),
             "observation_quality": [],
             "terrain_confidence": [],
-            "pipeline_status": {"semantic": "a", "ground": "a", "terrain": "a", "temporal": "a"},
+            "pipeline_status": {
+                "semantic": "a",
+                "ground": "a",
+                "terrain": "a",
+                "temporal": "a",
+            },
             "index": 0,
             "dataset": "fixture",
             "seq": "00",
@@ -301,7 +308,9 @@ class RuntimeMapBridgeTests(unittest.TestCase):
         _, from_binary = pack_visualization(frame, binary, 1)
         # JSON carries six decimals; the binary rows carry full float32.
         np.testing.assert_allclose(
-            np.frombuffer(from_binary, "<f4"), np.frombuffer(from_text, "<f4"), atol=1e-6
+            np.frombuffer(from_binary, "<f4"),
+            np.frombuffer(from_text, "<f4"),
+            atol=1e-6,
         )
 
     def test_engine_map_cells_match_snapshot_topology(self):
@@ -357,9 +366,7 @@ class RuntimeMapBridgeTests(unittest.TestCase):
             )
             self.assertAlmostEqual(cell["m"], 0.0, delta=unsigned_quantum)
             self.assertAlmostEqual(cell["q"], 0.9, delta=unsigned_quantum)
-            self.assertAlmostEqual(
-                cell["drivable_evidence"], 0.9, delta=signed_quantum
-            )
+            self.assertAlmostEqual(cell["drivable_evidence"], 0.9, delta=signed_quantum)
         self.assertEqual(cleared["cell_count"], 0)
 
     def test_malformed_record_aborts_frame_with_single_response(self):
@@ -450,7 +457,9 @@ def _grid_frame() -> ObservationFrame:
     )
 
 
-def _dense_patch_frame(timestamp: float = 3.0, offset_x: float = 0.0) -> ObservationFrame:
+def _dense_patch_frame(
+    timestamp: float = 3.0, offset_x: float = 0.0
+) -> ObservationFrame:
     """One return per 5 cm cell every 10 cm over a 6 m patch around the vehicle.
 
     3,600 level-0 leaves that fold to 15 x 15 = 225 level-3 tiles; the patch

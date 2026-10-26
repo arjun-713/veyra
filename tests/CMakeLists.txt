@@ -1,35 +1,63 @@
-# Samay: invariant tests live here. Start with test_index_alignment,
-# then add point_conservation, split_merge, parent_child_exclusivity,
-# boundary_neighbors, rolling_window, memory_accounting, near_field_protection.
-# See docs/map-correctness.md
-add_executable(test_index_alignment test_index_alignment.cpp)
-target_include_directories(test_index_alignment PRIVATE ${PROJECT_SOURCE_DIR}/include)
-target_compile_features(test_index_alignment PRIVATE cxx_std_20)
-veyra_enable_assertions(test_index_alignment)
-add_test(NAME index_alignment COMMAND test_index_alignment)
+# Group by subsystem; retain each CTest name and isolated invocation.
+# Every target keeps assertions enabled, including Release builds.
+function(veyra_test_suite target source)
+  add_executable(${target} ${source})
+  target_link_libraries(${target} PRIVATE veyra_map veyra_policy veyra_metrics)
+  target_include_directories(${target} PRIVATE ${PROJECT_SOURCE_DIR}/include)
+  target_compile_features(${target} PRIVATE cxx_std_20)
+  target_compile_definitions(${target} PRIVATE VEYRA_SOURCE_DIR="${PROJECT_SOURCE_DIR}")
+  veyra_enable_warnings(${target})
+  veyra_enable_assertions(${target})
+  foreach(suite IN LISTS ARGN)
+    add_test(NAME ${suite} COMMAND ${target} ${suite})
+  endforeach()
+endfunction()
 
-add_executable(test_policy test_policy.cpp)
-target_link_libraries(test_policy PRIVATE veyra_policy)
-target_include_directories(test_policy PRIVATE ${PROJECT_SOURCE_DIR}/include)
-target_compile_features(test_policy PRIVATE cxx_std_20)
-veyra_enable_warnings(test_policy)
-veyra_enable_assertions(test_policy)
-target_compile_definitions(test_policy PRIVATE VEYRA_SOURCE_DIR="${PROJECT_SOURCE_DIR}")
-add_test(NAME policy COMMAND test_policy)
+veyra_test_suite(test_map_topology test_map_topology.cpp
+  index_alignment parent_child_exclusivity rolling_window)
+
+veyra_test_suite(test_map_storage test_map_storage.cpp
+  map_engine memory_accounting)
+
+veyra_test_suite(test_map_conservation test_map_conservation.cpp
+  split_merge point_conservation)
+
+veyra_test_suite(test_map_properties test_map_properties.cpp
+  randomized_map_invariants map_public_properties map_hardening_stress)
+
+veyra_test_suite(test_resolution_policy test_resolution_policy.cpp
+  policy policy_adapter near_field_protection resolution_pass)
+
+veyra_test_suite(test_map_terrain test_map_terrain.cpp
+  layered_terrain occupancy_uncertainty)
+
+veyra_test_suite(test_visibility_clearing test_visibility_clearing.cpp
+  depth_image_clearing persistent_clearing batch_clearing)
+
+veyra_test_suite(test_ghost_prevention test_ghost_prevention.cpp
+  ghost_retention clearing_static_erosion)
+
+add_executable(test_boundary_neighbors test_boundary_neighbors.cpp)
+target_link_libraries(test_boundary_neighbors PRIVATE veyra_map)
+target_compile_features(test_boundary_neighbors PRIVATE cxx_std_20)
+veyra_enable_warnings(test_boundary_neighbors)
+veyra_enable_assertions(test_boundary_neighbors)
+add_test(NAME boundary_neighbors COMMAND test_boundary_neighbors)
+
+# The TileGrid snapshot also replaces global new/delete and uses its own
+# snapshot API, so retain its independent translation unit and allocator.
+add_executable(test_snapshot test_snapshot.cpp)
+target_link_libraries(test_snapshot PRIVATE veyra_map)
+target_compile_features(test_snapshot PRIVATE cxx_std_20)
+veyra_enable_warnings(test_snapshot)
+veyra_enable_assertions(test_snapshot)
+add_test(NAME snapshot COMMAND test_snapshot)
 
 add_executable(policy_microbenchmark policy_microbenchmark.cpp)
 target_link_libraries(policy_microbenchmark PRIVATE veyra_policy)
-target_include_directories(policy_microbenchmark PRIVATE ${PROJECT_SOURCE_DIR}/include)
 target_compile_features(policy_microbenchmark PRIVATE cxx_std_20)
 veyra_enable_warnings(policy_microbenchmark)
 veyra_enable_assertions(policy_microbenchmark)
-
-add_executable(test_map_engine test_map_engine.cpp)
-target_link_libraries(test_map_engine PRIVATE veyra_map)
-target_include_directories(test_map_engine PRIVATE ${PROJECT_SOURCE_DIR}/include)
-target_compile_features(test_map_engine PRIVATE cxx_std_20)
-veyra_enable_assertions(test_map_engine)
-add_test(NAME map_engine COMMAND test_map_engine)
 
 find_package(Python3 COMPONENTS Interpreter REQUIRED)
 add_test(
@@ -37,151 +65,10 @@ add_test(
   COMMAND ${Python3_EXECUTABLE} -m unittest discover -s tests -p "test_*.py" -v
   WORKING_DIRECTORY ${PROJECT_SOURCE_DIR}
 )
-# Reuse the just-built benchmark so the suite never rebuilds per test; the
-# tests still build once standalone when the variable is unset. TIMEOUT is a
-# backstop (the post-fix suite runs in about a minute under CTest), not a
-# substitute for the in-test engine bounds.
 if(TARGET veyra_benchmark)
-  set_tests_properties(
-    python_unittest
-    PROPERTIES ENVIRONMENT "VEYRA_BENCHMARK_BINARY=$<TARGET_FILE:veyra_benchmark>"
-  )
+  set_tests_properties(python_unittest PROPERTIES
+    ENVIRONMENT "VEYRA_BENCHMARK_BINARY=$<TARGET_FILE:veyra_benchmark>")
 endif()
-set_tests_properties(python_unittest PROPERTIES TIMEOUT 600)
-
-add_executable(test_split_merge test_split_merge.cpp)
-target_include_directories(test_split_merge PRIVATE ${PROJECT_SOURCE_DIR}/include)
-target_compile_features(test_split_merge PRIVATE cxx_std_20)
-target_link_libraries(test_split_merge PRIVATE veyra_map)
-add_test(NAME split_merge COMMAND test_split_merge)
-
-add_executable(test_memory_accounting test_memory_accounting.cpp)
-target_include_directories(test_memory_accounting PRIVATE ${PROJECT_SOURCE_DIR}/include)
-target_compile_features(test_memory_accounting PRIVATE cxx_std_20)
-target_link_libraries(test_memory_accounting PRIVATE veyra_map)
-add_test(NAME memory_accounting COMMAND test_memory_accounting)
-
-add_executable(test_point_conservation test_point_conservation.cpp)
-target_include_directories(test_point_conservation PRIVATE ${PROJECT_SOURCE_DIR}/include)
-target_compile_features(test_point_conservation PRIVATE cxx_std_20)
-target_link_libraries(test_point_conservation PRIVATE veyra_map)
-add_test(NAME point_conservation COMMAND test_point_conservation)
-
-add_executable(test_rolling_window test_rolling_window.cpp)
-target_include_directories(test_rolling_window PRIVATE ${PROJECT_SOURCE_DIR}/include)
-target_compile_features(test_rolling_window PRIVATE cxx_std_20)
-target_link_libraries(test_rolling_window PRIVATE veyra_map)
-add_test(NAME rolling_window COMMAND test_rolling_window)
-
-add_executable(test_parent_child_exclusivity test_parent_child_exclusivity.cpp)
-target_include_directories(test_parent_child_exclusivity PRIVATE ${PROJECT_SOURCE_DIR}/include)
-target_compile_features(test_parent_child_exclusivity PRIVATE cxx_std_20)
-target_link_libraries(test_parent_child_exclusivity PRIVATE veyra_map)
-add_test(NAME parent_child_exclusivity COMMAND test_parent_child_exclusivity)
-
-add_executable(test_randomized_map_invariants test_randomized_map_invariants.cpp)
-target_include_directories(test_randomized_map_invariants PRIVATE ${PROJECT_SOURCE_DIR}/include)
-target_compile_features(test_randomized_map_invariants PRIVATE cxx_std_20)
-veyra_enable_warnings(test_randomized_map_invariants)
-veyra_enable_assertions(test_randomized_map_invariants)
-target_link_libraries(test_randomized_map_invariants PRIVATE veyra_map)
-add_test(NAME randomized_map_invariants COMMAND test_randomized_map_invariants)
-
-add_executable(test_map_public_properties test_map_public_properties.cpp)
-target_include_directories(test_map_public_properties PRIVATE ${PROJECT_SOURCE_DIR}/include)
-target_compile_features(test_map_public_properties PRIVATE cxx_std_20)
-veyra_enable_warnings(test_map_public_properties)
-veyra_enable_assertions(test_map_public_properties)
-target_link_libraries(test_map_public_properties PRIVATE veyra_map)
-add_test(NAME map_public_properties COMMAND test_map_public_properties)
-
-add_executable(test_boundary_neighbors test_boundary_neighbors.cpp)
-target_include_directories(test_boundary_neighbors PRIVATE ${PROJECT_SOURCE_DIR}/include)
-target_compile_features(test_boundary_neighbors PRIVATE cxx_std_20)
-target_link_libraries(test_boundary_neighbors PRIVATE veyra_map)
-add_test(NAME boundary_neighbors COMMAND test_boundary_neighbors)
-
-add_executable(test_near_field_protection test_near_field_protection.cpp)
-target_include_directories(test_near_field_protection PRIVATE ${PROJECT_SOURCE_DIR}/include)
-target_compile_features(test_near_field_protection PRIVATE cxx_std_20)
-target_link_libraries(test_near_field_protection PRIVATE veyra_map veyra_policy)
-add_test(NAME near_field_protection COMMAND test_near_field_protection)
-
-add_executable(test_resolution_pass test_resolution_pass.cpp)
-target_include_directories(test_resolution_pass PRIVATE ${PROJECT_SOURCE_DIR}/include)
-target_compile_features(test_resolution_pass PRIVATE cxx_std_20)
-target_link_libraries(test_resolution_pass PRIVATE veyra_map veyra_policy)
-add_test(NAME resolution_pass COMMAND test_resolution_pass)
-
-add_executable(test_snapshot test_snapshot.cpp)
-target_include_directories(test_snapshot PRIVATE ${PROJECT_SOURCE_DIR}/include)
-target_compile_features(test_snapshot PRIVATE cxx_std_20)
-target_link_libraries(test_snapshot PRIVATE veyra_map)
-add_test(NAME snapshot COMMAND test_snapshot)
-
-add_executable(test_policy_adapter test_policy_adapter.cpp)
-target_link_libraries(test_policy_adapter PRIVATE veyra_map veyra_policy veyra_metrics)
-target_compile_definitions(test_policy_adapter PRIVATE VEYRA_SOURCE_DIR="${PROJECT_SOURCE_DIR}")
-veyra_enable_warnings(test_policy_adapter)
-veyra_enable_assertions(test_policy_adapter)
-add_test(NAME policy_adapter COMMAND test_policy_adapter)
-
-add_executable(test_map_hardening_stress test_map_hardening_stress.cpp)
-target_include_directories(test_map_hardening_stress PRIVATE ${PROJECT_SOURCE_DIR}/include)
-target_compile_features(test_map_hardening_stress PRIVATE cxx_std_20)
-veyra_enable_warnings(test_map_hardening_stress)
-veyra_enable_assertions(test_map_hardening_stress)
-target_link_libraries(test_map_hardening_stress PRIVATE veyra_map)
-add_test(NAME map_hardening_stress COMMAND test_map_hardening_stress)
-set_tests_properties(map_hardening_stress PROPERTIES TIMEOUT 600)
-add_executable(test_layered_terrain test_layered_terrain.cpp)
-target_include_directories(test_layered_terrain PRIVATE ${PROJECT_SOURCE_DIR}/include)
-target_compile_features(test_layered_terrain PRIVATE cxx_std_20)
-veyra_enable_warnings(test_layered_terrain)
-veyra_enable_assertions(test_layered_terrain)
-target_link_libraries(test_layered_terrain PRIVATE veyra_map)
-add_test(NAME layered_terrain COMMAND test_layered_terrain)
-
-add_executable(test_occupancy_uncertainty test_occupancy_uncertainty.cpp)
-target_include_directories(test_occupancy_uncertainty PRIVATE ${PROJECT_SOURCE_DIR}/include)
-target_compile_features(test_occupancy_uncertainty PRIVATE cxx_std_20)
-veyra_enable_warnings(test_occupancy_uncertainty)
-veyra_enable_assertions(test_occupancy_uncertainty)
-target_link_libraries(test_occupancy_uncertainty PRIVATE veyra_map)
-add_test(NAME occupancy_uncertainty COMMAND test_occupancy_uncertainty)
-
-add_executable(test_depth_image_clearing test_depth_image_clearing.cpp)
-target_include_directories(test_depth_image_clearing PRIVATE ${PROJECT_SOURCE_DIR}/include)
-target_compile_features(test_depth_image_clearing PRIVATE cxx_std_20)
-veyra_enable_warnings(test_depth_image_clearing)
-veyra_enable_assertions(test_depth_image_clearing)
-target_link_libraries(test_depth_image_clearing PRIVATE veyra_map)
-add_test(NAME depth_image_clearing COMMAND test_depth_image_clearing)
-
-add_executable(test_persistent_clearing test_persistent_clearing.cpp)
-target_link_libraries(test_persistent_clearing PRIVATE veyra_map veyra_policy veyra_metrics)
-target_compile_definitions(test_persistent_clearing PRIVATE VEYRA_SOURCE_DIR="${PROJECT_SOURCE_DIR}")
-veyra_enable_warnings(test_persistent_clearing)
-veyra_enable_assertions(test_persistent_clearing)
-add_test(NAME persistent_clearing COMMAND test_persistent_clearing)
-
-add_executable(test_ghost_retention test_ghost_retention.cpp)
-target_link_libraries(test_ghost_retention PRIVATE veyra_map veyra_policy veyra_metrics)
-target_compile_definitions(test_ghost_retention PRIVATE VEYRA_SOURCE_DIR="${PROJECT_SOURCE_DIR}")
-veyra_enable_warnings(test_ghost_retention)
-veyra_enable_assertions(test_ghost_retention)
-add_test(NAME ghost_retention COMMAND test_ghost_retention)
-
-add_executable(test_batch_clearing test_batch_clearing.cpp)
-target_link_libraries(test_batch_clearing PRIVATE veyra_map veyra_policy veyra_metrics)
-target_compile_definitions(test_batch_clearing PRIVATE VEYRA_SOURCE_DIR="${PROJECT_SOURCE_DIR}")
-veyra_enable_warnings(test_batch_clearing)
-veyra_enable_assertions(test_batch_clearing)
-add_test(NAME batch_clearing COMMAND test_batch_clearing)
-
-add_executable(test_clearing_static_erosion test_clearing_static_erosion.cpp)
-target_link_libraries(test_clearing_static_erosion PRIVATE veyra_map veyra_policy veyra_metrics)
-target_compile_definitions(test_clearing_static_erosion PRIVATE VEYRA_SOURCE_DIR="${PROJECT_SOURCE_DIR}")
-veyra_enable_warnings(test_clearing_static_erosion)
-veyra_enable_assertions(test_clearing_static_erosion)
-add_test(NAME clearing_static_erosion COMMAND test_clearing_static_erosion)
+set_tests_properties(python_unittest map_hardening_stress PROPERTIES TIMEOUT 600)
+# This suite asserts wall-clock budgets: avoid competing with stress tests.
+set_tests_properties(map_engine PROPERTIES RUN_SERIAL TRUE)

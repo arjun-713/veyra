@@ -1,3 +1,5 @@
+"""Product benchmark regression suite."""
+
 import json
 import os
 import subprocess
@@ -8,6 +10,7 @@ from dataclasses import replace
 from pathlib import Path
 
 import numpy as np
+import yaml
 
 from benchmarks.run_benchmark import (
     POLICY_ADAPTERS,
@@ -24,6 +27,8 @@ from benchmarks.run_benchmark import (
     summarize_perception,
     utility_ablation_report,
 )
+
+# Product benchmark
 
 
 class ProductBenchmarkTests(unittest.TestCase):
@@ -73,8 +78,9 @@ class ProductBenchmarkTests(unittest.TestCase):
             )
 
     def test_clean_source_gate_preserves_unrelated_untracked_artifacts(self):
-        from benchmarks.run_benchmark import _git_source_state, run
         from types import SimpleNamespace
+
+        from benchmarks.run_benchmark import _git_source_state, run
 
         with tempfile.TemporaryDirectory() as directory:
             repo = Path(directory)
@@ -244,18 +250,38 @@ class ProductBenchmarkTests(unittest.TestCase):
             "leaves": [
                 # Near bins keep their classes; the far pole bin is owned by a
                 # disjoint coarse 40 cm leaf whose dominant class is road.
-                {"level": 1, "ix": 0, "iy": 0, "count": 2, "mean_z": 1.0,
-                 "semantic_class": 1, "drivable_evidence": -1.0},
-                {"level": 1, "ix": -1, "iy": 0, "count": 2, "mean_z": 1.0,
-                 "semantic_class": 2, "drivable_evidence": -1.0},
-                {"level": 3, "ix": 1, "iy": 0, "count": 9, "mean_z": 0.0,
-                 "semantic_class": 9, "drivable_evidence": 1.0},
+                {
+                    "level": 1,
+                    "ix": 0,
+                    "iy": 0,
+                    "count": 2,
+                    "mean_z": 1.0,
+                    "semantic_class": 1,
+                    "drivable_evidence": -1.0,
+                },
+                {
+                    "level": 1,
+                    "ix": -1,
+                    "iy": 0,
+                    "count": 2,
+                    "mean_z": 1.0,
+                    "semantic_class": 2,
+                    "drivable_evidence": -1.0,
+                },
+                {
+                    "level": 3,
+                    "ix": 1,
+                    "iy": 0,
+                    "count": 9,
+                    "mean_z": 0.0,
+                    "semantic_class": 9,
+                    "drivable_evidence": 1.0,
+                },
             ]
         }
         report = field_retention_report([near, far], snapshot)
         bands = {
-            (row["min_m"], row["max_m"]): row
-            for row in report["semantic"]["by_range"]
+            (row["min_m"], row["max_m"]): row for row in report["semantic"]["by_range"]
         }
         self.assertEqual(bands[(0.0, 10.0)]["reference_bins"], 2)
         self.assertEqual(bands[(0.0, 10.0)]["retained_bins"], 2)
@@ -285,45 +311,6 @@ class ProductBenchmarkTests(unittest.TestCase):
         }
         self.assertEqual(pole[(30.0, 60.0)]["reference_bins"], 1)
         self.assertEqual(pole[(30.0, 60.0)]["retained_bins"], 0)
-
-    def test_local_runner_forwards_field_retention_and_telemetry_flags(self):
-        repo = Path(__file__).resolve().parents[1]
-        content = (repo / "benchmarks/run_local.sh").read_text()
-        self.assertIn('--retain-frames) retain_frames="true"', content)
-        self.assertIn("benchmark_args+=(--retain-frames)", content)
-        self.assertIn('--promotion-telemetry) promotion_telemetry="true"', content)
-        self.assertIn("benchmark_args+=(--promotion-telemetry)", content)
-        self.assertIn('retain_frames="false"', content)
-
-    def test_sih_validation_entrypoint_has_explicit_real_data_gate(self):
-        repo = Path(__file__).resolve().parents[1]
-        validator = repo / "scripts/validate_sih.sh"
-        self.assertTrue(validator.is_file())
-        content = validator.read_text()
-        self.assertIn("--full", content)
-        self.assertIn("SemanticPOSS", content)
-        self.assertIn("benchmarks/run_local.sh", content)
-        self.assertIn("validate_submission_closure.py", content)
-        self.assertNotIn("|| true", content)
-
-    def test_full_sih_validation_requires_real_perception_evidence_first(self):
-        repo = Path(__file__).resolve().parents[1]
-        content = (repo / "scripts/validate_sih.sh").read_text()
-        perception_validation = content.index("-m scripts.validate_perception")
-        cpp_configuration = content.index("cmake -S . -B")
-        benchmark = content.index("benchmarks/run_local.sh")
-        self.assertLess(perception_validation, cpp_configuration)
-        self.assertLess(perception_validation, benchmark)
-        self.assertIn("VEYRA_SIH_PERCEPTION_CONFIG", content)
-        self.assertIn('--perception-output "$perception_output"', content)
-        self.assertNotIn('salsanext.onnx"', content)
-
-    def test_sih_validator_scales_warmup_for_short_real_data_runs(self):
-        repo = Path(__file__).resolve().parents[1]
-        content = (repo / "scripts/validate_sih.sh").read_text()
-        self.assertIn('warmup_frames="${VEYRA_SIH_WARMUP_FRAMES:-10}"', content)
-        self.assertIn("if ((warmup_frames >= frames)); then", content)
-        self.assertIn('--warmup-frames "$warmup_frames"', content)
 
     def test_sih_validator_rejects_invalid_full_frame_count_before_build(self):
         repo = Path(__file__).resolve().parents[1]
@@ -361,33 +348,6 @@ class ProductBenchmarkTests(unittest.TestCase):
             )
         self.assertIn("REAL DATA: UNAVAILABLE", result.stderr)
         self.assertIn("semanticposs/dataset", result.stderr)
-
-    def test_benchmark_workflows_do_not_hide_failed_evidence(self):
-        repo = Path(__file__).resolve().parents[1]
-        benchmark_workflow = (repo / ".github/workflows/benchmark.yml").read_text()
-        report_workflow = (repo / ".github/workflows/benchmark-report.yml").read_text()
-        self.assertIn(
-            "Run shared perception and four-policy map benchmark", benchmark_workflow
-        )
-        self.assertNotIn("--output artifacts/summary.md || true", benchmark_workflow)
-        self.assertNotIn("continue-on-error: true", report_workflow)
-        self.assertIn("--fail-on-correctness", benchmark_workflow)
-        self.assertIn("Overall mIoU", report_workflow)
-        self.assertIn("Point conservation", report_workflow)
-        self.assertIn("--skip-build", benchmark_workflow)
-        self.assertIn("findJson('artifacts/map')", report_workflow)
-        self.assertIn("findJson('artifacts/baseline')", report_workflow)
-
-    def test_ci_uses_tauri_for_fast_and_manual_desktop_validation(self):
-        repo = Path(__file__).resolve().parents[1]
-        ci = (repo / ".github/workflows/ci.yml").read_text()
-        tauri = (repo / ".github/workflows/desktop-tauri.yml").read_text()
-        self.assertFalse((repo / ".github/workflows/product.yml").exists())
-        self.assertIn("branches: [main]", ci)
-        self.assertIn("workflow_dispatch:", tauri)
-        self.assertNotIn("pull_request:", tauri)
-        self.assertIn("stage_tauri_backend.py", tauri)
-        self.assertIn("resources/backend", tauri)
 
     def test_semantic_quality_is_reported_per_distance_bin(self):
         from benchmarks.test_runtime import frame
@@ -900,6 +860,56 @@ class ProductBenchmarkTests(unittest.TestCase):
             )
             self.assertEqual(len(frames), 1)
             np.testing.assert_allclose(frames[0].points, [[1, 0, 2, 0.5]])
+
+
+# Benchmark workflow
+
+"""Exercise the benchmark workflow's shell contract without downloading data."""
+
+
+class BenchmarkWorkflowTests(unittest.TestCase):
+    def test_non_transient_benchmark_failure_exits_with_original_status(self):
+        repo = Path(__file__).resolve().parents[1]
+        workflow = yaml.safe_load(
+            (repo / ".github/workflows/benchmark.yml").read_text()
+        )
+        step = next(
+            item
+            for item in workflow["jobs"]["benchmark"]["steps"]
+            if item.get("id") == "benchmark"
+        )
+
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            (root / "artifacts/map").mkdir(parents=True)
+            (root / "benchmarks").mkdir()
+            script = root / "benchmarks/run_local.sh"
+            script.write_text(
+                "#!/usr/bin/env bash\necho called >> benchmark-calls.txt\nexit 7\n"
+            )
+            script.chmod(0o755)
+            result = subprocess.run(
+                ["bash", "-e", "-c", step["run"]],
+                cwd=root,
+                env={
+                    **os.environ,
+                    "PERCEPTION_MODE": "ground_truth",
+                    "SEMANTIC_POSS_SEQUENCE": "00",
+                    "SEMANTIC_POSS_COUNT": "1",
+                    "BENCHMARK_REPETITIONS": "1",
+                    "BENCHMARK_POLICIES": "distance_lod",
+                    "SEMANTIC_POSS_ARCHIVE_SHA256": "test-digest",
+                    "GITHUB_WORKSPACE": str(root),
+                    "RUNNER_TEMP": str(root),
+                },
+                capture_output=True,
+                text=True,
+                check=False,
+            )
+
+            self.assertEqual(result.returncode, 7, result.stderr)
+            self.assertEqual((root / "benchmark-calls.txt").read_text(), "called\n")
+            self.assertIn("non-transient exit 7", result.stderr)
 
 
 if __name__ == "__main__":

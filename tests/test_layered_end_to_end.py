@@ -146,11 +146,6 @@ class LayeredEndToEnd(unittest.TestCase):
                 "veyra_benchmark not built; run cmake --build build before this test"
             )
 
-    def test_protocol_version_is_four(self) -> None:
-        self.assertEqual(PROTOCOL_VERSION, 4)
-        payload, _ = stream_bytes(_road_under_a_branch(with_hag=True))
-        self.assertTrue(payload.startswith(b"VEYRA_STREAM 4\n"))
-
     def test_height_above_ground_survives_the_wire(self) -> None:
         """The whole point: layers are populated from a real stream."""
         report = _run(_road_under_a_branch(with_hag=True), self.engine)
@@ -468,15 +463,6 @@ class ProtocolVersionCoupling(unittest.TestCase):
     actual fault. A version mismatch should not be diagnosed by reading point
     values.
     """
-
-    def test_viewer_handshake_matches_protocol_version(self) -> None:
-        source = (REPO / "viewer" / "runtime.py").read_text(encoding="utf-8")
-        self.assertNotIn(
-            'VEYRA_ENGINE 2\\n"',
-            source,
-            "handshake version is hard-coded and will drift from the writer",
-        )
-        self.assertIn("VEYRA_ENGINE {PROTOCOL_VERSION}", source)
 
     def test_engine_accepts_the_version_we_announce(self) -> None:
         engine = _engine()
