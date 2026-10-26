@@ -1,6 +1,5 @@
-"""Product boundaries: bounded transport, validated controls and real replay."""
+"""Product runtime regression suite."""
 
-import importlib.util
 import io
 import struct
 import subprocess
@@ -12,13 +11,15 @@ from pathlib import Path
 
 from tests.test_engine_service import require_binary
 
+# Product runtime
+
+"""Product boundaries: bounded transport, validated controls and real replay."""
+
+
 BENCHMARK_RELATIVE = "build/apps/benchmark/veyra_benchmark"
 
 
 class ProductProtocolTests(unittest.TestCase):
-    def test_protocol_package_exists(self):
-        self.assertIsNotNone(importlib.util.find_spec("runtime"))
-
     def test_visualization_frame_preserves_binary_payload(self):
         from runtime.protocol import encode_message, read_message
 
@@ -85,52 +86,35 @@ class ProductConfigTests(unittest.TestCase):
         self.assertTrue(config["pipeline"]["terrain"]["enabled"])
         self.assertFalse(config["pipeline"]["temporal"]["enabled"])
 
-    def test_rejects_unsafe_and_nonfinite_configuration(self):
+    def test_untrusted_configuration_is_rejected(self):
         from runtime.config import validate_config
 
-        for changed in (
-            {"map": {"policy": "shell"}},
-            {"playback": {"fps": float("nan")}},
-            {"visualization": {"point_budget": 100001}},
-        ):
-            config = {
-                "dataset": "generic",
-                "dataset_root": "/tmp",
-                "sequence": "00",
-                **changed,
-            }
-            with self.assertRaises(ValueError):
-                validate_config(config, Path.cwd(), check_paths=False)
-
-    def test_unknown_configuration_fields_are_rejected(self):
-        from runtime.config import validate_config
-
-        with self.assertRaisesRegex(ValueError, "unknown"):
-            validate_config(
-                {
-                    "dataset": "generic",
-                    "dataset_root": "/tmp",
-                    "sequence": "00",
-                    "shell": "rm",
-                },
-                Path.cwd(),
-                check_paths=False,
-            )
-
-    def test_imported_config_cannot_launch_an_arbitrary_executable(self):
-        from runtime.config import validate_config
-
-        with self.assertRaisesRegex(ValueError, "installed Veyra backend"):
-            validate_config(
-                {
-                    "dataset": "generic",
-                    "dataset_root": "/tmp",
-                    "sequence": "00",
-                    "map": {"executable": "/tmp/evil", "policy": "distance_lod"},
-                },
-                Path.cwd(),
-                check_paths=False,
-            )
+        cases = (
+            ("policy", {"map": {"policy": "shell"}}, None),
+            ("nonfinite fps", {"playback": {"fps": float("nan")}}, None),
+            ("display limit", {"visualization": {"point_budget": 100001}}, None),
+            ("unknown key", {"shell": "rm"}, "unknown"),
+            (
+                "executable injection",
+                {"map": {"executable": "/tmp/evil", "policy": "distance_lod"}},
+                "installed Veyra backend",
+            ),
+        )
+        for name, overrides, message in cases:
+            with (
+                self.subTest(case=name),
+                self.assertRaisesRegex(ValueError, message or "."),
+            ):
+                validate_config(
+                    {
+                        "dataset": "generic",
+                        "dataset_root": "/tmp",
+                        "sequence": "00",
+                        **overrides,
+                    },
+                    Path.cwd(),
+                    check_paths=False,
+                )
 
     def test_resource_profile_and_governor_override_are_validated(self):
         from runtime.config import validate_config
@@ -300,10 +284,6 @@ class ProductTelemetryTests(unittest.TestCase):
         self.assertEqual(report["map"]["splits_per_frame"], 1.5)
         self.assertEqual(report["map"]["merges_per_frame"], 0.5)
         self.assertEqual(report["governor"]["state"], "approaching_budget")
-
-
-if __name__ == "__main__":
-    unittest.main()
 
 
 class ReplayRegressionTests(unittest.TestCase):
@@ -550,12 +530,11 @@ class ProductServiceTests(unittest.TestCase):
         self,
     ):
         import json
+        import os
+        from unittest import mock
 
         from runtime.service import ProductRuntime
         from tests.test_runtime_player import _write_frame
-
-        import os
-        from unittest import mock
 
         mapper = require_binary(self, "VEYRA_BENCHMARK_BINARY", BENCHMARK_RELATIVE)
         with tempfile.TemporaryDirectory() as raw:
@@ -718,3 +697,112 @@ class ProductServiceTests(unittest.TestCase):
             with self.assertRaisesRegex(ValueError, "not available"):
                 service._benchmark_binary()
         service.close()
+
+
+# Low resource runtime
+
+
+class LowResourceRuntimeTests(unittest.TestCase):
+    def test_default_config_is_persistent_low_resource_and_limits_playback(self):
+        from runtime.config import validate_config
+
+        config = validate_config(
+            {
+                "dataset": "generic",
+                "dataset_root": "/tmp",
+                "sequence": "demo",
+            },
+            Path.cwd(),
+            check_paths=False,
+        )
+
+        self.assertEqual(config["preset"], "LowResource")
+        self.assertEqual(config["map"]["policy"], "distance_lod")
+        self.assertEqual(
+            config["visualization"],
+            {
+                "point_budget": 15000,
+                "cell_budget": 10000,
+                "update_hz": 2.0,
+                "max_in_flight": 1,
+            },
+        )
+        self.assertEqual(config["playback"]["frame_limit"], 30)
+        self.assertFalse(config["playback"]["full_sequence"])
+
+    def test_full_sequence_is_an_explicit_override(self):
+        from runtime.config import validate_config
+
+        config = validate_config(
+            {
+                "dataset": "generic",
+                "dataset_root": "/tmp",
+                "sequence": "demo",
+                "playback": {"full_sequence": True},
+            },
+            Path.cwd(),
+            check_paths=False,
+        )
+
+        self.assertTrue(config["playback"]["full_sequence"])
+        self.assertEqual(config["playback"]["frame_limit"], 30)
+
+    def test_command_visual_is_not_throttled_but_playback_visual_is(self):
+        import time
+
+        from runtime.config import validate_config
+        from runtime.service import ProductRuntime
+
+        runtime = ProductRuntime(Path.cwd())
+        runtime.config = validate_config(
+            {"dataset": "generic", "dataset_root": "/tmp", "sequence": "demo"},
+            Path.cwd(),
+            check_paths=False,
+        )
+        runtime.last_visual = time.monotonic()
+        try:
+            self.assertTrue(runtime._should_publish_visual(force_visual=True))
+            self.assertFalse(runtime._should_publish_visual(force_visual=False))
+        finally:
+            runtime.close()
+
+    def test_seek_outside_default_window_is_rejected_for_a_small_session(self):
+        from runtime.config import validate_config
+        from runtime.service import ProductRuntime
+        from tests.test_runtime_player import RuntimePlayerTests, _write_frame
+
+        runtime = ProductRuntime(Path.cwd())
+        with tempfile.TemporaryDirectory() as raw:
+            root = Path(raw)
+            for index in range(31):
+                _write_frame(root, "00000", f"{index:06d}", float(index))
+            _write_frame(root, "00001", "000000", 0.0)
+            runtime.session = RuntimePlayerTests()._runtime(root)
+            runtime.config = validate_config(
+                {"dataset": "rellis3d", "dataset_root": str(root), "sequence": "00000"},
+                Path.cwd(),
+                check_paths=False,
+            )
+            runtime._publish_status()
+            response = runtime.handle(
+                {"id": "seek", "command": "seek", "args": {"index": 30}}
+            )
+            self.assertFalse(response["ok"])
+            self.assertIn("between 0 and 29", response["error"]["message"])
+            runtime.close()
+
+    def test_runtime_rejects_a_second_frame_while_one_is_in_flight(self):
+        from runtime.service import ProductRuntime
+
+        runtime = ProductRuntime(Path.cwd())
+        runtime._frame_in_flight.acquire()
+        try:
+            with self.assertRaisesRegex(RuntimeError, "frame already in flight"):
+                runtime._process(0)
+        finally:
+            runtime._frame_in_flight.release()
+            runtime.close()
+
+
+if __name__ == "__main__":
+    unittest.main()

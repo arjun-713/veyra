@@ -162,4 +162,4 @@ real cached snapshots. It adds no inferred intermediate point clouds.
 Implementation: `runtime/{service,replay_cache,visualization}.py`,
 `apps/desktop/src/renderer/replay-clock.ts`, and `App.svelte` / `MapCanvas.svelte`.
 Regression tests: `tests/test_replay_cache.py`, `tests/test_replay_runtime.py`,
-and `apps/desktop/tests/replay-clock.test.ts`.
+and `apps/desktop/tests/replay.test.ts`.

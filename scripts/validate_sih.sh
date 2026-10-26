@@ -129,7 +129,7 @@ ctest --test-dir "$build_dir" --output-on-failure
 "$python_bin" -m unittest discover -s tests -p 'test*.py'
 ruff check benchmarks
 ruff format --check benchmarks/run_benchmark.py benchmarks/render_report.py \
-  benchmarks/test_product_benchmark.py benchmarks/test_render_report.py
+  benchmarks/test_product_benchmark.py benchmarks/test_quality_resource.py
 "$python_bin" -m compileall -q benchmarks datasets perception scripts tests
 bash -n benchmarks/run_local.sh scripts/validate_sih.sh
 

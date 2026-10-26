@@ -191,10 +191,11 @@ remain until signing credentials are configured.
 - **The frontend build step has a pinned directory.** `beforeBuildCommand` and
   `beforeDevCommand` run in `apps/desktop` explicitly. Otherwise the Tauri CLI
   picks `landing-page/` as the frontend and the build fails.
-- **DMG window styling needs Finder automation.** Tauri's DMG script styles the
-  window through Finder AppleScript. In a session without that permission it
-  fails after bundling `Veyra.app`. Building the DMG with
-  `bundle/dmg/bundle_dmg.sh --skip-jenkins` produces an unstyled image.
+- **CI creates an unstyled DMG from the signed app.** Tauri builds the `.app`;
+  `scripts/package_macos_dmg.py` verifies its signature, copies it with `ditto`,
+  adds the Applications shortcut, and creates/verifies a compressed image with
+  `hdiutil`. It avoids Finder automation and Tauri's editable-image detach step,
+  which timed out on Intel hosted runners. Both macOS architectures use this path.
 
 The configured native runners do not prove latest macOS, Windows 11 or Ubuntu
 install-and-launch compatibility. The [recorded Linux packaged-runtime checks](../../reports/closure/tauri/RESULT.md#phase-b-packaged-runtime)

@@ -152,15 +152,14 @@ jobs:
           ruff check benchmarks perception datasets
           viewer/runtime.py viewer/server.py
           scripts/fetch_semantic_model.py scripts/validate_perception.py
-          tests/test_perception_pipeline.py tests/test_salsanext.py tests/test_taxonomy.py
+          tests/test_perception_pipeline.py tests/test_semantic_provider.py tests/test_dataset_contract.py
           --ignore E402,SIM117,I001
       - name: Python formatting
         run: >-
           ruff format --check
           viewer/runtime.py viewer/server.py
           datasets/generic perception/semantic/salsanext.py
-          tests/test_generic_adapter.py tests/test_viewer_adapter_integration.py
-          tests/test_viewer_runtime_http.py
+          tests/test_dataset_contract.py tests/test_runtime_player.py
       - name: JavaScript syntax
         run: node --check viewer/static/app.js
       - name: Python syntax
